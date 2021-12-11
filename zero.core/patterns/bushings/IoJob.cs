@@ -89,7 +89,7 @@ namespace zero.core.patterns.bushings
 #if DEBUG
         public IoQueue<IoStateTransition<IoJobMeta.JobState>> StateTransitionHistory;
 #else
-        public IoStateTransition<IoJobMeta.JobState>[] StateTransitionHistory;
+        //public IoStateTransition<IoJobMeta.JobState>[] StateTransitionHistory;
 #endif
 
 
@@ -136,7 +136,7 @@ namespace zero.core.patterns.bushings
 
             await StateTransitionHistory.ClearAsync().FastPath().ConfigureAwait(Zc);
 #else
-            _stateMeta.Set((int)IoJobMeta.JobState.Undefined);
+                    _stateMeta.Set((int)IoJobMeta.JobState.Undefined);
 #endif
             FinalState = State = IoJobMeta.JobState.Undefined;
             Syncing = false;
@@ -145,27 +145,27 @@ namespace zero.core.patterns.bushings
 #if DEBUG
             return this;
 #else
-            return new ValueTask<IIoHeapItem>(this);
+                    return new ValueTask<IIoHeapItem>(this);
 #endif
         }
+
 
         /// <summary>
         /// zero unmanaged
         /// </summary>
         public override void ZeroUnmanaged()
         {
+            base.ZeroUnmanaged();
 #if DEBUG
             _stateHeap.ZeroUnmanaged();
 #endif
 
-            base.ZeroUnmanaged();
-
 #if SAFE_RELEASE
-            StateTransitionHistory = null;
             Source = null;
             PreviousJob = null;
 #if DEBUG
             _stateHeap = null;
+            StateTransitionHistory = null;
 #endif
 #endif
         }
@@ -211,17 +211,13 @@ namespace zero.core.patterns.bushings
         /// </summary>
         public void PrintStateHistory()
         {
-#if !DEBUG
-            return;
-#else
             var curState = _stateMeta.GetStartState();
 
             while (curState != null)
             {
                 PrintState(curState);
-                curState = (IoStateTransition<IoJobMeta.JobState>)curState.Next;
+                curState = curState.Next;
             }
-#endif
         }
 
         /// <summary>
@@ -241,36 +237,37 @@ namespace zero.core.patterns.bushings
         /// Log the state
         /// </summary>
         /// <param name="stateMeta">The instance to be printed</param>
-        public void PrintState(IoStateTransition<IoJobMeta.JobState> stateMeta, bool isRepeat = false)
+        public void PrintState(IoStateTransition<IoJobMeta.JobState> stateMeta)
         {
-            if (isRepeat)
-            {
-                _logger.Fatal("Production:{0} `{1}',[{2} {3}], [{4} ||{5}||], [{6} ({7})]",
+            //if (isRepeat)
+            //{
+            //    _logger.Fatal("Production:{0} `{1}',[{2} {3}], [{4} ||{5}||], [{6} ({7})]",
+            //        DateTimeOffset.FromUnixTimeMilliseconds(stateMeta.EnterTime),
+            //        Description,
+                    
+            //        stateMeta.Prev == null ? stateMeta.DefaultPadded : stateMeta.Prev.PaddedStr(),
+            //        (stateMeta.Lambda.ToString(CultureInfo.InvariantCulture) + " ms ").PadLeft(parm_id_pad_size),
+                    
+            //        stateMeta.PaddedStr(),(stateMeta.Mu.ToString(CultureInfo.InvariantCulture) + " ms ").PadLeft(parm_id_pad_size),
+                    
+            //        stateMeta.Next == null ? stateMeta.DefaultPadded : stateMeta.Next.PaddedStr(),
+            //        (stateMeta.Delta.ToString(CultureInfo.InvariantCulture) + " ms ").PadLeft(parm_id_pad_size));
+            //}
+            //else
+            //{
+                _logger.Error("Production:{0} `{1}',{2} ({3}) ~> {4} ({5}) ~> {6} ({7})",
                     DateTimeOffset.FromUnixTimeMilliseconds(stateMeta.EnterTime),
                     Description,
                     
                     stateMeta.Prev == null ? stateMeta.DefaultPadded : stateMeta.Prev.PaddedStr(),
                     (stateMeta.Lambda.ToString(CultureInfo.InvariantCulture) + " ms ").PadLeft(parm_id_pad_size),
                     
-                    stateMeta.PaddedStr(),(stateMeta.Mu.ToString(CultureInfo.InvariantCulture) + " ms ").PadLeft(parm_id_pad_size),
+                    stateMeta.PaddedStr(),
+                    (stateMeta.Mu.ToString(CultureInfo.InvariantCulture) + " ms ").PadLeft(parm_id_pad_size),
                     
                     stateMeta.Next == null ? stateMeta.DefaultPadded : stateMeta.Next.PaddedStr(),
                     (stateMeta.Delta.ToString(CultureInfo.InvariantCulture) + " ms ").PadLeft(parm_id_pad_size));
-            }
-            else
-            {
-                _logger.Error("Production:{0} `{1}',[{2} {3}], [{4} ||{5}||], [{6} ({7})]",
-                    DateTimeOffset.FromUnixTimeMilliseconds(stateMeta.EnterTime),
-                    Description,
-                    
-                    stateMeta.Prev == null ? stateMeta.DefaultPadded : stateMeta.Prev.PaddedStr(),
-                    (stateMeta.Lambda.ToString(CultureInfo.InvariantCulture) + " ms ").PadLeft(parm_id_pad_size),
-                    
-                    stateMeta.PaddedStr(),(stateMeta.Mu.ToString(CultureInfo.InvariantCulture) + " ms ").PadLeft(parm_id_pad_size),
-                    
-                    stateMeta.Next == null ? stateMeta.DefaultPadded : stateMeta.Next.PaddedStr(),
-                    (stateMeta.Delta.ToString(CultureInfo.InvariantCulture) + " ms ").PadLeft(parm_id_pad_size));
-            }
+            //}
         }
 
         /// <summary>
@@ -355,9 +352,9 @@ namespace zero.core.patterns.bushings
                 StateTransitionHistory.EnqueueAsync(_stateMeta).FastPath().GetAwaiter().GetResult();
                 
 #else
+                _stateMeta.ExitTime = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
                 _stateMeta.Set((int)value);
                 _stateMeta.EnterTime = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-                //_stateMeta.ExitTime = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
 #endif
 #if DEBUG
                 //terminate

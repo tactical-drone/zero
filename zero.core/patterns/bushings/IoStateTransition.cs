@@ -61,7 +61,7 @@ namespace zero.core.patterns.bushings
         /// <summary>
         /// The absolute time it took to mechanically transition from the previous state to this state. <see cref="EnterTime"/> - <see cref="IoQueue{T}.IoZNode.Prev"/>. <see cref="EnterTime"/>
         /// </summary>
-        public long Lambda => EnterTime - ((IoStateTransition<TState>)Prev)?.EnterTime??0;
+        public long Lambda => EnterTime - Prev?.EnterTime?? 0;
 
         /// <summary>
         /// The time it took between entering this state and exiting it
@@ -71,7 +71,7 @@ namespace zero.core.patterns.bushings
         /// <summary>
         /// The absolute time this job took so far
         /// </summary>
-        public long Delta => Prev == null ? Mu : ((IoStateTransition<TState>)Prev).Delta + Mu;
+        public long Delta => Prev == null ? Mu : Prev.Delta + Mu;
 
         /// <summary>
         /// Prepares this item for use after popped from the heap
@@ -134,7 +134,15 @@ namespace zero.core.patterns.bushings
         /// <returns>PreviousJob -> Current -> Next</returns>
         public override string ToString()
         {
-            return $"{Enum.GetName(typeof(TState), Prev.Value)} ~> [{Enum.GetName(typeof(TState),Value)}] ~> {Enum.GetName(typeof(TState), Next.Value)}";
+            string prevStr = string.Empty;
+            if (Prev != null)
+                prevStr = $"{Enum.GetName(typeof(TState), Prev.Value)} ~> ";
+
+            string nextStr = string.Empty;
+            if (Prev != null)
+                nextStr = $" ~> {Enum.GetName(typeof(TState), Next.Value)}";
+
+            return $"{prevStr}[{Enum.GetName(typeof(TState),Value)}]{nextStr}";
         }
 
         /// <summary>

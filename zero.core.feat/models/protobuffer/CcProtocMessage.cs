@@ -147,7 +147,7 @@ namespace zero.core.feat.models.protobuffer
 
                             job.State = IoJobMeta.JobState.Produced;
 
-                            _logger.Trace($"{job.Description} => {job.GetType().Name}[{job.Id}]: r = {job.BytesRead}, r = {job.BytesLeftToProcess}, dc = {job.DatumCount}, ds = {job.DatumSize}, f = {job.DatumFragmentLength}, b = {job.BytesLeftToProcess}/{job.BufferSize + job.DatumProvisionLengthMax}, b = {(int)(job.BytesLeftToProcess / (double)(job.BufferSize + job.DatumProvisionLengthMax) * 100)}%");
+                            //_logger.Trace($"{job.Description} => {job.GetType().Name}[{job.Id}]: r = {job.BytesRead}, r = {job.BytesLeftToProcess}, dc = {job.DatumCount}, ds = {job.DatumSize}, f = {job.DatumFragmentLength}, b = {job.BytesLeftToProcess}/{job.BufferSize + job.DatumProvisionLengthMax}, b = {(int)(job.BytesLeftToProcess / (double)(job.BufferSize + job.DatumProvisionLengthMax) * 100)}%");
                         }
                         else
                         {

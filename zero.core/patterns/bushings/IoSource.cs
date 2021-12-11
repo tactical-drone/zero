@@ -11,7 +11,6 @@ using zero.core.data.contracts;
 using zero.core.patterns.bushings.contracts;
 using zero.core.patterns.misc;
 using zero.core.patterns.semaphore;
-using zero.core.patterns.semaphore.core;
 
 namespace zero.core.patterns.bushings
 {
@@ -23,7 +22,8 @@ namespace zero.core.patterns.bushings
         /// <summary>
         /// Constructor
         /// </summary>
-        protected IoSource(string description, bool proxy, int prefetchSize = 1, int concurrencyLevel = 1, int maxAsyncSources = 0) : base(description, concurrencyLevel)
+        protected IoSource(string description, bool proxy, int prefetchSize = 1, int concurrencyLevel = 1,
+            int maxAsyncSources = 0, bool disableZero = false) : base(description, prefetchSize)
         {
             _logger = LogManager.GetCurrentClassLogger();
             
@@ -36,6 +36,14 @@ namespace zero.core.patterns.bushings
             //if (maxAsyncSources > concurrencyLevel)
             //    throw new ArgumentOutOfRangeException($"{description}: invalid {nameof(concurrencyLevel)} = {concurrencyLevel}, must be at least {nameof(maxAsyncSources)} = {maxAsyncSources}");
 
+            if (disableZero)
+            {
+                DisableZero = true;
+                PressureEnabled = false;
+                PrefetchEnabled = false;
+                BackPressureEnabled = false;
+            }
+
             Proxy = proxy;
             PrefetchSize = prefetchSize;
             MaxAsyncSources = maxAsyncSources;
@@ -43,18 +51,27 @@ namespace zero.core.patterns.bushings
 
             try
             {
-                _pressure = new IoZeroSemaphoreSlim(AsyncTasks, $"{nameof(_pressure)}: {description}",
-                    maxBlockers: concurrencyLevel + MaxAsyncSources, maxAsyncWork: MaxAsyncSources);
+                if (PressureEnabled)
+                {
+                    _pressure = new IoZeroSemaphoreSlim(AsyncTasks, $"{nameof(_pressure)}: {description}",
+                        maxBlockers: concurrencyLevel + MaxAsyncSources, maxAsyncWork: MaxAsyncSources);
+                }
 
-                _backPressure = new IoZeroSemaphoreSlim(AsyncTasks, $"{nameof(_backPressure)}: {description}",
-                    maxBlockers: concurrencyLevel + MaxAsyncSources + prefetchSize,
-                    initialCount: prefetchSize + MaxAsyncSources,
-                    maxAsyncWork: MaxAsyncSources);
+                if (BackPressureEnabled)
+                {
+                    _backPressure = new IoZeroSemaphoreSlim(AsyncTasks, $"{nameof(_backPressure)}: {description}",
+                        maxBlockers: concurrencyLevel + MaxAsyncSources + prefetchSize,
+                        initialCount: prefetchSize + MaxAsyncSources,
+                        maxAsyncWork: MaxAsyncSources);
+                }
 
-                _prefetchPressure = new IoZeroSemaphoreSlim(AsyncTasks, $"{nameof(_prefetchPressure)}: {description}"
-                    , maxBlockers: concurrencyLevel + MaxAsyncSources + prefetchSize,
-                    initialCount: prefetchSize + MaxAsyncSources,
-                    maxAsyncWork: MaxAsyncSources);
+                if (PrefetchEnabled)
+                {
+                    _prefetchPressure = new IoZeroSemaphoreSlim(AsyncTasks, $"{nameof(_prefetchPressure)}: {description}"
+                        , maxBlockers: concurrencyLevel + MaxAsyncSources + prefetchSize,
+                        initialCount: prefetchSize + MaxAsyncSources,
+                        maxAsyncWork: MaxAsyncSources);
+                }
             }
             catch (Exception e)
             {
@@ -114,7 +131,13 @@ namespace zero.core.patterns.bushings
         /// in the presence of concurrent production
         /// </summary>
         public bool PrefetchEnabled { get; protected set; } = true;
-        
+
+        public bool PressureEnabled { get; protected set; } = true;
+
+        public bool BackPressureEnabled { get; protected set; } = true;
+
+
+        public bool DisableZero { get; protected set; } = true;
         /// <summary>
         /// The next job Id
         /// </summary>
@@ -161,6 +184,11 @@ namespace zero.core.patterns.bushings
         public bool AsyncEnabled { get; protected set; }
 
         public bool Proxy { get; }
+
+        /// <summary>
+        /// Current number of items in the Q
+        /// </summary>
+        public int Count => _backPressure?.CurNrOfBlockers?? 0;
 
         /// <summary>
         /// Used to identify work that was done recently
@@ -271,9 +299,9 @@ namespace zero.core.patterns.bushings
         /// <param name="jobMalloc">Used to allocate jobs</param>
         /// <returns></returns>
         public ValueTask<IoConduit<TFJob>> CreateConduitOnceAsync<TFJob>(string id,
-            int concurrencyLevel = 1, 
+            
             IoSource<TFJob> channelSource = null,
-            Func<object, IIoNanite, IoSink<TFJob>> jobMalloc = null) where TFJob : IIoJob
+            Func<object, IIoNanite, IoSink<TFJob>> jobMalloc = null, int concurrencyLevel = 1) where TFJob : IIoJob
         {
             if (channelSource != null && !IoConduits.ContainsKey(id))
             {
@@ -372,9 +400,9 @@ namespace zero.core.patterns.bushings
 
                 var ave = Interlocked.Read(ref ServiceTimes[i]) / (count);
 
-                if (i > (int)IoJobMeta.JobState.Undefined  && i < (int)IoJobMeta.JobState.Halted)
+                if (i is > (int)IoJobMeta.JobState.Undefined and < (int)IoJobMeta.JobState.Halted)
                 {
-                    heading.Append($"{((IoJobMeta.JobState)i).ToString().PadLeft(padding)} {count.ToString().PadLeft(7)} | ");
+                    heading.Append($"{((IoJobMeta.JobState)i).ToString().PadLeft(padding)} {count.ToString(),7} | ");
                     str.Append($"{$"{ave:0,000.0}ms".ToString(CultureInfo.InvariantCulture).PadLeft(padding + 8)} | ");
                 }
             }
@@ -402,7 +430,7 @@ namespace zero.core.patterns.bushings
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public ValueTask<int> PressureAsync(int releaseCount = 1)
         {
-            return new ValueTask<int>(_pressure.Release(releaseCount));
+            return new ValueTask<int>(PressureEnabled ? _pressure.Release(releaseCount) : releaseCount);
         }
 
         /// <summary>
@@ -413,7 +441,7 @@ namespace zero.core.patterns.bushings
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public ValueTask<bool> WaitForPressureAsync()
         {
-            return _pressure.WaitAsync();
+            return PressureEnabled? _pressure.WaitAsync() : new ValueTask<bool>(true);
         }
 
         /// <summary>
@@ -424,7 +452,7 @@ namespace zero.core.patterns.bushings
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public int BackPressureAsync(int releaseCount = 1)
         {
-            return _backPressure.Release(releaseCount);
+            return BackPressureEnabled ? _backPressure.Release(releaseCount) : releaseCount;
         }
 
         /// <summary>
@@ -435,7 +463,7 @@ namespace zero.core.patterns.bushings
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public ValueTask<bool> WaitForBackPressureAsync()
         {
-            return _backPressure.WaitAsync();
+            return BackPressureEnabled ? _backPressure.WaitAsync() : new ValueTask<bool>(true);
         }
         
         /// <summary>
@@ -445,7 +473,7 @@ namespace zero.core.patterns.bushings
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public int PrefetchPressure(int releaseCount = 1)
         {
-            return _prefetchPressure.Release(releaseCount);
+            return PrefetchEnabled ? _prefetchPressure.Release(releaseCount) : releaseCount;
         }
 
         /// <summary>
@@ -456,7 +484,7 @@ namespace zero.core.patterns.bushings
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public ValueTask<bool> WaitForPrefetchPressureAsync()
         {
-            return _prefetchPressure.WaitAsync();
+            return PrefetchEnabled ? _prefetchPressure.WaitAsync() : new ValueTask<bool>(true);
         }
     }
 }

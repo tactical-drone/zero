@@ -9,7 +9,7 @@
 
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
     <GenerateSerializationAssemblies>Off</GenerateSerializationAssemblies>
-    <DefineConstants>SAFE_RELEASE;GOOGLE_PROTOBUF_SUPPORT_SYSTEM_MEMORY</DefineConstants>
+    <DefineConstants>SAFE_RELEASE;GOOGLE_PROTOBUF_SUPPORT_SYSTEM_MEMORY;DEBUG</DefineConstants>
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|AnyCPU'">
@@ -17,7 +17,7 @@
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Trace|AnyCPU'">
-    <DefineConstants>TRACE;RELEASE;SAFE_RELEASE;GOOGLE_PROTOBUF_SUPPORT_SYSTEM_MEMORY</DefineConstants>
+    <DefineConstants>SAFE_RELEASE;GOOGLE_PROTOBUF_SUPPORT_SYSTEM_MEMORY; TRACE</DefineConstants>
   </PropertyGroup>
 
   <ItemGroup>

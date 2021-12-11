@@ -1,5 +1,4 @@
 ﻿using System;
-using System.Diagnostics;
 using System.Net;
 using System.Net.Sockets;
 using System.Runtime.CompilerServices;
@@ -9,7 +8,6 @@ using NLog;
 using zero.core.patterns.heap;
 using zero.core.patterns.misc;
 using zero.core.patterns.semaphore;
-using zero.core.patterns.semaphore.core;
 
 namespace zero.core.network.ip
 {
@@ -25,7 +23,7 @@ namespace zero.core.network.ip
         /// <param name="concurrencyLevel"></param>
         public IoUdpSocket(int concurrencyLevel) : base(SocketType.Dgram, ProtocolType.Udp, concurrencyLevel)
         {
-            Init(concurrencyLevel,false);
+            Init(concurrencyLevel, false);
             Proxy = true;
         }
 
@@ -37,9 +35,12 @@ namespace zero.core.network.ip
         /// <param name="concurrencyLevel"></param>
         public IoUdpSocket(Socket nativeSocket, IPEndPoint remoteEndPoint, int concurrencyLevel) : base(nativeSocket, remoteEndPoint)
         {
-            Init(concurrencyLevel);
+            Init(16);//TODO tuning
         }
 
+
+        readonly IoManualResetValueTaskSource<bool> _tcs = new();
+        readonly IoManualResetValueTaskSource<bool> _tcr = new();
 
         /// <summary>
         /// Initializes the socket
@@ -72,6 +73,7 @@ namespace zero.core.network.ip
                     {
                         var args = new SocketAsyncEventArgs { RemoteEndPoint = new IPEndPoint(0, 0) };
                         args.Completed += @this.SignalAsync;
+                        args.UserToken = @this._tcr;
                         return args;
                     },
                     Context = this
@@ -84,6 +86,7 @@ namespace zero.core.network.ip
                 {
                     var args = new SocketAsyncEventArgs();
                     args.Completed += @this.SignalAsync;
+                    args.UserToken = @this._tcs;
                     return args;
                 },
                 Context = this
@@ -362,15 +365,14 @@ namespace zero.core.network.ip
                 if (args == null)
                     throw new OutOfMemoryException(nameof(_sendArgs));
 
-                var tcs = new IoManualResetValueTaskSource<bool>();
-
                 var buf = Unsafe.As<ReadOnlyMemory<byte>, Memory<byte>>(ref buffer).Slice(offset, length);
+
+                _tcs.Reset();
                 args.SetBuffer(buf);
                 args.RemoteEndPoint = endPoint;
-                args.UserToken = tcs;
 
                 //receive
-                if (NativeSocket.SendToAsync(args) && !await tcs.WaitAsync().FastPath().ConfigureAwait(Zc))
+                if (NativeSocket.SendToAsync(args) && !await _tcs.WaitAsync().FastPath().ConfigureAwait(Zc))
                     return 0;
 
                 return args.SocketError == SocketError.Success ? args.BytesTransferred : 0;
@@ -410,7 +412,9 @@ namespace zero.core.network.ip
         {
             try
             {
-                ((IoManualResetValueTaskSource<bool>)eventArgs.UserToken).SetResult(eventArgs.SocketError == SocketError.Success);
+                var tcs = (IoManualResetValueTaskSource<bool>)eventArgs.UserToken;
+
+                ((IoManualResetValueTaskSource<bool>)eventArgs.UserToken).SetResult(eventArgs.SocketError == SocketError.Success && tcs.GetStatus(tcs.Version) == System.Threading.Tasks.Sources.ValueTaskSourceStatus.Pending);
             }
             catch(Exception) when(Zeroed()){}
             catch(Exception e) when (!Zeroed())
@@ -458,16 +462,15 @@ namespace zero.core.network.ip
                     try
                     {
                         args = _recvArgs.Take();
-                        var tcs = new IoManualResetValueTaskSource<bool>();
                         
                         if (args == null)
                             throw new OutOfMemoryException(nameof(_recvArgs));
 
+                        _tcr.Reset();
                         args.SetBuffer(buffer.Slice(offset, length));
-                        args.UserToken = tcs;
                         args.RemoteEndPoint = remoteEp;
 
-                        if (NativeSocket.ReceiveFromAsync(args) && !await tcs.WaitAsync().FastPath().ConfigureAwait(Zc))
+                        if (NativeSocket.ReceiveFromAsync(args) && !await _tcr.WaitAsync().FastPath().ConfigureAwait(Zc))
                         {
                             return 0;
                         }

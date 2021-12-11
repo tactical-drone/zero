@@ -31,16 +31,14 @@ namespace zero.core.patterns.queue
         /// <summary>
         /// constructor
         /// </summary>
-        public IoQueue(string description, int capacity, int concurrencyLevel, bool enableBackPressure = false, bool disablePressure = true, bool autoScale = false)
+        public IoQueue(string description, int capacity, int concurrencyLevel, int initialCount = 0, bool enableBackPressure = false, bool disablePressure = true, bool autoScale = false)
         {
             _description = description;
 
-            string desc;
-
 #if DEBUG
-            desc = $"{nameof(_nodeHeap)}: {_description}";
+            string desc = $"{nameof(_nodeHeap)}: {_description}";
 #else
-            desc = "";
+            string desc = string.Empty;
 #endif
 
             _nodeHeap = new IoHeap<IoZNode>(desc, capacity, autoScale: autoScale) {Malloc = static (_,_) => new IoZNode()};
@@ -386,11 +384,12 @@ namespace zero.core.patterns.queue
             Debug.Assert(_backPressure == null);
             try
             {
-                if (_zeroed > 0 || node == null)
-                    return false;
-
                 if (!await _syncRoot.WaitAsync().FastPath().ConfigureAwait(Zc) || _zeroed > 0)
                     return false;
+
+                if (_count == 0 || _zeroed > 0 || node == null)
+                    return false;
+
                 _curEnumerator.Modified = true;
 
                 if (node.Prev != null)

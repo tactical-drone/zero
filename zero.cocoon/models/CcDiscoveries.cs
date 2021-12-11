@@ -35,19 +35,23 @@ namespace zero.cocoon.models
             {
                 IoZero = (IIoZero)localContext;
                 _configured = true;
+                var cc = 1;
+                var pf = 3;
+                var ac = 0;
                 if (!Source.Proxy && ((CcAdjunct)IoZero)!.CcCollective.ZeroDrone)
                 {
                     parm_max_msg_batch_size *= 2;
+                    cc = 8;
+                    pf = 16;
+                    ac = 8;
                     //_groupByEp = true;
                 }
 
-                string bashDesc;
 #if DEBUG
-                bashDesc = $"{nameof(_batchHeap)}: {Description}";
+                string bashDesc = $"{nameof(_batchHeap)}: {Description}";
 #else
-                bashDesc = string.Empty;
+                string bashDesc = string.Empty;
 #endif
-                
 
                 _batchHeap ??= new IoHeap<CcDiscoveryBatch, CcDiscoveries>(bashDesc, parm_max_msg_batch_size)
                 {
@@ -66,13 +70,12 @@ namespace zero.cocoon.models
                 if (ProtocolConduit == null)
                 {
                     //TODO tuning
-                    var channelSource = new CcProtocBatchSource<chroniton, CcDiscoveryBatch>(Description, MessageService, parm_max_msg_batch_size, 2, 1, 0);
+                    var channelSource = new CcProtocBatchSource<chroniton, CcDiscoveryBatch>(Description, MessageService, parm_max_msg_batch_size, pf, cc, ac, true);
                     ProtocolConduit = await MessageService.CreateConduitOnceAsync(
                         conduitId,
-                        1,
                         channelSource,
                         static (ioZero, _) => new CcProtocBatchJob<chroniton, CcDiscoveryBatch>(
-                            (IoSource<CcProtocBatchJob<chroniton, CcDiscoveryBatch>>)((IIoConduit)ioZero).UpstreamSource, ((IIoConduit)ioZero).ZeroConcurrencyLevel())).FastPath().ConfigureAwait(Zc);
+                            (IoSource<CcProtocBatchJob<chroniton, CcDiscoveryBatch>>)((IIoConduit)ioZero).UpstreamSource, ((IIoConduit)ioZero).ZeroConcurrencyLevel()), pf).FastPath().ConfigureAwait(Zc);
                 }
             }
             
@@ -145,8 +148,8 @@ namespace zero.cocoon.models
             Handshake = 1,
             Probe = 10,
             Probed = 11,
-            Sweep = 12,
-            Swept = 13,
+            Scan = 12,
+            Adjuncts = 13,
             Fuse = 20,
             Fused = 21,
             Defuse = 22
@@ -210,8 +213,12 @@ namespace zero.cocoon.models
                 var totalBytesProcessed = 0;
                 var verified = false;
 
+                var c = 0;
                 while (totalBytesProcessed < BytesRead && State != IoJobMeta.JobState.ConInlined)
                 {
+                    if(c++ > 1)
+                        _logger.Fatal("MULTI!!!");
+
                     chroniton packet = null;
                     long curPos = 0;
                     var read = 0;
@@ -250,6 +257,9 @@ namespace zero.cocoon.models
                         
                         try
                         {
+                            if(((CcAdjunct)IoZero).CcCollective.ZeroDrone)
+                                Console.WriteLine($". {IoZero.IoSource.Count}");
+
                             packet = chroniton.Parser.ParseFrom(ReadOnlySequence.Slice(BufferOffset, BytesRead));
                             read = packet.CalculateSize();
                         }
@@ -372,11 +382,11 @@ namespace zero.cocoon.models
                         case MessageTypes.Probed:
                             await ZeroBatchRequestAsync(packet, CcProbeResponse.Parser).FastPath().ConfigureAwait(Zc);
                             break;
-                        case MessageTypes.Sweep:
-                            await ZeroBatchRequestAsync(packet, CcSweepRequest.Parser).FastPath().ConfigureAwait(Zc);
+                        case MessageTypes.Scan:
+                            await ZeroBatchRequestAsync(packet, CcScanRequest.Parser).FastPath().ConfigureAwait(Zc);
                             break;
-                        case MessageTypes.Swept:
-                            await ZeroBatchRequestAsync(packet, CcSweepResponse.Parser).FastPath().ConfigureAwait(Zc);
+                        case MessageTypes.Adjuncts:
+                            await ZeroBatchRequestAsync(packet, CcAdjunctResponse.Parser).FastPath().ConfigureAwait(Zc);
                             break;
                         case MessageTypes.Fuse:
                             await ZeroBatchRequestAsync(packet, CcFuseRequest.Parser).FastPath().ConfigureAwait(Zc);
@@ -438,7 +448,7 @@ namespace zero.cocoon.models
         /// <param name="messageParser"></param>
         /// <typeparam name="T">The expected type</typeparam>
         /// <returns>The task</returns>
-        private ValueTask ZeroBatchRequestAsync<T>(chroniton packet, MessageParser<T> messageParser)
+        private async ValueTask ZeroBatchRequestAsync<T>(chroniton packet, MessageParser<T> messageParser)
             where T : IMessage<T>, IMessage, new()
         {
             try
@@ -492,15 +502,7 @@ namespace zero.cocoon.models
                     //    ingressEpBytes = RemoteEndPoint.AsBytes();
                     //}
 
-                    //if (_currentBatch.Count >= parm_max_msg_batch_size || !(routingSuccess = _currentBatch.RemoteEndPoint.ArrayEqual(ingressEpBytes)))
-                    //{
-                    //    if (!routingSuccess)
-                    //    {
-                    //        _logger.Warn($"{nameof(CcDiscoveries)}: Internal msg routing SRC fragmented: next = {ingressEpBytes}, prev = {_currentBatch.RemoteEndPoint.GetEndpoint()}, count = {_currentBatch.Count}");
-                    //    }
-                    //    await ZeroBatchAsync().FastPath().ConfigureAwait(Zc);
-                    //    _currentBatch.RemoteEndPoint = ingressEpBytes;
-                    //}
+                    
 
                     if (!_groupByEp)
                     {
@@ -522,6 +524,12 @@ namespace zero.cocoon.models
                             _currentBatch.GroupBy[groupKey].Add(batchMsg);
                         }
                     }
+
+                    if (_currentBatch.Count >= parm_max_msg_batch_size)
+                    {
+                        await ZeroBatchAsync().FastPath().ConfigureAwait(Zc);
+                    }
+
                 }
             }
             catch when(Zeroed()){}
@@ -530,8 +538,6 @@ namespace zero.cocoon.models
                 _logger.Error(e,
                     $"Unable to parse request type {typeof(T).Name} from {Convert.ToBase64String(packet.PublicKey.Memory.AsArray())}, size = {packet.Data.Length}");
             }
-
-            return default;
         }
 
         /// <summary>

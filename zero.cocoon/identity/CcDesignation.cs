@@ -26,8 +26,6 @@ namespace zero.cocoon.identity
 
         private string _id;
         private byte[] Id { get; set; }
-
-        private string _pk;
         public byte[] PublicKey { get; set; }
         private byte[] SecretKey { get; set; }
 

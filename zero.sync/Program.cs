@@ -78,12 +78,12 @@ namespace zero.sync
 
             var random = new Random((int)DateTime.Now.Ticks);
             //Tangle("tcp://192.168.1.2:15600");
-            var total = 2;
+            var total = 350;
             var maxDrones = 9;
             var maxAdjuncts = 18;
-            var boot = false;
+            var boot = true;
 
-            ConcurrentBag<Task<CcCollective>> tasks  = new ConcurrentBag<Task<CcCollective>>();
+            var tasks  = new ConcurrentBag<Task<CcCollective>>();
             if (boot)
             {
                 var t1 = CoCoonAsync(CcDesignation.Generate(true), $"tcp://127.0.0.1:{1234}", $"udp://127.0.0.1:{1234}",
@@ -199,25 +199,23 @@ namespace zero.sync
                     Console.WriteLine($"Spawned {tasks.Count}/{total}...");
             }
 
-            //Console.WriteLine("Prepping...");
-            //Thread.Sleep(10000);
-            
             var task = Task.Factory.StartNew(async () =>
             {
                 Console.WriteLine($"Starting auto peering...  {tasks.Count}");
                 var c = 1;
                 var rateLimit = 9000;
                 var injectionCount = 75;
-                var rampDelay = 4000;
+                var rampDelay = 2000;
                 foreach (var task in tasks)
                 {
-
                     await Task.Factory.StartNew(async () =>
                     {
                         if (task.Status == TaskStatus.Created)
                         {
-                            Console.Write($"added {c}/{tasks.Count}");
-                            task.Start();
+                            if (c == 1)
+                                await Task.Delay(5000);
+                            Console.WriteLine($"added {c++}/{tasks.Count}");
+                            task.Start(TaskScheduler.Default);
                         }
                         else
                         {
@@ -230,11 +228,11 @@ namespace zero.sync
                             Console.WriteLine($"Queen brought up {queen.Description}");
                         }
 
-                    }, TaskCreationOptions.DenyChildAttach).Unwrap();
+                    }, TaskCreationOptions.DenyChildAttach | TaskCreationOptions.LongRunning).Unwrap();
 
                     if (c % injectionCount == 0)
                     {
-                        await Task.Delay(rateLimit += 10).ConfigureAwait(Zc);
+                        await Task.Delay(rateLimit += 10);
 
                         Console.WriteLine($"Provisioned {c}/{total}...");
                         Console.WriteLine($"Provisioned {c}/{total}...");
@@ -245,10 +243,9 @@ namespace zero.sync
                         if(injectionCount > 40)
                             injectionCount--;
                     }
-                    await Task.Delay(rampDelay).ConfigureAwait(Zc);
-                    rampDelay -= 4;
-
-                    c++;
+                    await Task.Delay(rampDelay);
+                    if(rampDelay -1 > 0)
+                        rampDelay -= 1;
                 }
             }, TaskCreationOptions.DenyChildAttach);
 
@@ -892,7 +889,7 @@ namespace zero.sync
             var eq3_fps = 0.0;
             var dq_fps = new double[10];
             var r = new Random();
-            var dq = new uint[10];
+            var dq = new long[10];
 
             //TaskCreationOptions options = TaskCreationOptions.LongRunning | TaskCreationOptions.PreferFairness | TaskCreationOptions.RunContinuationsAsynchronously;
             //TaskCreationOptions options = TaskCreationOptions.None;
@@ -1083,7 +1080,7 @@ namespace zero.sync
                {
                    try
                    {
-                       var curCount = 1;
+                       var curCount = 0;
                        
                        while (releasers > 0)
                        {
@@ -1100,7 +1097,9 @@ namespace zero.sync
                                Interlocked.Add(ref semCount, curCount = mutex.Release(releaseCount));
 
                                Interlocked.Increment(ref semPollCount);
-                               Interlocked.Increment(ref dq[i1]);
+
+                               if(curCount > 0)
+                                    Interlocked.Add(ref dq[i1], releaseCount);
                            }
                            catch (SemaphoreFullException)
                            {
@@ -1112,7 +1111,7 @@ namespace zero.sync
 
                                //Console.WriteLine($"Throttling: {val} ms, curCount = {mutex.ReadyCount}");
                                var ts = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-                               await Task.Delay(0, asyncTasks.Token).ConfigureAwait(Zc);
+                               await Task.Delay(1, asyncTasks.Token).ConfigureAwait(Zc);
                                if (ts.ElapsedMs() > 1200)
                                {
                                    Console.WriteLine($"{ts.ElapsedMs()} ms late");
@@ -1229,7 +1228,7 @@ namespace zero.sync
                 IoNodeAddress.Create(fpcAddress),
                 IoNodeAddress.Create(extAddress),
                 bootStrapAddress.Select(IoNodeAddress.Create).Where(a => a.Port.ToString() != peerAddress.Split(":")[2]).ToList(),
-                2, 2, 1, 1, zeroDrone);
+                3, 3, 1, 1, zeroDrone);
 
             _nodes.Add(cocoon);
 

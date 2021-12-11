@@ -21,7 +21,6 @@ namespace zero.core.patterns.heap
         /// <param name="description"></param>
         /// <param name="maxSize"></param>
         /// <param name="context"></param>
-        /// <param name="enablePerf"></param>
         /// <param name="autoScale"></param>
         public IoHeapIo(string description, int maxSize, bool autoScale = false, TContext context = null) : base(description, maxSize, autoScale, context)
         {
@@ -104,7 +103,7 @@ namespace zero.core.patterns.heap
             base.Return(item, zero);
 
             if (zero || Zeroed)
-                item.Zero(null, $"{nameof(IoHeapIo<TItem, TContext>)}: teardown");
+                item.Zero(null, $"{nameof(IoHeapIo<TItem, TContext>)}: teardown direct = {zero}, cascade = {Zeroed}");
         }
     }
 

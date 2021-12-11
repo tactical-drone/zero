@@ -1,6 +1,5 @@
 ﻿//#define TOKEN //TODO this primitive does not work this way
 using System;
-using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
@@ -40,8 +39,8 @@ namespace zero.core.patterns.semaphore.core
                 throw new ZeroValidationException($"{_description}: invalid {nameof(maxBlockers)} = {maxBlockers} specified, value must be larger than 0");
             if(initialCount < 0)
                 throw new ZeroValidationException($"{_description}: invalid {nameof(initialCount)} = {initialCount} specified, value may not be less than 0");
-            if(initialCount > maxBlockers * 2)
-                throw new ZeroValidationException($"{_description}: invalid {nameof(initialCount)} = {initialCount} specified, larger than {nameof(maxBlockers)} * 2 = {maxBlockers * 2}");
+            if(asyncWorkerCount > maxBlockers)
+                throw new ZeroValidationException($"{_description}: invalid {nameof(asyncWorkerCount)} = {asyncWorkerCount} specified, must less of equal to maxBlockers");
 
             _maxBlockers = maxBlockers;
             _useMemoryBarrier = enableFairQ;
@@ -63,6 +62,17 @@ namespace zero.core.patterns.semaphore.core
 
             _head = 0;
             _tail = 0;
+            ZeroSentinel = CompletionSentinel;
+        }
+
+        /// <summary>
+        /// Locks a continuation in place so that it can be worked with
+        /// </summary>
+        /// <param name="_"></param>
+        /// <exception cref="InvalidOperationException"></exception>
+        private static void CompletionSentinel(object _)
+        {
+            throw new InvalidOperationException();
         }
 
         #region settings
@@ -196,6 +206,11 @@ namespace zero.core.patterns.semaphore.core
         /// </summary>
         private volatile int _zeroed;
 
+        /// <summary>
+        /// Used for locking
+        /// </summary>
+        internal static Action<object> ZeroSentinel;
+
         #endregion
 
         #region core
@@ -270,7 +285,7 @@ namespace zero.core.patterns.semaphore.core
             var i = 0;
             while (i < _signalAwaiter.Length)
             {
-                var waiter = Interlocked.CompareExchange(ref _signalAwaiter[i], null, _signalAwaiter[i]);
+                var waiter = Interlocked.CompareExchange(ref _signalAwaiter[i], ZeroSentinel, _signalAwaiter[i]);
                 if (waiter != null)
                 {
                     var state = _signalAwaiterState[i];
@@ -280,6 +295,8 @@ namespace zero.core.patterns.semaphore.core
                     _signalAwaiterState[i] = null;
                     _signalExecutionState[i] = null;
                     _signalCapturedContext[i] = null;
+                    Thread.MemoryBarrier();
+                    _signalAwaiter[i] = null;
 
                     try
                     {
@@ -383,7 +400,6 @@ namespace zero.core.patterns.semaphore.core
             if (_zeroRef.ZeroToken() != token)
                 throw new ZeroValidationException($"{Description}: Invalid token: wants = {token}, has = {_token}");
 #endif
-
             try
             {
                 if (_zeroRef == null || _zeroRef.IsCancellationRequested() || _zeroRef.Zeroed())
@@ -394,12 +410,7 @@ namespace zero.core.patterns.semaphore.core
                 return ValueTaskSourceStatus.Canceled;
             }
 
-            if (_zeroRef.ZeroEnter())
-            {
-                return ValueTaskSourceStatus.Succeeded;
-            }
-
-            return  ValueTaskSourceStatus.Pending;
+            return ValueTaskSourceStatus.Pending;
         }
 
         
@@ -418,8 +429,18 @@ namespace zero.core.patterns.semaphore.core
                 throw new ZeroValidationException($"{Description}: Invalid token: wants = {token}, has = {_zeroRef.ZeroToken()}");
 #endif
 
-            ExecutionContext executionContext;
-            object capturedContext;
+#if DEBUG
+            if (state == null)
+                throw new ArgumentNullException(nameof(state));
+
+            if (continuation == null)
+                throw new ArgumentNullException(nameof(continuation));
+#endif
+            if (state == null)
+                throw new ArgumentNullException(nameof(state));
+
+            if (continuation == null)
+                throw new ArgumentNullException(nameof(continuation));
 
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
             void ExtractStack(out ExecutionContext ec, out object cc)
@@ -427,15 +448,14 @@ namespace zero.core.patterns.semaphore.core
                 ec = null;
                 cc = null;
                 if ((flags & ValueTaskSourceOnCompletedFlags.FlowExecutionContext) != 0)
-                {
                     ec = ExecutionContext.Capture();
-                }
 
                 if ((flags & ValueTaskSourceOnCompletedFlags.UseSchedulingContext) == 0) return;
 
-                if (SynchronizationContext.Current != null)
+                var sc  = SynchronizationContext.Current;
+                if (sc != null && sc.GetType() != typeof(SynchronizationContext))
                 {
-                    cc = SynchronizationContext.Current;
+                    cc = sc;
                 }
                 else
                 {
@@ -446,17 +466,21 @@ namespace zero.core.patterns.semaphore.core
             }
 
             //fast path, RACES with SetResult through _zeroRef. 
-            if (_zeroRef.ZeroEnter())
+            int latch;
+            if ((latch = _zeroRef.ZeroEnter()) > 0)
             {
-                if (Release(1, bestEffort: true) != 1)
+                if (latch == 1 || Release(1, bestEffort: true) != 1)
                 {
-                    ExtractStack(out executionContext, out capturedContext);
-                    ZeroComply(continuation, state, executionContext, capturedContext, true, Zeroed() || state is IIoNanite nanite && nanite.Zeroed());
+                    TaskScheduler cc = null;
+                    if (TaskScheduler.Current != TaskScheduler.Default)
+                        cc = TaskScheduler.Current;
+
+                    InvokeContinuation(continuation, state, cc, true);
+
                     return;
                 }
+                Console.WriteLine("QUEUE");
             }
-
-            ExtractStack(out executionContext, out capturedContext);
 
             //lock
             ZeroLock();
@@ -464,21 +488,31 @@ namespace zero.core.patterns.semaphore.core
             //choose a head index for blocking state
             var headIdx = (_zeroRef.ZeroNextHead() - 1) % _maxBlockers;
             Action<object> slot = null;
+
             //Did we win?
-            while ( _zeroRef.ZeroWaitCount() < _maxBlockers && (slot = Interlocked.CompareExchange(ref _signalAwaiter[headIdx], continuation, null)) != null )
-            {                
+            while ( _zeroRef.ZeroWaitCount() < _maxBlockers && (slot = Interlocked.CompareExchange(ref _signalAwaiter[headIdx], ZeroSentinel, null)) != null)
+            {
+                if (slot == ZeroSentinel) continue;
+
                 _zeroRef.ZeroPrevHead();
                 headIdx = (_zeroRef.ZeroNextHead() - 1) % _maxBlockers;
             }
             
             if (slot == null)
             {
-                _signalExecutionState[headIdx] = executionContext;
-                _signalCapturedContext[headIdx] = capturedContext;
-                Thread.MemoryBarrier();
-                _signalAwaiterState[headIdx] = state;
-                
+                ExtractStack(out var executionContext, out var capturedContext);
+                Volatile.Write(ref _signalExecutionState[headIdx], executionContext);
+                Volatile.Write(ref _signalCapturedContext[headIdx], capturedContext);
+                Volatile.Write(ref _signalAwaiterState[headIdx], state);
+                Volatile.Write(ref _signalAwaiter[headIdx], continuation);
+                //_signalExecutionState[headIdx] = executionContext;
+                //_signalCapturedContext[headIdx] = capturedContext;
+                //_signalAwaiterState[headIdx] = state;
+                //Thread.MemoryBarrier();
+                //_signalAwaiter[headIdx] = continuation;
+
                 _zeroRef.ZeroIncWait();
+
                 ZeroUnlock();
                 return;
             }
@@ -513,61 +547,32 @@ namespace zero.core.patterns.semaphore.core
         /// <param name="executionContext"></param>
         /// <param name="forceAsync">Forces async execution</param>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private bool ZeroComply(Action<object> callback, object state, ExecutionContext executionContext, object capturedContext, bool onComplete = false, bool zeroed = false, bool forceAsync = false)
+        private bool ZeroComply(Action<object> callback, object state, ExecutionContext executionContext, object capturedContext, bool zeroed = false)
         {
+#if DEBUG
+            //validate
+            if (state == null)
+                throw new ArgumentNullException($"-> {nameof(state)}");
+#endif
             try
             {
                 //Execute with captured context
-                if (!onComplete && executionContext != null)
+                if (executionContext != null)
                 {
                     ExecutionContext.Run(
-                        executionContext, 
-                        static s =>
-                        {
-                            var (callback, state) = (ValueTuple<Action<object>, object>)s;
-                            callback(state);
-                        }, ValueTuple.Create(callback,state));
+                    executionContext, 
+                    static s =>
+                    {
+                        var (@this, callback, state, capturedContext) = (ValueTuple<IoZeroSemaphore,Action<object>, object, object>)s;
+
+                        @this.InvokeContinuation(callback, state, capturedContext, false);
+
+                    }, ValueTuple.Create(_zeroRef, callback, state, capturedContext));
+                    
                     return true;
                 }
 
-                switch (capturedContext)
-                {
-                    case null:
-                        if (RunContinuationsAsynchronously || forceAsync)
-                        {
-                            if (forceAsync || _zeroRef.ZeroIncAsyncCount() - 1 < _maxAsyncWorkers)
-                            {
-                                var asyncContinue = Task.Factory.StartNew(callback, state, _asyncTasks.Token, TaskCreationOptions.DenyChildAttach, TaskScheduler.Default);
-
-                                if(!forceAsync)
-                                    asyncContinue.ContinueWith((_, zeroRef) =>
-                                    {
-                                        ((IIoZeroSemaphore)zeroRef).ZeroDecAsyncCount();
-                                    }, _zeroRef);
-                            }
-                            else
-                            {
-                                _zeroRef.ZeroDecAsyncCount();
-                                callback(state);
-                            }
-                        }
-                        else
-                        {
-                            callback(state);
-                        }
-                        break;
-                    case SynchronizationContext sc:
-                        sc.Post(static s =>
-                        {
-                            var tuple = (ValueTuple<Action<object>, object>)s;
-                            tuple.Item1(tuple.Item2);
-                        }, new ValueTuple<Action<object>, object>(callback, state));
-                        break;
-
-                    case TaskScheduler ts:
-                        Task.Factory.StartNew(callback, state, _asyncTasks.Token, TaskCreationOptions.DenyChildAttach, ts);
-                        break;
-                }
+                InvokeContinuation(callback, state, capturedContext, false);
                 return true;
             }
             catch (TaskCanceledException) {return true;}
@@ -581,6 +586,56 @@ namespace zero.core.patterns.semaphore.core
             }
 
             return false;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private void InvokeContinuation(Action<object> callback, object state, object capturedContext, bool forceAsync)
+        {
+            //TODO?
+            if(callback == null || state == null)
+                return;
+
+            switch (capturedContext)
+            {
+                case null:
+                    if (RunContinuationsAsynchronously || forceAsync)
+                    {
+                        if (forceAsync)
+                        {
+                            Task.Factory.StartNew(callback, state, CancellationToken.None,
+                                TaskCreationOptions.DenyChildAttach, TaskScheduler.Default);
+                        }
+                        else if (_zeroRef.ZeroIncAsyncCount() - 1 < _maxAsyncWorkers)
+                        {
+                            var asyncContinue = Task.Factory.StartNew(callback, state, CancellationToken.None,
+                                TaskCreationOptions.DenyChildAttach, TaskScheduler.Default);
+
+                                asyncContinue.ContinueWith((_, zeroRef) => { ((IIoZeroSemaphore)zeroRef).ZeroDecAsyncCount(); }, _zeroRef);
+                        }
+                        else
+                        {
+                            _zeroRef.ZeroDecAsyncCount();
+                            callback(state);
+                        }
+                    }
+                    else
+                    {
+                        callback(state);
+                    }
+
+                    break;
+                case SynchronizationContext sc:
+                    sc.Post(static s =>
+                    {
+                        var tuple = (ValueTuple<Action<object>, object>)s;
+                        tuple.Item1(tuple.Item2);
+                    }, new ValueTuple<Action<object>, object>(callback, state));
+                    break;
+
+                case TaskScheduler ts:
+                    Task.Factory.StartNew(callback, state, CancellationToken.None, TaskCreationOptions.DenyChildAttach, ts);
+                    break;
+            }
         }
 
         /// <summary>
@@ -676,7 +731,6 @@ namespace zero.core.patterns.semaphore.core
         /// <param name="bestEffort">Whether this originates from <see cref="OnCompleted"/></param>
         /// <returns>The number of signals sent, before this one, -1 on failure</returns>
         /// <exception cref="ZeroValidationException">Fails on preconditions</exception>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public int Release(int releaseCount = 1, bool bestEffort = false)
         {
             //fail fast on cancellation token
@@ -686,9 +740,8 @@ namespace zero.core.patterns.semaphore.core
             }
 
             //preconditions
-            //if(releaseCount < 1 || releaseCount - _zeroRef.ZeroCount() > _maxBlockers)
-            //    throw new SemaphoreFullException($"{Description}: Invalid {nameof(releaseCount)} = {releaseCount} < 0 or  {nameof(_curSignalCount)}({releaseCount + _curSignalCount}) > {nameof(_maxBlockers)} = {_maxBlockers}");
-
+            if(releaseCount < 1 || releaseCount + _zeroRef.ZeroCount() > _maxBlockers)
+                throw new SemaphoreFullException($"{Description}: Invalid {nameof(releaseCount)} = {releaseCount} < 0 or  {nameof(_curSignalCount)}({releaseCount + _zeroRef.ZeroCount()}) > {nameof(_maxBlockers)} = {_maxBlockers}");
 
             //lock in return value
             var released = 0;
@@ -701,57 +754,68 @@ namespace zero.core.patterns.semaphore.core
             {
                 //Lock
                 ZeroLock();
-                
-                var latchIdx = (_zeroRef.ZeroNextTail() - 1) % _maxBlockers;
-                var latch = _signalAwaiter[latchIdx];
 
-                worker.State = _signalAwaiterState[latchIdx];
-                worker.ExecutionContext = _signalExecutionState[latchIdx];
-                worker.CapturedContext = _signalCapturedContext[latchIdx];
+                var nextTail = _zeroRef.ZeroNextTail();
+
+                if (nextTail < 0)
+                    nextTail = 0;
+
+                var latchIdx = nextTail - 1;
+                var latchMod = latchIdx % _maxBlockers;
+                var latch = Volatile.Read(ref _signalAwaiter[latchMod]);
+
                 //latch a chosen head
-                while (latch != null && _zeroRef.ZeroWaitCount() > 0 && (worker.Continuation = Interlocked.CompareExchange(ref _signalAwaiter[latchIdx], null, latch)) != latch) {
-                    _zeroRef.ZeroPrevTail();
-                    latchIdx = (_zeroRef.ZeroNextTail() - 1) % _maxBlockers;
-                    latch = _signalAwaiter[latchIdx];
-                    worker.State = _signalAwaiterState[latchIdx];
-                    worker.ExecutionContext = _signalExecutionState[latchIdx];
-                    worker.CapturedContext = _signalCapturedContext[latchIdx];
+                while (
+                    _zeroRef.ZeroWaitCount() > 0 && latchIdx < _head &&
+                    (latch == ZeroSentinel || latch != null && (worker.Continuation = Interlocked.CompareExchange(ref _signalAwaiter[latchMod], ZeroSentinel, latch)) != latch)
+                )
+                {
+                    if (latch != ZeroSentinel)
+                    {
+                        _zeroRef.ZeroPrevTail();
+                        nextTail = _zeroRef.ZeroNextTail();
+                        latchIdx = nextTail - 1;
+                        latchMod = latchIdx % _maxBlockers;
+                    }
+                    
+                    latch = Volatile.Read(ref _signalAwaiter[latchMod]);
                 }
 
-                if (worker.Continuation == null)
+                if (worker.Continuation == null || worker.Continuation == ZeroSentinel)
                 {
-                    if(latch != null)
-                        _zeroRef.ZeroPrevTail();
+                    _zeroRef.ZeroPrevTail();
                     continue;
                 }
 
-                //Just in case
-                while (worker.State == null)
-                    worker.State = _signalAwaiterState[latchIdx];
-
-                worker.ExecutionContext ??= _signalExecutionState[latchIdx];
-                worker.CapturedContext ??= _signalCapturedContext[latchIdx];
-
-                //count the number of overall waiters
                 _zeroRef.ZeroDecWait();
 
-                _signalAwaiterState[latchIdx] = null;
-                _signalExecutionState[latchIdx] = null;
-                _signalCapturedContext[latchIdx] = null;                
+                //worker.State = Volatile.Read(ref _signalAwaiterState[latchMod]);
+                //worker.ExecutionContext = Volatile.Read(ref _signalExecutionState[latchMod]);
+                //worker.CapturedContext = Volatile.Read(ref _signalCapturedContext[latchMod]);
+
+                Volatile.Write(ref worker.State, Volatile.Read(ref _signalAwaiterState[latchMod]));
+                Volatile.Write(ref worker.ExecutionContext, Volatile.Read(ref _signalExecutionState[latchMod]));
+                Volatile.Write(ref worker.CapturedContext, Volatile.Read(ref _signalCapturedContext[latchMod]));
+
+                Volatile.Write(ref _signalAwaiterState[latchMod], null);
+                Volatile.Write(ref _signalExecutionState[latchMod], null);
+                Volatile.Write(ref _signalCapturedContext[latchMod], null);
+                Volatile.Write(ref _signalAwaiter[latchMod], null);
+
+                //_signalAwaiterState[latchIdx] = null;
+                //_signalExecutionState[latchIdx] = null;
+                //_signalCapturedContext[latchIdx] = null;
+                //Thread.MemoryBarrier();
+                //_signalAwaiter[latchIdx] = null;
 
                 //unlock
                 ZeroUnlock();
 
-#if DEBUG
-                //validate
-                if (worker.State == null)
-                    throw new ArgumentNullException($"-> {nameof(worker.State)}");
-#endif
-
-                if (!ZeroComply(worker.Continuation, worker.State, worker.ExecutionContext, worker.CapturedContext, false, Zeroed() || worker.Semaphore.Zeroed() || worker.State is IIoNanite nanite && nanite.Zeroed(), bestEffort))
+                if (!ZeroComply(worker.Continuation, worker.State, worker.ExecutionContext, worker.CapturedContext, Zeroed() || worker.Semaphore.Zeroed() || worker.State is IIoNanite nanite && nanite.Zeroed()))
                 {
-                    _zeroRef.ZeroAddCount(releaseCount - released);
-                    //update current count
+                    if(!bestEffort)
+                        _zeroRef.ZeroAddCount(releaseCount - released);
+                    
                     return -1;
                 }
 
@@ -761,10 +825,11 @@ namespace zero.core.patterns.semaphore.core
 
             //update current count
             var delta = releaseCount - released;
+
             if(delta > 0 && !bestEffort)
                 _zeroRef.ZeroAddCount(delta);
             
-            //return previous number of waiters
+            //return the number of waiters released
             return released;
         }
         
@@ -775,15 +840,11 @@ namespace zero.core.patterns.semaphore.core
         public ValueTask<bool> WaitAsync()
         {
             //insane checks
-            if (_zeroRef == null || _zeroRef.ZeroWaitCount() >= _maxBlockers)
+            if (_zeroRef == null || _zeroRef.ZeroWaitCount() >= _maxBlockers || _zeroRef.Zeroed())
                 return new ValueTask<bool>(false);
 
             //fast path
-            if (_zeroRef.ZeroEnter())
-                return new ValueTask<bool>(true);
-            
-            //thread will attempt to block
-            return new ValueTask<bool>(_zeroRef, 23);
+            return _zeroRef.ZeroEnter() > 0 ? new ValueTask<bool>( true) : new ValueTask<bool>(_zeroRef, 23);
         }
 
         /// <summary>
@@ -868,20 +929,23 @@ namespace zero.core.patterns.semaphore.core
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        bool IIoZeroSemaphore.ZeroEnter()
+        int IIoZeroSemaphore.ZeroEnter()
         {
-            int slot = -1;
+            var slot = -1;
             var latch = _curSignalCount;
 
             while (latch > 0 && (slot = Interlocked.CompareExchange(ref _curSignalCount, latch - 1, latch)) != latch)
             {
                 if (slot == 0)
-                    return false;
+                    return -1;
 
                 latch = _curSignalCount;
             }
 
-            return slot == latch || _zeroRef.IsCancellationRequested() || _zeroRef.Zeroed();
+            if (slot > 0 && slot == latch)
+                return latch;
+            
+            return -1;
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -948,7 +1012,7 @@ namespace zero.core.patterns.semaphore.core
         /// <summary>
         /// Worker info
         /// </summary>
-        struct IoZeroWorker 
+        private struct IoZeroWorker 
         {
             public IIoZeroSemaphore Semaphore;
             public Action<object> Continuation;

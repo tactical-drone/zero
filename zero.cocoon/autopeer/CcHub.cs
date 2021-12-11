@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Threading.Tasks;
-using NLog;
 using zero.cocoon.identity;
 using zero.cocoon.models.batches;
 using zero.cocoon.models.services;
@@ -29,7 +28,7 @@ namespace zero.cocoon.autopeer
             Func<IoNode<CcProtocMessage<chroniton, CcDiscoveryBatch>>,
                 IoNetClient<CcProtocMessage<chroniton, CcDiscoveryBatch>>, object,
                 IoNeighbor<CcProtocMessage<chroniton, CcDiscoveryBatch>>> mallocNeighbor, int prefetch,
-            int concurrencyLevel) : base(address, mallocNeighbor, prefetch, concurrencyLevel, ccCollective.MaxAdjuncts * 2)//TODO config
+            int concurrencyLevel) : base(address, mallocNeighbor, prefetch, concurrencyLevel, ccCollective.MaxAdjuncts + 1)//TODO config
         {
             CcCollective = ccCollective;
             _designation = ccCollective.CcId;

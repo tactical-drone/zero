@@ -472,7 +472,11 @@ namespace zero.test.core.patterns.queue{
             await _queuePressure.EnqueueAsync(0);
 
             var item = await _queuePressure.DequeueAsync().FastPath().ConfigureAwait(_zc);
+            Assert.NotNull(item);
 
+            await _queuePressure.EnqueueAsync(0);
+
+            item = await _queuePressure.DequeueAsync().FastPath().ConfigureAwait(_zc);
             Assert.NotNull(item);
 
             _queueNoBlockingTask = Task.Factory.StartNew(static async state =>
@@ -527,6 +531,32 @@ namespace zero.test.core.patterns.queue{
             Assert.True(insertTask.IsCompletedSuccessfully);
             await dequeTask.ConfigureAwait(_zc);
             Assert.True(dequeTask.IsCompletedSuccessfully);
+        }
+
+        [Fact]
+        async Task QueueBackPressureBlocking()
+        {
+            _blockCancellationSignal = new CancellationTokenSource();
+            _queuePressure = new IoQueue<IoInt32>("test Q", 2, 2, disablePressure: false, enableBackPressure: true);
+
+            await Task.Yield();
+
+            await _queuePressure.EnqueueAsync(0);
+
+            var item = await _queuePressure.DequeueAsync().FastPath().ConfigureAwait(_zc);
+            Assert.NotNull(item);
+
+
+            var t = Task.Factory.StartNew(async () =>
+            {
+                await Task.Delay(500);
+                await _queuePressure.ZeroManagedAsync<object>(zero: true).FastPath().ConfigureAwait(_zc);
+            });
+
+            var ts = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+            var dqBlocking = await _queuePressure.DequeueAsync().FastPath().ConfigureAwait(_zc);
+            Assert.Null(dqBlocking);
+            Assert.InRange(ts.ElapsedMs(), 400, 2000);
         }
 
         public class Context : IDisposable

@@ -52,13 +52,16 @@ namespace zero.cocoon
                 _zeroDrone = true;
                 parm_max_drone = 0;
                 parm_max_adjunct = 128; //TODO tuning:
+                udpPrefetch = 16;
+                udpConcurrencyLevel = 8;
+                NeighborTasks = new IoQueue<Task>($"{nameof(NeighborTasks)}", parm_max_adjunct + 1, udpConcurrencyLevel);
             }
 
             Services.CcRecord.Endpoints.TryAdd(CcService.Keys.peering, _peerAddress);
             Services.CcRecord.Endpoints.TryAdd(CcService.Keys.gossip, _gossipAddress);
             Services.CcRecord.Endpoints.TryAdd(CcService.Keys.fpc, fpcAddress);
 
-            _autoPeering =  new CcHub(this, _peerAddress,static (node, client, extraData) => new CcAdjunct((CcHub) node, client, extraData), 3, 1);
+            _autoPeering =  new CcHub(this, _peerAddress,static (node, client, extraData) => new CcAdjunct((CcHub) node, client, extraData), udpPrefetch, udpConcurrencyLevel);
             _autoPeering.ZeroHiveAsync(this).AsTask().GetAwaiter().GetResult();
             
             DupSyncRoot = new IoZeroSemaphoreSlim(AsyncTasks,  $"Dup checker for {ccDesignation.IdString()}", maxBlockers: Math.Max(MaxDrones * tpcConcurrencyLevel,1), initialCount: 1);
@@ -124,7 +127,7 @@ namespace zero.cocoon
 
             //ensure robotics
             if(!ZeroDrone)
-                ZeroAsync(RoboAsync,this,TaskCreationOptions.DenyChildAttach | TaskCreationOptions.LongRunning).AsTask().GetAwaiter().GetResult();
+                ZeroAsync(RoboAsync,this,TaskCreationOptions.DenyChildAttach).AsTask().GetAwaiter().GetResult();
         }
 
         /// <summary>
@@ -985,8 +988,7 @@ namespace zero.cocoon
                                 @this._logger.Debug($"+|{drone.Description}");
                             }
                         }, ValueTuple.Create(this, drone), TaskCreationOptions.DenyChildAttach).FastPath().ConfigureAwait(false);
-                        
-                        
+
                         return true;
                     }
                     else
@@ -1100,8 +1102,8 @@ namespace zero.cocoon
                         adjunct.EnsureFuseChecks();
 
                     //Only probe when we are running lean
-                    if (adjunct.CcCollective.Hub.Neighbors.Values.Where(n=>((CcAdjunct)n).Assimilating).ToList().Count >= adjunct.CcCollective.MaxAdjuncts)
-                        break;
+                    //if (adjunct.CcCollective.Hub.Neighbors.Values.ToList().Count >= adjunct.CcCollective.MaxAdjuncts)
+                    //    break;
 
                     //if (await adjunct.SeduceAsync("SYN-SE", passive: false).FastPath().ConfigureAwait(Zc))
                     //{
@@ -1110,10 +1112,10 @@ namespace zero.cocoon
                     //}
                     if (adjunct.Probed)
                     {
-                        if (!await adjunct.SweepAsync().FastPath().ConfigureAwait(Zc))
+                        if (!await adjunct.ScanAsync().FastPath().ConfigureAwait(Zc))
                         {
                             if (!Zeroed())
-                                _logger.Trace($"{nameof(adjunct.SweepAsync)}: Unable to probe adjuncts, {Description}");
+                                _logger.Trace($"{nameof(adjunct.ScanAsync)}: Unable to probe adjuncts, {Description}");
                         }
                         else
                         {
@@ -1125,7 +1127,7 @@ namespace zero.cocoon
                         //if (!await adjunct.SeduceAsync("SYN-DE", CcAdjunct.Heading.Both, force:true).FastPath().ConfigureAwait(Zc))
                         //{
                         //    if (!Zeroed())
-                        //        _logger.Trace($"{nameof(adjunct.SweepAsync)}: Unable to seduce adjuncts, {Description}");
+                        //        _logger.Trace($"{nameof(adjunct.ScanAsync)}: Unable to seduce adjuncts, {Description}");
                         //}
                         //else
                         //{
@@ -1136,7 +1138,7 @@ namespace zero.cocoon
                     //if (adjunct.Probed) 
                     //{
                     //    //probe
-                    //    if (!await adjunct.SweepAsync().FastPath().ConfigureAwait(Zc))
+                    //    if (!await adjunct.ScanAsync().FastPath().ConfigureAwait(Zc))
                     //    {
                     //        if (!Zeroed())
                     //            _logger.Trace($"{nameof(DeepScanAsync)}: {Description}, Unable to probe adjuncts");

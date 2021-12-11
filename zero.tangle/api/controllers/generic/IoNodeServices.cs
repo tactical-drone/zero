@@ -54,7 +54,7 @@ namespace zero.tangle.api.controllers.generic
         /// <summary>
         /// The nodes managed by this service
         /// </summary>
-        private static readonly ConcurrentDictionary<int, IoNode<IoTangleMessage<TKey>>> Nodes = new ConcurrentDictionary<int, IoNode<IoTangleMessage<TKey>>>();
+        private static readonly ConcurrentDictionary<int, IoNode<IoTangleMessage<TKey>>> Nodes = new();
         /// <summary>
         /// Posts the specified address.
         /// </summary>

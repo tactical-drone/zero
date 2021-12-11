@@ -26,8 +26,8 @@ namespace zero.core.feat.models.protobuffer.sources
         /// <param name="prefetchSize">Initial job prefetch from source</param>
         /// <param name="concurrencyLevel"></param>
         /// <param name="maxAsyncSources"></param>
-        public CcProtocBatchSource(string description, IIoSource ioSource, int batchSize, int prefetchSize, int concurrencyLevel, int maxAsyncSources = 0) 
-            : base(description, false, prefetchSize, concurrencyLevel, maxAsyncSources)//TODO config
+        public CcProtocBatchSource(string description, IIoSource ioSource, int batchSize, int prefetchSize, int concurrencyLevel, int maxAsyncSources = 0, bool disableZero = false) 
+            : base(description, false, prefetchSize, concurrencyLevel, maxAsyncSources, disableZero)//TODO config
         {
             _logger = LogManager.GetCurrentClassLogger();
 
@@ -36,7 +36,7 @@ namespace zero.core.feat.models.protobuffer.sources
             //Set Q to be blocking
             //TODO tuning
 
-            BatchQueue = new IoQueue<TBatch>($"{nameof(CcProtocBatchSource<TModel,TBatch>)}: {ioSource.Description}", batchSize, concurrencyLevel, true, false);
+            BatchQueue = new IoQueue<TBatch>($"{nameof(CcProtocBatchSource<TModel,TBatch>)}: {ioSource.Description}", batchSize, prefetchSize, prefetchSize, true, false);
         }
 
         /// <summary>
@@ -109,8 +109,7 @@ namespace zero.core.feat.models.protobuffer.sources
         {
             try
             {
-                var plugged = await BatchQueue.EnqueueAsync(item).FastPath().ConfigureAwait(Zc) != null;
-                return plugged;
+                return await BatchQueue.EnqueueAsync(item).FastPath().ConfigureAwait(Zc) != null;
             }
             catch (Exception e)
             {
@@ -128,8 +127,7 @@ namespace zero.core.feat.models.protobuffer.sources
         {
             try
             {
-                var slot = await BatchQueue.DequeueAsync().FastPath().ConfigureAwait(Zc);
-                return slot;
+                return await BatchQueue.DequeueAsync().FastPath().ConfigureAwait(Zc);
             }
             catch when (Zeroed()){}
             catch (Exception e)when (!Zeroed())

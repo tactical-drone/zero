@@ -42,7 +42,7 @@ namespace zero.core.patterns.bushings
             get
             {
 #if DEBUG
-                if(_description == null)
+                if (_description == null)
                     return _description = $"{_sinkDesc} ~> {base.Description}";
                 return _description;
 #else

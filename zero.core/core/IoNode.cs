@@ -28,7 +28,7 @@ namespace zero.core.core
             MallocNeighbor = mallocNeighbor;
             _preFetch = prefetch;
             _logger = LogManager.GetCurrentClassLogger();
-            NeighborTasks = new IoQueue<Task>($"{nameof(NeighborTasks)}", maxNeighbors, concurrencyLevel);
+            NeighborTasks = new IoQueue<Task>($"{nameof(NeighborTasks)}", maxNeighbors, concurrencyLevel, autoScale:true);
         }
 
         /// <summary>
@@ -276,7 +276,6 @@ namespace zero.core.core
             try
             {
                 //Start replication
-
                 IoQueue<Task>.IoZNode node  = default;
                     
                 node = await NeighborTasks.EnqueueAsync(ZeroOptionAsync(static async state =>
@@ -303,7 +302,6 @@ namespace zero.core.core
                 {
                     var (@this, node) = (ValueTuple<IoNode<TJob>, IoQueue<Task>.IoZNode>)state;
                     await @this.NeighborTasks.RemoveAsync(node).FastPath().ConfigureAwait(@this.Zc);
-
                 }, (this, node));
             }
             catch when(Zeroed()){}

@@ -29,22 +29,38 @@ namespace zero.core.network.ip
 
         /// <inheritdoc />
         /// <summary>
-        /// Used by listeners
+        /// Used by (UDP) listeners to create ingress proxy
         /// </summary>
-        /// <param name="nativeSocket">The socket</param>
-        /// <param name="concurrencyLevel"></param>
+        /// <param name="nativeSocket">The socket to proxy to</param>
+        /// <param name="concurrencyLevel">The hub concurrency level</param>
         /// <param name="remoteEndPoint">The remote endpoint of this connection in the case of a UDP. TCP unused.</param>
         protected IoSocket(Socket nativeSocket, int concurrencyLevel, EndPoint remoteEndPoint = null) : base($"{nameof(IoSocket)}", concurrencyLevel)
         {
             NativeSocket = nativeSocket ?? throw new ArgumentNullException($"{nameof(nativeSocket)}");
-            LocalNodeAddress = IoNodeAddress.CreateFromEndpoint(NativeSocket.ProtocolType.ToString().ToLower(), (IPEndPoint)NativeSocket.LocalEndPoint);
-            RemoteNodeAddress = IoNodeAddress.CreateFromEndpoint(NativeSocket.ProtocolType.ToString().ToLower(), (IPEndPoint)(NativeSocket.RemoteEndPoint ?? remoteEndPoint));
 
-            Key = NativeSocket.RemoteEndPoint != null ? RemoteNodeAddress.Key : LocalNodeAddress.Key;
+            _logger = LogManager.GetCurrentClassLogger();
+
+            try
+            {
+                LocalNodeAddress = IoNodeAddress.CreateFromEndpoint(NativeSocket.ProtocolType.ToString().ToLower(),
+                    (IPEndPoint)NativeSocket.LocalEndPoint);
+                RemoteNodeAddress = IoNodeAddress.CreateFromEndpoint(NativeSocket.ProtocolType.ToString().ToLower(),
+                    (IPEndPoint)(NativeSocket.RemoteEndPoint ?? remoteEndPoint));
+
+                Key = NativeSocket.RemoteEndPoint != null ? RemoteNodeAddress.Key : LocalNodeAddress.Key;
+            }
+            catch (ObjectDisposedException)
+            {
+                Task.Factory.StartNew(@this => ((IoSocket)@this).Zero((IoSocket)@this, "RACE"),this);
+                return;
+            }
+            catch (Exception e)
+            {
+                _logger.Error(e, $"{nameof(IoSocket)}: ");
+            }
 
             Kind = Connection.Ingress;
 
-            _logger = LogManager.GetCurrentClassLogger();
         }
 
         /// <summary>

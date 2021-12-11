@@ -34,12 +34,12 @@ message CcDefuseRequest {
 	int64 timestamp = 1;
 }
 
-message CcSweepRequest {  
+message CcScanRequest {  
   z_header header = 1;
   int64 timestamp = 2;
 }
 
-message CcSweepResponse {    
+message CcAdjunctResponse {    
   int64 timestamp = 1;  
   bytes req_hash = 2;  
   repeated CcAdjunctModel contacts = 3;

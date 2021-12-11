@@ -7,15 +7,15 @@
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
-    <DefineConstants>SAFE_RELEASE</DefineConstants>
+    <DefineConstants>SAFE_RELEASE; DEBUG</DefineConstants>
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|AnyCPU'">
-    <DefineConstants>SAFE_RELEASE</DefineConstants>
+    <DefineConstants>SAFE_RELEASE; </DefineConstants>
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Trace|AnyCPU'">
-    <DefineConstants>SAFE_RELEASE;RELEASE</DefineConstants>
+    <DefineConstants>SAFE_RELEASE; TRACE</DefineConstants>
     <Optimize>True</Optimize>
   </PropertyGroup>
 

@@ -20,7 +20,7 @@ namespace zero.core.patterns.semaphore.core
 
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        internal bool ZeroEnter();
+        internal int ZeroEnter();
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         internal int ZeroCount();
         [MethodImpl(MethodImplOptions.AggressiveInlining)]

@@ -131,7 +131,7 @@ namespace zero.core.patterns.semaphore
             throw new NotImplementedException();
         }
 
-        bool IIoZeroSemaphore.ZeroEnter()
+        int IIoZeroSemaphore.ZeroEnter()
         {
             throw new NotImplementedException();
         }

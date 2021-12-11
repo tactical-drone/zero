@@ -132,7 +132,7 @@ namespace zero.test.core.feat
                         dud[dud.Length / 2] = (byte)~dud[dud.Length / 2];
 
                         Assert.False(await matcher.ResponseAsync(k, UnsafeByteOperations.UnsafeWrap(dud)));
-                        await Task.Delay(delay + 50);
+                        await Task.Delay(delay + 100);
                         Assert.False(await matcher.ResponseAsync(k, UnsafeByteOperations.UnsafeWrap(hash)));
                     }, (key, reqHash, m, _delayTime), TaskCreationOptions.DenyChildAttach).Unwrap();
 

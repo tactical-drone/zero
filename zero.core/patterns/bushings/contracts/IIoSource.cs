@@ -47,8 +47,19 @@ namespace zero.core.patterns.bushings.contracts
         /// <summary>
         /// Enable prefetch
         /// </summary>
+        bool PressureEnabled { get; }
+
+        /// <summary>
+        /// Enable prefetch
+        /// </summary>
         bool PrefetchEnabled { get; }
-        
+
+
+        /// <summary>
+        /// Enable prefetch
+        /// </summary>
+        bool BackPressureEnabled { get; }
+
         /// <summary>
         /// Apply prefetch pressure
         /// </summary>
@@ -135,6 +146,11 @@ namespace zero.core.patterns.bushings.contracts
         public bool Proxy  { get; }
 
         /// <summary>
+        /// Number of jobs buffered
+        /// </summary>
+        int Count { get; }
+
+        /// <summary>
         /// Executes the specified function in the context of the source
         /// </summary>
         /// <param name="callback">The function.</param>
@@ -149,17 +165,17 @@ namespace zero.core.patterns.bushings.contracts
             T nanite = default);
 
         /// <summary>
-        /// Producers can forward new productions types <see cref="TfJob"/> via a channels of type <see cref="IIoConduit"/> to other producers.
+        /// Producers can forward new productions types <see cref="TFJob"/> via a channels of type <see cref="IIoConduit"/> to other producers.
         /// This function helps set up a channel using the supplied source. Channels are cached when created. Channels are associated with producers. 
         /// </summary>
-        /// <typeparam name="TfJob">The type of job serviced</typeparam>
+        /// <typeparam name="TFJob">The type of job serviced</typeparam>
         /// <param name="id">The channel id</param>
         /// <param name="concurrencyLevel"></param>
         /// <param name="channelSource">The source of this channel, if new</param>
         /// <param name="jobMalloc">Used to allocate jobs</param>
         /// <returns></returns>
-        ValueTask<IoConduit<TfJob>> CreateConduitOnceAsync<TfJob>(string id,
-            int concurrencyLevel = 1, IoSource<TfJob> channelSource = null, Func<object, IIoNanite, IoSink<TfJob>> jobMalloc = null) where TfJob : IIoJob;
+        ValueTask<IoConduit<TFJob>> CreateConduitOnceAsync<TFJob>(string id,
+            IoSource<TFJob> channelSource = null, Func<object, IIoNanite, IoSink<TFJob>> jobMalloc = null, int concurrencyLevel = 1) where TFJob : IIoJob;
         
     }
 }

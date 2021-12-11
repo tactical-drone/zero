@@ -54,20 +54,22 @@ namespace zero.core.patterns.misc
             _zId = Interlocked.Increment(ref _uidSeed);
             AsyncTasks = new CancellationTokenSource();
 
+            //TODO hackish - concurrency 0 signals that a source needs to disable queue management
+            
 #if DEBUG
             Description = description ?? GetType().Name;
 #else 
             Description = "";
 #endif
 
-            _concurrencyLevel = concurrencyLevel;
+            _concurrencyLevel = concurrencyLevel <= 0 ? 1 : concurrencyLevel;
 
 #if DEBUG
-            _zeroHive = new IoQueue<IoZeroSub>($"{nameof(_zeroHive)} {description}", 16, concurrencyLevel, autoScale:true);
-            _zeroHiveMind = new IoQueue<IIoNanite>($"{nameof(_zeroHiveMind)} {description}", 16, concurrencyLevel, autoScale:true);
+            _zeroHive = new IoQueue<IoZeroSub>($"{nameof(_zeroHive)} {description}", 16, _concurrencyLevel, autoScale:true);
+            _zeroHiveMind = new IoQueue<IIoNanite>($"{nameof(_zeroHiveMind)} {description}", 16, _concurrencyLevel, autoScale:true);
 #else
-            _zeroHive = new IoQueue<IoZeroSub>("", 16, concurrencyLevel, autoScale:true);
-            _zeroHiveMind = new IoQueue<IIoNanite>($"", 16, concurrencyLevel, autoScale: true);
+            _zeroHive = new IoQueue<IoZeroSub>(string.Empty, 16, _concurrencyLevel, autoScale:true);
+            _zeroHiveMind = new IoQueue<IIoNanite>(string.Empty, 16, _concurrencyLevel, autoScale: true);
 #endif
 
             Uptime = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
@@ -227,14 +229,14 @@ namespace zero.core.patterns.misc
 
             ZeroedFrom = from;
             ZeroReason = $"ZERO: {reason??"N/A"}";
-            
+
 #pragma warning disable CS4014
             Zero(static async @this =>
             {
                 //prime garbage
                 await @this.ZeroPrimeAsync().FastPath().ConfigureAwait(@this.Zc);
                 @this.Zero(true);
-            }, this, default,TaskCreationOptions.DenyChildAttach).GetAwaiter().GetResult();
+            }, this, default,TaskCreationOptions.DenyChildAttach);
 #pragma warning restore CS4014
 
             if (Interlocked.Increment(ref _zCount) % 100000 == 0)
@@ -688,7 +690,8 @@ namespace zero.core.patterns.misc
 #else
                         catch (TaskCanceledException) { }
 #endif
-
+                        catch when(nanoprobe != null && nanoprobe.Zeroed() ||
+                                   nanoprobe == null && @this._zeroed > 0){}
                         catch (Exception e) when (nanoprobe != null && !nanoprobe.Zeroed() ||
                                                   nanoprobe == null && @this._zeroed == 0)
                         {
