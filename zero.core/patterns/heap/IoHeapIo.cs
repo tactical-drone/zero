@@ -94,8 +94,9 @@ namespace zero.core.patterns.heap
         /// </summary>
         /// <param name="item">The item to return</param>
         /// <param name="zero">If the item is to be zeroed</param>
+        /// <param name="deDup"></param>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public override void Return(TItem item, bool zero = false)
+        public override void Return(TItem item, bool zero = false, bool deDup = false)
         {
             if (item == null)
                 return;

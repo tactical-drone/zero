@@ -454,7 +454,7 @@ namespace zero.cocoon
         // ReSharper disable once InconsistentNaming
 
 #if DEBUG
-        public int parm_mean_pat_delay_s = 60 * 1;
+        public int parm_mean_pat_delay_s = 60 * 3;
 #else
         public int parm_mean_pat_delay_s = 60 * 5;
 #endif
@@ -895,7 +895,7 @@ namespace zero.cocoon
             {
                 var attached = await drone.AttachViaAdjunctAsync(direction).FastPath().ConfigureAwait(Zc);
 
-                var capped = attached && !ZeroAtomic(static (n, o, d) =>
+                var capped = attached && !await ZeroAtomic(static (n, o, d) =>
                 {
                     var (@this, direction) = o;
                                                             
@@ -923,7 +923,7 @@ namespace zero.cocoon
                             return new ValueTask<bool>(false);
                         }
                     }
-                }, (this, direction));
+                }, (this, direction)).FastPath().ConfigureAwait(Zc);
 
                 if(capped)
                 {

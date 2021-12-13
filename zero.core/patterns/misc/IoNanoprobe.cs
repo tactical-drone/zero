@@ -8,6 +8,8 @@ using System.Threading.Tasks;
 using NLog;
 using zero.core.misc;
 using zero.core.patterns.queue;
+using zero.core.patterns.semaphore;
+using zero.core.patterns.semaphore.core;
 
 namespace zero.core.patterns.misc
 {
@@ -71,6 +73,9 @@ namespace zero.core.patterns.misc
             _zeroHive = new IoQueue<IoZeroSub>(string.Empty, 16, _concurrencyLevel, autoScale:true);
             _zeroHiveMind = new IoQueue<IIoNanite>(string.Empty, 16, _concurrencyLevel, autoScale: true);
 #endif
+
+            _zeroRoot = new IoZeroSemaphore(string.Empty, concurrencyLevel, 1, 0);
+            _zeroRoot.ZeroRef(ref _zeroRoot, AsyncTasks);
 
             Uptime = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
         }
@@ -218,6 +223,12 @@ namespace zero.core.patterns.misc
 
 
         private static long _zCount;
+
+        /// <summary>
+        /// root sync
+        /// </summary>
+        private IIoZeroSemaphore _zeroRoot;
+
         /// <summary>
         /// ZeroAsync
         /// </summary>
@@ -514,6 +525,7 @@ namespace zero.core.patterns.misc
             _zeroHiveMind = null;
             ZeroReason = null;
             ZeroedFrom = null;
+            _zeroRoot = null;
 #endif
 
 #if DEBUG
@@ -526,6 +538,8 @@ namespace zero.core.patterns.misc
         /// </summary>
         public virtual async ValueTask ZeroManagedAsync()
         {
+            _zeroRoot.ZeroSem();
+
             if (_zeroHiveMind != null)
                 await _zeroHiveMind.ZeroManagedAsync<object>(zero:true).FastPath().ConfigureAwait(Zc);
             if (_zeroHive != null)
@@ -609,11 +623,17 @@ namespace zero.core.patterns.misc
 
         //    return false;
         //}
-        [MethodImpl(MethodImplOptions.Synchronized | MethodImplOptions.AggressiveInlining)]
-        public bool ZeroAtomic<T>(Func<IIoNanite, T, bool, ValueTask<bool>> ownershipAction, T userData = default, bool disposing = false, bool force = false)
+        
+        public async ValueTask<bool> ZeroAtomic<T>(Func<IIoNanite, T, bool, ValueTask<bool>> ownershipAction,
+            T userData = default, bool disposing = false, bool force = false)
         {
             try
             {
+                if (!await _zeroRoot.WaitAsync().FastPath().ConfigureAwait(Zc))
+                {
+                    return false;
+                }
+
                 //Prevents strange things from happening
                 if (_zeroed > 0 && !force)
                     return false;
@@ -624,12 +644,16 @@ namespace zero.core.patterns.misc
                     {
                         try
                         {
-                            return (_zeroed == 0) && ownershipAction(this, userData, disposing).FastPath().GetAwaiter().GetResult();
+                            return (_zeroed == 0) && ownershipAction(this, userData, disposing).FastPath().GetAwaiter()
+                                .GetResult();
                         }
-                        catch when (Zeroed()) { }
+                        catch when (Zeroed())
+                        {
+                        }
                         catch (Exception e) when (!Zeroed())
                         {
-                            _logger.Error(e, $"{Description}: Unable to ensure action {ownershipAction}, target = {ownershipAction.Target}");
+                            _logger.Error(e,
+                                $"{Description}: Unable to ensure action {ownershipAction}, target = {ownershipAction.Target}");
                             return false;
                         }
                     }
@@ -638,17 +662,25 @@ namespace zero.core.patterns.misc
                         return ownershipAction(this, userData, disposing).FastPath().GetAwaiter().GetResult();
                     }
                 }
-                catch when(Zeroed()){}
+                catch when (Zeroed())
+                {
+                }
                 catch (Exception e) when (!Zeroed())
                 {
                     _logger.Error(e, $"{Description}");
                     // ignored
                 }
             }
-            catch when (Zeroed()) { }
+            catch when (Zeroed())
+            {
+            }
             catch (Exception e) when (!Zeroed())
             {
                 _logger.Error(e, $"Unable to ensure ownership in {Description}");
+            }
+            finally
+            {
+                _zeroRoot.Release();
             }
 
             return false;

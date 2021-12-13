@@ -4,13 +4,12 @@ using System.Net;
 using System.Net.Sockets;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
-using System.Threading;
 using System.Threading.Tasks;
 using NLog;
 using zero.core.patterns.heap;
 using zero.core.patterns.misc;
 using zero.core.patterns.semaphore;
-using SocketException = System.Net.Sockets.SocketException;
+
 
 namespace zero.core.network.ip
 {
@@ -63,10 +62,11 @@ namespace zero.core.network.ip
         {
             _logger = LogManager.GetCurrentClassLogger();
             //TODO tuning
-            //_sendSync = new IoZeroSemaphore("udp send lock", concurrencyLevel, prefetchCount, 0);
+
+            //_sendSync = new IoZeroSemaphore("udp send lock", concurrencyLevel, 1, 0);
             //_sendSync.ZeroRef(ref _sendSync, AsyncTasks);
 
-            //_rcvSync = new IoZeroSemaphore("udp receive lock", concurrencyLevel, prefetchCount, 0);
+            //_rcvSync = new IoZeroSemaphore("udp receive lock", concurrencyLevel, 1, 0);
             //_rcvSync.ZeroRef(ref _rcvSync, AsyncTasks);
 
             InitHeap(concurrencyLevel, recv);
@@ -439,7 +439,6 @@ namespace zero.core.network.ip
                 {
                     // ignored
                 }
-                // ignored
             }
         }
 
@@ -452,7 +451,7 @@ namespace zero.core.network.ip
         /// <param name="remoteEp"></param>
         /// <param name="blacklist"></param>
         /// <param name="timeout">Timeout after ms</param>
-        /// <returns></returns>a
+        /// <returns></returns>
         public override async ValueTask<int> ReadAsync(Memory<byte> buffer, int offset, int length, IPEndPoint remoteEp, byte[] blacklist = null, int timeout = 0)
         {
             if (remoteEp == null)
@@ -463,7 +462,6 @@ namespace zero.core.network.ip
 
             try
             {
-
                 //concurrency
                 //if (!await _rcvSync.WaitAsync().FastPath().ConfigureAwait(Zc))
                 //    return 0;

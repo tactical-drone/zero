@@ -230,8 +230,9 @@ namespace zero.core.patterns.heap
         /// </summary>
         /// <param name="item">The item to be returned to the heap</param>
         /// <param name="zero">Whether to destroy this object</param>
+        /// <param name="deDup"></param>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public virtual void Return(TItem item, bool zero = false)
+        public virtual void Return(TItem item, bool zero = false, bool deDup = false)
         {
 #if DEBUG
              if (item == null)
@@ -248,7 +249,7 @@ namespace zero.core.patterns.heap
                 Interlocked.Increment(ref _opsCounter);
 
                 if (!zero && _ioHeapBuf.Count < _maxSize && !Zeroed)
-                    _ioHeapBuf.Add(item);
+                    _ioHeapBuf.Add(item, deDup);
                 else
                     Interlocked.Decrement(ref CurrentCount);
                 

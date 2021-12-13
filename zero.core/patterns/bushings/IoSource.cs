@@ -298,33 +298,33 @@ namespace zero.core.patterns.bushings
         /// <param name="channelSource">The source of this conduit, if new</param>
         /// <param name="jobMalloc">Used to allocate jobs</param>
         /// <returns></returns>
-        public ValueTask<IoConduit<TFJob>> CreateConduitOnceAsync<TFJob>(string id,
+        public async ValueTask<IoConduit<TFJob>> CreateConduitOnceAsync<TFJob>(string id,
             
             IoSource<TFJob> channelSource = null,
             Func<object, IIoNanite, IoSink<TFJob>> jobMalloc = null, int concurrencyLevel = 1) where TFJob : IIoJob
         {
             if (channelSource != null && !IoConduits.ContainsKey(id))
             {
-                if (!ZeroAtomic(static (_, @params, _) =>
-                {
-                    var (@this, id, channelSource, jobMalloc, concurrencyLevel) = @params;
-                    var newConduit = new IoConduit<TFJob>($"`conduit({id}>{ channelSource.UpstreamSource.Description} ~> { channelSource.Description}", channelSource, jobMalloc, concurrencyLevel);
-
-                    if (!@this.IoConduits.TryAdd(id, newConduit))
+                if (!await ZeroAtomic(static (_, @params, _) =>
                     {
-                        newConduit.Zero(@this,$"{nameof(CreateConduitOnceAsync)}: lost race");
-                        @this._logger.Trace($"Could not add {id}, already exists = {@this.IoConduits.ContainsKey(id)}");
-                        return new ValueTask<bool>(false);
-                    }
+                        var (@this, id, channelSource, jobMalloc, concurrencyLevel) = @params;
+                        var newConduit = new IoConduit<TFJob>($"`conduit({id}>{ channelSource.UpstreamSource.Description} ~> { channelSource.Description}", channelSource, jobMalloc, concurrencyLevel);
 
-                    return new ValueTask<bool>(true);
-                }, ValueTuple.Create(this, id,channelSource, jobMalloc, concurrencyLevel)))
+                        if (!@this.IoConduits.TryAdd(id, newConduit))
+                        {
+                            newConduit.Zero(@this,$"{nameof(CreateConduitOnceAsync)}: lost race");
+                            @this._logger.Trace($"Could not add {id}, already exists = {@this.IoConduits.ContainsKey(id)}");
+                            return new ValueTask<bool>(false);
+                        }
+
+                        return new ValueTask<bool>(true);
+                    }, ValueTuple.Create(this, id,channelSource, jobMalloc, concurrencyLevel)).FastPath().ConfigureAwait(Zc))
                 {
                     if (!Zeroed())
                     {
                         try
                         {
-                            return new ValueTask<IoConduit<TFJob>>((IoConduit<TFJob>)IoConduits[id]);
+                            return (IoConduit<TFJob>)IoConduits[id];
                         }
                         catch when(Zeroed()){}
                         catch (Exception e)when(!Zeroed())
@@ -333,20 +333,20 @@ namespace zero.core.patterns.bushings
                         }
                     }
 
-                    return new ValueTask<IoConduit<TFJob>>();
+                    return null;
                 }
             }
 
             try
             {
-                return new ValueTask<IoConduit<TFJob>>((IoConduit<TFJob>)IoConduits[id]);
+                return (IoConduit<TFJob>)IoConduits[id];
             }
             catch when(channelSource == null || Zeroed()){}
             catch (Exception e)when (channelSource !=null && !Zeroed())
             {
                 _logger.Fatal(e, $"Conduit {id} after race, not found");
             }
-            return new ValueTask<IoConduit<TFJob>>((IoConduit<TFJob>)null);
+            return null;
         }
 
         

@@ -38,14 +38,14 @@ namespace zero.cocoon.models
                 var cc = 1;
                 var pf = 3;
                 var ac = 0;
-                if (!Source.Proxy && ((CcAdjunct)IoZero)!.CcCollective.ZeroDrone)
-                {
-                    parm_max_msg_batch_size *= 2;
-                    cc = 8;
-                    pf = 16;
-                    ac = 8;
-                    //_groupByEp = true;
-                }
+                //if (!Source.Proxy && ((CcAdjunct)IoZero)!.CcCollective.ZeroDrone)
+                //{
+                //    parm_max_msg_batch_size *= 2;
+                //    cc = 8;
+                //    pf = 16;
+                //    ac = 8;
+                //    //_groupByEp = true;
+                //}
 
 #if DEBUG
                 string bashDesc = $"{nameof(_batchHeap)}: {Description}";
@@ -75,7 +75,7 @@ namespace zero.cocoon.models
                         conduitId,
                         channelSource,
                         static (ioZero, _) => new CcProtocBatchJob<chroniton, CcDiscoveryBatch>(
-                            (IoSource<CcProtocBatchJob<chroniton, CcDiscoveryBatch>>)((IIoConduit)ioZero).UpstreamSource, ((IIoConduit)ioZero).ZeroConcurrencyLevel()), pf).FastPath().ConfigureAwait(Zc);
+                            (IoSource<CcProtocBatchJob<chroniton, CcDiscoveryBatch>>)((IIoConduit)ioZero).UpstreamSource, ((IIoConduit)ioZero).ZeroConcurrencyLevel()), cc).FastPath().ConfigureAwait(Zc);
                 }
             }
             
@@ -213,7 +213,7 @@ namespace zero.cocoon.models
                 var totalBytesProcessed = 0;
                 var verified = false;
 
-                var c = 0;
+                //var c = 0;
                 while (totalBytesProcessed < BytesRead && State != IoJobMeta.JobState.ConInlined)
                 {
                     chroniton packet = null;

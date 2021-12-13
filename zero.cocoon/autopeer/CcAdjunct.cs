@@ -69,9 +69,9 @@ namespace zero.cocoon.autopeer
             var capMult = CcCollective.ZeroDrone ? 100 : 1;
             var ttlMult = CcCollective.ZeroDrone ? 10 : 1;
 
-            _probeRequest = new IoZeroMatcher(nameof(_probeRequest), Source.ZeroConcurrencyLevel(), parm_max_network_latency_ms * 3 * ttlMult, (int)(CcCollective.MaxAdjuncts * parm_max_swept_drones * 2 * capMult));
-            _fuseRequest = new IoZeroMatcher(nameof(_fuseRequest), Source.ZeroConcurrencyLevel(), parm_max_network_latency_ms * 3 * ttlMult, (int)(CcCollective.MaxAdjuncts* parm_max_swept_drones * 2 * capMult));
-            _scanRequest = new IoZeroMatcher(nameof(_scanRequest), (int)(CcCollective.MaxAdjuncts * parm_max_swept_drones + 1), parm_max_network_latency_ms * 3 * ttlMult, (int)(CcCollective.MaxAdjuncts * parm_max_swept_drones * 2));
+            _probeRequest = new IoZeroMatcher(nameof(_probeRequest), Source.ZeroConcurrencyLevel(), parm_max_network_latency_ms * 3, (int)(CcCollective.MaxAdjuncts * parm_max_swept_drones * 2 * capMult));
+            _fuseRequest = new IoZeroMatcher(nameof(_fuseRequest), Source.ZeroConcurrencyLevel(), parm_max_network_latency_ms * 3, (int)(CcCollective.MaxAdjuncts* parm_max_swept_drones * 2 * capMult));
+            _scanRequest = new IoZeroMatcher(nameof(_scanRequest), (int)(CcCollective.MaxAdjuncts * parm_max_swept_drones + 1), parm_max_network_latency_ms * 3, (int)(CcCollective.MaxAdjuncts * parm_max_swept_drones * 2));
 
             if (extraData != null)
             {
@@ -1791,73 +1791,73 @@ namespace zero.cocoon.autopeer
 
             var newAdjunct = (CcAdjunct) Hub.MallocNeighbor(Hub, MessageService, Tuple.Create(designation, newRemoteEp, verified));
 
-            if (!Zeroed() && Hub.ZeroAtomic(static (s, state, ___) =>
-            {
-                var (@this, newAdjunct) = state;
-                try
+            if (!Zeroed() && await Hub.ZeroAtomic(static (s, state, ___) =>
                 {
-                    if (@this.Hub.Neighbors.Count >= @this.CcCollective.MaxAdjuncts)
+                    var (@this, newAdjunct) = state;
+                    try
                     {
-                        //drop something
-                        var bad = @this.Hub.Neighbors.Values.Where(n =>
-                                ((CcAdjunct)n).IsProxy &&
-                                (
-                                    ((CcAdjunct)n).SecondsSincePat > @this.CcCollective.parm_mean_pat_delay_s ||
-                                    ((CcAdjunct) n).Uptime.ElapsedMs() > @this.parm_min_uptime_ms &&
-                                    ((CcAdjunct) n).State < AdjunctState.Verified)
+                        if (@this.Hub.Neighbors.Count >= @this.CcCollective.MaxAdjuncts)
+                        {
+                            //drop something
+                            var bad = @this.Hub.Neighbors.Values.Where(n =>
+                                    ((CcAdjunct)n).IsProxy &&
+                                    (
+                                        ((CcAdjunct)n).SecondsSincePat > @this.CcCollective.parm_mean_pat_delay_s ||
+                                        ((CcAdjunct) n).Uptime.ElapsedMs() > @this.parm_min_uptime_ms &&
+                                        ((CcAdjunct) n).State < AdjunctState.Verified)
                                 )
                                 .OrderByDescending(n => ((CcAdjunct)n).Uptime.ElapsedMs());
 
-                        var good = @this.Hub.Neighbors.Values.Where(n =>
-                                ((CcAdjunct)n).IsProxy &&
-                                (
-                                    ((CcAdjunct)n).Uptime.ElapsedMs() > @this.parm_min_uptime_ms &&
-                                    ((CcAdjunct)n).State < AdjunctState.Fusing &&
-                                    (@this.CcCollective.ZeroDrone || ((CcAdjunct)n).TotalPats > @this.parm_min_pats_before_shuffle))
+                            var good = @this.Hub.Neighbors.Values.Where(n =>
+                                    ((CcAdjunct)n).IsProxy &&
+                                    (
+                                        ((CcAdjunct)n).Uptime.ElapsedMs() > @this.parm_min_uptime_ms &&
+                                        ((CcAdjunct)n).State < AdjunctState.Fusing &&
+                                        (@this.CcCollective.ZeroDrone || ((CcAdjunct)n).TotalPats > @this.parm_min_pats_before_shuffle))
                                 )
-                            .OrderByDescending(n => ((CcAdjunct)n).Priority)
-                            .ThenByDescending(n => ((CcAdjunct)n).Uptime.ElapsedMs());
+                                .OrderByDescending(n => ((CcAdjunct)n).Priority)
+                                .ThenByDescending(n => ((CcAdjunct)n).Uptime.ElapsedMs());
 
-                        var badList = bad.ToList();
-                        if (badList.Any())
-                        {
-                            var dropped = badList.FirstOrDefault();
-                            if (dropped != default && ((CcAdjunct)dropped).State < AdjunctState.Verified) 
+                            var badList = bad.ToList();
+                            if (badList.Any())
                             {
-                                ((CcAdjunct)dropped).Zero(@this,"got collected");
-                                @this._logger.Debug($"@ {dropped.Description}");
-                            }
-                        }
-                        else //try harder 
-                        {
-                            foreach (var ioNeighbor in good)
-                            {
-                                if (((CcAdjunct)ioNeighbor).State < AdjunctState.Fusing)
+                                var dropped = badList.FirstOrDefault();
+                                if (dropped != default && ((CcAdjunct)dropped).State < AdjunctState.Verified) 
                                 {
-                                    ((CcAdjunct)ioNeighbor).Zero(@this,"Assimilated!");
-                                    @this._logger.Debug($"@ {ioNeighbor.Description}");
-                                    break;
+                                    ((CcAdjunct)dropped).Zero(@this,"got collected");
+                                    @this._logger.Debug($"@ {dropped.Description}");
+                                }
+                            }
+                            else //try harder 
+                            {
+                                foreach (var ioNeighbor in good)
+                                {
+                                    if (((CcAdjunct)ioNeighbor).State < AdjunctState.Fusing)
+                                    {
+                                        ((CcAdjunct)ioNeighbor).Zero(@this,"Assimilated!");
+                                        @this._logger.Debug($"@ {ioNeighbor.Description}");
+                                        break;
+                                    }
                                 }
                             }
                         }
-                    }
                     
-                    //Transfer?
-                    if (@this.Hub.Neighbors.Count >= @this.CcCollective.MaxAdjuncts || !@this.Hub.Neighbors.TryAdd(newAdjunct.Key, newAdjunct))
-                    {
-                        newAdjunct.Zero(@this,$"Adjunct already exists, dropping {newAdjunct.Description}");
-                        return new ValueTask<bool>(false);    
+                        //Transfer?
+                        if (@this.Hub.Neighbors.Count >= @this.CcCollective.MaxAdjuncts || !@this.Hub.Neighbors.TryAdd(newAdjunct.Key, newAdjunct))
+                        {
+                            newAdjunct.Zero(@this,$"Adjunct already exists, dropping {newAdjunct.Description}");
+                            return new ValueTask<bool>(false);    
+                        }
+                        return new ValueTask<bool>(true);
                     }
-                    return new ValueTask<bool>(true);
-                }
-                catch when(@this.Zeroed()){}
-                catch (Exception e) when(!@this.Zeroed())
-                {
-                    @this._logger.Error(e, $"{@this.Description??"N/A"}");
-                }
+                    catch when(@this.Zeroed()){}
+                    catch (Exception e) when(!@this.Zeroed())
+                    {
+                        @this._logger.Error(e, $"{@this.Description??"N/A"}");
+                    }
 
-                return new ValueTask<bool>(false);
-            }, ValueTuple.Create(this, newAdjunct)))
+                    return new ValueTask<bool>(false);
+                }, ValueTuple.Create(this, newAdjunct)).FastPath().ConfigureAwait(Zc))
             {
                 //setup conduits to messages
 #if DEBUG
@@ -2803,21 +2803,21 @@ namespace zero.cocoon.autopeer
                     return false;
                 }
 
-                if (!ZeroAtomic( static (_, state, _) =>
-                {
-                    var (@this, ioCcDrone, direction) = state;
-                   
-                    //Race for direction
-                    if (Interlocked.CompareExchange(ref @this._direction, (int) direction, (int) Heading.Undefined) != (int) Heading.Undefined)
+                if (!await ZeroAtomic( static (_, state, _) =>
                     {
-                        @this._logger.Warn($"oz: race for {direction} lost {ioCcDrone.Description}, current = {@this.Direction}, {@this._drone?.Description}");
-                        return new ValueTask<bool>(false);
-                    }
+                        var (@this, ioCcDrone, direction) = state;
+                   
+                        //Race for direction
+                        if (Interlocked.CompareExchange(ref @this._direction, (int) direction, (int) Heading.Undefined) != (int) Heading.Undefined)
+                        {
+                            @this._logger.Warn($"oz: race for {direction} lost {ioCcDrone.Description}, current = {@this.Direction}, {@this._drone?.Description}");
+                            return new ValueTask<bool>(false);
+                        }
                     
-                    @this._drone = ioCcDrone ?? throw new ArgumentNullException($"{nameof(ccDrone)}");
+                        @this._drone = ioCcDrone ?? throw new ArgumentNullException($"{nameof(ccDrone)}");
                     
-                    return new ValueTask<bool>(@this.CompareAndEnterState(AdjunctState.Connected, AdjunctState.Connecting) == AdjunctState.Connecting);
-                }, ValueTuple.Create(this, ccDrone, direction)))
+                        return new ValueTask<bool>(@this.CompareAndEnterState(AdjunctState.Connected, AdjunctState.Connecting) == AdjunctState.Connecting);
+                    }, ValueTuple.Create(this, ccDrone, direction)).FastPath().ConfigureAwait(Zc))
                 {
                     return false;
                 }

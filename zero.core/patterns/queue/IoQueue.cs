@@ -382,6 +382,7 @@ namespace zero.core.patterns.queue
         public async ValueTask<bool> RemoveAsync(IoZNode node)
         {
             Debug.Assert(_backPressure == null);
+            var deDup = true;
             try
             {
                 if (!await _syncRoot.WaitAsync().FastPath().ConfigureAwait(Zc) || _zeroed > 0)
@@ -390,6 +391,7 @@ namespace zero.core.patterns.queue
                 if (_count == 0 || _zeroed > 0 || node == null)
                     return false;
 
+                deDup = false;
                 _curEnumerator.Modified = true;
 
                 if (node.Prev != null)
@@ -416,7 +418,7 @@ namespace zero.core.patterns.queue
             finally
             {
                 _syncRoot.Release();
-                _nodeHeap.Return(node);
+                _nodeHeap.Return(node, deDup);
             }
 
             return true;

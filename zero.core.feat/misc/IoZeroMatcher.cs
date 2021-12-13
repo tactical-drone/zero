@@ -122,7 +122,7 @@ namespace zero.core.feat.misc
         /// <param name="body">The payload</param>
         /// <returns>True if successful</returns>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public ValueTask<IoQueue<IoChallenge>.IoZNode> ChallengeAsync(string key, byte[] body)
+        public async ValueTask<IoQueue<IoChallenge>.IoZNode> ChallengeAsync(string key, byte[] body)
         {
             if (body == null)
                 return default;
@@ -141,7 +141,7 @@ namespace zero.core.feat.misc
                 state.Key = key;
                 state.Body = body;
 
-                ZeroAtomic(static async (_, state, _) =>
+                await ZeroAtomic(static async (_, state, _) =>
                 {
                     IoChallenge challenge = null;
                     try
@@ -199,7 +199,7 @@ namespace zero.core.feat.misc
                     }
 
                     return true;
-                }, state);
+                }, state).FastPath().ConfigureAwait(Zc);
             }
             finally
             {
@@ -207,7 +207,7 @@ namespace zero.core.feat.misc
                 _carHeap.Return(state);
             }
 
-            return new ValueTask<IoQueue<IoChallenge>.IoZNode>(node);
+            return node;
         }
         
         [ThreadStatic]
@@ -289,9 +289,9 @@ namespace zero.core.feat.misc
         /// <param name="key">The response key</param>
         /// <param name="reqHash"></param>
         /// <returns>The response payload</returns>
-        public ValueTask<bool> ResponseAsync(string key, ByteString reqHash)
+        public async ValueTask<bool> ResponseAsync(string key, ByteString reqHash)
         {
-            return reqHash.Length == 0 ? new ValueTask<bool>(false) : new ValueTask<bool>(ZeroAtomic(Match, (this, key, reqHash)));
+            return reqHash.Length != 0 && await ZeroAtomic(Match, (this, key, reqHash)).FastPath().ConfigureAwait(Zc);
         }
 
         /// <summary>

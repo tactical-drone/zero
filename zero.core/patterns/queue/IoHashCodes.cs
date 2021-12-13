@@ -173,7 +173,7 @@ namespace zero.core.patterns.queue
         /// </summary>
         /// <param name="item"></param>
         /// <returns></returns>
-        [MethodImpl(MethodImplOptions.Synchronized | MethodImplOptions.AggressiveInlining)]
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public bool Contains(int item)
         {
             return _storage.Contains(item);

@@ -81,7 +81,6 @@ namespace zero.core.patterns.queue
             set => _storage[i] = value;
         }
         
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         bool Scale()
         {
             if(!IsAutoScaling)
@@ -95,6 +94,7 @@ namespace zero.core.patterns.queue
                     Array.Copy(_storage, 0, newStorage, 0, _capacity);
 
                     _storage = newStorage;
+                    Thread.MemoryBarrier(); //in case Exchanges does not do this
                     Interlocked.Exchange(ref _capacity, _capacity * 2);
                     return true;
                 }
@@ -291,9 +291,9 @@ namespace zero.core.patterns.queue
         /// </summary>
         /// <param name="item"></param>
         /// <returns></returns>
-        [MethodImpl(MethodImplOptions.Synchronized | MethodImplOptions.AggressiveInlining)]
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public bool Contains(T item)
-        {            
+        {
             return _storage.Contains(item);
         }
 

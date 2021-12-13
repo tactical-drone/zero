@@ -475,11 +475,10 @@ namespace zero.core.patterns.semaphore.core
                     if (TaskScheduler.Current != TaskScheduler.Default)
                         cc = TaskScheduler.Current;
 
-                    InvokeContinuation(continuation, state, cc, true);
+                    InvokeContinuation(continuation, state, cc, false);
 
                     return;
                 }
-                Console.WriteLine("QUEUE");
             }
 
             //lock
