@@ -649,13 +649,15 @@ namespace zero.core.patterns.bushings
                         {
                             if (curJob.Id % parm_stats_mod_count == 0 && _lastStat.Elapsed() > 10)
                             {
-                                lock (StaticSync)
+                                await ZeroAtomic(static (_,state,_) =>
                                 {
-                                    _lastStat = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
-                                    _logger?.Info(
-                                        $"{Description} {JobHeap.OpsPerSecond:0.0} j/s, [{JobHeap.ReferenceCount} / {JobHeap.CacheSize()} / {JobHeap.ReferenceCount + JobHeap.CacheSize()} / {JobHeap.FreeCapacity()} / {JobHeap.MaxSize}]");
+                                    var (@this, curJob) = state;
+                                    @this._lastStat = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+                                    @this._logger?.Info(
+                                        $"{@this.Description} {@this.JobHeap.OpsPerSecond:0.0} j/s, [{@this.JobHeap.ReferenceCount} / {@this.JobHeap.CacheSize()} / {@this.JobHeap.ReferenceCount + @this.JobHeap.CacheSize()} / {@this.JobHeap.FreeCapacity()} / {@this.JobHeap.MaxSize}]");
                                     curJob.Source.PrintCounters();
-                                }
+                                    return new ValueTask<bool>(true);
+                                }, (this,curJob)).FastPath().ConfigureAwait(Zc);
                             }
 
                             await ReturnJobToHeapAsync(curJob).FastPath().ConfigureAwait(Zc);
@@ -684,8 +686,6 @@ namespace zero.core.patterns.bushings
 
             return false;
         }
-
-        private static readonly object StaticSync = new ();
 
         /// <summary>
         /// Starts processing work queues

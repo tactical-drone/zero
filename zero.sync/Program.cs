@@ -64,7 +64,7 @@ namespace zero.sync
         static void Main(string[] args)
         {
             //SemTest();
-            QueueTestAsync();
+            //QueueTestAsync();
 
             LogManager.LoadConfiguration("nlog.config");
             var portOffset = 7051;
