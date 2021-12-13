@@ -162,13 +162,18 @@ namespace zero.core.network.ip
             try
             {
                 var sig = new IoManualResetValueTaskSource<bool>();
-                var result = NativeSocket.BeginConnect(remoteAddress.IpEndPoint, ar => { ((IoManualResetValueTaskSource<bool>)ar.AsyncState).SetResult(ar.IsCompleted); }, sig);
+                NativeSocket.BeginConnect(remoteAddress.IpEndPoint, static result =>
+                {
+                    var (socket, cb) = (ValueTuple<Socket, IoManualResetValueTaskSource<bool>>)result.AsyncState;
+                    socket.EndConnect(result);
+                    cb.SetResult(socket.Connected);
+                }, (NativeSocket,sig));
 
                 if (timeout > 0)
                 {
                     await ZeroAsync(static async state =>
                     {
-                        var (@this, result, timeout) = state;
+                        var (@this, timeout) = state;
 
                         try
                         {
@@ -182,18 +187,12 @@ namespace zero.core.network.ip
                         if (!@this.IsConnected())
                         {
                             @this.Zero(@this, $"Connecting timed out, waited {timeout}ms");
-                            result.AsyncWaitHandle.Close();
-                            result.AsyncWaitHandle.Dispose();
+                            @this.NativeSocket.Close();
                         }
-                    }, ValueTuple.Create(this, result, timeout), TaskCreationOptions.DenyChildAttach);
+                    }, ValueTuple.Create(this, timeout), TaskCreationOptions.DenyChildAttach);
                 }
 
-                await sig.WaitAsync().FastPath().ConfigureAwait(false);
-
-                result.AsyncWaitHandle.Close();
-                result.AsyncWaitHandle.Dispose();
-
-                if (!IsConnected())
+                if (!await sig.WaitAsync().FastPath().ConfigureAwait(false))
                     return false;
 
                 LocalNodeAddress = IoNodeAddress.CreateFromEndpoint("tcp", (IPEndPoint)NativeSocket.LocalEndPoint);

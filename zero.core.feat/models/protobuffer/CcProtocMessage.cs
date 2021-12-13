@@ -132,18 +132,24 @@ namespace zero.core.feat.models.protobuffer
                         //Async read the message from the message stream
                         if (job.MessageService.IsOperational && !job.Zeroed())
                         {
-                            var bytesRead = await ((IoSocket)ioSocket)
-                                .ReadAsync(job.MemoryBuffer, job.BufferOffset, job.BufferSize,
-                                    job.RemoteEndPoint).FastPath().ConfigureAwait(job.Zc);
+                            var totalRead = 0;
+                            int read;
+                            do
+                            {
+                                totalRead += read = await ((IoSocket)ioSocket)
+                                    .ReadAsync(job.MemoryBuffer, job.BufferOffset + totalRead,
+                                        job.BufferSize - totalRead,
+                                        job.RemoteEndPoint, timeout: totalRead > 0? -1 : 0).FastPath().ConfigureAwait(job.Zc);
+                            } while (read > 0);
 
                             //Drop zero reads
-                            if (bytesRead == 0)
+                            if (totalRead == 0)
                             {
                                 job.State = IoJobMeta.JobState.ProduceTo;
                                 return false;
                             }
 
-                            Interlocked.Add(ref job.BytesRead, bytesRead);
+                            Interlocked.Add(ref job.BytesRead, totalRead);
 
                             job.State = IoJobMeta.JobState.Produced;
 

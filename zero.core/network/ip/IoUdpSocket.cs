@@ -1,13 +1,16 @@
 ﻿using System;
+using System.ComponentModel;
 using System.Net;
 using System.Net.Sockets;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
+using System.Threading;
 using System.Threading.Tasks;
 using NLog;
 using zero.core.patterns.heap;
 using zero.core.patterns.misc;
 using zero.core.patterns.semaphore;
+using SocketException = System.Net.Sockets.SocketException;
 
 namespace zero.core.network.ip
 {
@@ -35,6 +38,15 @@ namespace zero.core.network.ip
         /// <param name="concurrencyLevel"></param>
         public IoUdpSocket(Socket nativeSocket, IPEndPoint remoteEndPoint, int concurrencyLevel) : base(nativeSocket, remoteEndPoint)
         {
+            try
+            {
+                NativeSocket.Blocking = false;
+            }
+            catch 
+            {
+                return;
+            }
+
             Init(16);//TODO tuning
         }
 
@@ -451,7 +463,7 @@ namespace zero.core.network.ip
 
             try
             {
-                
+
                 //concurrency
                 //if (!await _rcvSync.WaitAsync().FastPath().ConfigureAwait(Zc))
                 //    return 0;
@@ -462,7 +474,7 @@ namespace zero.core.network.ip
                     try
                     {
                         args = _recvArgs.Take();
-                        
+
                         if (args == null)
                             throw new OutOfMemoryException(nameof(_recvArgs));
 
@@ -470,7 +482,8 @@ namespace zero.core.network.ip
                         args.SetBuffer(buffer.Slice(offset, length));
                         args.RemoteEndPoint = remoteEp;
 
-                        if (NativeSocket.ReceiveFromAsync(args) && !await _tcr.WaitAsync().FastPath().ConfigureAwait(Zc))
+                        if (NativeSocket.ReceiveFromAsync(args) &&
+                            !await _tcr.WaitAsync().FastPath().ConfigureAwait(Zc))
                         {
                             return 0;
                         }
@@ -479,10 +492,14 @@ namespace zero.core.network.ip
                         remoteEp.Port = ((IPEndPoint)args.RemoteEndPoint)!.Port;
 
                         return args.SocketError == SocketError.Success ? args.BytesTransferred : 0;
-                        
+
                     }
-                    catch (ObjectDisposedException) { }
-                    catch when(Zeroed()){}
+                    catch (ObjectDisposedException)
+                    {
+                    }
+                    catch when (Zeroed())
+                    {
+                    }
                     catch (Exception e) when (!Zeroed())
                     {
                         _logger.Error(e, "Receive udp failed:");
@@ -505,17 +522,27 @@ namespace zero.core.network.ip
                     }
                 }
 
-                if (timeout < 0) return 0;
+                if (timeout < 0)
+                    timeout = 0;
 
-                EndPoint remoteEpAny = null;
-                if (MemoryMarshal.TryGetArray((ReadOnlyMemory<byte>) buffer, out var tBuf))
+                EndPoint remoteEpAny = remoteEp;
+                if (MemoryMarshal.TryGetArray((ReadOnlyMemory<byte>)buffer, out var tBuf))
                 {
                     NativeSocket.ReceiveTimeout = timeout;
                     var read = NativeSocket.ReceiveFrom(tBuf.Array!, offset, length, SocketFlags.None, ref remoteEpAny); //                  
                     NativeSocket.ReceiveTimeout = 0;
-                    remoteEp.Address = ((IPEndPoint) remoteEpAny).Address;
-                    remoteEp.Port = ((IPEndPoint) remoteEpAny).Port;
+                    remoteEp.Address = ((IPEndPoint)remoteEpAny).Address;
+                    remoteEp.Port = ((IPEndPoint)remoteEpAny).Port;
                     return read;
+                }
+
+                return 0;
+            }
+            catch (Win32Exception e) when (!Zeroed())
+            {
+                if (e.ErrorCode != 10035)
+                {
+                    _logger.Error(e, $"{nameof(NativeSocket.ReceiveFromAsync)}: ");
                 }
 
                 return 0;

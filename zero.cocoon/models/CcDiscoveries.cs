@@ -346,10 +346,10 @@ namespace zero.cocoon.models
                     if (read == 0)
                         break;
 
-                    if (BytesLeftToProcess > 0)
-                    {
-                        _logger.Debug($"MULTI<<D = {DatumCount}, r = {BytesRead}:{read}, T = {totalBytesProcessed}, l = {BytesLeftToProcess}>>");
-                    }
+                    //if (BytesLeftToProcess > 0)
+                    //{
+                    //    _logger.Fatal($"MULTI<<D = {DatumCount}, r = {BytesRead}:{read}, T = {totalBytesProcessed}, l = {BytesLeftToProcess}>>");
+                    //}
 
                     //Sanity check the data
                     if (packet == null || packet.Data == null || packet.Data.Length == 0)
