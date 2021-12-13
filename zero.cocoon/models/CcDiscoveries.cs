@@ -216,50 +216,14 @@ namespace zero.cocoon.models
                 var c = 0;
                 while (totalBytesProcessed < BytesRead && State != IoJobMeta.JobState.ConInlined)
                 {
-                    if(c++ > 1)
-                        _logger.Fatal("MULTI!!!");
-
                     chroniton packet = null;
                     long curPos = 0;
                     var read = 0;
                     //deserialize
                     try
                     {
-                        //ByteStream.SetLength(BytesLeftToProcess);
-                        //curPos = BufferOffset;
-
-                        //trim zeroes
-                        // if (IoZero.SyncRecoveryModeEnabled)
-                        // {
-                        //     bool trimmed = false;
-                        //
-                        //     while (Buffer[curPos++] == 0 && totalBytesProcessed < BytesRead)
-                        //     {
-                        //         read++;
-                        //         totalBytesProcessed++;
-                        //         trimmed = true;
-                        //     }
-                        //
-                        //     if (totalBytesProcessed == BytesRead)
-                        //     {
-                        //         State = IoJobMeta.JobState.Consumed;
-                        //         continue;
-                        //     }
-                        //         
-                        //
-                        //     if (trimmed)
-                        //     {
-                        //         ByteStream.Seek(BufferOffset + read, SeekOrigin.Begin);
-                        //         ByteStream.SetLength(BytesLeftToProcess - read);
-                        //         curPos = BufferOffset + read;
-                        //     }
-                        // }
-                        
                         try
                         {
-                            if(((CcAdjunct)IoZero).CcCollective.ZeroDrone)
-                                Console.WriteLine($". {IoZero.IoSource.Count}");
-
                             packet = chroniton.Parser.ParseFrom(ReadOnlySequence.Slice(BufferOffset, BytesRead));
                             read = packet.CalculateSize();
                         }
@@ -312,28 +276,6 @@ namespace zero.cocoon.models
                         {
                             _logger.Debug(e,
                                 $"Parse failed: r = {totalBytesProcessed}/{BytesRead}/{BytesLeftToProcess}, d = {DatumCount}, b={MemoryBuffer.Slice((int)(tmpBufferOffset - 2), 32).ToArray().HashSig()}, {Description}");
-
-                            // var r = new ReadOnlyMemory<byte>(Buffer);
-                            // if (__enableZeroCopyDebug && MemoryMarshal.TryGetArray((ReadOnlyMemory<byte>)MemoryBuffer, out var seg))
-                            // {
-                            //     ByteStream.Seek(BufferOffset + read, SeekOrigin.Begin);
-                            //     ByteStream.SetLength(BufferOffset + BytesRead - read);
-                            //
-                            //     StringWriter w = new StringWriter();
-                            //     StringWriter w2 = new StringWriter();
-                            //     w.Write($"{MemoryBuffer.GetHashCode()}({BytesRead}):");
-                            //     w2.Write($"{__zeroCopyDebugBuffer.GetHashCode()}({BytesRead}):");
-                            //     var nullc = 0;
-                            //     var nulld = 0;
-                            //     for (var i = 0; i < BytesRead; i++)
-                            //     {
-                            //         w.Write($"[{seg[i + BufferOffset]}]");
-                            //         w2.Write($"[{__zeroCopyDebugBuffer[i + BufferOffset]}]");
-                            //     }
-                            //
-                            //     _logger.Debug(w.ToString());
-                            //     _logger.Warn(w2.ToString());
-                            // }
                         }
 
                         continue;
@@ -345,11 +287,6 @@ namespace zero.cocoon.models
 
                     if (read == 0)
                         break;
-
-                    //if (BytesLeftToProcess > 0)
-                    //{
-                    //    _logger.Fatal($"MULTI<<D = {DatumCount}, r = {BytesRead}:{read}, T = {totalBytesProcessed}, l = {BytesLeftToProcess}>>");
-                    //}
 
                     //Sanity check the data
                     if (packet == null || packet.Data == null || packet.Data.Length == 0)

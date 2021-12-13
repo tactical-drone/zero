@@ -188,7 +188,7 @@ namespace zero.core.patterns.bushings
         /// <summary>
         /// Current number of items in the Q
         /// </summary>
-        public int Count => _backPressure?.CurNrOfBlockers?? 0;
+        public int BacklogCount => _backPressure?.CurNrOfBlockers?? 0;
 
         /// <summary>
         /// Used to identify work that was done recently

@@ -148,7 +148,7 @@ namespace zero.core.patterns.bushings.contracts
         /// <summary>
         /// Number of jobs buffered
         /// </summary>
-        int Count { get; }
+        int BacklogCount { get; }
 
         /// <summary>
         /// Executes the specified function in the context of the source
