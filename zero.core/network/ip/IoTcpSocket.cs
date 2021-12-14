@@ -293,14 +293,14 @@ namespace zero.core.network.ip
                 {
                     NativeSocket.ReceiveTimeout = timeout;
                     var sw = Stopwatch.StartNew();
-                    int read = 0;
+                    var read = 0;
                     while ((read += NativeSocket.Receive(buf.Array!, offset, length, SocketFlags.None)) == 0 && sw.ElapsedMilliseconds < timeout)
                     {
                         await Task.Delay(timeout / 10).ConfigureAwait(Zc);
                     }
                     NativeSocket.ReceiveTimeout = 0;
-                    if(sw.ElapsedMilliseconds < timeout )
-                        _logger.Fatal($"{nameof(ReadAsync)}: timeout not working, slept {sw.ElapsedMilliseconds}ms, wanted = {timeout}ms");
+                    if(sw.ElapsedMilliseconds < timeout && read == 0)
+                        _logger.Fatal($"{nameof(ReadAsync)}: timeout [FAILED], slept {sw.ElapsedMilliseconds}ms, wanted = {timeout}ms");
                     return read;
                 }
             }

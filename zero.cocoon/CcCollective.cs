@@ -619,13 +619,13 @@ namespace zero.cocoon
                     {
                         
                         bytesRead += localRead = await ioNetSocket
-                            .ReadAsync(futileBuffer, bytesRead, _futileRequestSize - bytesRead, timeout:parm_futile_timeout_ms * 2).FastPath()
+                            .ReadAsync(futileBuffer, bytesRead, _futileRequestSize - bytesRead, timeout:parm_futile_timeout_ms).FastPath()
                             .ConfigureAwait(Zc);
                     } while (bytesRead < _futileRequestSize && localRead > 0 && !Zeroed());
 
                     if (bytesRead == 0 || bytesRead < _futileRequestSize)
                     {
-                        _logger.Error($"Failed to read inbound futile request, waited = {_sw.ElapsedMilliseconds}ms, wanted ={parm_futile_timeout_ms * 2}ms, socket = {ioNetSocket.Description}");
+                        _logger.Error($"Failed to read futile ingress request, waited = {_sw.ElapsedMilliseconds}ms, wanted ={parm_futile_timeout_ms}ms, socket = {ioNetSocket.Description}");
                         return false;
                     }
                     else

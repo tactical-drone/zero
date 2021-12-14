@@ -1,6 +1,8 @@
 ﻿//#define LOSS
 using System;
+using System.Buffers;
 using System.Collections.Concurrent;
+using System.IO;
 using System.Linq;
 using System.Net;
 using System.Net.NetworkInformation;
@@ -1580,7 +1582,11 @@ namespace zero.cocoon.autopeer
 
                     packet.Signature = UnsafeByteOperations.UnsafeWrap(CcCollective.CcId.Sign(packetMsgRaw, 0, packetMsgRaw.Length));
 
-                    var msgRaw = packet.ToByteArray();
+                    var size = packet.CalculateSize();
+
+                    var buf = new byte[size * 2];
+                    var cd = new MemoryStream(buf);
+                    packet.WriteDelimitedTo(cd);
                     
 //simulate byzantine failure.                
 #if LOSS
@@ -1606,7 +1612,7 @@ namespace zero.cocoon.autopeer
 
                 return sent;
 #else
-                    return await MessageService.IoNetSocket.SendAsync(msgRaw, 0, msgRaw.Length, dest.IpEndPoint).FastPath().ConfigureAwait(Zc);
+                    return await MessageService.IoNetSocket.SendAsync(buf, 0, buf.Length, dest.IpEndPoint).FastPath().ConfigureAwait(Zc);
 #endif
                 
 #if DEBUG

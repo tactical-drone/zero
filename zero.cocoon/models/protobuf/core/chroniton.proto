@@ -4,10 +4,10 @@ package zero.models.protobuf;
 
 import "models/protobuf/core/net.proto";
 
-message chroniton {
-  z_header  header = 1;  
-  bytes signature = 2;
-  bytes PublicKey = 3;  
-  bytes data = 4;
-  int32 type = 5;
+message chroniton {	
+	z_header  header = 1;  
+    bytes signature = 2;
+    bytes PublicKey = 3;  
+    bytes data = 4;
+    int32 type = 5;
 }

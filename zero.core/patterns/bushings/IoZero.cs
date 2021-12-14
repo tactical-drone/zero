@@ -495,12 +495,8 @@ namespace zero.core.patterns.bushings
         {
             try
             {
-                Debug.Assert(job!= null);
-
-#if RELEASE
                 if (job == null)
                     return;
-#endif
 
                 if (!freeCurrent && SyncRecoveryModeEnabled && job.PreviousJob != null)
                 {

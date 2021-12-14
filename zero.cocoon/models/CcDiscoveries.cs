@@ -210,34 +210,44 @@ namespace zero.cocoon.models
                 if (BytesRead == 0 || Zeroed())
                     return State = IoJobMeta.JobState.ConInvalid;
                 
-                var totalBytesProcessed = 0;
+                long totalBytesProcessed = 0;
                 var verified = false;
 
-                var c = -1;
-                
-                
+                //if (BytesLeftToProcess < 4)
+                //    return State = IoJobMeta.JobState.ConInlined;
+
+                //int chunkSize = 0;
+                //var chunk = ArraySegment[DatumProvisionLengthMax..];
+
+                //chunkSize |= (byte)(chunk[3] & 0x000f);
+                //chunkSize |= (byte)((chunk[2] << 4) & 0x00f0);
+                //chunkSize |= (byte)((chunk[1] << 8) & 0x0f00);
+                //chunkSize |= (byte)((chunk[0] << 12) & 0xf000);
+
+
+                ByteStream.Seek(DatumProvisionLengthMax, SeekOrigin.Begin);
                 while (totalBytesProcessed < BytesRead && State != IoJobMeta.JobState.ConInlined)
                 {
-                    c++;
                     chroniton packet = null;
 
                     long curPos = 0;
-                    var read = 0;
+                    long read = 0;
                     //deserialize
                     try
                     {
                         try
                         {
-                            packet = chroniton.Parser.ParseFrom(ReadOnlySequence.Slice(BufferOffset, BytesRead - totalBytesProcessed));
-                            read = packet.CalculateSize();
+                            var startPos = ByteStream.Position;
+                            packet = chroniton.Parser.ParseDelimitedFrom(ByteStream);
+                            //packet = chroniton.Parser.ParseDelimitedFrom(ReadOnlySequence.Slice(BufferOffset, BytesRead));
+                            read = ByteStream.Position - startPos;
                         }
                         catch
                         {
                             try
                             {
-                                ByteStream.Seek(BufferOffset, SeekOrigin.Begin);
+                                ByteStream.Seek(DatumProvisionLengthMax, SeekOrigin.Begin);
                                 curPos = ByteStream.Position;
-
                                 packet = chroniton.Parser.ParseFrom(CodedStream);
                                 read = (int)(ByteStream.Position - curPos);
                             }
@@ -289,7 +299,7 @@ namespace zero.cocoon.models
                     }
                     finally
                     {
-                        Interlocked.Add(ref BufferOffset, read);
+                        Interlocked.Add(ref BufferOffset, (int)read);
                     }
 
                     if (read == 0)
