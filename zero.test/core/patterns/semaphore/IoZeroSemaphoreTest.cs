@@ -20,7 +20,7 @@ namespace zero.test.core.patterns.semaphore
         private volatile bool _running;
 
         [Fact]
-        async Task TestMutex()
+        async Task TestMutexMode()
         {
             _running = true;
 #if DEBUG
@@ -172,6 +172,170 @@ namespace zero.test.core.patterns.semaphore
             Assert.InRange(waits,1000000, int.MaxValue);
         }
 
+        [Fact]
+        async Task TestIoZeroResetEvent()
+        {
+            var count = 5;
+            var minDelay = 25;
+            var v = new IoZeroResetEvent();
+
+            var t = Task.Factory.StartNew(async () =>
+            {
+                for (var i = 0; i < count; i++)
+                {
+                    await Task.Delay(minDelay);
+                    v.Release();
+                    _output.WriteLine(".");
+                }
+            }).Unwrap();
+
+            var ts = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+            Assert.True(await v.WaitAsync().FastPath().ConfigureAwait(Zc));
+            Assert.InRange(ts.ElapsedMs(), minDelay/2, minDelay * 2);
+
+            for (var i = 0; i < count - 1; i++)
+            {
+                ts = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+                _output.WriteLine("_*");
+                Assert.True(await v.WaitAsync().FastPath().ConfigureAwait(Zc));
+                Assert.InRange(ts.ElapsedMs(), minDelay / 2, 2000);
+                _output.WriteLine("*");
+            }
+        }
+
+        [Fact]
+        async Task TestIoZeroResetEventOpen()
+        {
+            var count = 5;
+            var minDelay = 25;
+            var v = new IoZeroResetEvent(true);
+
+            var t = Task.Factory.StartNew(async () =>
+            {
+                for (var i = 0; i < count; i++)
+                {
+                    await Task.Delay(minDelay);
+                    v.Release();
+                }
+            }).Unwrap();
+
+            var ts = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+            Assert.True(await v.WaitAsync().FastPath().ConfigureAwait(Zc));
+            Assert.InRange(ts.ElapsedMs(), 0, 2);
+
+            for (var i = 0; i < count - 1; i++)
+            {
+                ts = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+                Assert.True(await v.WaitAsync().FastPath().ConfigureAwait(Zc));
+                Assert.InRange(ts.ElapsedMs(), minDelay / 2, 2000);
+            }
+        }
+
+        [Fact]
+        async Task TestIoZeroResetEventSpam()
+        {
+            var count = (long)2000000;
+            var v = new IoZeroResetEvent();
+
+            var totalTime = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+
+            var t = Task.Factory.StartNew(() =>
+            {
+                for (var i = 0; i < count; i++)
+                {
+
+                    //_output.WriteLine($"s -> {v.GetStatus(v.Version)}[{v.Version}] \t- {DateTimeOffset.UtcNow.Ticks} - {i}/{count} - {Thread.CurrentThread.ManagedThreadId}");
+
+                    var c = 0;
+                    while (v.Release(bestEffort: true) != 1)
+                    {
+                        //if(c++ %10000 ==0)
+                        //_output.WriteLine(".");
+                        //Thread.Sleep(0);
+                    }
+                    //_output.WriteLine($"s <- {v.GetStatus(v.Version)}[{v.Version}] \t- {DateTimeOffset.UtcNow.Ticks} - {i}/{count} - {Thread.CurrentThread.ManagedThreadId}");
+                }
+                
+            }, TaskCreationOptions.DenyChildAttach);
+
+            for (var i = 0; i < count; i++)
+            {
+                var ts = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+
+                var version = v.Version;
+                var status = v.GetStatus(version);
+                //_output.WriteLine($"w -> {status}[{version}] \t- {DateTimeOffset.UtcNow.Ticks} - {i}/{count} - {Thread.CurrentThread.ManagedThreadId}");
+
+                Assert.True(await v.WaitAsync().FastPath().ConfigureAwait(Zc));
+                Assert.InRange(ts.ElapsedMs(), 0, 20000);
+
+                version = v.Version;
+                status = v.GetStatus(version);
+                //_output.WriteLine($"w <- {status}[{version}] \t- {DateTimeOffset.UtcNow.Ticks} - {i}/{count} - {Thread.CurrentThread.ManagedThreadId}");
+            }
+
+            await t;
+            var maps = count * 1000 / (totalTime.ElapsedMs()) / 1000;
+            _output.WriteLine($"MAPS = {maps} K/s, t = {totalTime.ElapsedMs()}ms");
+            Assert.InRange(maps, 0, int.MaxValue);
+        }
+
+        [Fact]
+        async Task TestIoZeroSemaphoreSlim()
+        {
+            var count = 50;
+            var minDelay = 25;
+            var v = new IoZeroSemaphoreSlim(new CancellationTokenSource(), string.Empty, 1, 1);
+
+            var t = Task.Factory.StartNew(async () =>
+            {
+                for (int i = 0; i < count; i++)
+                {
+                    await Task.Delay(minDelay);
+                    v.Release();
+                }
+            }).Unwrap();
+
+            var ts = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+            Assert.True(await v.WaitAsync().FastPath().ConfigureAwait(Zc));
+            Assert.InRange(ts.ElapsedMs(), 0, 2);
+
+            for (var i = 0; i < count; i++)
+            {
+                ts = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+                Assert.True(await v.WaitAsync().FastPath().ConfigureAwait(Zc));
+                Assert.InRange(ts.ElapsedMs(), minDelay / 2, 2000);
+            }
+        }
+
+        [Fact]
+        async Task TestIoZeroSemaphoreSlimSpam()
+        {
+            long count = 10000000;
+            var v = new IoZeroSemaphoreSlim(new CancellationTokenSource(), string.Empty, 1, 1);
+
+            var totalTime = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+
+            var t = Task.Factory.StartNew( () =>
+            {
+                for (var i = 0; i < count - 1; i++)
+                {
+                    while (v.Release(bestEffort: true) != 1) { Thread.Yield();}
+                }
+            });
+
+            for (var i = 0; i < count; i++)
+            {
+                var ts = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+                Assert.True(await v.WaitAsync().FastPath().ConfigureAwait(Zc));
+                Assert.InRange(ts.ElapsedMs(), 0, 10);
+            }
+
+            await t;
+            var maps = count * 1000 / totalTime.ElapsedMs() / 1000;
+            _output.WriteLine($"MAPS = {maps} K/s, t = {totalTime.ElapsedMs()}ms");
+            Assert.InRange(maps, 1, int.MaxValue);
+        }
 
         public void Dispose()
         {

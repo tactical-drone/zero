@@ -111,7 +111,7 @@ namespace zero.core.patterns.misc
         /// <summary>
         /// Continue On Captured Context
         /// </summary>
-        public static bool ContinueOnCapturedContext => true;
+        public static bool ContinueOnCapturedContext => false;
 
         /// <summary>
         /// Used for equality compares

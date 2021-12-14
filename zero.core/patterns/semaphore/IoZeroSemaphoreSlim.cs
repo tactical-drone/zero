@@ -82,6 +82,7 @@ namespace zero.core.patterns.semaphore
         public int CurNrOfBlockers => _semaphore.CurNrOfBlockers;
         public int MaxAsyncWorkers => _semaphore.MaxAsyncWorkers;
         public int Capacity => _semaphore.Capacity;
+        public bool RunContinuationsAsynchronously => _semaphore.RunContinuationsAsynchronously;
 
         int IIoZeroSemaphore.ZeroEnter()
         {

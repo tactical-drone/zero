@@ -117,7 +117,7 @@ namespace zero.core.patterns.semaphore.core
         /// <summary>
         /// Whether we support async continuations 
         /// </summary>
-        internal readonly bool RunContinuationsAsynchronously;
+        public bool RunContinuationsAsynchronously { get; }
 
         /// <summary>
         /// Current number of async workers
@@ -475,7 +475,7 @@ namespace zero.core.patterns.semaphore.core
                     if (TaskScheduler.Current != TaskScheduler.Default)
                         cc = TaskScheduler.Current;
 
-                    InvokeContinuation(continuation, state, cc, false);
+                    InvokeContinuation(continuation, state, cc, _zeroRef.RunContinuationsAsynchronously);
 
                     return;
                 }
@@ -614,6 +614,7 @@ namespace zero.core.patterns.semaphore.core
                         else
                         {
                             _zeroRef.ZeroDecAsyncCount();
+                            //something went wrong at this point... might as well execute
                             callback(state);
                         }
                     }
@@ -628,7 +629,7 @@ namespace zero.core.patterns.semaphore.core
                     {
                         var tuple = (ValueTuple<Action<object>, object>)s;
                         tuple.Item1(tuple.Item2);
-                    }, new ValueTuple<Action<object>, object>(callback, state));
+                    }, (callback, state));
                     break;
 
                 case TaskScheduler ts:
@@ -839,7 +840,7 @@ namespace zero.core.patterns.semaphore.core
         public ValueTask<bool> WaitAsync()
         {
             //insane checks
-            if (_zeroRef == null || _zeroRef.ZeroWaitCount() >= _maxBlockers || _zeroRef.Zeroed())
+            if (_zeroRef == null || _zeroRef.ZeroWaitCount() > _maxBlockers || _zeroRef.Zeroed())
                 return new ValueTask<bool>(false);
 
             //fast path

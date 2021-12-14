@@ -33,7 +33,7 @@ namespace zero.cocoon.events.services
         private static volatile int _curIdx = 0;
         public static bool Operational => _operational > 0;
 
-        public static async Task ToggleActive()
+        public static async Task ToggleActiveAsync()
         {
             _operational = _operational > 0 ? 0 : 1;
             if (!Operational)

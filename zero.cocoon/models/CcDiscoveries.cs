@@ -213,10 +213,14 @@ namespace zero.cocoon.models
                 var totalBytesProcessed = 0;
                 var verified = false;
 
-                //var c = 0;
+                var c = -1;
+                
+                
                 while (totalBytesProcessed < BytesRead && State != IoJobMeta.JobState.ConInlined)
                 {
+                    c++;
                     chroniton packet = null;
+
                     long curPos = 0;
                     var read = 0;
                     //deserialize
@@ -224,7 +228,7 @@ namespace zero.cocoon.models
                     {
                         try
                         {
-                            packet = chroniton.Parser.ParseFrom(ReadOnlySequence.Slice(BufferOffset, BytesRead));
+                            packet = chroniton.Parser.ParseFrom(ReadOnlySequence.Slice(BufferOffset, BytesRead - totalBytesProcessed));
                             read = packet.CalculateSize();
                         }
                         catch
@@ -239,6 +243,7 @@ namespace zero.cocoon.models
                             }
                             catch
                             {
+                                read = (int)(ByteStream.Position - curPos);
                                 // ignored
                             }
 
@@ -255,7 +260,9 @@ namespace zero.cocoon.models
                         }
 
                         totalBytesProcessed += read;
-                        State = IoJobMeta.JobState.Consumed;
+
+                        if (BytesRead == totalBytesProcessed)
+                            State = IoJobMeta.JobState.Consumed;
                     }
                     catch (Exception e)
                     {
@@ -364,7 +371,7 @@ namespace zero.cocoon.models
                         else
                         {
                             State = IoJobMeta.JobState.ConInlined;
-                            _logger.Debug($"FRAGGED = {DatumCount}, {BytesRead}/{BytesLeftToProcess}");
+                            _logger.Debug($"[{Id}] FRAGGED = {DatumCount}, {BytesRead}/{BytesLeftToProcess}");
                         }
                     }
                 }

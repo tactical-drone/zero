@@ -17,46 +17,47 @@ namespace zero.core.patterns.semaphore.core
         int CurNrOfBlockers { get; }
         public int MaxAsyncWorkers { get; }
         public int Capacity { get; }
+        bool RunContinuationsAsynchronously { get; }
 
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        internal int ZeroEnter();
+        protected internal int ZeroEnter();
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        internal int ZeroCount();
+        protected internal int ZeroCount();
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        internal int ZeroIncCount();
+        protected internal int ZeroIncCount();
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        internal int ZeroDecCount();
+        protected internal int ZeroDecCount();
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        internal int ZeroAddCount(int value);
+        protected internal int ZeroAddCount(int value);
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        internal long ZeroHead();
+        protected internal long ZeroHead();
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        internal long ZeroTail();
+        protected internal long ZeroTail();
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        internal long ZeroNextTail();
+        protected internal long ZeroNextTail();
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        internal long ZeroNextHead();
+        protected internal long ZeroNextHead();
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        internal long ZeroPrevTail();
+        protected internal long ZeroPrevTail();
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        internal long ZeroPrevHead();
+        protected internal long ZeroPrevHead();
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        internal int ZeroIncWait();
+        protected internal int ZeroIncWait();
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        internal int ZeroDecWait();
+        protected internal int ZeroDecWait();
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        internal int ZeroWaitCount();
+        protected internal int ZeroWaitCount();
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        internal int ZeroIncAsyncCount();
+        protected internal int ZeroIncAsyncCount();
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        internal int ZeroDecAsyncCount();
+        protected internal int ZeroDecAsyncCount();
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        internal int ZeroAsyncCount();
+        protected internal int ZeroAsyncCount();
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        internal short ZeroToken();
+        protected internal short ZeroToken();
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        internal short ZeroTokenBump();
+        protected internal short ZeroTokenBump();
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         bool Zeroed();
 

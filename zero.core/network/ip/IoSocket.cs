@@ -276,7 +276,7 @@ namespace zero.core.network.ip
         /// <param name="length">The maximum bytes to read into the buffer</param>
         /// <param name="remoteEp"></param>
         /// <param name="blacklist"></param>
-        /// <param name="timeout">Sync read with timout</param>
+        /// <param name="timeout">Sync read with timeout</param>
         /// <returns>The amounts of bytes read</returns>
         public abstract ValueTask<int> ReadAsync(Memory<byte> buffer, int offset, int length, IPEndPoint remoteEp = null, byte[] blacklist = null, int timeout = 0);
 

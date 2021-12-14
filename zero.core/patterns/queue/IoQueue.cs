@@ -31,7 +31,7 @@ namespace zero.core.patterns.queue
         /// <summary>
         /// constructor
         /// </summary>
-        public IoQueue(string description, int capacity, int concurrencyLevel, int initialCount = 0, bool enableBackPressure = false, bool disablePressure = true, bool autoScale = false)
+        public IoQueue(string description, int capacity, int concurrencyLevel, bool enableBackPressure = false, bool disablePressure = true, bool autoScale = false)
         {
             _description = description;
 
@@ -42,10 +42,9 @@ namespace zero.core.patterns.queue
 #endif
 
             _nodeHeap = new IoHeap<IoZNode>(desc, capacity, autoScale: autoScale) {Malloc = static (_,_) => new IoZNode()};
-            _syncRoot = new IoZeroSemaphore(desc, maxBlockers: concurrencyLevel, initialCount: 1);
-            _syncRoot.ZeroRef(ref _syncRoot, _asyncTasks);
 
-            //_syncRoot = new IoZeroRefMut(_asyncTasks.Token);
+            _syncValRoot = new IoZeroSemaphore(desc, maxBlockers: concurrencyLevel, initialCount: 1);
+            _syncValRoot.ZeroRef(ref _syncValRoot, _asyncTasks);
 
             if (!disablePressure)
             {
@@ -68,7 +67,7 @@ namespace zero.core.patterns.queue
         private readonly string _description; 
         private volatile int _zeroed;
         private readonly bool Zc = IoNanoprobe.ContinueOnCapturedContext;
-        private IIoZeroSemaphore _syncRoot;
+        private IIoZeroSemaphore _syncValRoot;
         private IIoZeroSemaphore _pressure;
         private IIoZeroSemaphore _backPressure;
         private CancellationTokenSource _asyncTasks = new CancellationTokenSource();
@@ -91,7 +90,7 @@ namespace zero.core.patterns.queue
 
         public bool Modified => _curEnumerator.Modified;
 
-        public bool Zeroed => _zeroed > 0 || _syncRoot.Zeroed() || _pressure != null && _pressure.Zeroed() || _backPressure != null && _backPressure.Zeroed();
+        public bool Zeroed => _zeroed > 0 || _pressure != null && _pressure.Zeroed() || _backPressure != null && _backPressure.Zeroed();
 
         public bool IsAutoScaling => _nodeHeap.IsAutoScaling;
         public async ValueTask<bool> ZeroManagedAsync<TC>(Func<T,TC, ValueTask> op = null, TC nanite = default, bool zero = false)
@@ -159,8 +158,8 @@ namespace zero.core.patterns.queue
                     _pressure = null;
                     _backPressure = null;
 
-                    _syncRoot.ZeroSem();
-                    _syncRoot = null;
+                    //_syncRoot.ZeroSem();
+                    //_syncRoot = null;
                 }
             }
 
@@ -201,7 +200,7 @@ namespace zero.core.patterns.queue
                 node.Next = null;
 
                 // ReSharper disable once ConditionIsAlwaysTrueOrFalse
-                if (!await _syncRoot.WaitAsync().FastPath().ConfigureAwait(Zc) || !(entered = true) || _zeroed > 0)
+                if (!await _syncValRoot.WaitAsync().FastPath().ConfigureAwait(Zc) || !(entered = true) || _zeroed > 0)
                 {
                     _nodeHeap.Return(node);
                     return null;
@@ -226,7 +225,7 @@ namespace zero.core.patterns.queue
                 var success = _tail != null && _tail == retVal;
 
                 if (entered)
-                    _syncRoot.Release();
+                    _syncValRoot.Release();
 
                 if (success)
                     _pressure?.Release();
@@ -268,10 +267,10 @@ namespace zero.core.patterns.queue
                 node.Next = null;
 
                 // ReSharper disable once ConditionIsAlwaysTrueOrFalse
-                if (!await _syncRoot.WaitAsync().FastPath().ConfigureAwait(Zc) || !(entered = true) || _zeroed > 0)
+                if (!await _syncValRoot.WaitAsync().FastPath().ConfigureAwait(Zc) || !(entered = true) || _zeroed > 0)
                 {
                     _nodeHeap.Return(node);
-                    LogManager.GetCurrentClassLogger().Fatal($"{nameof(DequeueAsync)}: _syncRoot failure ~> {_syncRoot}");
+                    LogManager.GetCurrentClassLogger().Fatal($"{nameof(DequeueAsync)}: _syncRoot failure ~> {_syncValRoot}");
                     return null;
                 }
 
@@ -294,7 +293,7 @@ namespace zero.core.patterns.queue
                 var success = retVal != default;
 
                 if (entered)
-                    _syncRoot.Release();
+                    _syncValRoot.Release();
 
                 if(success)
                     _pressure?.Release();
@@ -322,7 +321,7 @@ namespace zero.core.patterns.queue
                 if (_pressure != null && !await _pressure.WaitAsync().FastPath().ConfigureAwait(Zc) || _zeroed > 0)
                     return default;
 
-                if (!await _syncRoot.WaitAsync().FastPath().ConfigureAwait(Zc) || _zeroed > 0)
+                if (!await _syncValRoot.WaitAsync().FastPath().ConfigureAwait(Zc) || _zeroed > 0)
                     return default;
 
                 blocked = true;
@@ -349,10 +348,11 @@ namespace zero.core.patterns.queue
             }
             finally
             {
-                _backPressure?.Release();
+                if(dq != null)
+                    _backPressure?.Release();
 
                 if (blocked)
-                    _syncRoot.Release();
+                    _syncValRoot.Release();
             }
             //return dequeued item
             
@@ -363,6 +363,10 @@ namespace zero.core.patterns.queue
                     var retVal = dq.Value;
                     _nodeHeap.Return(dq);
                     return retVal;
+                }
+                else
+                {
+                    
                 }
             }
             catch when(_zeroed > 0){}
@@ -385,7 +389,7 @@ namespace zero.core.patterns.queue
             var deDup = true;
             try
             {
-                if (!await _syncRoot.WaitAsync().FastPath().ConfigureAwait(Zc) || _zeroed > 0)
+                if (!await _syncValRoot.WaitAsync().FastPath().ConfigureAwait(Zc) || _zeroed > 0)
                     return false;
 
                 if (_count == 0 || _zeroed > 0 || node == null)
@@ -417,7 +421,7 @@ namespace zero.core.patterns.queue
             }
             finally
             {
-                _syncRoot.Release();
+                _syncValRoot.Release();
                 _nodeHeap.Return(node, deDup);
             }
 
@@ -442,7 +446,7 @@ namespace zero.core.patterns.queue
         {
             try
             {
-                if (!await _syncRoot.WaitAsync().FastPath().ConfigureAwait(Zc))
+                if (!await _syncValRoot.WaitAsync().FastPath().ConfigureAwait(Zc))
                     return;
             
                 var cur = Head;
@@ -461,7 +465,7 @@ namespace zero.core.patterns.queue
             }
             finally
             {
-                _syncRoot.Release();
+                _syncValRoot.Release();
             }
         }
 
@@ -473,7 +477,7 @@ namespace zero.core.patterns.queue
         {
             try
             {
-                if (!await _syncRoot.WaitAsync().FastPath().ConfigureAwait(Zc))
+                if (!await _syncValRoot.WaitAsync().FastPath().ConfigureAwait(Zc))
                     return;
 
                 var cur = _head;
@@ -492,7 +496,7 @@ namespace zero.core.patterns.queue
             }
             finally
             {
-                _syncRoot.Release();
+                _syncValRoot.Release();
             }
         }
 

@@ -36,7 +36,7 @@ namespace zero.core.feat.models.protobuffer.sources
             //Set Q to be blocking
             //TODO tuning
 
-            BatchQueue = new IoQueue<TBatch>($"{nameof(CcProtocBatchSource<TModel,TBatch>)}: {ioSource.Description}", batchSize, prefetchSize, prefetchSize, true, false);
+            BatchQueue = new IoQueue<TBatch>($"{nameof(CcProtocBatchSource<TModel,TBatch>)}: {ioSource.Description}", batchSize, prefetchSize, true, false);
         }
 
         /// <summary>

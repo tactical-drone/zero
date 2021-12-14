@@ -51,7 +51,7 @@ namespace zero.cocoon
             {
                 _zeroDrone = true;
                 parm_max_drone = 0;
-                parm_max_adjunct = 128; //TODO tuning:
+                parm_max_adjunct = 256; //TODO tuning:
                 udpPrefetch = 16;
                 udpConcurrencyLevel = 8;
                 NeighborTasks = new IoQueue<Task>($"{nameof(NeighborTasks)}", parm_max_adjunct + 1, udpConcurrencyLevel);
@@ -625,7 +625,7 @@ namespace zero.cocoon
 
                     if (bytesRead == 0 || bytesRead < _futileRequestSize)
                     {
-                        _logger.Trace($"Failed to read inbound futile request, waited = {_sw.ElapsedMilliseconds}ms, socket = {ioNetSocket.Description}");
+                        _logger.Error($"Failed to read inbound futile request, waited = {_sw.ElapsedMilliseconds}ms, wanted ={parm_futile_timeout_ms * 2}ms, socket = {ioNetSocket.Description}");
                         return false;
                     }
                     else

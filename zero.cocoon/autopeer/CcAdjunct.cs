@@ -452,17 +452,6 @@ namespace zero.cocoon.autopeer
         private volatile bool _routed;
 
         /// <summary>
-        /// Producer tasks
-        /// </summary>
-        private ValueTask<bool>[] _produceTaskPool;
-
-        /// <summary>
-        /// Consumer tasks
-        /// </summary>
-        private ValueTask<bool>[] _consumeTaskPool;
-
-
-        /// <summary>
         /// Whether we are probed
         /// </summary>
         public bool Probed => _routed;
@@ -601,8 +590,6 @@ namespace zero.cocoon.autopeer
             _scanRequest = null;
             _drone = null;
             _protocolConduit = null;
-            _produceTaskPool = null;
-            _consumeTaskPool = null;
             _chronitonHeap = null;
 #endif
         }
@@ -696,8 +683,8 @@ namespace zero.cocoon.autopeer
             _fuseRequest.Zero(this, $"{nameof(ZeroManagedAsync)}: teardown");
             _scanRequest.Zero(this, $"{nameof(ZeroManagedAsync)}: teardown");
 
-            Array.Clear(_produceTaskPool,0, _produceTaskPool.Length);
-            Array.Clear(_produceTaskPool, 0, _consumeTaskPool.Length);
+            //Array.Clear(_produceTaskPool,0, _produceTaskPool.Length);
+            //Array.Clear(_produceTaskPool, 0, _consumeTaskPool.Length);
         }
 
         /// <summary>
@@ -1071,29 +1058,13 @@ namespace zero.cocoon.autopeer
                 //ensure the channel
                 do
                 {
-                    if (_protocolConduit == null)
-                    {
-                        _protocolConduit = MessageService.GetConduit<CcProtocBatchJob<chroniton, CcDiscoveryBatch>>(nameof(CcAdjunct));
-                        if (_protocolConduit != null)
-                        {
-                            _produceTaskPool = new ValueTask<bool>[_protocolConduit.ZeroConcurrencyLevel()];
-                            _consumeTaskPool = new ValueTask<bool>[_protocolConduit.ZeroConcurrencyLevel()];
-                            break;
-                        }
-                    }
-                
+                    _protocolConduit ??= MessageService.GetConduit<CcProtocBatchJob<chroniton, CcDiscoveryBatch>>(nameof(CcAdjunct));
+
                     if(_protocolConduit != null)
                         break;
 
                     //Get the conduit
                     _logger.Trace($"Waiting for {Description} stream to spin up...");
-                    
-                    //Init the conduit
-                    if (_protocolConduit != null)
-                    {
-                        _produceTaskPool = new ValueTask<bool>[_protocolConduit.ZeroConcurrencyLevel()];
-                        _consumeTaskPool = new ValueTask<bool>[_protocolConduit.ZeroConcurrencyLevel()];
-                    }
                     
                     await Task.Delay(parm_conduit_spin_up_wait_time++, AsyncTasks.Token).ConfigureAwait(Zc);
                 } while (_protocolConduit == null && !Zeroed());
@@ -1110,15 +1081,17 @@ namespace zero.cocoon.autopeer
                     {
                         try
                         {
+                            var c = @this._protocolConduit.ZeroConcurrencyLevel();
                             while (!@this.Zeroed() && @this._protocolConduit.UpstreamSource.IsOperational)
                             {
-                                for (var i = 0; i < @this._produceTaskPool.Length && @this._protocolConduit.UpstreamSource.IsOperational; i++)
+                                for (var i = 0; i < c && @this._protocolConduit.UpstreamSource.IsOperational; i++)
                                 {
                                     try
                                     {
-#pragma warning disable CA2012 // Use ValueTasks correctly
-                                        @this._produceTaskPool[i] = @this._protocolConduit.ProduceAsync();
-#pragma warning restore CA2012 // Use ValueTasks correctly
+                                        if (i == c - 1 && !await @this._protocolConduit.ProduceAsync())
+                                            break;
+
+                                        var _ = @this._protocolConduit.ProduceAsync();
                                     }
                                     catch (Exception e)
                                     {
@@ -1126,9 +1099,6 @@ namespace zero.cocoon.autopeer
                                         break;
                                     }
                                 }
-
-                                if (!await @this._produceTaskPool[^1])
-                                    break;
                             }
                         }
                         catch when (@this.Zeroed() || @this.Source.Zeroed() || @this._protocolConduit?.UpstreamSource == null) { }
@@ -1144,131 +1114,142 @@ namespace zero.cocoon.autopeer
                         //the consumer
                         try
                         {
+                            var c = @this._protocolConduit.ZeroConcurrencyLevel();
                             while (!@this.Zeroed() && @this._protocolConduit.UpstreamSource.IsOperational)
                             {
                                 //consume
-                                for (var i = 0; i < @this._consumeTaskPool.Length && @this._protocolConduit.UpstreamSource.IsOperational; i++)
+                                for (var i = 0; i < c && @this._protocolConduit.UpstreamSource.IsOperational; i++)
                                 {
-#pragma warning disable CA2012 // Use ValueTasks correctly
-                                    @this._consumeTaskPool[i] = @this._protocolConduit.ConsumeAsync(static async (batchJob, @this) =>
+                                    if (i == c - 1)
                                     {
-                                        try
-                                        {
-                                            await @this.ZeroUnBatchAsync(batchJob, @this._protocolConduit, static async (batchItem, discoveryBatch, ioConduit, @this, currentRoute, srcEndPoint) =>
-                                            {
-                                                IMessage message = default;
-                                                chroniton packet = default;
-                                                try
-                                                {
-                                                    message = batchItem.EmbeddedMsg;
-                                                    batchItem.EmbeddedMsg = null;
-                                                    packet = batchItem.Message;
-                                                    batchItem.Message = null;
+                                        if (!await @this._protocolConduit.ConsumeAsync(ProcessMessages(), @this))
+                                            break;
+                                    }
+                                    else
+                                    {
+#pragma warning disable CS4014
+                                        @this._protocolConduit.ConsumeAsync(ProcessMessages(), @this);
+#pragma warning restore CS4014
+                                    }
 
-                                                    if (packet.Data.Length == 0)
+                                    Func<IoSink<CcProtocBatchJob<chroniton, CcDiscoveryBatch>>, CcAdjunct, ValueTask> ProcessMessages()
+                                    {
+                                        return static async (batchJob, @this) =>
+                                        {
+                                            try
+                                            {
+                                                await @this.ZeroUnBatchAsync(batchJob, @this._protocolConduit, static async (batchItem, discoveryBatch, ioConduit, @this, currentRoute, srcEndPoint) =>
+                                                {
+                                                    IMessage message = default;
+                                                    chroniton packet = default;
+                                                    try
                                                     {
-                                                        @this._logger.Warn($"Got zero message from {CcDesignation.MakeKey(packet.PublicKey.Memory.AsArray())}");
-                                                        return;
-                                                    }
-                                                    
-                                                    
-                                                    if (!@this.Zeroed() && !currentRoute.Zeroed())
-                                                    {
-                                                        try
+                                                        message = batchItem.EmbeddedMsg;
+                                                        batchItem.EmbeddedMsg = null;
+                                                        packet = batchItem.Message;
+                                                        batchItem.Message = null;
+
+                                                        if (packet.Data.Length == 0)
                                                         {
-                                                            //switch ((CcDiscoveries.MessageTypes)MemoryMarshal.Read<int>(packet.Signature.Span))
-                                                            switch ((CcDiscoveries.MessageTypes)packet.Type)
+                                                            @this._logger.Warn($"Got zero message from {CcDesignation.MakeKey(packet.PublicKey.Memory.AsArray())}");
+                                                            return;
+                                                        }
+                                                    
+                                                    
+                                                        if (!@this.Zeroed() && !currentRoute.Zeroed())
+                                                        {
+                                                            try
                                                             {
-                                                                case CcDiscoveries.MessageTypes.Probe:
-                                                                    if(((CcProbeMessage)message).Timestamp.ElapsedMs() < @this.parm_max_network_latency_ms * 2)
-                                                                        await currentRoute.ProcessAsync((CcProbeMessage)message, srcEndPoint, packet).FastPath().ConfigureAwait(@this.Zc);
-                                                                    break;
-                                                                case CcDiscoveries.MessageTypes.Probed:
-                                                                    if (((CcProbeResponse)message).Timestamp.ElapsedMs() < @this.parm_max_network_latency_ms * 2)
-                                                                        await currentRoute.ProcessAsync((CcProbeResponse)message, srcEndPoint, packet).FastPath().ConfigureAwait(@this.Zc);
-                                                                    break;
-                                                                case CcDiscoveries.MessageTypes.Scan:
-                                                                    if (!currentRoute.IsProxy && !@this.CcCollective.ZeroDrone)
-                                                                    {
+                                                                //switch ((CcDiscoveries.MessageTypes)MemoryMarshal.Read<int>(packet.Signature.Span))
+                                                                switch ((CcDiscoveries.MessageTypes)packet.Type)
+                                                                {
+                                                                    case CcDiscoveries.MessageTypes.Probe:
+                                                                        if(((CcProbeMessage)message).Timestamp.ElapsedMs() < @this.parm_max_network_latency_ms * 2)
+                                                                            await currentRoute.ProcessAsync((CcProbeMessage)message, srcEndPoint, packet).FastPath().ConfigureAwait(@this.Zc);
+                                                                        break;
+                                                                    case CcDiscoveries.MessageTypes.Probed:
+                                                                        if (((CcProbeResponse)message).Timestamp.ElapsedMs() < @this.parm_max_network_latency_ms * 2)
+                                                                            await currentRoute.ProcessAsync((CcProbeResponse)message, srcEndPoint, packet).FastPath().ConfigureAwait(@this.Zc);
+                                                                        break;
+                                                                    case CcDiscoveries.MessageTypes.Scan:
+                                                                        if (!currentRoute.IsProxy && !@this.CcCollective.ZeroDrone)
+                                                                        {
 #if DEBUG
                                                                         @this._logger.Warn($"{nameof(CcDiscoveries.MessageTypes.Scan)}: Unrouted request from {srcEndPoint} ~> {@this.MessageService.IoNetSocket.LocalNodeAddress.IpPort}");
 #endif
+                                                                            break;
+                                                                        }
+                                                                        if(((CcScanRequest)message).Timestamp.ElapsedMs() < @this.parm_max_network_latency_ms * 2)
+                                                                            await currentRoute.ProcessAsync((CcScanRequest)message, srcEndPoint, packet).FastPath().ConfigureAwait(@this.Zc);
                                                                         break;
-                                                                    }
-                                                                    if(((CcScanRequest)message).Timestamp.ElapsedMs() < @this.parm_max_network_latency_ms * 2)
-                                                                        await currentRoute.ProcessAsync((CcScanRequest)message, srcEndPoint, packet).FastPath().ConfigureAwait(@this.Zc);
-                                                                    break;
-                                                                case CcDiscoveries.MessageTypes.Adjuncts:
-                                                                    if (!currentRoute.IsProxy || @this.CcCollective.ZeroDrone || ((CcAdjunctResponse)message).Timestamp.ElapsedMs() > @this.parm_max_network_latency_ms * 2)
-                                                                    {
+                                                                    case CcDiscoveries.MessageTypes.Adjuncts:
+                                                                        if (!currentRoute.IsProxy || @this.CcCollective.ZeroDrone || ((CcAdjunctResponse)message).Timestamp.ElapsedMs() > @this.parm_max_network_latency_ms * 2)
+                                                                        {
 #if DEBUG
                                                                         @this._logger.Warn($"{nameof(CcDiscoveries.MessageTypes.Adjuncts)}: Unrouted request from {srcEndPoint} ~> {@this.MessageService.IoNetSocket.LocalNodeAddress.IpPort}");                                                               
 #endif
-                                                                        break;
-                                                                    }
+                                                                            break;
+                                                                        }
 
-                                                                    await currentRoute.ProcessAsync((CcAdjunctResponse) message, srcEndPoint, packet).FastPath().ConfigureAwait(@this.Zc);
-                                                                    break;
-                                                                case CcDiscoveries.MessageTypes.Fuse:
-                                                                    if (!currentRoute.IsProxy || ((CcFuseRequest)message).Timestamp.ElapsedMs() > @this.parm_max_network_latency_ms * 2)
-                                                                    {
+                                                                        await currentRoute.ProcessAsync((CcAdjunctResponse) message, srcEndPoint, packet).FastPath().ConfigureAwait(@this.Zc);
+                                                                        break;
+                                                                    case CcDiscoveries.MessageTypes.Fuse:
+                                                                        if (!currentRoute.IsProxy || ((CcFuseRequest)message).Timestamp.ElapsedMs() > @this.parm_max_network_latency_ms * 2)
+                                                                        {
 #if DEBUG
                                                                         @this._logger.Warn($"{nameof(CcDiscoveries.MessageTypes.Fuse)}: p = {currentRoute.IsProxy}: Unrouted request from {srcEndPoint} ~> {@this.MessageService.IoNetSocket.LocalNodeAddress.IpPort}, {((CcFuseRequest)message).Timestamp.ElapsedMs()}ms");
 #endif
-                                                                        break;
-                                                                    }
+                                                                            break;
+                                                                        }
 
-                                                                    await currentRoute.ProcessAsync((CcFuseRequest)message, srcEndPoint, packet).FastPath().ConfigureAwait(@this.Zc);
-                                                                    break;
-                                                                case CcDiscoveries.MessageTypes.Fused:
-                                                                    if (!currentRoute.IsProxy || ((CcFuseResponse)message).Timestamp.ElapsedMs() > @this.parm_max_network_latency_ms * 2)
-                                                                    {
+                                                                        await currentRoute.ProcessAsync((CcFuseRequest)message, srcEndPoint, packet).FastPath().ConfigureAwait(@this.Zc);
+                                                                        break;
+                                                                    case CcDiscoveries.MessageTypes.Fused:
+                                                                        if (!currentRoute.IsProxy || ((CcFuseResponse)message).Timestamp.ElapsedMs() > @this.parm_max_network_latency_ms * 2)
+                                                                        {
 #if DEBUG
                                                                         @this._logger.Warn($"{nameof(CcDiscoveries.MessageTypes.Fused)}: p = {currentRoute.IsProxy}: Unrouted request from {srcEndPoint} ~> {@this.MessageService.IoNetSocket.LocalNodeAddress.IpPort}, {((CcFuseResponse)message).Timestamp.ElapsedMs()}ms");
 #endif
-                                                                        break;
-                                                                    }
+                                                                            break;
+                                                                        }
 
-                                                                    await currentRoute.ProcessAsync((CcFuseResponse) message, srcEndPoint, packet).FastPath().ConfigureAwait(@this.Zc);
-                                                                    break;
-                                                                case CcDiscoveries.MessageTypes.Defuse:
-                                                                    if (@this.CcCollective.ZeroDrone || !currentRoute.IsProxy  || ((CcDefuseRequest)message).Timestamp.ElapsedMs() > @this.parm_max_network_latency_ms * 2)
-                                                                    {
+                                                                        await currentRoute.ProcessAsync((CcFuseResponse) message, srcEndPoint, packet).FastPath().ConfigureAwait(@this.Zc);
+                                                                        break;
+                                                                    case CcDiscoveries.MessageTypes.Defuse:
+                                                                        if (@this.CcCollective.ZeroDrone || !currentRoute.IsProxy  || ((CcDefuseRequest)message).Timestamp.ElapsedMs() > @this.parm_max_network_latency_ms * 2)
+                                                                        {
 #if DEBUG
                                                                         @this._logger.Warn($"{nameof(CcDiscoveries.MessageTypes.Defuse)}: Unrouted request from {srcEndPoint} ~> {@this.MessageService.IoNetSocket.LocalNodeAddress.IpPort}");
 #endif
-                                                                        break;
-                                                                    }
+                                                                            break;
+                                                                        }
 
-                                                                    await currentRoute.ProcessAsync((CcDefuseRequest) message, srcEndPoint, packet).FastPath().ConfigureAwait(@this.Zc);
-                                                                    break;
+                                                                        await currentRoute.ProcessAsync((CcDefuseRequest) message, srcEndPoint, packet).FastPath().ConfigureAwait(@this.Zc);
+                                                                        break;
+                                                                }
+                                                            }
+                                                            catch when(@this.Zeroed() || currentRoute.Zeroed()){}
+                                                            catch (Exception e) when (!@this.Zeroed() && !currentRoute.Zeroed())
+                                                            {
+                                                                @this._logger?.Error(e, $"{message!.GetType().Name} [FAILED]: l = {packet!.Data.Length}, {@this.Key}");
                                                             }
                                                         }
-                                                        catch when(@this.Zeroed() || currentRoute.Zeroed()){}
-                                                        catch (Exception e) when (!@this.Zeroed() && !currentRoute.Zeroed())
-                                                        {
-                                                            @this._logger?.Error(e, $"{message!.GetType().Name} [FAILED]: l = {packet!.Data.Length}, {@this.Key}");
-                                                        }
                                                     }
-                                                }
-                                                catch when(@this.Zeroed()) {}
-                                                catch (Exception e) when (!@this.Zeroed())
-                                                {
-                                                    @this._logger?.Error(e, $"{message!.GetType().Name} [FAILED]: l = {packet!.Data.Length}, {@this.Key}");
-                                                }
-                                            }, @this);
-                                        }
-                                        finally
-                                        {
-                                            if (batchJob != null && batchJob.State != IoJobMeta.JobState.Consumed)
-                                                batchJob.State = IoJobMeta.JobState.ConsumeErr;
-                                        }
-                                    }, @this);
-#pragma warning restore CA2012 // Use ValueTasks correctly
+                                                    catch when(@this.Zeroed()) {}
+                                                    catch (Exception e) when (!@this.Zeroed())
+                                                    {
+                                                        @this._logger?.Error(e, $"{message!.GetType().Name} [FAILED]: l = {packet!.Data.Length}, {@this.Key}");
+                                                    }
+                                                }, @this);
+                                            }
+                                            finally
+                                            {
+                                                if (batchJob != null && batchJob.State != IoJobMeta.JobState.Consumed)
+                                                    batchJob.State = IoJobMeta.JobState.ConsumeErr;
+                                            }
+                                        };
+                                    }
                                 }
-
-                                if (!await @this._consumeTaskPool[^1].FastPath().ConfigureAwait(@this.Zc))
-                                    break;
                             }
                         }
                         catch when(@this.Zeroed() || @this._protocolConduit?.UpstreamSource == null) {}
@@ -1276,7 +1257,7 @@ namespace zero.cocoon.autopeer
                         {
                             @this._logger?.Error(e, $"{@this.Description}");
                         }
-                    }, this, TaskCreationOptions.DenyChildAttach | TaskCreationOptions.PreferFairness);
+                    }, this, TaskCreationOptions.DenyChildAttach);
                     await Task.WhenAll(producer.AsTask(), consumer.AsTask()).ConfigureAwait(Zc);
                 }
                 while (!Zeroed());
@@ -1832,7 +1813,7 @@ namespace zero.cocoon.autopeer
                             {
                                 foreach (var ioNeighbor in good)
                                 {
-                                    if (((CcAdjunct)ioNeighbor).State < AdjunctState.Fusing)
+                                    if (((CcAdjunct)ioNeighbor).State < AdjunctState.Connected)
                                     {
                                         ((CcAdjunct)ioNeighbor).Zero(@this,"Assimilated!");
                                         @this._logger.Debug($"@ {ioNeighbor.Description}");

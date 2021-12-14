@@ -59,6 +59,8 @@ namespace zero.core.network.ip
                 return;
             }
 
+            NativeSocket.Blocking = true;
+
             // Don't allow another socket to bind to this port.
             NativeSocket.ExclusiveAddressUse = true;
 
@@ -67,7 +69,7 @@ namespace zero.core.network.ip
             NativeSocket.LingerState = new LingerOption(false, 0);
 
             // Disable the Nagle Algorithm for this tcp socket.
-            NativeSocket.NoDelay = false;
+            NativeSocket.NoDelay = true;
 
             // Set the receive buffer size to 64k
             NativeSocket.ReceiveBufferSize = 8192 * 80;

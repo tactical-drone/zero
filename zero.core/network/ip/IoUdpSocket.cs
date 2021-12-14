@@ -49,10 +49,6 @@ namespace zero.core.network.ip
             Init(16);//TODO tuning
         }
 
-
-        readonly IoManualResetValueTaskSource<bool> _tcs = new();
-        readonly IoManualResetValueTaskSource<bool> _tcr = new();
-
         /// <summary>
         /// Initializes the socket
         /// </summary>
@@ -85,7 +81,6 @@ namespace zero.core.network.ip
                     {
                         var args = new SocketAsyncEventArgs { RemoteEndPoint = new IPEndPoint(0, 0) };
                         args.Completed += @this.SignalAsync;
-                        args.UserToken = @this._tcr;
                         return args;
                     },
                     Context = this
@@ -98,7 +93,6 @@ namespace zero.core.network.ip
                 {
                     var args = new SocketAsyncEventArgs();
                     args.Completed += @this.SignalAsync;
-                    args.UserToken = @this._tcs;
                     return args;
                 },
                 Context = this
@@ -378,13 +372,14 @@ namespace zero.core.network.ip
                     throw new OutOfMemoryException(nameof(_sendArgs));
 
                 var buf = Unsafe.As<ReadOnlyMemory<byte>, Memory<byte>>(ref buffer).Slice(offset, length);
+                var send = new IoManualResetValueTaskSource<bool>();
 
-                _tcs.Reset();
+                args.UserToken = send;
                 args.SetBuffer(buf);
                 args.RemoteEndPoint = endPoint;
 
                 //receive
-                if (NativeSocket.SendToAsync(args) && !await _tcs.WaitAsync().FastPath().ConfigureAwait(Zc))
+                if (NativeSocket.SendToAsync(args) && !await send.WaitAsync().FastPath().ConfigureAwait(Zc))
                     return 0;
 
                 return args.SocketError == SocketError.Success ? args.BytesTransferred : 0;
@@ -475,13 +470,12 @@ namespace zero.core.network.ip
 
                         if (args == null)
                             throw new OutOfMemoryException(nameof(_recvArgs));
-
-                        _tcr.Reset();
+                        var receive = new IoManualResetValueTaskSource<bool>();
+                        args.UserToken = receive;
                         args.SetBuffer(buffer.Slice(offset, length));
                         args.RemoteEndPoint = remoteEp;
 
-                        if (NativeSocket.ReceiveFromAsync(args) &&
-                            !await _tcr.WaitAsync().FastPath().ConfigureAwait(Zc))
+                        if (NativeSocket.ReceiveFromAsync(args) && !await receive.WaitAsync().FastPath().ConfigureAwait(Zc))
                         {
                             return 0;
                         }
@@ -491,9 +485,6 @@ namespace zero.core.network.ip
 
                         return args.SocketError == SocketError.Success ? args.BytesTransferred : 0;
 
-                    }
-                    catch (ObjectDisposedException)
-                    {
                     }
                     catch when (Zeroed())
                     {
@@ -527,7 +518,8 @@ namespace zero.core.network.ip
                 if (MemoryMarshal.TryGetArray((ReadOnlyMemory<byte>)buffer, out var tBuf))
                 {
                     NativeSocket.ReceiveTimeout = timeout;
-                    var read = NativeSocket.ReceiveFrom(tBuf.Array!, offset, length, SocketFlags.None, ref remoteEpAny); //                  
+                    var read = NativeSocket.ReceiveFrom(tBuf.Array!, offset, length, SocketFlags.None,
+                        ref remoteEpAny); //                  
                     NativeSocket.ReceiveTimeout = 0;
                     remoteEp.Address = ((IPEndPoint)remoteEpAny).Address;
                     remoteEp.Port = ((IPEndPoint)remoteEpAny).Port;

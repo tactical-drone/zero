@@ -78,10 +78,10 @@ namespace zero.sync
 
             var random = new Random((int)DateTime.Now.Ticks);
             //Tangle("tcp://192.168.1.2:15600");
-            var total = 350;
+            var total = 2;
             var maxDrones = 9;
             var maxAdjuncts = 18;
-            var boot = true;
+            var boot = false;
 
             var tasks  = new ConcurrentBag<Task<CcCollective>>();
             if (boot)
@@ -644,7 +644,7 @@ namespace zero.sync
 
                 if (line.StartsWith("stream"))
                 {
-                    AutoPeeringEventService.ToggleActive().GetAwaiter().GetResult();
+                    AutoPeeringEventService.ToggleActiveAsync().GetAwaiter().GetResult();
                     Console.WriteLine($"event stream = {(AutoPeeringEventService.Operational? "On":"Off")}");
                 }
 

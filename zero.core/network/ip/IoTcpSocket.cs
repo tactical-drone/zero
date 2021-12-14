@@ -22,6 +22,7 @@ namespace zero.core.network.ip
         public IoTcpSocket(int concurrencyLevel) : base(SocketType.Stream, ProtocolType.Tcp, concurrencyLevel)
         {
             _logger = LogManager.GetCurrentClassLogger();
+            ConfigureSocket();
         }
 
         /// <summary>
@@ -31,6 +32,7 @@ namespace zero.core.network.ip
         public IoTcpSocket(Socket nativeSocket) : base(nativeSocket)
         {
             _logger = LogManager.GetCurrentClassLogger();
+            ConfigureSocket();
         }
 
         /// <summary>
@@ -74,7 +76,6 @@ namespace zero.core.network.ip
             await base.BlockOnListenAsync(listeningAddress, acceptConnectionHandler, nanite, bootstrapAsync).FastPath().ConfigureAwait(Zc);
             
             //Configure the socket
-            ConfigureSocket();
 
             //Put the socket in listen mode
             try
@@ -101,7 +102,6 @@ namespace zero.core.network.ip
                 {
                     //ZERO control passed to connection handler
                     var newSocket = new IoTcpSocket(await NativeSocket.AcceptAsync().ConfigureAwait(Zc));
-                    
                     //newSocket.ClosedEvent((sender, args) => Close());
 
                     //Do some pointless sanity checking
@@ -155,8 +155,6 @@ namespace zero.core.network.ip
         {
             if (!await base.ConnectAsync(remoteAddress, timeout).FastPath().ConfigureAwait(Zc))
                 return false;
-
-            ConfigureSocket();
 
             _sw.Restart();
             try
@@ -294,8 +292,15 @@ namespace zero.core.network.ip
                 if (MemoryMarshal.TryGetArray((ReadOnlyMemory<byte>)buffer, out var buf))
                 {
                     NativeSocket.ReceiveTimeout = timeout;
-                    var read = NativeSocket.Receive(buf.Array!, offset, length, SocketFlags.None);
+                    var sw = Stopwatch.StartNew();
+                    int read = 0;
+                    while ((read += NativeSocket.Receive(buf.Array!, offset, length, SocketFlags.None)) == 0 && sw.ElapsedMilliseconds < timeout)
+                    {
+                        await Task.Delay(timeout / 10).ConfigureAwait(Zc);
+                    }
                     NativeSocket.ReceiveTimeout = 0;
+                    if(sw.ElapsedMilliseconds < timeout )
+                        _logger.Fatal($"{nameof(ReadAsync)}: timeout not working, slept {sw.ElapsedMilliseconds}ms, wanted = {timeout}ms");
                     return read;
                 }
             }

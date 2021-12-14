@@ -410,10 +410,10 @@ namespace zero.core.patterns.bushings
                                 Source.BackPressureAsync();
 
                                 //Enqueue the job for the consumer so that it can stay in sync
-                                nextJob.State = IoJobMeta.JobState.ConCancel;
+                                //nextJob.State = IoJobMeta.JobState.ConCancel;
 
-                                if (await _queue.EnqueueAsync(nextJob).FastPath().ConfigureAwait(Zc) == null ||
-                                    nextJob.Source == null)
+                                //if (await _queue.EnqueueAsync(nextJob).FastPath().ConfigureAwait(Zc) == null ||
+                                //    nextJob.Source == null)
                                 {
                                     nextJob.State = IoJobMeta.JobState.ProduceErr;
 
@@ -572,7 +572,6 @@ namespace zero.core.patterns.bushings
             if (Zeroed())
                 return false;
 
-            IoSink<TJob> curJob;
             try
             {
                 //Wait for producer pressure
@@ -591,9 +590,9 @@ namespace zero.core.patterns.bushings
                     return false;
                 }
                 //A job was produced. Dequeue it and process
-                curJob = await _queue.DequeueAsync().FastPath().ConfigureAwait(Zc);
+                var curJob = await _queue.DequeueAsync().FastPath().ConfigureAwait(Zc);
 
-                if (curJob.State != IoJobMeta.JobState.ConCancel)
+                if (curJob != null && curJob.State != IoJobMeta.JobState.ProdCancel)
                 {
 #if DEBUG
                     if (_queue.Count > 1 && _queue.Count > _queue.Capacity * 2/3)
@@ -662,9 +661,10 @@ namespace zero.core.patterns.bushings
 
                             await ReturnJobToHeapAsync(curJob).FastPath().ConfigureAwait(Zc);
                         }
-                        catch
+                        catch when(Zeroed()){}
+                        catch (Exception e) when(!Zeroed())
                         {
-                            // ignored
+                            _logger?.Fatal(e);
                         }
                     }
 
@@ -683,6 +683,7 @@ namespace zero.core.patterns.bushings
             {
                 _logger?.Error(e, $"{GetType().Name}: Consumer {Description} dequeue returned with errors:");
             }
+
 
             return false;
         }
@@ -753,7 +754,7 @@ namespace zero.core.patterns.bushings
                     if (!await consumeTaskPool[^1].FastPath())
                         break;
                 }
-            }, this, TaskCreationOptions.DenyChildAttach | TaskCreationOptions.PreferFairness); //TODO tuning
+            }, this, TaskCreationOptions.DenyChildAttach); //TODO tuning
 
             //Wait for tear down                
             await Task.WhenAll(_producerTask.AsTask(), _consumerTask.AsTask()).ConfigureAwait(Zc);

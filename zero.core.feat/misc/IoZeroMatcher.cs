@@ -219,7 +219,7 @@ namespace zero.core.feat.misc
         /// </summary>
         private readonly int _capacity;
 
-        private async ValueTask<bool> Match(IIoNanite ioNanite, (IoZeroMatcher, string key, ByteString reqHash) state, bool _)
+        private async ValueTask<bool> MatchAsync(IIoNanite ioNanite, (IoZeroMatcher, string key, ByteString reqHash) state, bool _)
         {
             var (@this, key, reqHash) = state;
             var reqHashMemory = reqHash.Memory;
@@ -291,7 +291,7 @@ namespace zero.core.feat.misc
         /// <returns>The response payload</returns>
         public async ValueTask<bool> ResponseAsync(string key, ByteString reqHash)
         {
-            return reqHash.Length != 0 && await ZeroAtomic(Match, (this, key, reqHash)).FastPath().ConfigureAwait(Zc);
+            return reqHash.Length != 0 && await ZeroAtomic(MatchAsync, (this, key, reqHash)).FastPath().ConfigureAwait(Zc);
         }
 
         /// <summary>

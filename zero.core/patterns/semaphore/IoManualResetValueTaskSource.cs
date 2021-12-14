@@ -1,6 +1,8 @@
 ﻿using System;
+using System.Runtime.CompilerServices;
 using System.Threading.Tasks;
 using System.Threading.Tasks.Sources;
+using zero.core.patterns.semaphore.core;
 
 namespace zero.core.patterns.semaphore
 {
@@ -12,23 +14,57 @@ namespace zero.core.patterns.semaphore
     {
         public IoManualResetValueTaskSource(bool asyncInline = false)
         {
-            _core.RunContinuationsAsynchronously = asyncInline;            
+            _zeroCore.RunContinuationsAsynchronously = asyncInline;
         }
-        private ManualResetValueTaskSourceCore<T> _core; // mutable struct; do not make this readonly
-               
-        public bool RunContinuationsAsynchronously { get => _core.RunContinuationsAsynchronously; set => _core.RunContinuationsAsynchronously = value; }
-        public short Version => _core.Version;
-        public void Reset() => _core.Reset();
-        public void SetResult(T result) => _core.SetResult(result);        
-        public void SetException(Exception error) => _core.SetException(error);        
-        public T GetResult(short token) => _core.GetResult(token);
-        void IValueTaskSource.GetResult(short token) => _core.GetResult(token);
-        public ValueTaskSourceStatus GetStatus(short token) => _core.GetStatus(token);
-        public void OnCompleted(Action<object> continuation, object state, short token, ValueTaskSourceOnCompletedFlags flags) => _core.OnCompleted(continuation, state, token, flags);
 
+        private IoManualResetValueTaskSourceCore<T> _zeroCore;
+
+        public bool RunContinuationsAsynchronously => _zeroCore.RunContinuationsAsynchronously;
+        public short Version => _zeroCore.Version;
+        public void Reset() => _zeroCore.Reset();
+        public void SetResult(T result) => _zeroCore.SetResult(result);
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public T GetResult(short token)
+        {
+            var result = _zeroCore.GetResult(token);
+            _zeroCore.Reset();
+            return result;
+        }
+
+        void IValueTaskSource.GetResult(short token)
+        {
+            _zeroCore.GetResult(token);
+            _zeroCore.Reset();
+        }
+
+        public ValueTaskSourceStatus GetStatus(short token) => _zeroCore.GetStatus(token);
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        ValueTaskSourceStatus IValueTaskSource.GetStatus(short token)
+        {
+            return GetStatus(token);
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        ValueTaskSourceStatus IValueTaskSource<T>.GetStatus(short token)
+        {
+            return GetStatus(token);
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public void OnCompleted(Action<object> continuation, object state, short token, ValueTaskSourceOnCompletedFlags flags)
+        {
+            _zeroCore.OnCompleted(continuation, state, token, flags);
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public ValueTask<T> WaitAsync()
-        {            
-            return new ValueTask<T>(this, _core.Version);
+        {
+            if (_zeroCore.GetStatus(_zeroCore.Version) != ValueTaskSourceStatus.Succeeded)
+                return new ValueTask<T>(this, _zeroCore.Version);
+            _zeroCore.Reset();
+            return default;
         }
     }
 }

@@ -8,6 +8,18 @@
 		<Configurations>Debug;Release;Trace</Configurations>
 	</PropertyGroup>
 
+	<PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
+	  <CheckForOverflowUnderflow>True</CheckForOverflowUnderflow>
+	</PropertyGroup>
+
+	<PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|AnyCPU'">
+	  <CheckForOverflowUnderflow>True</CheckForOverflowUnderflow>
+	</PropertyGroup>
+
+	<PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Trace|AnyCPU'">
+	  <CheckForOverflowUnderflow>True</CheckForOverflowUnderflow>
+	</PropertyGroup>
+
 	<ItemGroup>
 		<PackageReference Include="JetBrains.DotMemoryUnit" Version="3.1.20200127.214830" />
 		<PackageReference Include="JUnitTestLogger" Version="1.1.0" />
