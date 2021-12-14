@@ -63,8 +63,7 @@ namespace zero.core.patterns.semaphore
         {
             if (_zeroCore.GetStatus(_zeroCore.Version) != ValueTaskSourceStatus.Succeeded)
                 return new ValueTask<T>(this, _zeroCore.Version);
-            _zeroCore.Reset();
-            return default;
+            return new ValueTask<T>(GetResult(Version));
         }
     }
 }

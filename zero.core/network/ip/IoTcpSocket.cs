@@ -159,13 +159,13 @@ namespace zero.core.network.ip
             _sw.Restart();
             try
             {
-                var sig = new IoManualResetValueTaskSource<bool>();
+                var connected = new IoManualResetValueTaskSource<bool>();
                 NativeSocket.BeginConnect(remoteAddress.IpEndPoint, static result =>
                 {
-                    var (socket, cb) = (ValueTuple<Socket, IoManualResetValueTaskSource<bool>>)result.AsyncState;
+                    var (socket, connected) = (ValueTuple<Socket, IoManualResetValueTaskSource<bool>>)result.AsyncState;
                     socket.EndConnect(result);
-                    cb.SetResult(socket.Connected);
-                }, (NativeSocket,sig));
+                    connected.SetResult(socket.Connected);
+                }, (NativeSocket,connected));
 
                 if (timeout > 0)
                 {
@@ -190,7 +190,7 @@ namespace zero.core.network.ip
                     }, ValueTuple.Create(this, timeout), TaskCreationOptions.DenyChildAttach);
                 }
 
-                if (!await sig.WaitAsync().FastPath().ConfigureAwait(false))
+                if (!await connected.WaitAsync().FastPath().ConfigureAwait(Zc))
                     return false;
 
                 LocalNodeAddress = IoNodeAddress.CreateFromEndpoint("tcp", (IPEndPoint)NativeSocket.LocalEndPoint);

@@ -145,14 +145,14 @@ namespace zero.core.network.ip
             //fail fast
             if (Zeroed())
                 return false;
-
+            var ts = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
             var connected = await IoNetSocket.ConnectAsync(remoteAddress, timeout).FastPath().ConfigureAwait(Zc);
 
             if (connected)
-                _logger.Trace($"Connecting to `{remoteAddress}', {Description}");
+                _logger.Trace($"Connecting to `{remoteAddress}', took {ts.ElapsedMs()}ms, {Description}");
             else
-                _logger.Error($"Failed connecting to `{remoteAddress}', {Description} [FAILED]");
-
+                _logger.Error($"Failed connecting to `{remoteAddress}', took {ts.ElapsedMs()}ms, timeout = {timeout}, {Description} [FAILED]");
+            
             return connected;
         }
 

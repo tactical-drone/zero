@@ -1865,8 +1865,8 @@ namespace zero.cocoon.autopeer
 
                 if (!verified)
                 {
-                    await Task.Delay(parm_max_network_latency_ms / 2 + _random.Next(parm_max_network_latency_ms), AsyncTasks.Token).ConfigureAwait(Zc);
-
+                    await Task.Delay(parm_max_network_latency_ms / 2 + RandomNumberGenerator.GetInt32(0, parm_max_network_latency_ms), AsyncTasks.Token).ConfigureAwait(Zc);
+                    
                     if (!await newAdjunct.ProbeAsync("SYN-VCK").FastPath().ConfigureAwait(Zc))
                     {
                         _logger.Error($"{nameof(ProbeAsync)}: SYN-VCK [FAILED], {newAdjunct.Description}");
@@ -1893,6 +1893,8 @@ namespace zero.cocoon.autopeer
 #if DEBUG
                     _logger.Trace($"<\\- {nameof(CollectAsync)}: Collected: {Description}");
 #endif
+                    await Task.Delay(parm_max_network_latency_ms / 2 + RandomNumberGenerator.GetInt32(0, parm_max_network_latency_ms), AsyncTasks.Token).ConfigureAwait(Zc);
+
                     await SeduceAsync("ACK-SYN", Heading.Ingress, NatAddress, force: true).FastPath().ConfigureAwait(Zc);
                 }
                 
