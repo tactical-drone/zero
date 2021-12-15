@@ -54,7 +54,7 @@ namespace zero.test.core.patterns.queue
         }
 
         [Fact]
-        public async Task Iterator()
+        public async Task IteratorAsync()
         {
             var threads = 100;
             var bag = new IoBag<IoInt32>("test", 100, true);

@@ -78,13 +78,14 @@ namespace zero.sync
 
             var random = new Random((int)DateTime.Now.Ticks);
             //Tangle("tcp://192.168.1.2:15600");
-            var total = 2;
+            var total = 20;
             var maxDrones = 9;
             var maxAdjuncts = 18;
             var boot = false;
 
             var tasks  = new ConcurrentBag<Task<CcCollective>>();
             if (boot)
+                // ReSharper disable once HeuristicUnreachableCode
             {
                 var t1 = CoCoonAsync(CcDesignation.Generate(true), $"tcp://127.0.0.1:{1234}", $"udp://127.0.0.1:{1234}",
                     $"tcp://127.0.0.1:{1234}", $"udp://127.0.0.1:{1234}",
@@ -129,10 +130,12 @@ namespace zero.sync
                     t1,t2,t3,t4
                 };
 
+#pragma warning disable VSTHRD110 // Observe result of async calls
                 Task.Factory.StartNew(() => t1.Start(), TaskCreationOptions.DenyChildAttach);
                 Task.Factory.StartNew(() => t2.Start(), TaskCreationOptions.DenyChildAttach);
                 Task.Factory.StartNew(() => t3.Start(), TaskCreationOptions.DenyChildAttach);
                 Task.Factory.StartNew(() => t4.Start(), TaskCreationOptions.DenyChildAttach);
+#pragma warning restore VSTHRD110 // Observe result of async calls
             }
             else
             {
@@ -155,11 +158,13 @@ namespace zero.sync
                         //$"udp://127.0.0.1:{1237}"
                     }.ToList(), false);
 
+#pragma warning disable VSTHRD110 // Observe result of async calls
                 Task.Factory.StartNew(() => t1.Start(), TaskCreationOptions.DenyChildAttach);
                 Task.Factory.StartNew(() => t2.Start(), TaskCreationOptions.DenyChildAttach);
+#pragma warning restore VSTHRD110 // Observe result of async calls
             }
-            
-            
+
+
 
             //Task.Factory.StartNew(async () =>
             //{
@@ -655,9 +660,10 @@ namespace zero.sync
                         Console.WriteLine($"z = {_nodes.Count(n => n.Zeroed())}/{total}");
                         _nodes.Clear();
                         _nodes = null;
+                        // ReSharper disable once AccessToModifiedClosure
                         tasks?.Clear();
                         tasks = null;
-                    }).ConfigureAwait(Zc);
+                    }).GetAwaiter().GetResult();
                 }
             };
             

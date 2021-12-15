@@ -20,7 +20,7 @@ namespace zero.test.core.patterns.semaphore
         private volatile bool _running;
 
         [Fact]
-        async Task TestMutexMode()
+        async Task TestMutexModeAsync()
         {
             _running = true;
 #if DEBUG
@@ -66,7 +66,7 @@ namespace zero.test.core.patterns.semaphore
 
 
         [Fact]
-        async Task Prefetch()
+        async Task PrefetchAsync()
         {
             var m = new IoZeroSemaphoreSlim(new CancellationTokenSource(), "test mutex", maxBlockers: 1, initialCount: 3);
 
@@ -92,7 +92,7 @@ namespace zero.test.core.patterns.semaphore
 
 
         [Fact]
-        async Task Release()
+        async Task ReleaseAsync()
         {
             var m = new IoZeroSemaphoreSlim(new CancellationTokenSource(), "test mutex", maxBlockers: 10, initialCount: 3);
 
@@ -115,7 +115,7 @@ namespace zero.test.core.patterns.semaphore
         }
 
         [Fact]
-        async Task MutexSpam()
+        async Task MutexSpamAsync()
         {
             var m = new IoZeroSemaphoreSlim(new CancellationTokenSource(), "test mutex", maxBlockers: 1, initialCount: 3);
             var running = true;
@@ -173,7 +173,7 @@ namespace zero.test.core.patterns.semaphore
         }
 
         [Fact]
-        async Task TestIoZeroResetEvent()
+        async Task TestIoZeroResetEventAsync()
         {
             var count = 5;
             var minDelay = 25;
@@ -204,7 +204,7 @@ namespace zero.test.core.patterns.semaphore
         }
 
         [Fact]
-        async Task TestIoZeroResetEventOpen()
+        async Task TestIoZeroResetEventOpenAsync()
         {
             var count = 5;
             var minDelay = 25;
@@ -232,7 +232,7 @@ namespace zero.test.core.patterns.semaphore
         }
 
         [Fact]
-        async Task TestIoZeroResetEventSpam()
+        async Task TestIoZeroResetEventSpamAsync()
         {
             var count = (long)2000000;
             var v = new IoZeroResetEvent();
@@ -246,7 +246,6 @@ namespace zero.test.core.patterns.semaphore
 
                     //_output.WriteLine($"s -> {v.GetStatus(v.Version)}[{v.Version}] \t- {DateTimeOffset.UtcNow.Ticks} - {i}/{count} - {Thread.CurrentThread.ManagedThreadId}");
 
-                    var c = 0;
                     while (v.Release(bestEffort: true) != 1)
                     {
                         //if(c++ %10000 ==0)
@@ -281,7 +280,7 @@ namespace zero.test.core.patterns.semaphore
         }
 
         [Fact]
-        async Task TestIoZeroSemaphoreSlim()
+        async Task TestIoZeroSemaphoreSlimAsync()
         {
             var count = 50;
             var minDelay = 25;
@@ -309,7 +308,7 @@ namespace zero.test.core.patterns.semaphore
         }
 
         [Fact]
-        async Task TestIoZeroSemaphoreSlimSpam()
+        async Task TestIoZeroSemaphoreSlimSpamAsync()
         {
             long count = 10000000;
             var v = new IoZeroSemaphoreSlim(new CancellationTokenSource(), string.Empty, 1, 1);

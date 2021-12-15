@@ -21,10 +21,8 @@ namespace zero.core.feat.patterns.semaphore
         
         private AsyncAutoResetEvent _semaphore;
         private readonly CancellationToken _cancellationToken;
-        private readonly bool Zc = IoNanoprobe.ContinueOnCapturedContext;
-        private int _curNrOfBlockers;
-        private int _maxAsyncWorkers;
-
+        private readonly bool _zc = IoNanoprobe.ContinueOnCapturedContext;
+        
         public bool GetResult(short token)
         {
             throw new NotImplementedException();
@@ -40,11 +38,6 @@ namespace zero.core.feat.patterns.semaphore
             throw new NotImplementedException();
         }
 
-        public void ZeroRef(ref IIoZeroSemaphore @ref, CancellationToken asyncToken)
-        {
-            throw new NotImplementedException();
-        }
-
         public void ZeroRef(ref IIoZeroSemaphore @ref, CancellationTokenSource asyncToken)
         {
             throw new NotImplementedException();
@@ -52,40 +45,28 @@ namespace zero.core.feat.patterns.semaphore
 
         int IIoZeroSemaphore.Release(int releaseCount, bool bestEffort)
         {
-            throw new NotImplementedException();
-        }
-
-        public int Release(int releaseCount = 1, bool async = false)
-        {
             _semaphore.Set();
             return 1;
         }
 
         public async ValueTask<bool> WaitAsync()
         {
-            await _semaphore.WaitAsync(_cancellationToken).ConfigureAwait(Zc);
+            await _semaphore.WaitAsync(_cancellationToken).ConfigureAwait(_zc);
             return true;
         }
 
         public void ZeroSem()
         {
-            throw new NotImplementedException();
-        }
-
-        public void Zero()
-        {
             _semaphore = null;
         }
 
-        public int ReadyCount { get; }
+        public int ReadyCount => 0;
 
-        int IIoZeroSemaphore.CurNrOfBlockers => _curNrOfBlockers;
+        int IIoZeroSemaphore.CurNrOfBlockers => 0;
 
-        int IIoZeroSemaphore.MaxAsyncWorkers => _maxAsyncWorkers;
+        int IIoZeroSemaphore.MaxAsyncWorkers => 0;
 
-        public uint CurNrOfBlockers { get; }
-        public uint MaxAsyncWorkers { get; }
-        public int Capacity { get; }
+        public int Capacity => 1;
         public bool RunContinuationsAsynchronously { get; }
 
         int IIoZeroSemaphore.ZeroEnter()
@@ -179,11 +160,6 @@ namespace zero.core.feat.patterns.semaphore
         }
 
         short IIoZeroSemaphore.ZeroTokenBump()
-        {
-            throw new NotImplementedException();
-        }
-
-        public void SignalWorker()
         {
             throw new NotImplementedException();
         }

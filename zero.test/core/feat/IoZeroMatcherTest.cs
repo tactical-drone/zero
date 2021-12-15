@@ -19,7 +19,7 @@ namespace zero.test.core.feat
 
 
         [Fact]
-        async Task OneShot()
+        async Task OneShotAsync()
         {
             var threads = 2;
             var count = 100;
@@ -59,7 +59,7 @@ namespace zero.test.core.feat
         }
 
         [Fact]
-        async Task SpamTest()
+        async Task SpamTestAsync()
         {
             var threads = 20;
             var count = 10000;
@@ -101,7 +101,7 @@ namespace zero.test.core.feat
         int _delayTime = 15 * 30;
 
         [Fact]
-        async Task Timeout()
+        async Task TimeoutAsync()
         {
             var threads = 2;
             var count = 100;

@@ -172,7 +172,7 @@ namespace zero.test.core.patterns.queue{
         }
 
         [Fact]
-        async Task SpamTest()
+        async Task SpamTestAsync()
         {
             var concurrentTasks = new List<Task>();
 #if DEBUG
@@ -260,7 +260,7 @@ namespace zero.test.core.patterns.queue{
 
         private volatile int _inserted;
         [Fact]
-        public async Task Iterator()
+        public async Task IteratorAsync()
         {
 
 #if DEBUG
@@ -336,7 +336,7 @@ namespace zero.test.core.patterns.queue{
         }
 
         [Fact]
-        async Task AutoScale()
+        async Task AutoScaleAsync()
         {
             await Task.Yield();
             var q = new IoQueue<int>("test Q", 1, 1, autoScale:true);
@@ -355,7 +355,7 @@ namespace zero.test.core.patterns.queue{
         private CancellationTokenSource _blockCancellationSignal = null!;
 
         [Fact]
-        async Task NoQueuePressure()
+        async Task NoQueuePressureAsync()
         {
             
             _blockCancellationSignal = new CancellationTokenSource();
@@ -404,7 +404,7 @@ namespace zero.test.core.patterns.queue{
         }
 
         [Fact]
-        async Task QueuePressure()
+        async Task QueuePressureAsync()
         {
             _blockCancellationSignal = new CancellationTokenSource();
             _queuePressure = new IoQueue<IoInt32>("test Q", 1, 2, disablePressure:false);
@@ -462,7 +462,7 @@ namespace zero.test.core.patterns.queue{
         }
 
         [Fact]
-        async Task QueueBackPressure()
+        async Task QueueBackPressureAsync()
         {
             _blockCancellationSignal = new CancellationTokenSource();
             _queuePressure = new IoQueue<IoInt32>("test Q", 2, 2, disablePressure: false, enableBackPressure:true);
@@ -534,7 +534,7 @@ namespace zero.test.core.patterns.queue{
         }
 
         [Fact]
-        async Task QueueBackPressureBlocking()
+        async Task QueueBackPressureBlockingAsync()
         {
             _blockCancellationSignal = new CancellationTokenSource();
             _queuePressure = new IoQueue<IoInt32>("test Q", 2, 2, disablePressure: false, enableBackPressure: true);

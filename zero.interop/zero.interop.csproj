@@ -25,11 +25,8 @@
     <PackageReference Include="NLog" Version="5.0.0-preview.3" />
   </ItemGroup>
 
-  <ItemGroup>
+	<ItemGroup>
     <ProjectReference Include="..\deps\tangle.net\Tangle.Net.Standard\Tangle.Net.Standard\Tangle.Net.Standard.csproj" />
-  </ItemGroup>
-
-  <ItemGroup>
     <ProjectReference Include="..\zero.core\zero.core.csproj" />
   </ItemGroup>
 

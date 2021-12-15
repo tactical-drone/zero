@@ -61,7 +61,7 @@ namespace zero.test.core.patterns.heap
         }
 
         [Fact]
-        async Task DestructionTest()
+        async Task DestructionTestAsync()
         {
             var capacity = 10;
             var h = new IoHeapIo<HeapItem, IoHeapIoTest>("test heap", capacity, true, this)

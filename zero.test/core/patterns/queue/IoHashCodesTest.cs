@@ -47,7 +47,7 @@ namespace zero.test.core.patterns.queue
 
 
         [Fact]
-        public async Task Iterator()
+        public async Task IteratorAsync()
         {
             var threads = 100;
 
