@@ -420,7 +420,7 @@ namespace zero.core.network.ip
             try
             {
                 var tcs = (IoManualResetValueTaskSource<bool>)eventArgs.UserToken;
-
+                
                 ((IoManualResetValueTaskSource<bool>)eventArgs.UserToken).SetResult(eventArgs.SocketError == SocketError.Success && tcs.GetStatus(tcs.Version) == System.Threading.Tasks.Sources.ValueTaskSourceStatus.Pending);
             }
             catch(Exception) when(Zeroed()){}
@@ -473,18 +473,21 @@ namespace zero.core.network.ip
                         var receive = new IoManualResetValueTaskSource<bool>();
                         args.UserToken = receive;
                         args.SetBuffer(buffer.Slice(offset, length));
-                        args.RemoteEndPoint = remoteEp;
+
+                        //args.RemoteEndPoint = remoteEp;
+
+                        args.RemoteEndPoint = new IPEndPoint(0, 0);
 
                         if (NativeSocket.ReceiveFromAsync(args) && !await receive.WaitAsync().FastPath().ConfigureAwait(Zc))
                         {
                             return 0;
                         }
 
-                        remoteEp.Address = ((IPEndPoint)args.RemoteEndPoint)!.Address;
+                        //remoteEp.Address = new IPAddress(((IPEndPoint)args.RemoteEndPoint).Address.GetAddressBytes());
+                        remoteEp.Address = new IPAddress(((IPEndPoint)args.RemoteEndPoint).Address.GetAddressBytes());
                         remoteEp.Port = ((IPEndPoint)args.RemoteEndPoint)!.Port;
 
                         return args.SocketError == SocketError.Success ? args.BytesTransferred : 0;
-
                     }
                     catch when (Zeroed())
                     {

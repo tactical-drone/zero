@@ -269,6 +269,11 @@ namespace zero.core.misc
             return $"H({Convert.ToBase64String(hash).Substring(0, 5)})";
         }
 
+        public static string HashSig(this Span<byte> hash)
+        {
+            return $"H({Convert.ToBase64String(hash).Substring(0, 5)})";
+        }
+
         public static string HashSig(this ReadOnlyMemory<byte> memory)
         {
             return memory.AsArray().HashSig();

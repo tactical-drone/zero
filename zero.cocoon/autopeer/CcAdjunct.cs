@@ -1037,8 +1037,15 @@ namespace zero.cocoon.autopeer
 #if DEBUG
                 if (proxy.Designation.PkString() != CcDesignation.MakeKey(publicKey))
                 {
-                    _logger!.Warn($"Invalid routing detected wanted = {proxy.Designation.PkString()} - {proxy.RemoteAddress.IpEndPoint}, got = {CcDesignation.MakeKey(publicKey)} - {srcEndPoint}");
-                    proxy = Router;
+                    if (alternate != null)
+                    {
+                        proxy = RouteRequest(alternate, publicKey);
+                        if (proxy.Designation.PkString() != CcDesignation.MakeKey(publicKey))
+                        {
+                            _logger!.Warn($"Invalid routing detected wanted = {proxy.Designation.PkString()} - {proxy.RemoteAddress.IpEndPoint}, got = {CcDesignation.MakeKey(publicKey)} - {srcEndPoint}");
+                            proxy = Router;
+                        }
+                    }
                 }
                 else
 #endif
@@ -2318,13 +2325,21 @@ namespace zero.cocoon.autopeer
             if (!matchRequest && IsProxy)
                 matchRequest = await Hub.Router._probeRequest.ResponseAsync(src.ToString(), response.ReqHash).FastPath().ConfigureAwait(Zc);
 
+#if DEBUG
+            //Try the DBG source info //TODO: bug here
+            if (!matchRequest && IsProxy)
+                matchRequest = await _probeRequest.ResponseAsync(packet.Header.Ip.Src.GetEndpoint().ToString(), response.ReqHash).FastPath().ConfigureAwait(Zc);
+#endif
+
+
             if (!matchRequest)
             {
 #if DEBUG
                 if (Collected && IsProxy)
                 {
-                    _logger.Error($"<\\- {nameof(CcProbeResponse)} {packet.Data.Memory.PayloadSig()}: SEC! age = {response.Timestamp.ElapsedMs()}ms, {response.ReqHash.Memory.HashSig()}, d = {_probeRequest.Count}, pats = {TotalPats},  " +
+                    _logger.Error($"<\\- {nameof(CcProbeResponse)} {packet.Data.Memory.PayloadSig()}: SEC! age = {response.Timestamp.ElapsedMs()}ms, matcher = ({_probeRequest.Count}, {Router._probeRequest.Count}) ,{response.ReqHash.Memory.HashSig()}, d = {_probeRequest.Count}, pats = {TotalPats},  " +
                                   $"PK={Designation.IdString()} != {CcDesignation.MakeKey(packet.PublicKey)} (proxy = {IsProxy}),  ssp = {SecondsSincePat}, d = {(AttachTimestamp > 0 ? (AttachTimestamp - LastPat).ToString() : "N/A")}, v = {Verified}, s = {src}, nat = {NatAddress}, dmz = {packet.Header.Ip.Src.GetEndpoint()}");
+                    _probeRequest.DumpToLog();
                 }
 #endif
                 return;

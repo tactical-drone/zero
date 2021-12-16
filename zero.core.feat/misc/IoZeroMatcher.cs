@@ -219,6 +219,13 @@ namespace zero.core.feat.misc
         /// </summary>
         private readonly int _capacity;
 
+        /// <summary>
+        /// Matches a challenge with a response
+        /// </summary>
+        /// <param name="ioNanite"></param>
+        /// <param name="state"></param>
+        /// <param name="_"></param>
+        /// <returns></returns>
         private async ValueTask<bool> MatchAsync(IIoNanite ioNanite, (IoZeroMatcher, string key, ByteString reqHash) state, bool _)
         {
             var (@this, key, reqHash) = state;
@@ -279,6 +286,8 @@ namespace zero.core.feat.misc
                 cur = cur.Next;
             }
 
+            if(insane <= 0)
+                _logger.Fatal($"{nameof(MatchAsync)}: Failed insane check, collection is being modified to much...");
             return false;
 
         }
@@ -335,6 +344,36 @@ namespace zero.core.feat.misc
                 }
             }
             catch 
+            {
+                //
+            }
+        }
+
+        /// <summary>
+        /// Dump challenges to log
+        /// </summary>
+        /// <param name="target"></param>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public void DumpToLog()
+        {
+            try
+            {
+                Span<byte> h = stackalloc byte[32];
+                var cur = _lut.Head;
+                while (cur != null)
+                {
+                    if (!Sha256.TryComputeHash(cur.Value.Payload, h, out var _))
+                    {
+                        LogManager.GetCurrentClassLogger().Fatal($"{_description}: Unable to compute hash");
+                    }
+
+                    cur.Value.Payload = default;
+
+                    _logger.Error($"{h.HashSig()}[{cur.Value.Key}], t = {cur.Value.TimestampMs.ElapsedMs()}ms, z = {h.ZeroHash()}");
+                    cur = cur.Next;
+                }
+            }
+            catch
             {
                 //
             }
