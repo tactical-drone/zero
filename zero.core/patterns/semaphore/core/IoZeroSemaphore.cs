@@ -475,7 +475,7 @@ namespace zero.core.patterns.semaphore.core
                     if (TaskScheduler.Current != TaskScheduler.Default)
                         cc = TaskScheduler.Current;
 
-                    InvokeContinuation(continuation, state, cc, _zeroRef.RunContinuationsAsynchronously);
+                    InvokeContinuation(continuation, state, cc, true);
 
                     return;
                 }

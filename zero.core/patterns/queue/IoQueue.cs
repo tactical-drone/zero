@@ -31,7 +31,7 @@ namespace zero.core.patterns.queue
         /// <summary>
         /// constructor
         /// </summary>
-        public IoQueue(string description, int capacity, int concurrencyLevel, bool enableBackPressure = false, bool disablePressure = true, bool autoScale = false)
+        public IoQueue(string description, int capacity, int concurrencyLevel, int prefetch = 1, bool enableBackPressure = false, bool disablePressure = true, bool autoScale = false)
         {
             _description = description;
 
@@ -56,7 +56,7 @@ namespace zero.core.patterns.queue
             if (enableBackPressure)
             {
                 _backPressure = new IoZeroSemaphore($"qbp {description}",
-                    maxBlockers: concurrencyLevel, asyncWorkerCount: 0, initialCount: 1);
+                    maxBlockers: concurrencyLevel, asyncWorkerCount: 0, initialCount: prefetch);
                 _backPressure.ZeroRef(ref _backPressure, _asyncTasks);
             }
 
