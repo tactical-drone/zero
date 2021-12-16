@@ -859,9 +859,10 @@ namespace zero.cocoon.autopeer
             CcDiscoveryBatch msgBatch = default;
             try
             {
+                
                 var job = (CcProtocBatchJob<chroniton, CcDiscoveryBatch>)batchJob;
                 msgBatch = job.Get();
-
+                
                 //Grouped by ingress endpoint batches (this needs to make sense or disable)
                 if (msgBatch.GroupByEpEnabled)
                 {
@@ -917,10 +918,15 @@ namespace zero.cocoon.autopeer
                             {
                                 cachedEp = message.EndPoint;
                                 cachedPk = message.Message.PublicKey;
+#if DEBUG
+                                proxy = RouteRequest(cachedEp.GetEndpoint(), cachedPk, message.Message.Header.Ip.Src.GetEndpoint());
+#else
                                 proxy = RouteRequest(cachedEp.GetEndpoint(), cachedPk);
+#endif
+
                             }
 
-                            if(proxy != null)
+                            if (proxy != null)
                                 await processCallback(message, msgBatch, channel, nanite, proxy, message.EndPoint.GetEndpoint()).FastPath();
                             message.EndPoint = null;
                         }
@@ -954,7 +960,7 @@ namespace zero.cocoon.autopeer
         /// <param name="srcEndPoint">The source of the request</param>
         /// <param name="publicKey">The public key of the request</param>
         /// <returns>The proxy</returns>
-        private CcAdjunct RouteRequest(IPEndPoint srcEndPoint, ByteString publicKey)
+        private CcAdjunct RouteRequest(IPEndPoint srcEndPoint, ByteString publicKey, IPEndPoint alternate = null)
         {
             var key = srcEndPoint.ToString();
             var routed = Router._routingTable.TryGetValue(key, out var proxy);
@@ -1091,7 +1097,10 @@ namespace zero.cocoon.autopeer
                                 {
                                     try
                                     {
-                                        preload[i] = @this._protocolConduit.ProduceAsync();
+                                        if(@this._protocolConduit.Source.AsyncEnabled)
+                                            preload[i] = @this.ZeroAsync(static async @this => await @this._protocolConduit.ProduceAsync(), @this, TaskCreationOptions.DenyChildAttach);
+                                        else
+                                            preload[i] = @this._protocolConduit.ProduceAsync();
                                     }
                                     catch (Exception e)
                                     {
@@ -1127,9 +1136,17 @@ namespace zero.cocoon.autopeer
                                 //consume
                                 for (var i = 0; i < width && @this._protocolConduit.UpstreamSource.IsOperational; i++)
                                 {
-                                    preload[i] = @this._protocolConduit.ConsumeAsync(ProcessMessages(), @this);
-                                    
-                                    Func<IoSink<CcProtocBatchJob<chroniton, CcDiscoveryBatch>>, CcAdjunct, ValueTask> ProcessMessages()
+                                    if (@this._protocolConduit.Source.AsyncEnabled)
+                                        preload[i] = @this.ZeroAsync(static async state =>
+                                        {
+                                            var (@this, processMessages) = state;
+                                            return await @this._protocolConduit.ConsumeAsync(processMessages,
+                                                    @this);
+                                        }, (@this, ProcessMessages()), TaskCreationOptions.DenyChildAttach);
+                                    else
+                                        preload[i] = @this._protocolConduit.ConsumeAsync(ProcessMessages(), @this);
+
+                                    static Func<IoSink<CcProtocBatchJob<chroniton, CcDiscoveryBatch>>, CcAdjunct, ValueTask> ProcessMessages()
                                     {
                                         return static async (batchJob, @this) =>
                                         {

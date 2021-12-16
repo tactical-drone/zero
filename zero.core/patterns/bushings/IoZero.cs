@@ -708,7 +708,11 @@ namespace zero.core.patterns.bushings
                         {
                             try
                             {
-                                preload[i] = @this.ProduceAsync();
+                                if (@this.Source.AsyncEnabled)
+                                    preload[i] = @this.ZeroAsync(static async @this => await @this.ProduceAsync(),
+                                        @this, TaskCreationOptions.DenyChildAttach);
+                                else
+                                    preload[i] = @this.ProduceAsync();
                             }
                             catch (Exception e)
                             {
@@ -743,7 +747,10 @@ namespace zero.core.patterns.bushings
                     {
                         try
                         {
-                            preload[i] = @this.ConsumeAsync<object>();
+                            if(@this.Source.AsyncEnabled)
+                                preload[i] = @this.ZeroAsync(static async @this => await @this.ConsumeAsync<object>(), @this, TaskCreationOptions.DenyChildAttach);
+                            else
+                                preload[i] = @this.ConsumeAsync<object>();
                         }
                         catch when (@this.Zeroed()) { }
                         catch (Exception e) when (!@this.Zeroed())

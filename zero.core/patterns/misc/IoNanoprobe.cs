@@ -699,44 +699,43 @@ namespace zero.core.patterns.misc
         /// <param name="methodName"></param>
         /// <param name="lineNumber"></param>
         /// <returns>A ValueTask</returns>
-        protected async ValueTask Zero<T>(Func<T,ValueTask> continuation, T state, CancellationToken asyncToken, TaskCreationOptions options, TaskScheduler scheduler = null, bool unwrap = false, [CallerFilePath] string filePath = null,[CallerMemberName] string methodName = null, [CallerLineNumber] int lineNumber = default )
+        protected async ValueTask<VT> Zero<T,VT>(Func<T, ValueTask<VT>> continuation, T state, CancellationToken asyncToken, TaskCreationOptions options, TaskScheduler scheduler = null, [CallerFilePath] string filePath = null,[CallerMemberName] string methodName = null, [CallerLineNumber] int lineNumber = default )
         {
             var nanite = state as IoNanoprobe??this;
             try
             {
-                var zeroAsyncTask = Task.Factory.StartNew(static async nanite =>
+                var zeroAsyncTask = Task.Factory.StartNew<ValueTask<VT>>(static async nanite =>
+                {
+                    var (@this, action, state, fileName, methodName, lineNumber) = (ValueTuple<IoNanoprobe, Func<T, ValueTask<VT>>, T, string, string, int>)nanite;
+
+                    var nanoprobe = state as IoNanoprobe;
+                    try
                     {
-                        var (@this, action, state, fileName, methodName, lineNumber) = (ValueTuple<IoNanoprobe, Func<T, ValueTask>, T, string, string, int>)nanite;
-
-                        var nanoprobe = state as IoNanoprobe;
-                        try
-                        {
-                            await action(state).FastPath().ConfigureAwait(@this.Zc);
-                        }
+                        return await action(state).FastPath().ConfigureAwait(@this.Zc);
+                    }
 #if DEBUG
-                        catch (TaskCanceledException e) when ( nanoprobe != null && !nanoprobe.Zeroed() ||
-                                                   nanoprobe == null && @this._zeroed == 0)
-                        {
-                            _logger.Trace(e,$"{Path.GetFileName(fileName)}:{methodName}() line {lineNumber} - [{@this.Description}]: {nameof(ZeroAsync)}");
-                        }
+                    catch (TaskCanceledException e) when ( nanoprobe != null && !nanoprobe.Zeroed() ||
+                                               nanoprobe == null && @this._zeroed == 0)
+                    {
+                        _logger.Trace(e,$"{Path.GetFileName(fileName)}:{methodName}() line {lineNumber} - [{@this.Description}]: {nameof(ZeroAsync)}");
+                    }
 #else
-                        catch (TaskCanceledException) { }
+                    catch (TaskCanceledException) { }
 #endif
-                        catch when(nanoprobe != null && nanoprobe.Zeroed() ||
-                                   nanoprobe == null && @this._zeroed > 0){}
-                        catch (Exception e) when (nanoprobe != null && !nanoprobe.Zeroed() ||
-                                                  nanoprobe == null && @this._zeroed == 0)
-                        {
-                            _logger.Error(e, $"{Path.GetFileName(fileName)}:{methodName}() line {lineNumber} - [{@this.Description}]: {nameof(ZeroAsync)}");
-                        }
+                    catch when (nanoprobe != null && nanoprobe.Zeroed() ||
+                                nanoprobe == null && @this._zeroed > 0)
+                    { }
+                    catch (Exception e) when (nanoprobe != null && !nanoprobe.Zeroed() ||
+                                              nanoprobe == null && @this._zeroed == 0)
+                    {
+                        _logger.Error(e, $"{Path.GetFileName(fileName)}:{methodName}() line {lineNumber} - [{@this.Description}]: {nameof(ZeroAsync)}");
+                    }
 
-                        
-                    }, ValueTuple.Create(this, continuation, state, filePath, methodName, lineNumber), asyncToken, options, TaskScheduler.Default);
+                    return default;
+                }, ValueTuple.Create(this, continuation, state, filePath, methodName, lineNumber), asyncToken, options, TaskScheduler.Default);
+
+                return await zeroAsyncTask.Result;
                 
-                if (unwrap)
-                    await zeroAsyncTask.Unwrap();
-                
-                await zeroAsyncTask.ConfigureAwait(Zc);
             }
             catch (TaskCanceledException e) when (!nanite.Zeroed())
             {
@@ -744,6 +743,73 @@ namespace zero.core.patterns.misc
             }
             catch(TaskCanceledException) when (nanite.Zeroed()){}
             catch(Exception) when (nanite.Zeroed()){}
+            catch (Exception e) when (!nanite.Zeroed())
+            {
+                throw ZeroException.ErrorReport(this, $"{nameof(ZeroAsync)} returned with errors!", e);
+            }
+
+            return default;
+        }
+
+        /// <summary>
+        /// Async execution options. <see cref="Zero"/> needs trust, but verify...
+        /// </summary>
+        /// <param name="continuation">The continuation</param>
+        /// <param name="state">user state</param>
+        /// <param name="asyncToken">The async cancellation token</param>
+        /// <param name="options">Task options</param>
+        /// <param name="unwrap">If the task awaited should be unwrapped, effectively making this a blocking call</param>
+        /// <param name="scheduler">The scheduler</param>
+        /// <param name="filePath"></param>
+        /// <param name="methodName"></param>
+        /// <param name="lineNumber"></param>
+        /// <returns>A ValueTask</returns>
+        protected async ValueTask Zero<T>(Func<T, ValueTask> continuation, T state, CancellationToken asyncToken, TaskCreationOptions options, TaskScheduler scheduler = null, bool unwrap = false, [CallerFilePath] string filePath = null, [CallerMemberName] string methodName = null, [CallerLineNumber] int lineNumber = default)
+        {
+            var nanite = state as IoNanoprobe ?? this;
+            try
+            {
+                var zeroAsyncTask = Task.Factory.StartNew(static async nanite =>
+                {
+                    var (@this, action, state, fileName, methodName, lineNumber) = (ValueTuple<IoNanoprobe, Func<T, ValueTask>, T, string, string, int>)nanite;
+
+                    var nanoprobe = state as IoNanoprobe;
+                    try
+                    {
+                        await action(state).FastPath().ConfigureAwait(@this.Zc);
+                    }
+#if DEBUG
+                        catch (TaskCanceledException e) when ( nanoprobe != null && !nanoprobe.Zeroed() ||
+                                                   nanoprobe == null && @this._zeroed == 0)
+                        {
+                            _logger.Trace(e,$"{Path.GetFileName(fileName)}:{methodName}() line {lineNumber} - [{@this.Description}]: {nameof(ZeroAsync)}");
+                        }
+#else
+                    catch (TaskCanceledException) { }
+#endif
+                    catch when (nanoprobe != null && nanoprobe.Zeroed() ||
+                               nanoprobe == null && @this._zeroed > 0)
+                    { }
+                    catch (Exception e) when (nanoprobe != null && !nanoprobe.Zeroed() ||
+                                              nanoprobe == null && @this._zeroed == 0)
+                    {
+                        _logger.Error(e, $"{Path.GetFileName(fileName)}:{methodName}() line {lineNumber} - [{@this.Description}]: {nameof(ZeroAsync)}");
+                    }
+
+
+                }, ValueTuple.Create(this, continuation, state, filePath, methodName, lineNumber), asyncToken, options, TaskScheduler.Default);
+
+                if (unwrap)
+                    await zeroAsyncTask.Unwrap();
+
+                await zeroAsyncTask.ConfigureAwait(Zc);
+            }
+            catch (TaskCanceledException e) when (!nanite.Zeroed())
+            {
+                _logger.Trace(e, Description);
+            }
+            catch (TaskCanceledException) when (nanite.Zeroed()) { }
+            catch (Exception) when (nanite.Zeroed()) { }
             catch (Exception e) when (!nanite.Zeroed())
             {
                 throw ZeroException.ErrorReport(this, $"{nameof(ZeroAsync)} returned with errors!", e);
@@ -763,9 +829,15 @@ namespace zero.core.patterns.misc
         /// <param name="methodName"></param>
         /// <param name="lineNumber"></param>
         /// <returns>A ValueTask</returns>
-        protected ValueTask ZeroAsync<T>(Func<T,ValueTask> continuation, T state, TaskCreationOptions options, TaskScheduler scheduler = null, bool unwrap = false, [CallerFilePath] string filePath = null, [CallerMemberName] string methodName = null, [CallerLineNumber] int lineNumber = default )
+        protected ValueTask<VT> ZeroAsync<T,VT>(Func<T, ValueTask<VT>> continuation, T state, TaskCreationOptions options, TaskScheduler scheduler = null,  [CallerFilePath] string filePath = null, [CallerMemberName] string methodName = null, [CallerLineNumber] int lineNumber = default )
         {
-            return Zero(continuation, state, AsyncTasks.Token, options, scheduler??TaskScheduler.Default, unwrap, filePath, methodName: methodName, lineNumber);
+            return Zero(continuation, state, AsyncTasks.Token, options, scheduler??TaskScheduler.Default, filePath, methodName: methodName, lineNumber);
+        }
+
+        protected ValueTask ZeroAsync<T>(Func<T, ValueTask> continuation, T state, TaskCreationOptions options, TaskScheduler scheduler = null, bool unwrap = false, [CallerFilePath] string filePath = null, [CallerMemberName] string methodName = null, [CallerLineNumber] int lineNumber = default)
+        {
+            
+            return Zero<T>(continuation, state, AsyncTasks.Token, options, scheduler ?? TaskScheduler.Default, unwrap, filePath, methodName: methodName, lineNumber);
         }
 
         /// <summary>
