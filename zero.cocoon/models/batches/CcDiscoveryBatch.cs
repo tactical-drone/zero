@@ -23,7 +23,7 @@ namespace zero.cocoon.models.batches
             }
 
             if (_groupByEpEnabled)
-                GroupBy = new Dictionary<byte[], List<CcDiscoveryMessage>>(size);
+                GroupBy = new Dictionary<long, Tuple<byte[], List<CcDiscoveryMessage>>>();
         }
 
         IoHeap<CcDiscoveryBatch, CcDiscoveries> _heapRef;
@@ -36,7 +36,7 @@ namespace zero.cocoon.models.batches
 
         public CcDiscoveryMessage[] Messages => _messages;
 
-        public Dictionary<byte[], List<CcDiscoveryMessage>> GroupBy;
+        public Dictionary<long, Tuple<byte[], List<CcDiscoveryMessage>>> GroupBy;
 
         /// <summary>
         /// Return this instance to the heap

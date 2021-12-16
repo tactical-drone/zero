@@ -867,14 +867,14 @@ namespace zero.cocoon.autopeer
                             break;
                         if (msgBatch.GroupBy.TryGetValue(epGroups.Key, out var msgGroup))
                         {
-                            if(!msgGroup.Any())
+                            if(!msgGroup.Item2.Any())
                                 continue;
 
-                            var srcEndPoint = epGroups.Key.GetEndpoint();
-                            var proxy = RouteRequest(srcEndPoint, epGroups.Value[0].Message.PublicKey);
+                            var srcEndPoint = epGroups.Value.Item1.GetEndpoint();
+                            var proxy = RouteRequest(srcEndPoint, epGroups.Value.Item2[0].Message.PublicKey);
                             if (proxy != null)
                             {
-                                foreach (var message in msgGroup)
+                                foreach (var message in msgGroup.Item2)
                                 {
                                     if (Zeroed())
                                         break;
@@ -923,7 +923,8 @@ namespace zero.cocoon.autopeer
 
                             if (proxy != null)
                                 await processCallback(message, msgBatch, channel, nanite, proxy, message.EndPoint.GetEndpoint()).FastPath();
-                            message.EndPoint = null;
+                            message.Message = null;
+                            message.EmbeddedMsg = null;
                         }
                         catch (Exception) when (!Zeroed()) { }
                         catch (Exception e) when (Zeroed())
@@ -954,6 +955,7 @@ namespace zero.cocoon.autopeer
         /// </summary>
         /// <param name="srcEndPoint">The source of the request</param>
         /// <param name="publicKey">The public key of the request</param>
+        /// <param name="alternate">for debug purposes</param>
         /// <returns>The proxy</returns>
         private CcAdjunct RouteRequest(IPEndPoint srcEndPoint, ByteString publicKey, IPEndPoint alternate = null)
         {
