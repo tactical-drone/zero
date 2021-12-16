@@ -14,10 +14,9 @@ using zero.core.patterns.queue;
 namespace zero.core.patterns.bushings
 {
     /// <summary>
-    /// Source Consumer pattern
+    /// Producer/Consumer pattern
     /// </summary>    
     /// <typeparam name="TJob">The type of job</typeparam>
-    //public abstract class IoZero<TJob> : IoNanoprobe, IObservable<IoLoad<TJob>>, IIoZero
     public abstract class IoZero<TJob> : IoNanoprobe, IIoZero
         where TJob : IIoJob
     {
@@ -312,7 +311,7 @@ namespace zero.core.patterns.bushings
                 IoSink<TJob> nextJob = null;
                 try
                 {
-                    nextJob = await JobHeap.TakeAsync(constructor: static (job, ioZero) =>
+                    nextJob = await JobHeap.TakeAsync(localReuse: static (job, ioZero) =>
                     {
                         job.IoZero = ioZero;
                         return new ValueTask<IoSink<TJob>>(job);
@@ -356,15 +355,15 @@ namespace zero.core.patterns.bushings
 
                             //Produce job input
                             if (await nextJob.ProduceAsync(static async (job, @this) =>
-                            {
-                                //Block on producer back pressure
-                                if (!await job.Source.WaitForBackPressureAsync().FastPath().ConfigureAwait(@this.Zc))
                                 {
-                                    job.State = IoJobMeta.JobState.ProduceErr;
-                                    return false;
-                                }
-                                return true;
-                            }, this).FastPath().ConfigureAwait(Zc) == IoJobMeta.JobState.Produced && !Zeroed())
+                                    //Block on producer back pressure
+                                    if (!await job.Source.WaitForBackPressureAsync().FastPath().ConfigureAwait(@this.Zc))
+                                    {
+                                        job.State = IoJobMeta.JobState.ProduceErr;
+                                        return false;
+                                    }
+                                    return true;
+                                }, this).FastPath().ConfigureAwait(Zc) == IoJobMeta.JobState.Produced && !Zeroed())
                             {
                                 _producerStopwatch.Stop();
 
@@ -614,6 +613,9 @@ namespace zero.core.patterns.bushings
                             }
 
                             Source.BackPressureAsync();
+
+                            //count the number of work done
+                            IncEventCounter();
 
                             //sync previous failed job buffers
                             if (SyncRecoveryModeEnabled)

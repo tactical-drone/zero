@@ -65,11 +65,12 @@ namespace zero.core.patterns.bushings
         /// Heap constructor
         /// </summary>
         /// <returns></returns>
-        public override ValueTask<IIoHeapItem> ConstructorAsync()
+        public override async ValueTask<IIoHeapItem> ReuseAsync()
         {
+            await base.ReuseAsync();
             IoZero = null;
             PrevJobQHook = null;
-            return base.ConstructorAsync();
+            return this;
         }
 
         /// <summary>

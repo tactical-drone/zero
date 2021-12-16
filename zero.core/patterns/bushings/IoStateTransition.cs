@@ -19,7 +19,7 @@ namespace zero.core.patterns.bushings
     {
         public IoStateTransition(int initState = 0)
         {
-            ConstructorAsync().AsTask().GetAwaiter().GetResult();
+            ReuseAsync().AsTask().GetAwaiter().GetResult();
             base.Value = initState;
         }
 
@@ -92,7 +92,7 @@ namespace zero.core.patterns.bushings
         /// default constructor
         /// </summary>
         /// <returns></returns>
-        public ValueTask<IIoHeapItem> ConstructorAsync()
+        public ValueTask<IIoHeapItem> ReuseAsync()
         {
             ExitTime = EnterTime = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
             base.Next = null;

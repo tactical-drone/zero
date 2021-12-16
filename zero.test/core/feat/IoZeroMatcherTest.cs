@@ -19,7 +19,7 @@ namespace zero.test.core.feat
 
 
         [Fact]
-        async Task OneShotAsync()
+        async Task SmokeAsync()
         {
             var threads = 2;
             var count = 100;

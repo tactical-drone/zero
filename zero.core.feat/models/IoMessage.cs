@@ -113,13 +113,13 @@ namespace zero.core.feat.models
         /// Prepares this item for use after being popped from the heap
         /// </summary>
         /// <returns>This instance</returns>
-        public override ValueTask<IIoHeapItem> ConstructorAsync()
+        public override ValueTask<IIoHeapItem> ReuseAsync()
         {
             BytesRead = 0;
             BufferOffset = DatumProvisionLengthMax;
             
             //return !Reconfigure ? base.Constructor() : null; //TODO what was this about?
-            return base.ConstructorAsync();
+            return base.ReuseAsync();
         }
 
         /// <summary>

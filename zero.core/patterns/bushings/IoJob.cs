@@ -111,20 +111,19 @@ namespace zero.core.patterns.bushings
         /// <summary>
         /// Uses <see cref="Source"/> to produce a job
         /// </summary>
-        /// <param name="barrier">The normalized barrier that we pass to the source for quick release</param>
-        /// <param name="nanite">Adds closure manually</param>
+        /// <param name="barrier">Congestion control</param>
+        /// <param name="ioZero">The engine producing this job at the moment</param>
         /// <returns>The current state of the job</returns>
-        public abstract ValueTask<IoJobMeta.JobState> ProduceAsync<T>(Func<IIoJob, T, ValueTask<bool>> barrier,T nanite);
+        public abstract ValueTask<IoJobMeta.JobState> ProduceAsync<T>(IIoSource.IoZeroCongestion<T> barrier, T ioZero);
 
         /// <summary>
         /// Initializes this instance for reuse from the heap
         /// </summary>
         /// <returns>This instance</returns>
-
 #if DEBUG
-        public virtual async ValueTask<IIoHeapItem> ConstructorAsync()
+        public virtual async ValueTask<IIoHeapItem> ReuseAsync()
 #else
-        public virtual ValueTask<IIoHeapItem> ConstructorAsync()
+        public virtual ValueTask<IIoHeapItem> ReuseAsync()
 #endif
         {
 #if DEBUG
@@ -136,7 +135,7 @@ namespace zero.core.patterns.bushings
 
             await StateTransitionHistory.ClearAsync().FastPath().ConfigureAwait(Zc);
 #else
-                    _stateMeta.Set((int)IoJobMeta.JobState.Undefined);
+            _stateMeta.Set((int)IoJobMeta.JobState.Undefined);
 #endif
             FinalState = State = IoJobMeta.JobState.Undefined;
             Syncing = false;
@@ -145,7 +144,7 @@ namespace zero.core.patterns.bushings
 #if DEBUG
             return this;
 #else
-                    return new ValueTask<IIoHeapItem>(this);
+            return new ValueTask<IIoHeapItem>(this);
 #endif
         }
 
@@ -324,7 +323,6 @@ namespace zero.core.patterns.bushings
                     
                     Interlocked.Add(ref Source.ServiceTimes[(int)_stateMeta.Value], _stateMeta.Mu);
                 }
-
                 else
                 {
                     if (value != IoJobMeta.JobState.Undefined && !Zeroed())

@@ -131,7 +131,7 @@ namespace zero.test.core.patterns.heap
         public int TestVar;
         public readonly int TestVar2;
         public readonly int TestVar3;
-        public ValueTask<IIoHeapItem> ConstructorAsync()
+        public ValueTask<IIoHeapItem> ReuseAsync()
         {
             TestVar = 1;
             return ValueTask.FromResult((IIoHeapItem)this);

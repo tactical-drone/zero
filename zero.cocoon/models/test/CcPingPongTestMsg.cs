@@ -109,9 +109,10 @@ namespace zero.cocoon.models.test
         /// produce a gossip message
         /// </summary>
         /// <param name="barrier">Used to synchronize</param>
-        /// <param name="nanite">Used to avoid variable captures</param>
+        /// <param name="ioZero">Used to avoid variable captures</param>
         /// <returns>State</returns>
-        public override async ValueTask<IoJobMeta.JobState> ProduceAsync<T>(Func<IIoJob, T, ValueTask<bool>> barrier, T nanite)
+        public override async ValueTask<IoJobMeta.JobState> ProduceAsync<T>(IIoSource.IoZeroCongestion<T> barrier,
+            T ioZero)
         {
             try
             {
@@ -189,7 +190,7 @@ namespace zero.cocoon.models.test
 
                         return false;
                     }
-                }, this, barrier, nanite).ConfigureAwait(Zc);
+                }, this, barrier, ioZero).ConfigureAwait(Zc);
 
                 if (!produced)
                 {

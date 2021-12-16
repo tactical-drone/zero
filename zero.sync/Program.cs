@@ -78,16 +78,16 @@ namespace zero.sync
 
             var random = new Random((int)DateTime.Now.Ticks);
             //Tangle("tcp://192.168.1.2:15600");
-            var total = 20;
+            var total = 10;
             var maxDrones = 9;
             var maxAdjuncts = 18;
             var boot = false;
 
             var tasks  = new ConcurrentBag<Task<CcCollective>>();
-            if (boot)
+            if (true)
                 // ReSharper disable once HeuristicUnreachableCode
             {
-                var t1 = CoCoonAsync(CcDesignation.Generate(true), $"tcp://127.0.0.1:{1234}", $"udp://127.0.0.1:{1234}",
+                var t1 = CoCoonAsync(CcDesignation.Generate(), $"tcp://127.0.0.1:{1234}", $"udp://127.0.0.1:{1234}",
                     $"tcp://127.0.0.1:{1234}", $"udp://127.0.0.1:{1234}",
                     new string[]
                     {
@@ -138,6 +138,7 @@ namespace zero.sync
 #pragma warning restore VSTHRD110 // Observe result of async calls
             }
             else
+#pragma warning disable CS0162
             {
                 var t1 = CoCoonAsync(CcDesignation.Generate(true), $"tcp://127.0.0.1:{1234}", $"udp://127.0.0.1:{1234}",
                     $"tcp://127.0.0.1:{1234}", $"udp://127.0.0.1:{1234}",
@@ -163,6 +164,7 @@ namespace zero.sync
                 Task.Factory.StartNew(() => t2.Start(), TaskCreationOptions.DenyChildAttach);
 #pragma warning restore VSTHRD110 // Observe result of async calls
             }
+#pragma warning restore CS0162
 
 
 

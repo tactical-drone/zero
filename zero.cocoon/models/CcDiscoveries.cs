@@ -197,9 +197,9 @@ namespace zero.cocoon.models
         /// </summary>
         private volatile bool _groupByEp;
 
-        public override ValueTask<IoJobMeta.JobState> ProduceAsync<T>(Func<IIoJob, T, ValueTask<bool>> barrier, T nanite)
+        public override ValueTask<IoJobMeta.JobState> ProduceAsync<T>(IIoSource.IoZeroCongestion<T> barrier, T ioZero)
         {
-            return base.ProduceAsync(barrier, nanite);  
+            return base.ProduceAsync(barrier, ioZero);  
         }
 
         public override async ValueTask<IoJobMeta.JobState> ConsumeAsync()
@@ -507,36 +507,36 @@ namespace zero.cocoon.models
 
                 //cog the source
                 if (!await ProtocolConduit.UpstreamSource.ProduceAsync<object>(static async (source, _, _, ioJob) =>
-                {
-                    var @this = (CcDiscoveries)ioJob;
-
-                    try
                     {
-                        if (source == null || !await ((CcProtocBatchSource<chroniton, CcDiscoveryBatch>)source).EnqueueAsync(@this._currentBatch).FastPath().ConfigureAwait(@this.Zc))
+                        var @this = (CcDiscoveries)ioJob;
+
+                        try
                         {
-                            if (source != null && !((CcProtocBatchSource<chroniton, CcDiscoveryBatch>)source).Zeroed())
+                            if (source == null || !await ((CcProtocBatchSource<chroniton, CcDiscoveryBatch>)source).EnqueueAsync(@this._currentBatch).FastPath().ConfigureAwait(@this.Zc))
                             {
-                                _logger.Fatal($"{nameof(ZeroBatchAsync)}: Unable to q batch, {@this.Description}");
+                                if (source != null && !((CcProtocBatchSource<chroniton, CcDiscoveryBatch>)source).Zeroed())
+                                {
+                                    _logger.Fatal($"{nameof(ZeroBatchAsync)}: Unable to q batch, {@this.Description}");
+                                }
+                                return false;
                             }
-                            return false;
+
+                            @this._currentBatch = @this._batchHeap.Take();
+                            if (@this._currentBatch == null)
+                                throw new OutOfMemoryException($"{@this.Description}: {nameof(@this._batchHeap)}, c = {@this._batchHeap.Count}/{@this._batchHeap.MaxSize}, ref = {@this._batchHeap.ReferenceCount}");
+
+                            @this._currentBatch.Count = 0;
+
+                            return true;
+                        }
+                        catch (Exception) when (@this.Zeroed() ) { }
+                        catch (Exception e) when (!@this.Zeroed() )
+                        {
+                            _logger.Error(e, $"{@this.Description} - Forward failed!");
                         }
 
-                        @this._currentBatch = @this._batchHeap.Take();
-                        if (@this._currentBatch == null)
-                            throw new OutOfMemoryException($"{@this.Description}: {nameof(@this._batchHeap)}, c = {@this._batchHeap.Count}/{@this._batchHeap.MaxSize}, ref = {@this._batchHeap.ReferenceCount}");
-
-                        @this._currentBatch.Count = 0;
-
-                        return true;
-                    }
-                    catch (Exception) when (@this.Zeroed() ) { }
-                    catch (Exception e) when (!@this.Zeroed() )
-                    {
-                        _logger.Error(e, $"{@this.Description} - Forward failed!");
-                    }
-
-                    return false;
-                }, this).FastPath().ConfigureAwait(Zc))
+                        return false;
+                    }, this, null, default).FastPath().ConfigureAwait(Zc))
                 {
                     if(!Zeroed())
                         _logger.Debug($"{nameof(ZeroBatchAsync)} - {Description}: Failed to produce jobs from {ProtocolConduit.Description}");

@@ -119,26 +119,27 @@ namespace zero.core.feat.models.protobuffer
         /// <returns>
         /// The state to indicated failure or success
         /// </returns>
-        public override async ValueTask<IoJobMeta.JobState> ProduceAsync<T>(Func<IIoJob, T, ValueTask<bool>> barrier, T nanite)
+        public override async ValueTask<IoJobMeta.JobState> ProduceAsync<T>(IIoSource.IoZeroCongestion<T> barrier,
+            T ioZero)
         {
             if (!await Source.ProduceAsync(static async (_, backPressure, state, ioJob )=>
-            {
-                var job = (CcProtocBatchJob<TModel, TBatch>)ioJob;
+                {
+                    var job = (CcProtocBatchJob<TModel, TBatch>)ioJob;
                 
-                if (!await backPressure(ioJob, state).FastPath().ConfigureAwait(job.Zc))
-                    return false;
+                    if (!await backPressure(ioJob, state).FastPath().ConfigureAwait(job.Zc))
+                        return false;
 
-                try
-                {
-                    job._batch = await ((CcProtocBatchSource<TModel, TBatch>) job.Source).DequeueAsync().FastPath().ConfigureAwait(job.Zc);
-                }
-                catch (Exception e) when(!job.Zeroed())
-                {
-                    _logger.Fatal(e,$"BatchQueue.TryDequeueAsync failed: {job.Description}"); 
-                }
+                    try
+                    {
+                        job._batch = await ((CcProtocBatchSource<TModel, TBatch>) job.Source).DequeueAsync().FastPath().ConfigureAwait(job.Zc);
+                    }
+                    catch (Exception e) when(!job.Zeroed())
+                    {
+                        _logger.Fatal(e,$"BatchQueue.TryDequeueAsync failed: {job.Description}"); 
+                    }
                 
-                return job._batch != null;
-            }, this, barrier, nanite).FastPath().ConfigureAwait(Zc))
+                    return job._batch != null;
+                }, this, barrier, ioZero).FastPath().ConfigureAwait(Zc))
             {
                 return State = IoJobMeta.JobState.Error;
             }

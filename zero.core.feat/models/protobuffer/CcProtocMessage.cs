@@ -7,6 +7,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Google.Protobuf;
 using zero.core.conf;
+using zero.core.feat.models.protobuffer.sources;
 using zero.core.network.ip;
 using zero.core.patterns.bushings;
 using zero.core.patterns.bushings.contracts;
@@ -111,7 +112,8 @@ namespace zero.core.feat.models.protobuffer
         /// </summary>
         protected IPEndPoint RemoteEndPoint { get; } = new IPEndPoint(IPAddress.Any, 0);
 
-        public override async ValueTask<IoJobMeta.JobState> ProduceAsync<T>(Func<IIoJob, T, ValueTask<bool>> barrier,T nanite)
+        public override async ValueTask<IoJobMeta.JobState> ProduceAsync<T>(IIoSource.IoZeroCongestion<T> barrier,
+            T ioZero)
         {
             try
             {
@@ -136,7 +138,7 @@ namespace zero.core.feat.models.protobuffer
                             int read;
                             do
                             {
-                                totalRead += read = await ((IoSocket)ioSocket)
+                                totalRead += read = await ((IoNetClient<CcProtocMessage<TModel,TBatch>>)ioSocket).IoNetSocket
                                     .ReadAsync(job.MemoryBuffer, job.BufferOffset + totalRead,
                                         job.BufferSize - totalRead,
                                         job.RemoteEndPoint, timeout: totalRead > 0? -1 : 0).FastPath().ConfigureAwait(job.Zc);
@@ -178,7 +180,7 @@ namespace zero.core.feat.models.protobuffer
                     }
 
                     return false;
-                }, this, barrier, nanite).FastPath().ConfigureAwait(Zc);
+                }, this, barrier, ioZero).FastPath().ConfigureAwait(Zc);
             }
             catch when (Zeroed()) { }
             catch (Exception e)when (!Zeroed())

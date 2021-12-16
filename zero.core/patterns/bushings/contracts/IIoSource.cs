@@ -86,10 +86,12 @@ namespace zero.core.patterns.bushings.contracts
         /// </summary>
         public long[] Counters { get; }
 
+#if DEBUG
         /// <summary>
         /// Total service times per <see cref="Counters"/>
         /// </summary>
         public long[] ServiceTimes { get; }
+#endif
 
         /// <summary>
         /// Print counters
@@ -151,18 +153,26 @@ namespace zero.core.patterns.bushings.contracts
         int BacklogCount { get; }
 
         /// <summary>
-        /// Executes the specified function in the context of the source
+        /// Congestion control hooks
         /// </summary>
-        /// <param name="callback">The function.</param>
-        /// <param name="jobClosure"></param>
-        /// <param name="barrier">The barrier</param>
-        /// <param name="nanite"></param>
+        /// <typeparam name="T">The type of <see cref="IIoZero"/></typeparam>
+        /// <param name="job">The job being processed</param>
+        /// <param name="ioZero">The engine processing the job</param>
         /// <returns></returns>
-        ValueTask<bool> ProduceAsync<T>(
-            Func<IIoNanite, Func<IIoJob, T, ValueTask<bool>>, T, IIoJob, ValueTask<bool>> callback,
-            IIoJob jobClosure = null,
-            Func<IIoJob, T, ValueTask<bool>> barrier = null,
-            T nanite = default);
+        delegate ValueTask<bool> IoZeroCongestion<in T>(IIoJob job, T ioZero);
+
+        /// <summary>
+        /// Produces a job, in the context of the source.
+        /// </summary>
+        /// <param name="produce">A production that produces a job from the source</param>
+        /// <param name="ioJob">The job instance</param>
+        /// <param name="barrier">The congestion barrier</param>
+        /// <param name="ioZero">The pattern</param>
+        /// <returns></returns>
+        ValueTask<bool> ProduceAsync<T>(Func<IIoSource, IoZeroCongestion<T>, T, IIoJob, ValueTask<bool>> produce,
+            IIoJob ioJob,
+            IoZeroCongestion<T> barrier,
+            T ioZero);
 
         /// <summary>
         /// Producers can forward new productions types <see cref="TFJob"/> via a channels of type <see cref="IIoConduit"/> to other producers.

@@ -157,48 +157,6 @@ namespace zero.core.network.ip
         }
 
         /// <summary>
-        /// Execute the a tcp client function, detect TCP connection drop
-        /// </summary>
-        /// <param name="callback">The tcp client functions</param>
-        /// <param name="jobClosure"></param>
-        /// <param name="barrier"></param>
-        /// <param name="nanite"></param>
-        /// <returns>True on success, false otherwise</returns>
-        public override async ValueTask<bool> ProduceAsync<T>(
-            Func<IIoNanite, Func<IIoJob, T, ValueTask<bool>>, T, IIoJob, ValueTask<bool>> callback,
-            IIoJob jobClosure = null,
-            Func<IIoJob, T, ValueTask<bool>> barrier = null,
-            T nanite = default)
-        {
-            try
-            {
-                return await callback(IoNetSocket, barrier, nanite, jobClosure).FastPath().ConfigureAwait(Zc);
-            }
-            catch (TimeoutException)
-            {
-                return false;
-            }
-            catch (TaskCanceledException)
-            {
-                return false;
-            }
-            catch (ObjectDisposedException)
-            {
-                return false;
-            }
-            catch (OperationCanceledException)
-            {
-                return false;
-            }
-            catch (Exception e)
-            {
-                if(!Zeroed())
-                    _logger.Error(e,$"Source `{Description}' callback failed:");
-                return false;
-            }
-        }
-
-        /// <summary>
         /// Rate limit socket health checks
         /// </summary>
         private long _lastSocketHealthCheck = (DateTimeOffset.UtcNow + TimeSpan.FromDays(1)).ToUnixTimeMilliseconds();

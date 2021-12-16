@@ -413,17 +413,30 @@ namespace zero.core.patterns.bushings
         /// <summary>
         /// Executes the specified function in the context of the source
         /// </summary>
-        /// <param name="callback">The function.</param>
-        /// <param name="jobClosure">The job being produced on</param>
+        /// <param name="produce">The function.</param>
+        /// <param name="ioJob">The job being produced on</param>
         /// <param name="barrier">A synchronization barrier from</param>
-        /// <param name="nanite">Optional callback state</param>
+        /// <param name="ioZero">Optional produce state</param>
         /// <returns>True on success, false otherwise</returns>
-        public abstract ValueTask<bool> ProduceAsync<T>(
-            Func<IIoNanite, Func<IIoJob, T, ValueTask<bool>>, T, IIoJob, ValueTask<bool>> callback,
-            IIoJob jobClosure = null,
-            Func<IIoJob, T, ValueTask<bool>> barrier = null,
-            T nanite = default);
-        
+        public virtual ValueTask<bool> ProduceAsync<T>(
+            Func<IIoSource, IIoSource.IoZeroCongestion<T>, T, IIoJob, ValueTask<bool>> produce,
+            IIoJob ioJob,
+            IIoSource.IoZeroCongestion<T> barrier,
+            T ioZero)
+        {
+            try
+            {
+                return produce(this, barrier, ioZero, ioJob);
+            }
+            catch (Exception) when (Zeroed()) {}
+            catch (Exception e) when (!Zeroed())
+            {
+                _logger.Error(e, $"Source `{Description ?? "N/A"}' produce failed:");
+            }
+
+            return new ValueTask<bool>(false);
+        }
+
         /// <summary>
         /// Signal source pressure
         /// </summary>

@@ -13,6 +13,6 @@ namespace zero.core.patterns.heap
         /// and a new malloc will be done
         /// </summary>
         /// <returns>This instance</returns>
-        ValueTask<IIoHeapItem> ConstructorAsync();
+        ValueTask<IIoHeapItem> ReuseAsync();
     }
 }
