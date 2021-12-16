@@ -74,13 +74,13 @@ namespace zero.core.patterns.bushings
             
             Source = source ?? throw new ArgumentNullException($"{nameof(source)}");
 
-            JobHeap = new IoHeapIo<IoSink<TJob>>($"{nameof(JobHeap)}: {_description}", Source.PrefetchSize + 2) { Malloc = mallocMessage };
+            JobHeap = new IoHeapIo<IoSink<TJob>>($"{nameof(JobHeap)}: {_description}", Source.PrefetchSize * 2) { Malloc = mallocMessage };
 
             if (cascade)
                 await Source.ZeroHiveAsync(this).FastPath().ConfigureAwait(Zc);
 
             //TODO tuning
-            _queue = new IoQueue<IoSink<TJob>>($"zero Q: {_description}", (ZeroConcurrencyLevel() * 2 + Source.PrefetchSize), Source.PrefetchSize, disablePressure:!Source.DisableZero, enableBackPressure:Source.DisableZero);
+            _queue = new IoQueue<IoSink<TJob>>($"zero Q: {_description}", Source.PrefetchSize * 2, Source.PrefetchSize, disablePressure:!Source.DisableZero, enableBackPressure:Source.DisableZero);
         }
 
         /// <summary>
@@ -156,7 +156,7 @@ namespace zero.core.patterns.bushings
         /// </summary>        
         [IoParameter]
         // ReSharper disable once InconsistentNaming
-        public int parm_max_q_size = 20; //TODO
+        public int parm_max_q_size = 128; //TODO
 
         /// <summary>
         /// Minimum useful uptime in seconds
