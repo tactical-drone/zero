@@ -124,8 +124,6 @@ namespace zero.test.core.feat
                     await Task.Factory.StartNew(static async state =>
                     {
                         //Delay time
-                        
-
                         var (k, hash, matcher, delay) = (ValueTuple<string, byte[], IoZeroMatcher, int>)state;
                         var dud = new byte[hash.Length];
                         hash.CopyTo(dud, 0);

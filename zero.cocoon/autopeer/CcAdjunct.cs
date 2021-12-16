@@ -1083,17 +1083,15 @@ namespace zero.cocoon.autopeer
                     {
                         try
                         {
-                            var c = @this._protocolConduit.ZeroConcurrencyLevel();
+                            var width = @this._protocolConduit.ZeroConcurrencyLevel();
+                            var preload = new ValueTask<bool>[width];
                             while (!@this.Zeroed() && @this._protocolConduit.UpstreamSource.IsOperational)
                             {
-                                for (var i = 0; i < c && @this._protocolConduit.UpstreamSource.IsOperational; i++)
+                                for (var i = 0; i < width && @this._protocolConduit.UpstreamSource.IsOperational; i++)
                                 {
                                     try
                                     {
-                                        if (i == c - 1 && !await @this._protocolConduit.ProduceAsync())
-                                            break;
-
-                                        var _ = @this._protocolConduit.ProduceAsync();
+                                        preload[i] = @this._protocolConduit.ProduceAsync();
                                     }
                                     catch (Exception e)
                                     {
@@ -1101,6 +1099,12 @@ namespace zero.cocoon.autopeer
                                         break;
                                     }
                                 }
+
+                                var j = 0;
+                                while (await preload[j].FastPath() && ++j < width) { }
+
+                                if (j < width)
+                                    break;
                             }
                         }
                         catch when (@this.Zeroed() || @this.Source.Zeroed() || @this._protocolConduit?.UpstreamSource == null) { }
@@ -1116,24 +1120,15 @@ namespace zero.cocoon.autopeer
                         //the consumer
                         try
                         {
-                            var c = @this._protocolConduit.ZeroConcurrencyLevel();
+                            var width = @this._protocolConduit.ZeroConcurrencyLevel();
+                            var preload = new ValueTask<bool>[width];
                             while (!@this.Zeroed() && @this._protocolConduit.UpstreamSource.IsOperational)
                             {
                                 //consume
-                                for (var i = 0; i < c && @this._protocolConduit.UpstreamSource.IsOperational; i++)
+                                for (var i = 0; i < width && @this._protocolConduit.UpstreamSource.IsOperational; i++)
                                 {
-                                    if (i == c - 1)
-                                    {
-                                        if (!await @this._protocolConduit.ConsumeAsync(ProcessMessages(), @this))
-                                            break;
-                                    }
-                                    else
-                                    {
-#pragma warning disable CS4014
-                                        @this._protocolConduit.ConsumeAsync(ProcessMessages(), @this);
-#pragma warning restore CS4014
-                                    }
-
+                                    preload[i] = @this._protocolConduit.ConsumeAsync(ProcessMessages(), @this);
+                                    
                                     Func<IoSink<CcProtocBatchJob<chroniton, CcDiscoveryBatch>>, CcAdjunct, ValueTask> ProcessMessages()
                                     {
                                         return static async (batchJob, @this) =>
@@ -1252,6 +1247,12 @@ namespace zero.cocoon.autopeer
                                         };
                                     }
                                 }
+
+                                var j = 0;
+                                while (await preload[j].FastPath() && ++j < width) { }
+
+                                if (j < width)
+                                    break;
                             }
                         }
                         catch when(@this.Zeroed() || @this._protocolConduit?.UpstreamSource == null) {}

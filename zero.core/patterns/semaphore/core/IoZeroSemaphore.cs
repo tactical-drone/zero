@@ -840,7 +840,7 @@ namespace zero.core.patterns.semaphore.core
         public ValueTask<bool> WaitAsync()
         {
             //insane checks
-            if (_zeroRef == null || _zeroRef.ZeroWaitCount() > _maxBlockers || _zeroRef.Zeroed())
+            if (_zeroRef == null || _zeroRef.ZeroWaitCount() >= _maxBlockers || _zeroRef.Zeroed())
                 return new ValueTask<bool>(false);
 
             //fast path

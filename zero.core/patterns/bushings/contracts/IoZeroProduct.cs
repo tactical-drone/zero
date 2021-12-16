@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Threading.Tasks;
+using zero.core.misc;
 using zero.core.patterns.heap;
 using zero.core.patterns.misc;
 
@@ -30,7 +31,7 @@ namespace zero.core.patterns.bushings.contracts
         public override async ValueTask<IoJobMeta.JobState> ProduceAsync<T>(IIoSource.IoZeroCongestion<T> barrier,
             T ioZero)
         {
-            if (!await Source.ProduceAsync(static async (_, backPressure, state, ioJob) =>
+            if (!await Source.ProduceAsync(static async (Source, backPressure, state, ioJob) =>
                 {
                     var job = (IoZeroProduct)ioJob;
 
@@ -38,9 +39,20 @@ namespace zero.core.patterns.bushings.contracts
                         return false;
 
                     //mock production delay
-                    await Task.Delay(job._constructionDelay);
 
-                    return job._produced = true;
+                    if (job._constructionDelay > 0)
+                    {
+                        var ts = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+                        await Task.Delay(job._constructionDelay);
+                        if (ts.ElapsedMs() < job._constructionDelay)
+                        {
+                            _logger.Fatal("wtf");
+                        }
+
+                    }
+                        
+
+                    return job._produced = ((IoZeroSource)Source).Produce();
                 }, this, barrier, ioZero).FastPath().ConfigureAwait(Zc))
             {
                 return State = IoJobMeta.JobState.Error;

@@ -46,6 +46,7 @@ namespace zero.core.patterns.bushings
 
             Proxy = proxy;
             PrefetchSize = prefetchSize;
+            PrefetchEnabled = prefetchSize > 0;
             MaxAsyncSources = maxAsyncSources;
             AsyncEnabled = MaxAsyncSources > 0;
 
@@ -54,23 +55,23 @@ namespace zero.core.patterns.bushings
                 if (PressureEnabled)
                 {
                     _pressure = new IoZeroSemaphoreSlim(AsyncTasks, $"{nameof(_pressure)}: {description}",
-                        maxBlockers: concurrencyLevel + MaxAsyncSources, maxAsyncWork: MaxAsyncSources);
+                        maxBlockers: PrefetchSize, maxAsyncWork: MaxAsyncSources);
                 }
 
                 if (BackPressureEnabled)
                 {
                     _backPressure = new IoZeroSemaphoreSlim(AsyncTasks, $"{nameof(_backPressure)}: {description}",
-                        maxBlockers: concurrencyLevel + MaxAsyncSources + prefetchSize,
-                        initialCount: prefetchSize + MaxAsyncSources,
-                        maxAsyncWork: MaxAsyncSources);
+                        maxBlockers: PrefetchSize,
+                        initialCount: prefetchSize,
+                        maxAsyncWork: 0);
                 }
 
                 if (PrefetchEnabled)
                 {
-                    _prefetchPressure = new IoZeroSemaphoreSlim(AsyncTasks, $"{nameof(_prefetchPressure)}: {description}"
-                        , maxBlockers: concurrencyLevel + MaxAsyncSources + prefetchSize,
-                        initialCount: prefetchSize + MaxAsyncSources,
-                        maxAsyncWork: MaxAsyncSources);
+                    _prefetchPressure = new IoZeroSemaphoreSlim(AsyncTasks, $"{nameof(_prefetchPressure)}: {description}", 
+                        maxBlockers: PrefetchSize,
+                        initialCount: prefetchSize,
+                        maxAsyncWork: 0);
                 }
             }
             catch (Exception e)
@@ -266,7 +267,7 @@ namespace zero.core.patterns.bushings
 
             try
             {
-                RecentlyProcessed.Zero(this, reason);
+                RecentlyProcessed?.Zero(this, reason);
             }
             catch { }
 

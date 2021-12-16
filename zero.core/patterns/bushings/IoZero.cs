@@ -80,7 +80,7 @@ namespace zero.core.patterns.bushings
                 await Source.ZeroHiveAsync(this).FastPath().ConfigureAwait(Zc);
 
             //TODO tuning
-            _queue = new IoQueue<IoSink<TJob>>($"zero Q: {_description}", (ZeroConcurrencyLevel() * 2 + Source.PrefetchSize), ZeroConcurrencyLevel(), disablePressure:!Source.DisableZero, enableBackPressure:Source.DisableZero);
+            _queue = new IoQueue<IoSink<TJob>>($"zero Q: {_description}", (ZeroConcurrencyLevel() * 2 + Source.PrefetchSize), Source.PrefetchSize, disablePressure:!Source.DisableZero, enableBackPressure:Source.DisableZero);
         }
 
         /// <summary>
@@ -393,7 +393,6 @@ namespace zero.core.patterns.bushings
                                 //Signal to the consumer that there is work to do
                                 return await Source.PressureAsync().FastPath().ConfigureAwait(Zc) >
                                        0; //TODO, is this a good idea?
-                                
                             }
                             else //produce job returned with errors or nothing...
                             {
@@ -700,15 +699,16 @@ namespace zero.core.patterns.bushings
             {
                 try
                 {
-                    var produceTask = new ValueTask<bool>[@this.ZeroConcurrencyLevel()];
+                    var width = @this.Source.ZeroConcurrencyLevel();
+                    var preload = new ValueTask<bool>[width];
                     //While supposed to be working
                     while (!@this.Zeroed())
                     {
-                        for (var i = 0; i < @this.ZeroConcurrencyLevel(); i++)
+                        for (var i = 0; i < width; i++)
                         {
                             try
                             {
-                                produceTask[i] = @this.ProduceAsync();
+                                preload[i] = @this.ProduceAsync();
                             }
                             catch (Exception e)
                             {
@@ -717,7 +717,10 @@ namespace zero.core.patterns.bushings
                             }
                         }
 
-                        if (!await produceTask[^1].FastPath())
+                        var j = 0;
+                        while (await preload[j].FastPath() && ++j < width) { }
+
+                        if (j < width)
                             break;
                     }
                 }
@@ -731,15 +734,16 @@ namespace zero.core.patterns.bushings
             //Consumer
             _consumerTask = ZeroOptionAsync(static async @this =>
             {
+                var width = @this.Source.ZeroConcurrencyLevel();
+                var preload = new ValueTask<bool>[width];
                 //While supposed to be working
                 while (!@this.Zeroed())
                 {
-                    var consumeTaskPool = new ValueTask<bool>[@this.ZeroConcurrencyLevel()];
-                    for (var i = 0; i < @this.ZeroConcurrencyLevel(); i++)
+                    for (var i = 0; i < width; i++)
                     {
                         try
                         {
-                            consumeTaskPool[i] = @this.ConsumeAsync<object>();
+                            preload[i] = @this.ConsumeAsync<object>();
                         }
                         catch when (@this.Zeroed()) { }
                         catch (Exception e) when (!@this.Zeroed())
@@ -749,7 +753,10 @@ namespace zero.core.patterns.bushings
                         }
                     }
 
-                    if (!await consumeTaskPool[^1].FastPath())
+                    var j = 0;
+                    while (await preload[j].FastPath() && ++j < width) { }
+
+                    if (j < width)
                         break;
                 }
             }, this, TaskCreationOptions.DenyChildAttach); //TODO tuning
