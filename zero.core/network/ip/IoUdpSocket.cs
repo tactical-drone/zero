@@ -474,16 +474,15 @@ namespace zero.core.network.ip
                         args.UserToken = receive;
                         args.SetBuffer(buffer.Slice(offset, length));
 
-                        //args.RemoteEndPoint = remoteEp;
+                        args.RemoteEndPoint = remoteEp;
 
-                        args.RemoteEndPoint = new IPEndPoint(0, 0);
+                        //args.RemoteEndPoint = new IPEndPoint(0, 0);
 
                         if (NativeSocket.ReceiveFromAsync(args) && !await receive.WaitAsync().FastPath().ConfigureAwait(Zc))
                         {
                             return 0;
                         }
 
-                        //remoteEp.Address = new IPAddress(((IPEndPoint)args.RemoteEndPoint).Address.GetAddressBytes());
                         remoteEp.Address = new IPAddress(((IPEndPoint)args.RemoteEndPoint).Address.GetAddressBytes());
                         remoteEp.Port = ((IPEndPoint)args.RemoteEndPoint)!.Port;
 

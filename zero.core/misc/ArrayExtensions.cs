@@ -294,6 +294,11 @@ namespace zero.core.misc
             return null;
         }
 
+        public static string HashSig(this Span<byte> hash)
+        {
+            return null;
+        }
+
         public static string HashSig(this ReadOnlyMemory<byte> memory)
         {
             return null;
