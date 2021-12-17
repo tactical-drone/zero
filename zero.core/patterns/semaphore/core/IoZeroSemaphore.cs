@@ -4,6 +4,7 @@ using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Threading.Tasks.Sources;
+using NLog;
 using zero.core.patterns.misc;
 
 namespace zero.core.patterns.semaphore.core
@@ -288,19 +289,13 @@ namespace zero.core.patterns.semaphore.core
                 var waiter = Interlocked.CompareExchange(ref _signalAwaiter[i], ZeroSentinel, _signalAwaiter[i]);
                 if (waiter != null)
                 {
-                    var state = _signalAwaiterState[i];
-                    var executionState = _signalExecutionState[i];
-                    var context = _signalCapturedContext[i];
-
-                    _signalAwaiterState[i] = null;
-                    _signalExecutionState[i] = null;
-                    _signalCapturedContext[i] = null;
-                    Thread.MemoryBarrier();
-                    _signalAwaiter[i] = null;
+                    var state = Volatile.Read(ref _signalAwaiterState[i]);
+                    var executionState = Volatile.Read(ref _signalExecutionState[i]);
+                    var context = Volatile.Read(ref _signalCapturedContext[i]);
 
                     try
                     {
-                        ZeroComply(waiter, state, executionState, context);
+                        ZeroComply(waiter, state, executionState, context, true, true);
                     }
                     catch
                     {
@@ -316,11 +311,12 @@ namespace zero.core.patterns.semaphore.core
             Array.Clear(_signalExecutionState, 0, _maxBlockers);
             Array.Clear(_signalCapturedContext, 0, _maxBlockers);
 
+#if SAFE_RELEASE
             _signalAwaiter = null;
             _signalAwaiterState = null;
             _signalExecutionState = null;
             _signalCapturedContext = null;
-
+#endif
             _zeroRef = null;
         }
 
@@ -546,13 +542,18 @@ namespace zero.core.patterns.semaphore.core
         /// <param name="executionContext"></param>
         /// <param name="forceAsync">Forces async execution</param>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private bool ZeroComply(Action<object> callback, object state, ExecutionContext executionContext, object capturedContext, bool zeroed = false)
+        private bool ZeroComply(Action<object> callback, object state, ExecutionContext executionContext, object capturedContext, bool zeroed = false, bool forceAsync = false)
         {
 #if DEBUG
             //validate
-            if (state == null)
-                throw new ArgumentNullException($"-> {nameof(state)}");
+            if (callback == null || state == null)
+                throw new ArgumentNullException($"-> {nameof(callback)} = {callback}, {nameof(state)} = {state}");
+#else
+            
+            if (callback == null || state == null)
+                throw new InvalidOperationException($"{nameof(InvokeContinuation)}: {nameof(callback)} = {callback}, {nameof(state)} = {state}");
 #endif
+
             try
             {
                 //Execute with captured context
@@ -564,14 +565,20 @@ namespace zero.core.patterns.semaphore.core
                     {
                         var (@this, callback, state, capturedContext) = (ValueTuple<IoZeroSemaphore,Action<object>, object, object>)s;
 
-                        @this.InvokeContinuation(callback, state, capturedContext, false);
-
+                        try
+                        {
+                            @this.InvokeContinuation(callback, state, capturedContext, false);
+                        }
+                        catch (Exception e)
+                        {
+                            LogManager.GetCurrentClassLogger().Trace(e, $"{nameof(ExecutionContext)}: ]");
+                        }
                     }, ValueTuple.Create(_zeroRef, callback, state, capturedContext));
                     
                     return true;
                 }
 
-                InvokeContinuation(callback, state, capturedContext, false);
+                InvokeContinuation(callback, state, capturedContext, forceAsync);
                 return true;
             }
             catch (TaskCanceledException) {return true;}
@@ -592,7 +599,7 @@ namespace zero.core.patterns.semaphore.core
         {
             //TODO?
             if(callback == null || state == null)
-                return;
+                throw new InvalidOperationException($"{nameof(InvokeContinuation)}: {nameof(callback)} = {callback}, {nameof(state)} = {state}");
 
             switch (capturedContext)
             {
@@ -613,10 +620,10 @@ namespace zero.core.patterns.semaphore.core
                         }
                         else
                         {
-                            _zeroRef.ZeroDecAsyncCount();
-                            //something went wrong at this point... might as well execute
+                            //race condition
                             callback(state);
                         }
+                            
                     }
                     else
                     {
@@ -811,7 +818,7 @@ namespace zero.core.patterns.semaphore.core
                 //unlock
                 ZeroUnlock();
 
-                if (!ZeroComply(worker.Continuation, worker.State, worker.ExecutionContext, worker.CapturedContext, Zeroed() || worker.Semaphore.Zeroed() || worker.State is IIoNanite nanite && nanite.Zeroed()))
+                if (!ZeroComply(worker.Continuation, worker.State, worker.ExecutionContext, worker.CapturedContext, Zeroed() || worker.Semaphore.Zeroed() || worker.State is IIoNanite nanite && nanite.Zeroed(),bestEffort))
                 {
                     if(!bestEffort)
                         _zeroRef.ZeroAddCount(releaseCount - released);

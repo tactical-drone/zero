@@ -770,11 +770,6 @@ namespace zero.core.patterns.misc
             var nanite = state as IoNanoprobe ?? this;
             try
             {
-                if (state is IoUdpSocket { Proxy: false })
-                {
-                    Console.WriteLine("asd");
-                }
-
                 var zeroAsyncTask = Task.Factory.StartNew(static async nanite =>
                 {
                     var (@this, action, state, fileName, methodName, lineNumber) = (ValueTuple<IoNanoprobe, Func<T, ValueTask>, T, string, string, int>)nanite;

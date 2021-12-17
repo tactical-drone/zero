@@ -30,7 +30,7 @@ namespace zero.cocoon.models.batches
         private CcDiscoveryMessage[] _messages;
         private Dictionary<string, ReadOnlyMemory<CcDiscoveryMessage>> _messagesDictionary = new();
         private volatile int _disposed;
-        private bool _groupByEpEnabled;
+        private readonly bool _groupByEpEnabled;
 
         public CcDiscoveryMessage this[int i] => _messages[i];
 

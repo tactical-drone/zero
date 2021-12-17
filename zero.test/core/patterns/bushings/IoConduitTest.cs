@@ -99,7 +99,7 @@ namespace zero.test.core.patterns.bushings
             var count = 200;
             var totalTimeMs = count * 100;
             var concurrencyLevel = 4;
-            var s1 = new IoZeroSource("zero source 1", false, concurrencyLevel * 2, concurrencyLevel, 0, false);
+            var s1 = new IoZeroSource("zero source 1", false, concurrencyLevel * 2, concurrencyLevel, 4, false);
             var c1 = new IoConduit<IoZeroProduct>("conduit smoke test 1", s1, static (ioZero, _) => new IoZeroProduct("test product 1", ((IoConduit<IoZeroProduct>)ioZero).Source, 100));
 
             var z1 = Task.Factory.StartNew(async () => await c1.BlockOnReplicateAsync(), TaskCreationOptions.DenyChildAttach).Unwrap();
@@ -107,9 +107,10 @@ namespace zero.test.core.patterns.bushings
             var ts = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
             while (!z1.IsCompleted && c1.EventCount < count)
             {
-                await Task.Delay(30).ConfigureAwait(false);
+                await Task.Delay(50).ConfigureAwait(false);
             }
             c1.Zero(null, "test done");
+            await z1;
 
             Assert.InRange(ts.ElapsedMs(), totalTimeMs/concurrencyLevel/2, totalTimeMs / concurrencyLevel);
             _output.WriteLine($"{ts.ElapsedMs()}ms ~ {totalTimeMs / concurrencyLevel / 2}ms");

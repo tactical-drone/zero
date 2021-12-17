@@ -348,13 +348,9 @@ namespace zero.core.patterns.queue
             }
             finally
             {
-                if(dq != null)
-                    _backPressure?.Release();
-
                 if (blocked)
                     _syncValRoot.Release();
             }
-            //return dequeued item
             
             try
             {
@@ -362,11 +358,8 @@ namespace zero.core.patterns.queue
                 {
                     var retVal = dq.Value;
                     _nodeHeap.Return(dq);
+                    _backPressure?.Release();
                     return retVal;
-                }
-                else
-                {
-                    
                 }
             }
             catch when(_zeroed > 0){}
