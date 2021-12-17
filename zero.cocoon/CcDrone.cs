@@ -300,27 +300,8 @@ namespace zero.cocoon
                     //var m = new CcWhisperMsg() {Data = UnsafeByteOperations.UnsafeWrap(new ReadOnlyMemory<byte>(vb))};
 
                     var buf = _m.ToByteArray();
-
                     if (!Zeroed())
                     {
-                        var dupEndpoints = Adjunct.CcCollective.DupHeap.Take(IoSource.IoNetSocket.LocalAddress);
-
-                        if (dupEndpoints == null)
-                            throw new OutOfMemoryException(
-                                $"{Adjunct.CcCollective.DupHeap}: {Adjunct.CcCollective.DupHeap.ReferenceCount}/{Adjunct.CcCollective.DupHeap.MaxSize} - c = {Adjunct.CcCollective.DupChecker.Count}, m = _maxReq");
-
-                        if (!Adjunct.CcCollective.DupChecker.TryAdd(v, dupEndpoints))
-                        {
-                            dupEndpoints.ZeroManaged();
-                            Adjunct.CcCollective.DupHeap.Return(dupEndpoints);
-
-                            //best effort
-                            if (Adjunct.CcCollective.DupChecker.TryGetValue(v, out dupEndpoints))
-                            {
-                                dupEndpoints.Add(IoSource.IoNetSocket.LocalAddress.GetHashCode(), true);
-                            }
-                        }
-
                         Interlocked.Increment(ref AccountingBit);
                         Adjunct.CcCollective.IncEventCounter();
 
