@@ -230,7 +230,7 @@ namespace zero.test.core.patterns.queue{
                     @this._output.WriteLine($"({@this.context.Q.Count})");
                 },this, TaskCreationOptions.DenyChildAttach).Unwrap());
             }
-            await Task.WhenAll(concurrentTasks).WaitAsync(TimeSpan.FromSeconds(10));
+            await Task.WhenAll(concurrentTasks).WaitAsync(TimeSpan.FromSeconds(10)).ConfigureAwait(false);
 
             _output.WriteLine($"count = {context.Q.Count}, Head = {context.Q?.Tail?.Value}, tail = {context.Q?.Head?.Value}, time = {DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() - start}ms, {rounds * mult * 6 / (DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() - start)} kOPS");
 
@@ -302,13 +302,13 @@ namespace zero.test.core.patterns.queue{
                 }, (this, q, idx, itemsPerThread), TaskCreationOptions.DenyChildAttach).Unwrap());
             }
 
-            await Task.WhenAll(insert).WaitAsync(TimeSpan.FromSeconds(10)).ConfigureAwait(_zc);
+            await Task.WhenAll(insert).WaitAsync(TimeSpan.FromSeconds(10)).ConfigureAwait(false);
 
             Assert.Equal(capacity, _inserted);
 
-            await q.DequeueAsync().FastPath().ConfigureAwait(_zc);
-            await q.DequeueAsync().FastPath().ConfigureAwait(_zc);
-            await q.DequeueAsync().FastPath().ConfigureAwait(_zc);
+            await q.DequeueAsync().FastPath().ConfigureAwait(false);
+            await q.DequeueAsync().FastPath().ConfigureAwait(false);
+            await q.DequeueAsync().FastPath().ConfigureAwait(false);
 
             Assert.Equal(capacity - 3, q.Count);
 
@@ -322,7 +322,7 @@ namespace zero.test.core.patterns.queue{
 
             //while (q.Count > 0)
             //    await q.DequeueAsync().FastPath().ConfigureAwait(Zc);
-            await q.ZeroManagedAsync<object>(zero:true).FastPath().ConfigureAwait(_zc);
+            await q.ZeroManagedAsync<object>(zero:true).FastPath().ConfigureAwait(false);
 
             Assert.Equal(0, q.Count);
             Assert.Null(q.Head);

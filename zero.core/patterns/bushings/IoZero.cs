@@ -391,8 +391,7 @@ namespace zero.core.patterns.bushings
                                 nextJob = null;
 
                                 //Signal to the consumer that there is work to do
-                                return await Source.PressureAsync().FastPath().ConfigureAwait(Zc) >
-                                       0; //TODO, is this a good idea?
+                                return Source.Pressure() > 0; //TODO, is this a good idea?
                             }
                             else //produce job returned with errors or nothing...
                             {

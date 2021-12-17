@@ -76,7 +76,7 @@ namespace zero.test.core.patterns.queue
                 }, (this, bag, idx), TaskCreationOptions.DenyChildAttach));
             }
 
-            await Task.WhenAll(insert).WaitAsync(TimeSpan.FromSeconds(10)).ConfigureAwait(Zc);
+            await Task.WhenAll(insert).WaitAsync(TimeSpan.FromSeconds(10)).ConfigureAwait(false);
 
             Assert.Equal(threads, bag.Count);
 

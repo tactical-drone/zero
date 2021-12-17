@@ -43,13 +43,17 @@ namespace zero.core.patterns.bushings
                 PrefetchEnabled = false;
                 BackPressureEnabled = false;
             }
+            else
+            {
+                PrefetchEnabled = prefetchSize > 0;
+            }
 
-            Proxy = proxy;
             PrefetchSize = prefetchSize;
-            PrefetchEnabled = prefetchSize > 0;
             MaxAsyncSources = maxAsyncSources;
             AsyncEnabled = MaxAsyncSources > 0;
 
+            Proxy = proxy;
+            
             try
             {
                 if (PressureEnabled)
@@ -442,9 +446,11 @@ namespace zero.core.patterns.bushings
         /// Signal source pressure
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public ValueTask<int> PressureAsync(int releaseCount = 1)
+        public int Pressure(int releaseCount = 1)
         {
-            return new ValueTask<int>(PressureEnabled ? _pressure.Release(releaseCount) : releaseCount);
+            if (PressureEnabled && _pressure != null)
+                return PressureEnabled ? _pressure.Release(releaseCount) : releaseCount;
+            return PressureEnabled ? 0 : releaseCount;
         }
 
         /// <summary>
@@ -455,7 +461,9 @@ namespace zero.core.patterns.bushings
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public ValueTask<bool> WaitForPressureAsync()
         {
-            return PressureEnabled? _pressure.WaitAsync() : new ValueTask<bool>(true);
+            if (PressureEnabled && _pressure != null)
+                return PressureEnabled? _pressure.WaitAsync() : new ValueTask<bool>(true);
+            return new ValueTask<bool>(!PressureEnabled);
         }
 
         /// <summary>
@@ -466,7 +474,9 @@ namespace zero.core.patterns.bushings
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public int BackPressureAsync(int releaseCount = 1)
         {
-            return BackPressureEnabled ? _backPressure.Release(releaseCount) : releaseCount;
+            if (BackPressureEnabled && _backPressure != null)
+                return BackPressureEnabled ? _backPressure.Release(releaseCount) : releaseCount;
+            return BackPressureEnabled ? 0 : releaseCount;
         }
 
         /// <summary>
@@ -477,7 +487,9 @@ namespace zero.core.patterns.bushings
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public ValueTask<bool> WaitForBackPressureAsync()
         {
-            return BackPressureEnabled ? _backPressure.WaitAsync() : new ValueTask<bool>(true);
+            if (BackPressureEnabled && _backPressure != null)
+                return BackPressureEnabled ? _backPressure.WaitAsync() : new ValueTask<bool>(true);
+            return new ValueTask<bool>(!BackPressureEnabled);
         }
         
         /// <summary>
@@ -487,7 +499,9 @@ namespace zero.core.patterns.bushings
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public int PrefetchPressure(int releaseCount = 1)
         {
-            return PrefetchEnabled ? _prefetchPressure.Release(releaseCount) : releaseCount;
+            if(PrefetchEnabled && _prefetchPressure != null)
+                return PrefetchEnabled ? _prefetchPressure.Release(releaseCount) : releaseCount;
+            return PrefetchEnabled ? 0 : releaseCount;
         }
 
         /// <summary>
@@ -498,7 +512,9 @@ namespace zero.core.patterns.bushings
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public ValueTask<bool> WaitForPrefetchPressureAsync()
         {
-            return PrefetchEnabled ? _prefetchPressure.WaitAsync() : new ValueTask<bool>(true);
+            if (PrefetchEnabled && _prefetchPressure != null)
+                return PrefetchEnabled ? _prefetchPressure.WaitAsync() : new ValueTask<bool>(true);
+            return new ValueTask<bool>(!PrefetchEnabled);
         }
     }
 }

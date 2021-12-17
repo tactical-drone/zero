@@ -25,7 +25,7 @@ namespace zero.core.patterns.bushings.contracts
         /// <summary>
         /// Apply source pressure
         /// </summary>
-        public ValueTask<int> PressureAsync(int releaseCount = 1);
+        public int Pressure(int releaseCount = 1);
 
         /// <summary>
         /// Wait for source pressure
