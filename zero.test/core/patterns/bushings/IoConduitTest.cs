@@ -89,7 +89,7 @@ namespace zero.test.core.patterns.bushings
             _output.WriteLine($"FPSes = {fpses} kub/s, {ts.ElapsedMs()}ms ~ 1000ms");
 
             await Task.Delay(100);
-            Assert.InRange(c1.EventCount, count, count * 1.01);
+            Assert.InRange(c1.EventCount, count, count * 1.25);
             _output.WriteLine($"#event = {c1.EventCount} ~ {count}");
         }
 

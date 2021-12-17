@@ -413,10 +413,6 @@ namespace zero.core.patterns.bushings
                                 //if (await _queue.EnqueueAsync(nextJob).FastPath().ConfigureAwait(Zc) == null ||
                                 //    nextJob.Source == null)
                                 {
-                                    nextJob.State = IoJobMeta.JobState.ProduceErr;
-
-                                    //ReturnJobToHeapAsync job
-                                    nextJob.State = IoJobMeta.JobState.Reject;
                                     await ReturnJobToHeapAsync(nextJob, true).FastPath()
                                         .ConfigureAwait(Zc);
 

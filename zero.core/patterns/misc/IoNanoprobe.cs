@@ -7,6 +7,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using NLog;
 using zero.core.misc;
+using zero.core.network.ip;
 using zero.core.patterns.queue;
 using zero.core.patterns.semaphore;
 using zero.core.patterns.semaphore.core;
@@ -111,7 +112,7 @@ namespace zero.core.patterns.misc
         /// <summary>
         /// Continue On Captured Context
         /// </summary>
-        public static bool ContinueOnCapturedContext => false;
+        public static bool ContinueOnCapturedContext => true;
 
         /// <summary>
         /// Used for equality compares
@@ -769,6 +770,11 @@ namespace zero.core.patterns.misc
             var nanite = state as IoNanoprobe ?? this;
             try
             {
+                if (state is IoUdpSocket { Proxy: false })
+                {
+                    Console.WriteLine("asd");
+                }
+
                 var zeroAsyncTask = Task.Factory.StartNew(static async nanite =>
                 {
                     var (@this, action, state, fileName, methodName, lineNumber) = (ValueTuple<IoNanoprobe, Func<T, ValueTask>, T, string, string, int>)nanite;

@@ -327,7 +327,7 @@ namespace zero.test.core.patterns.semaphore
             {
                 var ts = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
                 Assert.True(await v.WaitAsync().FastPath().ConfigureAwait(Zc));
-                Assert.InRange(ts.ElapsedMs(), 0, 50);
+                Assert.InRange(ts.ElapsedMs(), 0, 15 * 4);
             }
 
             await t;

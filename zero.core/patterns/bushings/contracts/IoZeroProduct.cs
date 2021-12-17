@@ -39,19 +39,9 @@ namespace zero.core.patterns.bushings.contracts
                         return false;
 
                     //mock production delay
-
                     if (job._constructionDelay > 0)
-                    {
-                        var ts = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
                         await Task.Delay(job._constructionDelay);
-                        if (ts.ElapsedMs() < job._constructionDelay)
-                        {
-                            _logger.Fatal("wtf");
-                        }
-
-                    }
-                        
-
+                    
                     return job._produced = ((IoZeroSource)Source).Produce();
                 }, this, barrier, ioZero).FastPath().ConfigureAwait(Zc))
             {

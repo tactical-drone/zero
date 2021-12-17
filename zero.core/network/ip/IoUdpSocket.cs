@@ -25,8 +25,7 @@ namespace zero.core.network.ip
         /// <param name="concurrencyLevel"></param>
         public IoUdpSocket(int concurrencyLevel) : base(SocketType.Dgram, ProtocolType.Udp, concurrencyLevel)
         {
-            Init(concurrencyLevel, false);
-            Proxy = true;
+            Init(concurrencyLevel, false);//TODO tuning
         }
 
         /// <summary>
@@ -35,18 +34,40 @@ namespace zero.core.network.ip
         /// <param name="nativeSocket">The listening address</param>
         /// <param name="remoteEndPoint">The remote endpoint</param>
         /// <param name="concurrencyLevel"></param>
-        public IoUdpSocket(Socket nativeSocket, IPEndPoint remoteEndPoint, int concurrencyLevel) : base(nativeSocket, remoteEndPoint)
+        public IoUdpSocket(Socket nativeSocket, IPEndPoint remoteEndPoint, int concurrencyLevel, bool clone) : base(nativeSocket, remoteEndPoint, concurrencyLevel)
         {
             try
             {
                 NativeSocket.Blocking = false;
             }
-            catch 
+            catch
             {
                 return;
             }
 
-            Init(16);//TODO tuning
+            Proxy = true;
+            Init(concurrencyLevel);
+        }
+
+        /// <summary>
+        /// Used by pseudo listeners
+        /// </summary>
+        /// <param name="nativeSocket">The listening address</param>
+        /// <param name="remoteEndPoint">The remote endpoint</param>
+        /// <param name="concurrencyLevel"></param>
+        public IoUdpSocket(Socket nativeSocket, IPEndPoint remoteEndPoint, int concurrencyLevel) : base(nativeSocket, remoteEndPoint, concurrencyLevel)
+        {
+            try
+            {
+                NativeSocket.Blocking = false;
+            }
+            catch
+            {
+                return;
+            }
+
+            //TODO tuning:
+            Init(32);
         }
 
         /// <summary>
@@ -121,6 +142,8 @@ namespace zero.core.network.ip
         /// </summary>
         public override async ValueTask ZeroManagedAsync()
         {
+            await base.ZeroManagedAsync().FastPath().ConfigureAwait(Zc);
+
             if (_recvArgs != null)
             {
                 await _recvArgs.ZeroManagedAsync(static (o, @this) =>
@@ -142,7 +165,6 @@ namespace zero.core.network.ip
                 }, this).FastPath().ConfigureAwait(Zc);
             }
             
-
             await _sendArgs.ZeroManagedAsync(static (o,@this) =>
             {
                 o.Completed -= @this.SignalAsync;
@@ -164,8 +186,6 @@ namespace zero.core.network.ip
 
             //_sendSync.ZeroSem();
             //_rcvSync.ZeroSem();
-
-            await base.ZeroManagedAsync().FastPath().ConfigureAwait(Zc);
         }
 
         /// <summary>
@@ -191,7 +211,6 @@ namespace zero.core.network.ip
         {
             //base
             await base.BlockOnListenAsync(listeningAddress, acceptConnectionHandler, nanite,bootstrapAsync).FastPath().ConfigureAwait(Zc);
-
 
             //set some socket options
             //NativeSocket.SetSocketOption(SocketOptionLevel.IP, SocketOptionName.PacketInformation, true);
@@ -564,9 +583,14 @@ namespace zero.core.network.ip
         {
             try
             {
-                return !Zeroed() && NativeSocket is {IsBound: true, LocalEndPoint: { }};
+                var connected = !Zeroed() && NativeSocket is { IsBound: true, LocalEndPoint: { } };
+
+                return connected;
             }
-            catch(ObjectDisposedException){}
+            catch (ObjectDisposedException d)
+            {
+                Zero(this, $"{nameof(IsConnected)}: {d.Message}");
+            }
             catch when(Zeroed()){}
             catch (Exception e) when(!Zeroed())
             {

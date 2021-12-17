@@ -87,7 +87,9 @@ namespace zero.cocoon
                 //_lastDescGen = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
                 try
                 {
-                    return _description = $"`drone({(Source.IsOperational?"Active":"Zombie")} {(_assimulated? "Participant" : "Bystander")} [{Adjunct.Hub.Designation.IdString()}, {Adjunct.Designation.IdString()}], {Adjunct.Direction},{Adjunct.MessageService.IoNetSocket.Key} ~ {((IoTcpClient<CcProtocMessage<CcWhisperMsg, CcGossipBatch>>)IoSource).IoNetSocket.Key}, up = {TimeSpan.FromMilliseconds(Uptime.ElapsedMs())}'";
+                    if(!Zeroed())
+                        return _description = $"`drone({(Source.IsOperational?"Active":"Zombie")} {(_assimulated? "Participant" : "Bystander")} [{Adjunct.Hub.Designation.IdString()}, {Adjunct.Designation.IdString()}], {Adjunct.Direction},{Adjunct.MessageService.IoNetSocket.Key} ~ {((IoTcpClient<CcProtocMessage<CcWhisperMsg, CcGossipBatch>>)IoSource).IoNetSocket.Key}, up = {TimeSpan.FromMilliseconds(Uptime.ElapsedMs())}'";
+                    return _description = $"`drone({(Source?.IsOperational ?? false ? "Active" : "Zombie")} {(_assimulated ? "Participant" : "Bystander")}, [{Adjunct?.Hub?.Designation?.IdString()}, {Adjunct?.Designation?.IdString()}], {Adjunct?.MessageService?.IoNetSocket?.Key} ~ {((IoTcpClient<CcProtocMessage<CcWhisperMsg, CcGossipBatch>>)IoSource)?.IoNetSocket?.Key}, up = {TimeSpan.FromMilliseconds(Uptime.ElapsedMs())}'";
                 }
                 catch
                 {
@@ -133,8 +135,9 @@ namespace zero.cocoon
             {
                 if (_key != null)
                     return _key;
-
-                return _key = Adjunct.Key;
+                if(Adjunct != null)
+                    return _key = Adjunct.Key;
+                return string.Empty;
             }
         }
 
