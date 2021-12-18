@@ -4,8 +4,10 @@ using System.Net;
 using System.Net.Sockets;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
+using System.Threading;
 using System.Threading.Tasks;
 using NLog;
+using zero.core.misc;
 using zero.core.patterns.heap;
 using zero.core.patterns.misc;
 using zero.core.patterns.semaphore;
@@ -80,6 +82,7 @@ namespace zero.core.network.ip
             _logger = LogManager.GetCurrentClassLogger();
             //TODO tuning
 
+            NativeSocket.Blocking = false;
             //_sendSync = new IoZeroSemaphore("udp send lock", concurrencyLevel, 1, 0);
             //_sendSync.ZeroRef(ref _sendSync, AsyncTasks);
 
@@ -439,8 +442,7 @@ namespace zero.core.network.ip
             try
             {
                 var tcs = (IoManualResetValueTaskSource<bool>)eventArgs.UserToken;
-                
-                ((IoManualResetValueTaskSource<bool>)eventArgs.UserToken).SetResult(eventArgs.SocketError == SocketError.Success && tcs.GetStatus(tcs.Version) == System.Threading.Tasks.Sources.ValueTaskSourceStatus.Pending);
+                tcs.SetResult(eventArgs.SocketError == SocketError.Success && tcs.GetStatus(tcs.Version) == System.Threading.Tasks.Sources.ValueTaskSourceStatus.Pending);
             }
             catch(Exception) when(Zeroed()){}
             catch(Exception e) when (!Zeroed())
@@ -492,10 +494,7 @@ namespace zero.core.network.ip
                         var receive = new IoManualResetValueTaskSource<bool>();
                         args.UserToken = receive;
                         args.SetBuffer(buffer.Slice(offset, length));
-
                         args.RemoteEndPoint = remoteEp;
-
-                        //args.RemoteEndPoint = new IPEndPoint(0, 0);
 
                         if (NativeSocket.ReceiveFromAsync(args) && !await receive.WaitAsync().FastPath().ConfigureAwait(Zc))
                         {
@@ -532,22 +531,19 @@ namespace zero.core.network.ip
                     }
                 }
 
-                if (timeout < 0)
-                    timeout = 0;
-
+                //TODO, not sure this works. 
                 EndPoint remoteEpAny = remoteEp;
                 if (MemoryMarshal.TryGetArray((ReadOnlyMemory<byte>)buffer, out var tBuf))
                 {
                     NativeSocket.ReceiveTimeout = timeout;
-                    var read = NativeSocket.ReceiveFrom(tBuf.Array!, offset, length, SocketFlags.None,
-                        ref remoteEpAny); //                  
+                    var read = NativeSocket.ReceiveFrom(tBuf.Array!, offset, length, SocketFlags.None, ref remoteEpAny);
                     NativeSocket.ReceiveTimeout = 0;
-                    remoteEp.Address = ((IPEndPoint)remoteEpAny).Address;
-                    remoteEp.Port = ((IPEndPoint)remoteEpAny).Port;
+
+                    remoteEp.Address = new IPAddress(((IPEndPoint)remoteEpAny).Address.GetAddressBytes());
+                    remoteEp.Port = ((IPEndPoint)remoteEpAny)!.Port;
+
                     return read;
                 }
-
-                return 0;
             }
             catch (Win32Exception e) when (!Zeroed())
             {
@@ -572,7 +568,35 @@ namespace zero.core.network.ip
 
             return 0;
         }
-        
+
+
+        /// <summary>
+        /// Receive callback
+        /// </summary>
+        /// <param name="ar">async result</param>
+        private void RecvCallback(IAsyncResult ar)
+        {
+            try
+            {
+                var tcs = (IoManualResetValueTaskSource<ValueTuple<int, EndPoint>>)ar.AsyncState;
+                EndPoint ep = new IPEndPoint(IPAddress.Any, 0);
+                tcs.SetResult((NativeSocket.EndReceiveFrom(ar, ref ep), ep));
+            }
+            catch (Exception) when (Zeroed()) { }
+            catch (Exception e) when (!Zeroed())
+            {
+                try
+                {
+                    _logger?.Fatal(e, $"{Description}: udp signal callback failed!");
+                }
+                catch
+                {
+                    // ignored
+                }
+            }
+        }
+
+
         /// <inheritdoc />
         /// <summary>
         /// Connection status

@@ -29,6 +29,17 @@ namespace zero.core.misc
         /// <param name="memory">The memory</param>
         /// <returns>The array segment</returns>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static byte[] AsArray(this Memory<byte> memory)
+        {
+            return ((ReadOnlyMemory<byte>)memory).AsArray();
+        }
+
+        /// <summary>
+        /// Casts <see cref="Memory{T}" to <see cref="ArraySegment{T}"/>/>
+        /// </summary>
+        /// <param name="memory">The memory</param>
+        /// <returns>The array segment</returns>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static byte[] AsArray(this ReadOnlyMemory<byte> memory)
         {
             try

@@ -53,8 +53,8 @@ namespace zero.cocoon
                 parm_max_drone = 0;
                 parm_max_adjunct = 64; //TODO tuning:
                 udpPrefetch = 3;
-                udpConcurrencyLevel = 1;
-                NeighborTasks = new IoQueue<Task>($"{nameof(NeighborTasks)}", parm_max_adjunct + 1, udpConcurrencyLevel);
+                udpConcurrencyLevel = 2;
+                NeighborTasks = new IoQueue<Task>($"{nameof(NeighborTasks)}", parm_max_adjunct + 1, ZeroConcurrencyLevel());
             }
 
             Services.CcRecord.Endpoints.TryAdd(CcService.Keys.peering, _peerAddress);
@@ -412,14 +412,14 @@ namespace zero.cocoon
         /// </summary>
         [IoParameter]
         // ReSharper disable once InconsistentNaming
-        public int parm_max_outbound = 4;
+        public int parm_max_outbound = 3;
 
         /// <summary>
         /// Max adjuncts
         /// </summary>
         [IoParameter]
         // ReSharper disable once InconsistentNaming
-        public int parm_max_drone = 9;
+        public int parm_max_drone = 8;
 
         /// <summary>
         /// Max adjuncts

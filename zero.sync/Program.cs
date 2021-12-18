@@ -62,6 +62,7 @@ namespace zero.sync
         /// <param name="args"></param>
         static void Main(string[] args)
         {
+            Console.WriteLine(Environment.Version);
             //SemTest();
             //QueueTestAsync();
 
@@ -77,9 +78,9 @@ namespace zero.sync
 
             var random = new Random((int)DateTime.Now.Ticks);
             //Tangle("tcp://192.168.1.2:15600");
-            var total = 40;
-            var maxDrones = 9;
-            var maxAdjuncts = 18;
+            var total = 350;
+            var maxDrones = 4;
+            var maxAdjuncts = 16;
             var boot = true;
 
             var tasks  = new ConcurrentBag<Task<CcCollective>>();
@@ -1235,7 +1236,7 @@ namespace zero.sync
                 IoNodeAddress.Create(fpcAddress),
                 IoNodeAddress.Create(extAddress),
                 bootStrapAddress.Select(IoNodeAddress.Create).Where(a => a.Port.ToString() != peerAddress.Split(":")[2]).ToList(),
-                3, 3, 1, 1, zeroDrone);
+                3, 3, 2, 1, zeroDrone);
 
             _nodes.Add(cocoon);
 

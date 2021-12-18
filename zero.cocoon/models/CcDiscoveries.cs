@@ -36,7 +36,7 @@ namespace zero.cocoon.models
                 IoZero = (IIoZero)localContext;
                 _configured = true;
                 var cc = 2;
-                var pf = 4;
+                var pf = 3;
                 var ac = 1;
                 if (!Source.Proxy && ((CcAdjunct)IoZero)!.CcCollective.ZeroDrone)
                 {
