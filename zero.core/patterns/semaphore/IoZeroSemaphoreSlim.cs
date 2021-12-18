@@ -183,5 +183,10 @@ namespace zero.core.patterns.semaphore
         {
             throw new NotImplementedException();
         }
+
+        public void ZeroThrow()
+        {
+            throw new NotImplementedException();
+        }
     }
 }

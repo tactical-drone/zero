@@ -310,7 +310,7 @@ namespace zero.test.core.patterns.semaphore
         [Fact]
         async Task TestIoZeroSemaphoreSlimSpamAsync()
         {
-            long count = 10000000;
+            long count = 1000000;
             var v = new IoZeroSemaphoreSlim(new CancellationTokenSource(), string.Empty, 1, 1);
 
             var totalTime = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
@@ -323,12 +323,15 @@ namespace zero.test.core.patterns.semaphore
                 }
             });
 
+            long ave = 0;
             for (var i = 0; i < count; i++)
             {
                 var ts = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
                 Assert.True(await v.WaitAsync().FastPath().ConfigureAwait(Zc));
-                Assert.InRange(ts.ElapsedMs(), 0, 15 * 4);
+                ave += ts.ElapsedMs();
             }
+
+            Assert.InRange(ave/count, 0, 15 * 4);
 
             await t.ConfigureAwait(false);
             var maps = count * 1000 / totalTime.ElapsedMs() / 1000;

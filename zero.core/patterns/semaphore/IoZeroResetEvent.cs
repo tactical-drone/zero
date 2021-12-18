@@ -45,6 +45,11 @@ namespace zero.core.patterns.semaphore
             return _pressure.GetStatus(_pressure.Version) == ValueTaskSourceStatus.Canceled;
         }
 
+        public void ZeroThrow()
+        {
+            throw new NotImplementedException();
+        }
+
         public void OnCompleted(Action<object> continuation, object state, short token, ValueTaskSourceOnCompletedFlags flags)
         {
             throw new NotImplementedException();

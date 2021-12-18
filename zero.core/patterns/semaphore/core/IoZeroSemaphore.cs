@@ -1,5 +1,6 @@
 ﻿//#define TOKEN //TODO this primitive does not work this way
 using System;
+using System.Buffers;
 using System.Runtime.CompilerServices;
 using System.Runtime.ExceptionServices;
 using System.Threading;
@@ -389,10 +390,9 @@ namespace zero.core.patterns.semaphore.core
 
             _zeroRef.ZeroTokenBump();
 #endif
-            _error?.Throw();
-
             try
             {
+                _zeroRef.ZeroThrow();
                 return !(_zeroRef == null || _zeroRef.IsCancellationRequested() || _zeroRef.Zeroed());
             }
             catch
@@ -517,12 +517,7 @@ namespace zero.core.patterns.semaphore.core
                 Volatile.Write(ref _signalCapturedContext[headIdx], capturedContext);
                 Volatile.Write(ref _signalAwaiterState[headIdx], state);
                 Volatile.Write(ref _signalAwaiter[headIdx], continuation);
-                //_signalExecutionState[headIdx] = executionContext;
-                //_signalCapturedContext[headIdx] = capturedContext;
-                //_signalAwaiterState[headIdx] = state;
-                //Thread.MemoryBarrier();
-                //_signalAwaiter[headIdx] = continuation;
-
+                
                 _zeroRef.ZeroIncWait();
 
                 ZeroUnlock();
@@ -833,10 +828,6 @@ namespace zero.core.patterns.semaphore.core
 
                 _zeroRef.ZeroDecWait();
 
-                //worker.State = Volatile.Read(ref _signalAwaiterState[latchMod]);
-                //worker.ExecutionContext = Volatile.Read(ref _signalExecutionState[latchMod]);
-                //worker.CapturedContext = Volatile.Read(ref _signalCapturedContext[latchMod]);
-
                 Volatile.Write(ref worker.State, Volatile.Read(ref _signalAwaiterState[latchMod]));
                 Volatile.Write(ref worker.ExecutionContext, Volatile.Read(ref _signalExecutionState[latchMod]));
                 Volatile.Write(ref worker.CapturedContext, Volatile.Read(ref _signalCapturedContext[latchMod]));
@@ -845,12 +836,6 @@ namespace zero.core.patterns.semaphore.core
                 Volatile.Write(ref _signalExecutionState[latchMod], null);
                 Volatile.Write(ref _signalCapturedContext[latchMod], null);
                 Volatile.Write(ref _signalAwaiter[latchMod], null);
-
-                //_signalAwaiterState[latchIdx] = null;
-                //_signalExecutionState[latchIdx] = null;
-                //_signalCapturedContext[latchIdx] = null;
-                //Thread.MemoryBarrier();
-                //_signalAwaiter[latchIdx] = null;
 
                 //unlock
                 ZeroUnlock();
@@ -1050,6 +1035,12 @@ namespace zero.core.patterns.semaphore.core
         public bool IsCancellationRequested()
         {
             return _zeroed > 0 || (_asyncTasks?.IsCancellationRequested?? true);
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public void ZeroThrow()
+        {
+            _error?.Throw();
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]

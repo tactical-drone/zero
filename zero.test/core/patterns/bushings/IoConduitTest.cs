@@ -33,11 +33,12 @@ namespace zero.test.core.patterns.bushings
                 await Task.Delay(15).ConfigureAwait(false);
             }
             c1.ZeroAsync(null,"test done");
+            await z1.ConfigureAwait(false);
 
-            Assert.InRange(ts.ElapsedMs(), 1000, 1500);
-            _output.WriteLine($"{ts.ElapsedMs()}ms ~ 500");
+            Assert.InRange(ts.ElapsedMs(), 1000, 2000);
+            _output.WriteLine($"{ts.ElapsedMs()}ms ~ 1000");
 
-            await Task.Delay(100);
+            await Task.Delay(100).ConfigureAwait(false);
             Assert.InRange(c1.EventCount, 10,15);
             _output.WriteLine($"#event = {c1.EventCount} ~ 10");
         }

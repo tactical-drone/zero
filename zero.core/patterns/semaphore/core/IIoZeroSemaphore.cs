@@ -63,5 +63,8 @@ namespace zero.core.patterns.semaphore.core
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         bool IsCancellationRequested();
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        void ZeroThrow();
     }
 }
