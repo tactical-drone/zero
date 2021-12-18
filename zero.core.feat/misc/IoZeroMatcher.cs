@@ -234,7 +234,10 @@ namespace zero.core.feat.misc
 
             var cur = @this._lut.Head;
             @this._lut.Reset();
+
+            //TODO params:
             var insane = 20;
+
             while (cur != null)
             {
                 //restart on collisions
@@ -254,6 +257,7 @@ namespace zero.core.feat.misc
                         StacklessAsync();
                     }
 
+                    [MethodImpl(MethodImplOptions.AggressiveInlining)]
                     void StacklessAsync()
                     {
                         Span<byte> h = stackalloc byte[32];
@@ -287,9 +291,8 @@ namespace zero.core.feat.misc
             }
 
             if(insane <= 0)
-                _logger.Fatal($"{nameof(MatchAsync)}: Failed insane check, collection is being modified to much...");
+                _logger.Trace($"{nameof(MatchAsync)}: Failed insane check, too many collisions... [OK]");
             return false;
-
         }
 
         /// <summary>

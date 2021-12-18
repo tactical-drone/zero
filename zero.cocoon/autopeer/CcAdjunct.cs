@@ -64,8 +64,8 @@ namespace zero.cocoon.autopeer
             var capMult = CcCollective.ZeroDrone ? 100 : 1;
             var ttlMult = CcCollective.ZeroDrone ? 10 : 1;
 
-            _probeRequest = new IoZeroMatcher(nameof(_probeRequest), Source.ZeroConcurrencyLevel(), parm_max_network_latency_ms * 3, (int)(CcCollective.MaxAdjuncts * parm_max_swept_drones * 2 * capMult));
-            _fuseRequest = new IoZeroMatcher(nameof(_fuseRequest), Source.ZeroConcurrencyLevel(), parm_max_network_latency_ms * 3, (int)(CcCollective.MaxAdjuncts* parm_max_swept_drones * 2 * capMult));
+            _probeRequest = new IoZeroMatcher(nameof(_probeRequest), Source.PrefetchSize, parm_max_network_latency_ms * 3, (int)(CcCollective.MaxAdjuncts * parm_max_swept_drones * 2 * capMult));
+            _fuseRequest = new IoZeroMatcher(nameof(_fuseRequest), Source.PrefetchSize, parm_max_network_latency_ms * 3, (int)(CcCollective.MaxAdjuncts* parm_max_swept_drones * 2 * capMult));
             _scanRequest = new IoZeroMatcher(nameof(_scanRequest), (int)(CcCollective.MaxAdjuncts * parm_max_swept_drones + 1), parm_max_network_latency_ms * 3, (int)(CcCollective.MaxAdjuncts * parm_max_swept_drones * 2));
 
             if (extraData != null)
@@ -888,7 +888,8 @@ namespace zero.cocoon.autopeer
                                         break;
                                     try
                                     {
-                                        await processCallback(message, msgBatch, channel, nanite, proxy, srcEndPoint).FastPath();
+                                        if(Equals(message.Message.Header.Ip.Dst.GetEndpoint(), Router.MessageService.IoNetSocket.NativeSocket.LocalEndPoint))
+                                            await processCallback(message, msgBatch, channel, nanite, proxy, srcEndPoint).FastPath();
                                     }
                                     catch (Exception) when (!Zeroed()) { }
                                     catch (Exception e) when (Zeroed())
@@ -917,7 +918,7 @@ namespace zero.cocoon.autopeer
                         try
                         {
                             //TODO, is this caching a good idea? 
-                            if (!_enableBatchEpCache  || proxy == null || !proxy.IsProxy || cachedEp == null || !cachedEp.ArrayEqual(message.EndPoint) && cachedPk == null || !cachedPk.Memory.Span.ArrayEqual(message.Message.PublicKey.Span))
+                            if (!_enableBatchEpCache  || proxy is not { IsProxy: true } || cachedEp == null || !cachedEp.ArrayEqual(message.EndPoint) && cachedPk == null || !cachedPk.Memory.Span.ArrayEqual(message.Message.PublicKey.Span))
                             {
                                 cachedEp = message.EndPoint;
                                 cachedPk = message.Message.PublicKey;
@@ -928,8 +929,7 @@ namespace zero.cocoon.autopeer
 #endif
 
                             }
-
-                            if (proxy != null)
+                            if (proxy != null && Equals(message.Message.Header.Ip.Dst.GetEndpoint(), Router.MessageService.IoNetSocket.NativeSocket.LocalEndPoint))
                                 await processCallback(message, msgBatch, channel, nanite, proxy, message.EndPoint.GetEndpoint()).FastPath();
                             message.Message = null;
                             message.EmbeddedMsg = null;
@@ -1102,7 +1102,7 @@ namespace zero.cocoon.autopeer
                     {
                         try
                         {
-                            var width = @this._protocolConduit.ZeroConcurrencyLevel();
+                            var width = @this._protocolConduit.Source.PrefetchSize;
                             var preload = new ValueTask<bool>[width];
                             while (!@this.Zeroed() && @this._protocolConduit.UpstreamSource.IsOperational)
                             {
@@ -1110,9 +1110,9 @@ namespace zero.cocoon.autopeer
                                 {
                                     try
                                     {
-                                        if(@this._protocolConduit.Source.AsyncEnabled)
-                                            preload[i] = @this.ZeroAsync(static async @this => await @this._protocolConduit.ProduceAsync(), @this, TaskCreationOptions.DenyChildAttach);
-                                        else
+                                        //if(@this._protocolConduit.Source.AsyncEnabled)
+                                        //    preload[i] = @this.ZeroAsync(static async @this => await @this._protocolConduit.ProduceAsync(), @this, TaskCreationOptions.DenyChildAttach);
+                                        //else
                                             preload[i] = @this._protocolConduit.ProduceAsync();
                                     }
                                     catch (Exception e)
@@ -1135,28 +1135,28 @@ namespace zero.cocoon.autopeer
                             @this._logger?.Error(e, $"{@this.Description}");
                         }
                     
-                    },this, TaskCreationOptions.DenyChildAttach);
+                    },this, TaskCreationOptions.AttachedToParent);
 
                     consumer = ZeroOptionAsync(static async @this  =>
                     {
                         //the consumer
                         try
                         {
-                            var width = @this._protocolConduit.ZeroConcurrencyLevel();
+                            var width = @this._protocolConduit.Source.PrefetchSize;
                             var preload = new ValueTask<bool>[width];
                             while (!@this.Zeroed() && @this._protocolConduit.UpstreamSource.IsOperational)
                             {
                                 //consume
                                 for (var i = 0; i < width && @this._protocolConduit.UpstreamSource.IsOperational; i++)
                                 {
-                                    if (@this._protocolConduit.Source.AsyncEnabled)
-                                        preload[i] = @this.ZeroAsync(static async state =>
-                                        {
-                                            var (@this, processMessages) = state;
-                                            return await @this._protocolConduit.ConsumeAsync(processMessages,
-                                                    @this);
-                                        }, (@this, ProcessMessages()), TaskCreationOptions.DenyChildAttach);
-                                    else
+                                    //if (@this._protocolConduit.Source.AsyncEnabled)
+                                    //    preload[i] = @this.ZeroAsync(static async state =>
+                                    //    {
+                                    //        var (@this, processMessages) = state;
+                                    //        return await @this._protocolConduit.ConsumeAsync(processMessages,
+                                    //                @this);
+                                    //    }, (@this, ProcessMessages()), TaskCreationOptions.DenyChildAttach);
+                                    //else
                                         preload[i] = @this._protocolConduit.ConsumeAsync(ProcessMessages(), @this);
 
                                     static Func<IoSink<CcProtocBatchJob<chroniton, CcDiscoveryBatch>>, CcAdjunct, ValueTask> ProcessMessages()
@@ -1181,8 +1181,7 @@ namespace zero.cocoon.autopeer
                                                             @this._logger.Warn($"Got zero message from {CcDesignation.MakeKey(packet.PublicKey.Memory.AsArray())}");
                                                             return;
                                                         }
-                                                    
-                                                    
+                                                        
                                                         if (!@this.Zeroed() && !currentRoute.Zeroed())
                                                         {
                                                             try
@@ -1202,7 +1201,7 @@ namespace zero.cocoon.autopeer
                                                                         if (!currentRoute.IsProxy && !@this.CcCollective.ZeroDrone)
                                                                         {
 #if DEBUG
-                                                                        @this._logger.Warn($"{nameof(CcDiscoveries.MessageTypes.Scan)}: Unrouted request from {srcEndPoint} ~> {@this.MessageService.IoNetSocket.LocalNodeAddress.IpPort}");
+                                                                            @this._logger.Warn($"{nameof(CcDiscoveries.MessageTypes.Scan)}: Unrouted request from {srcEndPoint} ~> {@this.MessageService.IoNetSocket.LocalNodeAddress.IpPort}");
 #endif
                                                                             break;
                                                                         }
@@ -1213,7 +1212,7 @@ namespace zero.cocoon.autopeer
                                                                         if (!currentRoute.IsProxy || @this.CcCollective.ZeroDrone || ((CcAdjunctResponse)message).Timestamp.ElapsedMs() > @this.parm_max_network_latency_ms * 2)
                                                                         {
 #if DEBUG
-                                                                        @this._logger.Warn($"{nameof(CcDiscoveries.MessageTypes.Adjuncts)}: Unrouted request from {srcEndPoint} ~> {@this.MessageService.IoNetSocket.LocalNodeAddress.IpPort}");                                                               
+                                                                            @this._logger.Warn($"{nameof(CcDiscoveries.MessageTypes.Adjuncts)}: Unrouted request from {srcEndPoint} ~> {@this.MessageService.IoNetSocket.LocalNodeAddress.IpPort}");                                                               
 #endif
                                                                             break;
                                                                         }
@@ -1224,7 +1223,7 @@ namespace zero.cocoon.autopeer
                                                                         if (!currentRoute.IsProxy || ((CcFuseRequest)message).Timestamp.ElapsedMs() > @this.parm_max_network_latency_ms * 2)
                                                                         {
 #if DEBUG
-                                                                        @this._logger.Warn($"{nameof(CcDiscoveries.MessageTypes.Fuse)}: p = {currentRoute.IsProxy}: Unrouted request from {srcEndPoint} ~> {@this.MessageService.IoNetSocket.LocalNodeAddress.IpPort}, {((CcFuseRequest)message).Timestamp.ElapsedMs()}ms");
+                                                                            @this._logger.Warn($"{nameof(CcDiscoveries.MessageTypes.Fuse)}: p = {currentRoute.IsProxy}: Unrouted request from {srcEndPoint} ~> {@this.MessageService.IoNetSocket.LocalNodeAddress.IpPort}, {((CcFuseRequest)message).Timestamp.ElapsedMs()}ms");
 #endif
                                                                             break;
                                                                         }
@@ -1235,7 +1234,7 @@ namespace zero.cocoon.autopeer
                                                                         if (!currentRoute.IsProxy || ((CcFuseResponse)message).Timestamp.ElapsedMs() > @this.parm_max_network_latency_ms * 2)
                                                                         {
 #if DEBUG
-                                                                        @this._logger.Warn($"{nameof(CcDiscoveries.MessageTypes.Fused)}: p = {currentRoute.IsProxy}: Unrouted request from {srcEndPoint} ~> {@this.MessageService.IoNetSocket.LocalNodeAddress.IpPort}, {((CcFuseResponse)message).Timestamp.ElapsedMs()}ms");
+                                                                            @this._logger.Warn($"{nameof(CcDiscoveries.MessageTypes.Fused)}: p = {currentRoute.IsProxy}: Unrouted request from {srcEndPoint} ~> {@this.MessageService.IoNetSocket.LocalNodeAddress.IpPort}, {((CcFuseResponse)message).Timestamp.ElapsedMs()}ms");
 #endif
                                                                             break;
                                                                         }
@@ -1246,7 +1245,7 @@ namespace zero.cocoon.autopeer
                                                                         if (@this.CcCollective.ZeroDrone || !currentRoute.IsProxy  || ((CcDefuseRequest)message).Timestamp.ElapsedMs() > @this.parm_max_network_latency_ms * 2)
                                                                         {
 #if DEBUG
-                                                                        @this._logger.Warn($"{nameof(CcDiscoveries.MessageTypes.Defuse)}: Unrouted request from {srcEndPoint} ~> {@this.MessageService.IoNetSocket.LocalNodeAddress.IpPort}");
+                                                                            @this._logger.Warn($"{nameof(CcDiscoveries.MessageTypes.Defuse)}: Unrouted request from {srcEndPoint} ~> {@this.MessageService.IoNetSocket.LocalNodeAddress.IpPort}");
 #endif
                                                                             break;
                                                                         }
@@ -1290,7 +1289,7 @@ namespace zero.cocoon.autopeer
                         {
                             @this._logger?.Error(e, $"{@this.Description}");
                         }
-                    }, this, TaskCreationOptions.DenyChildAttach);
+                    }, this, TaskCreationOptions.AttachedToParent | TaskCreationOptions.PreferFairness);
                     await Task.WhenAll(producer.AsTask(), consumer.AsTask()).ConfigureAwait(Zc);
                 }
                 while (!Zeroed());
@@ -2325,8 +2324,6 @@ namespace zero.cocoon.autopeer
             if (!matchRequest && IsProxy)
                 matchRequest = await _probeRequest.ResponseAsync(packet.Header.Ip.Src.GetEndpoint().ToString(), response.ReqHash).FastPath().ConfigureAwait(Zc);
 #endif
-
-
             if (!matchRequest)
             {
 #if DEBUG

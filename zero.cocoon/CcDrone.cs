@@ -38,7 +38,6 @@ namespace zero.cocoon
             )
         {
             _logger = LogManager.GetCurrentClassLogger();
-            IoNetClient = ioNetClient;
 
             Adjunct = adjunct;
 
@@ -120,10 +119,16 @@ namespace zero.cocoon
         /// </summary>
         public new IoNetClient<CcProtocMessage<CcWhisperMsg, CcGossipBatch>> IoSource => (IoNetClient<CcProtocMessage<CcWhisperMsg, CcGossipBatch>>) Source;
 
+        private volatile CcAdjunct _adjunct;
         /// <summary>
         /// The attached neighbor
         /// </summary>
-        public CcAdjunct Adjunct { get; protected internal set; }
+        public CcAdjunct Adjunct {
+            get => _adjunct;
+            protected internal set => _adjunct = value;
+        }
+
+        protected IoNetClient<CcProtocMessage<CcWhisperMsg, CcGossipBatch>> MessageService => (IoNetClient<CcProtocMessage<CcWhisperMsg, CcGossipBatch>>)Source;
 
         private string _key;
         /// <summary>
@@ -145,11 +150,6 @@ namespace zero.cocoon
         /// Used for testing
         /// </summary>
         public long AccountingBit = 0;
-
-        /// <summary>
-        /// Helper
-        /// </summary>
-        protected IoNetClient<CcProtocMessage<CcWhisperMsg, CcGossipBatch>> IoNetClient;
 
 
         /// <summary>
@@ -181,7 +181,6 @@ namespace zero.cocoon
             base.ZeroUnmanaged();
 #if SAFE_RELEASE
             _logger = null;
-            IoNetClient = null;
             Adjunct = null;
 #endif
         }
@@ -263,11 +262,9 @@ namespace zero.cocoon
         /// </summary>
         public async ValueTask DetachNeighborAsync()
         {
-            if (Adjunct != null)
-            {
-                await Adjunct.DetachDroneAsync().FastPath().ConfigureAwait(Zc);
-                Adjunct = null;
-            }
+            var latch = _adjunct;
+            if (Interlocked.CompareExchange(ref _adjunct, null, latch) == latch)
+                await latch.DetachDroneAsync().FastPath().ConfigureAwait(Zc);
         }
 
         /// <summary>
@@ -304,8 +301,8 @@ namespace zero.cocoon
                     {
                         Interlocked.Increment(ref AccountingBit);
                         Adjunct.CcCollective.IncEventCounter();
-
-                        var socket = ((IoNetClient<CcProtocMessage<CcWhisperMsg, CcGossipBatch>>)Source).IoNetSocket;
+                        
+                        var socket = MessageService.IoNetSocket;
                         if (socket.IsConnected() && await socket.SendAsync(buf, 0, buf.Length, timeout: 20).FastPath().ConfigureAwait(Zc) > 0)
                         {                            
                             if (AutoPeeringEventService.Operational)

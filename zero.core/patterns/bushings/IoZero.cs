@@ -407,7 +407,7 @@ namespace zero.core.patterns.bushings
                                 Source.BackPressureAsync();
 
                                 //Enqueue the job for the consumer so that it can stay in sync
-                                //nextJob.State = IoJobMeta.JobState.ConCancel;
+                                //nextJob.State = IoJobMeta.JobState.ConCancel; 
 
                                 //if (await _queue.EnqueueAsync(nextJob).FastPath().ConfigureAwait(Zc) == null ||
                                 //    nextJob.Source == null)
@@ -517,8 +517,7 @@ namespace zero.core.patterns.bushings
                     {
                         await _previousJobFragment.PushBackAsync((IoSink<TJob>)job.PreviousJob).FastPath().ConfigureAwait(Zc);
                     }
-                        
-
+                    
                     job.PreviousJob = null;
                 }
                 else
@@ -606,8 +605,6 @@ namespace zero.core.patterns.bushings
                                 curJob.State = IoJobMeta.JobState.Consumed;
                             }
 
-                            Source.BackPressureAsync();
-
                             //count the number of work done
                             IncEventCounter();
 
@@ -617,15 +614,12 @@ namespace zero.core.patterns.bushings
                         }
                         else if (!Zeroed() && !curJob.Zeroed())
                         {
-                            
                             _logger.Error(
                                 $"{Description}: {curJob.TraceDescription} consuming job: {curJob.Description} was unsuccessful, state = {curJob.State}");
                             curJob.State = IoJobMeta.JobState.Error;
                         }
                     }
-                    catch (Exception) when (Zeroed())
-                    {
-                    }
+                    catch (Exception) when (Zeroed()) {}
                     catch (Exception e) when (!Zeroed())
                     {
                         _logger?.Error(e,
@@ -644,14 +638,14 @@ namespace zero.core.patterns.bushings
                                 {
                                     var (@this, curJob) = state;
                                     @this._lastStat = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
-                                    @this._logger?.Info(
-                                        $"{@this.Description} {@this.JobHeap.OpsPerSecond:0.0} j/s, [{@this.JobHeap.ReferenceCount} / {@this.JobHeap.CacheSize()} / {@this.JobHeap.ReferenceCount + @this.JobHeap.CacheSize()} / {@this.JobHeap.FreeCapacity()} / {@this.JobHeap.MaxSize}]");
+                                    @this._logger?.Info($"{@this.Description} {@this.JobHeap.OpsPerSecond:0.0} j/s, [{@this.JobHeap.ReferenceCount} / {@this.JobHeap.CacheSize()} / {@this.JobHeap.ReferenceCount + @this.JobHeap.CacheSize()} / {@this.JobHeap.FreeCapacity()} / {@this.JobHeap.MaxSize}]");
                                     curJob.Source.PrintCounters();
                                     return new ValueTask<bool>(true);
                                 }, (this,curJob)).FastPath().ConfigureAwait(Zc);
                             }
 
                             await ReturnJobToHeapAsync(curJob).FastPath().ConfigureAwait(Zc);
+                            Source.BackPressureAsync();
                         }
                         catch when(Zeroed()){}
                         catch (Exception e) when(!Zeroed())
@@ -663,8 +657,8 @@ namespace zero.core.patterns.bushings
                     return true;
                 }
 
-                Source.BackPressureAsync();
                 await ReturnJobToHeapAsync(curJob, true).FastPath().ConfigureAwait(Zc);
+                Source.BackPressureAsync();
 
                 return false;
             }
@@ -694,7 +688,7 @@ namespace zero.core.patterns.bushings
             {
                 try
                 {
-                    var width = @this.Source.ZeroConcurrencyLevel();
+                    var width = @this.Source.PrefetchSize;
                     var preload = new ValueTask<bool>[width];
                     //While supposed to be working
                     while (!@this.Zeroed())
@@ -703,10 +697,10 @@ namespace zero.core.patterns.bushings
                         {
                             try
                             {
-                                if (@this.Source.AsyncEnabled)
-                                    preload[i] = @this.ZeroAsync(static async @this => await @this.ProduceAsync(),
-                                        @this, TaskCreationOptions.DenyChildAttach);
-                                else
+                                //if (@this.Source.AsyncEnabled)
+                                //    preload[i] = @this.ZeroAsync(static async @this => await @this.ProduceAsync(),
+                                //        @this, TaskCreationOptions.DenyChildAttach);
+                                //else
                                     preload[i] = @this.ProduceAsync();
                             }
                             catch (Exception e)
@@ -728,12 +722,12 @@ namespace zero.core.patterns.bushings
                 {
                     @this._logger.Error(e, $"Production failed! {@this.Description}");
                 }
-            },this, TaskCreationOptions.DenyChildAttach); //TODO tuning
+            },this, TaskCreationOptions.AttachedToParent); //TODO tuning
 
             //Consumer
             _consumerTask = ZeroOptionAsync(static async @this =>
             {
-                var width = @this.Source.ZeroConcurrencyLevel();
+                var width = @this.Source.PrefetchSize;
                 var preload = new ValueTask<bool>[width];
                 //While supposed to be working
                 while (!@this.Zeroed())
@@ -742,9 +736,9 @@ namespace zero.core.patterns.bushings
                     {
                         try
                         {
-                            if(@this.Source.AsyncEnabled)
-                                preload[i] = @this.ZeroAsync(static async @this => await @this.ConsumeAsync<object>(), @this, TaskCreationOptions.DenyChildAttach);
-                            else
+                            //if(@this.Source.AsyncEnabled)
+                            //    preload[i] = @this.ZeroAsync(static async @this => await @this.ConsumeAsync<object>(), @this, TaskCreationOptions.DenyChildAttach);
+                            //else
                                 preload[i] = @this.ConsumeAsync<object>();
                         }
                         catch when (@this.Zeroed()) { }
@@ -761,7 +755,7 @@ namespace zero.core.patterns.bushings
                     if (j < width)
                         break;
                 }
-            }, this, TaskCreationOptions.DenyChildAttach); //TODO tuning
+            }, this, TaskCreationOptions.AttachedToParent | TaskCreationOptions.PreferFairness); //TODO tuning
 
             //Wait for tear down                
             await Task.WhenAll(_producerTask.AsTask(), _consumerTask.AsTask()).ConfigureAwait(Zc);

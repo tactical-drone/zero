@@ -24,12 +24,12 @@ namespace zero.core.network.ip
         /// Constructor
         /// </summary>
         /// <param name="listeningAddress">The listening address</param>
-        /// <param name="readAheadBufferSize">Nr of reads the producer can lead the consumer</param>
+        /// <param name="prefetch">Nr of reads the producer can lead the consumer</param>
         /// <param name="concurrencyLevel">Max Nr of expected concurrent consumers</param>
-        protected IoNetServer(IoNodeAddress listeningAddress, int readAheadBufferSize = 2, int concurrencyLevel = 1) : base($"{nameof(IoNetServer<TJob>)}", concurrencyLevel)
+        protected IoNetServer(IoNodeAddress listeningAddress, int prefetch = 2, int concurrencyLevel = 1) : base($"{nameof(IoNetServer<TJob>)}", concurrencyLevel)
         {
             ListeningAddress = listeningAddress;
-            ReadAheadBufferSize = readAheadBufferSize;
+            Prefetch = prefetch;
             ConcurrencyLevel = concurrencyLevel;
 
             _logger = LogManager.GetCurrentClassLogger();
@@ -77,7 +77,7 @@ namespace zero.core.network.ip
         /// <summary>
         /// The amount of socket reads the producer is allowed to lead the consumer
         /// </summary>
-        protected readonly int ReadAheadBufferSize;
+        protected readonly int Prefetch;
         
         /// <summary>
         /// The number of concurrent consumers
@@ -219,17 +219,17 @@ namespace zero.core.network.ip
         /// Figures out the correct server to use from the url, <see cref="IoTcpServer"/> or <see cref="IoUdpServer"/>
         /// </summary>
         /// <param name="address"></param>
-        /// <param name="bufferReadAheadSize"></param>
+        /// <param name="prefetch"></param>
         /// <param name="concurrencyLevel"></param>
         /// <returns></returns>
-        public static IoNetServer<TJob> GetKindFromUrl(IoNodeAddress address, int bufferReadAheadSize, int concurrencyLevel)
+        public static IoNetServer<TJob> GetKindFromUrl(IoNodeAddress address, int prefetch, int concurrencyLevel)
         {
             if (address.Protocol() == ProtocolType.Tcp)
-                return new IoTcpServer<TJob>(address, bufferReadAheadSize, concurrencyLevel);
+                return new IoTcpServer<TJob>(address, prefetch, concurrencyLevel);
 
 
             if (address.Protocol() == ProtocolType.Udp)
-                return new IoUdpServer<TJob>(address, bufferReadAheadSize, concurrencyLevel);
+                return new IoUdpServer<TJob>(address, prefetch, concurrencyLevel);
 
             return null;
         }

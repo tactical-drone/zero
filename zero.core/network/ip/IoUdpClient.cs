@@ -31,7 +31,7 @@ namespace zero.core.network.ip
         /// <param name="ioSocket">The socket the listener created</param>
         /// <param name="prefetch">Read ahead size</param>
         /// <param name="concurrencyLevel">Level of concurrency</param>
-        public IoUdpClient(string description, IoSocket ioSocket, int prefetch, int concurrencyLevel) : base(description, new IoUdpSocket(ioSocket.NativeSocket, new IPEndPoint(IPAddress.Any, 305), concurrencyLevel), prefetch, concurrencyLevel)
+        public IoUdpClient(string description, IoSocket ioSocket, int prefetch, int concurrencyLevel) : base(description, new IoUdpSocket(ioSocket.NativeSocket, new IPEndPoint(IPAddress.Any, 305), prefetch), prefetch, concurrencyLevel)
         {
             
         }

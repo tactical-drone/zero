@@ -613,29 +613,47 @@ namespace zero.core.patterns.semaphore.core
                         }
                         else if (_zeroRef.ZeroIncAsyncCount() - 1 < _maxAsyncWorkers)
                         {
-                            var asyncContinue = Task.Factory.StartNew(callback, state, CancellationToken.None,
-                                TaskCreationOptions.DenyChildAttach, TaskScheduler.Default);
-
-                                asyncContinue.ContinueWith((_, zeroRef) => { ((IIoZeroSemaphore)zeroRef).ZeroDecAsyncCount(); }, _zeroRef);
+                            Task.Factory.StartNew(callback, state, CancellationToken.None, 
+                                TaskCreationOptions.DenyChildAttach, TaskScheduler.Default)
+                                .ContinueWith((_, zeroRef) => { ((IIoZeroSemaphore)zeroRef).ZeroDecAsyncCount(); }, _zeroRef);
                         }
                         else
                         {
                             //race condition
-                            callback(state);
+                            try
+                            {
+                                callback(state);
+                            }
+                            catch (Exception e)
+                            {
+                                LogManager.GetCurrentClassLogger().Error(e, $"InvokeContinuation.callback(): ");
+                            }
                         }
-                            
                     }
                     else
                     {
-                        callback(state);
+                        try
+                        {
+                            callback(state);
+                        }
+                        catch (Exception e)
+                        {
+                            LogManager.GetCurrentClassLogger().Error(e, $"InvokeContinuation.callback(): ");
+                        }
                     }
-
                     break;
                 case SynchronizationContext sc:
                     sc.Post(static s =>
                     {
                         var tuple = (ValueTuple<Action<object>, object>)s;
-                        tuple.Item1(tuple.Item2);
+                        try
+                        {
+                            tuple.Item1(tuple.Item2);
+                        }
+                        catch (Exception e)
+                        {
+                            LogManager.GetCurrentClassLogger().Error(e, $"InvokeContinuation.{nameof(sc.Post)}(): ");
+                        }
                     }, (callback, state));
                     break;
 
@@ -830,11 +848,8 @@ namespace zero.core.patterns.semaphore.core
                 released++;
             }
 
-            //update current count
-            var delta = releaseCount - released;
-
-            if(delta > 0 && !bestEffort)
-                _zeroRef.ZeroAddCount(delta);
+            if(!bestEffort)
+                _zeroRef.ZeroAddCount(releaseCount - released);
             
             //return the number of waiters released
             return released;

@@ -18,10 +18,10 @@ namespace zero.core.network.ip
         /// Initializes a new instance of the <see cref="IoTcpServer{TJob}"/> class.
         /// </summary>
         /// <param name="listeningAddress">The listening address</param>
-        /// <param name="readAheadBufferSizeBuffer"></param>
+        /// <param name="prefetchBuffer"></param>
         /// <param name="concurrencyLevel"></param>
         /// <inheritdoc />
-        public IoTcpServer(IoNodeAddress listeningAddress, int readAheadBufferSizeBuffer = 2,  int concurrencyLevel = 1) : base(listeningAddress, readAheadBufferSizeBuffer, concurrencyLevel)
+        public IoTcpServer(IoNodeAddress listeningAddress, int prefetchBuffer = 2,  int concurrencyLevel = 1) : base(listeningAddress, prefetchBuffer, concurrencyLevel)
         {
             _logger = LogManager.GetCurrentClassLogger();
         }
@@ -57,7 +57,7 @@ namespace zero.core.network.ip
                                 new IoTcpClient<TJob>(
                                     $"{nameof(IoTcpClient<TJob>)} ~> {@this.Description}", 
                                     (IoNetSocket) newConnectionSocket, 
-                                    @this.ReadAheadBufferSize,
+                                    @this.Prefetch,
                                     @this.ConcurrencyLevel)).FastPath().ConfigureAwait(@this.Zc)
                             ).target
                         ).FastPath().ConfigureAwait(@this.Zc);
@@ -85,7 +85,7 @@ namespace zero.core.network.ip
                 return new ValueTask<IoNetClient<TJob>>();
 
             //ZEROd later on inside net server once we know the connection succeeded 
-            return base.ConnectAsync(remoteAddress, new IoTcpClient<TJob>($"{nameof(IoTcpClient<TJob>)} ~> {Description}", ReadAheadBufferSize, ConcurrencyLevel), timeout);
+            return base.ConnectAsync(remoteAddress, new IoTcpClient<TJob>($"{nameof(IoTcpClient<TJob>)} ~> {Description}", Prefetch, ConcurrencyLevel), timeout);
         }
     }
 }

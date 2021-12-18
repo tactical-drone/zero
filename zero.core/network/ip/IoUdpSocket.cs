@@ -67,7 +67,7 @@ namespace zero.core.network.ip
             }
 
             //TODO tuning:
-            Init(32);
+            Init(concurrencyLevel);
         }
 
         /// <summary>

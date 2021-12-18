@@ -61,7 +61,7 @@ namespace zero.core.network.ip
                             (await @this
                                 .ZeroHiveAsync(new IoUdpClient<TJob>(
                                     $"{nameof(IoUdpClient<TJob>)} ~> {@this.Description}", ioSocket,
-                                    @this.ReadAheadBufferSize, @this.ConcurrencyLevel)).FastPath()
+                                    @this.Prefetch, @this.ConcurrencyLevel)).FastPath()
                                 .ConfigureAwait(@this.Zc)).target).FastPath().ConfigureAwait(@this.Zc);
                     }
                     catch (Exception e)
@@ -90,7 +90,7 @@ namespace zero.core.network.ip
         public override ValueTask<IoNetClient<TJob>> ConnectAsync(IoNodeAddress remoteAddress, IoNetClient<TJob> _, int timeout = 0)
         {
             //ZEROd later on inside net server once we know the connection succeeded
-            var ioUdpClient = new IoUdpClient<TJob>($"{nameof(IoUdpServer<TJob>)} ~> {Description}",ReadAheadBufferSize, ConcurrencyLevel);
+            var ioUdpClient = new IoUdpClient<TJob>($"{nameof(IoUdpServer<TJob>)} ~> {Description}",Prefetch, ConcurrencyLevel);
             return base.ConnectAsync(remoteAddress, ioUdpClient, timeout);
         }
 

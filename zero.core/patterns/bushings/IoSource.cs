@@ -23,7 +23,7 @@ namespace zero.core.patterns.bushings
         /// Constructor
         /// </summary>
         protected IoSource(string description, bool proxy, int prefetchSize = 1, int concurrencyLevel = 1,
-            int maxAsyncSources = 0, bool disableZero = false) : base(description, prefetchSize)
+            int maxAsyncSources = 0, bool disableZero = false) : base(description, concurrencyLevel)
         {
             _logger = LogManager.GetCurrentClassLogger();
             

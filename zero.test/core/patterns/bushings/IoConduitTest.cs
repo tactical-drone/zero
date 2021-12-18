@@ -59,8 +59,8 @@ namespace zero.test.core.patterns.bushings
             c1.Zero(null, "test done");
             await z1.ConfigureAwait(false);
 
-            Assert.InRange(ts.ElapsedMs(), 1000, 1400);
-            _output.WriteLine($"{ts.ElapsedMs()}ms ~ 1000");
+            Assert.InRange(ts.ElapsedMs(), 1000, 2000 * 1.2);
+            _output.WriteLine($"{ts.ElapsedMs()}ms ~ 2000");
 
             await Task.Delay(100).ConfigureAwait(false);
             Assert.InRange(c1.EventCount, 20, 25);
@@ -98,10 +98,10 @@ namespace zero.test.core.patterns.bushings
         public async Task IoConduitHorizontalScaleSmokeAsync()
         {
             var count = 200;
-            var totalTimeMs = count * 100;
+            var totalTimeMs = count * 15;
             var concurrencyLevel = 4;
             var s1 = new IoZeroSource("zero source 1", false, concurrencyLevel * 2, concurrencyLevel, 4, false);
-            var c1 = new IoConduit<IoZeroProduct>("conduit smoke test 1", s1, static (ioZero, _) => new IoZeroProduct("test product 1", ((IoConduit<IoZeroProduct>)ioZero).Source, 100));
+            var c1 = new IoConduit<IoZeroProduct>("conduit smoke test 1", s1, static (ioZero, _) => new IoZeroProduct("test product 1", ((IoConduit<IoZeroProduct>)ioZero).Source, 15));
 
             var z1 = Task.Factory.StartNew(async () => await c1.BlockOnReplicateAsync(), TaskCreationOptions.DenyChildAttach).Unwrap();
 
@@ -113,7 +113,7 @@ namespace zero.test.core.patterns.bushings
             c1.Zero(null, "test done");
             await z1.ConfigureAwait(false);
 
-            Assert.InRange(ts.ElapsedMs(), totalTimeMs/concurrencyLevel/2, totalTimeMs / concurrencyLevel);
+            Assert.InRange(ts.ElapsedMs(), totalTimeMs/concurrencyLevel/2, totalTimeMs / concurrencyLevel * 1.25);
             _output.WriteLine($"{ts.ElapsedMs()}ms ~ {totalTimeMs / concurrencyLevel / 2}ms");
 
             await Task.Delay(100);
