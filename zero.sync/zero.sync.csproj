@@ -47,5 +47,9 @@
 	  <ProjectReference Include="..\zero.cocoon\zero.cocoon.csproj" />
     <ProjectReference Include="..\zero.core\zero.core.csproj" />
   </ItemGroup>
+
+  <ItemGroup>
+    <Folder Include="headers\" />
+  </ItemGroup>
   
 </Project>

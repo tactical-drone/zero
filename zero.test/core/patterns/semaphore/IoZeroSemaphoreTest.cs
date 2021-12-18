@@ -330,7 +330,7 @@ namespace zero.test.core.patterns.semaphore
                 Assert.InRange(ts.ElapsedMs(), 0, 15 * 4);
             }
 
-            await t;
+            await t.ConfigureAwait(false);
             var maps = count * 1000 / totalTime.ElapsedMs() / 1000;
             _output.WriteLine($"MAPS = {maps} K/s, t = {totalTime.ElapsedMs()}ms");
             Assert.InRange(maps, 1, int.MaxValue);

@@ -1,5 +1,4 @@
 ﻿using System;
-using System.Diagnostics;
 using System.IO;
 using System.Runtime.CompilerServices;
 using System.Text;
@@ -7,9 +6,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using NLog;
 using zero.core.misc;
-using zero.core.network.ip;
 using zero.core.patterns.queue;
-using zero.core.patterns.semaphore;
 using zero.core.patterns.semaphore.core;
 
 namespace zero.core.patterns.misc
@@ -89,7 +86,7 @@ namespace zero.core.patterns.misc
 #pragma warning disable 4014
             try
             {
-                Zero(false).AsTask().GetAwaiter();
+                ZeroAsync(false).AsTask().GetAwaiter();
             }
             catch (Exception e)
             {
@@ -219,7 +216,7 @@ namespace zero.core.patterns.misc
         /// </summary>
         public void Dispose()
         {
-            Zero(this, $"{nameof(IDisposable)}");
+            ZeroAsync(this, $"{nameof(IDisposable)}");
         }
 
 
@@ -233,7 +230,7 @@ namespace zero.core.patterns.misc
         /// <summary>
         /// ZeroAsync
         /// </summary>
-        public void Zero(IIoNanite @from, string reason)
+        public void ZeroAsync(IIoNanite @from, string reason)
         {
             // Only once
             if (_zeroed > 0 || Interlocked.CompareExchange(ref _zeroed, 1, 0) != 0)
@@ -243,11 +240,11 @@ namespace zero.core.patterns.misc
             ZeroReason = $"ZERO: {reason??"N/A"}";
 
 #pragma warning disable CS4014
-            Zero(static async @this =>
+            ZeroAsync(static async @this =>
             {
                 //prime garbage
-                await @this.ZeroPrimeAsync().FastPath().ConfigureAwait(@this.Zc);
-                @this.Zero(true);
+                await @this.ZeroPrimeAsync().FastPath().ConfigureAwait(false);
+                await @this.ZeroAsync(true).FastPath().ConfigureAwait(false);
             }, this, default,TaskCreationOptions.DenyChildAttach);
 #pragma warning restore CS4014
 
@@ -392,7 +389,7 @@ namespace zero.core.patterns.misc
         /// <summary>
         /// Our dispose implementation
         /// </summary>
-        private async ValueTask Zero(bool disposing)
+        private async ValueTask ZeroAsync(bool disposing)
         {
             // Only once
             if (_zeroedSec > 0 || Interlocked.CompareExchange(ref _zeroedSec, 1, 0) != 0)
@@ -426,7 +423,7 @@ namespace zero.core.patterns.misc
                     {
                         if (zeroSub.Zeroed()) continue;
 
-                        zeroSub.Zero(this, $"[ZERO CASCADE] teardown from {desc}");
+                        zeroSub.ZeroAsync(this, $"[ZERO CASCADE] teardown from {desc}");
 
                         //throttle teardown so it floods in breadth
                         await Task.Delay(32).ConfigureAwait(Zc);
@@ -688,7 +685,7 @@ namespace zero.core.patterns.misc
         }
 
         /// <summary>
-        /// Async execution options. <see cref="Zero"/> needs trust, but verify...
+        /// Async execution options. <see cref="ZeroAsync"/> needs trust, but verify...
         /// </summary>
         /// <param name="continuation">The continuation</param>
         /// <param name="state">user state</param>
@@ -700,7 +697,7 @@ namespace zero.core.patterns.misc
         /// <param name="methodName"></param>
         /// <param name="lineNumber"></param>
         /// <returns>A ValueTask</returns>
-        protected async ValueTask<VT> Zero<T,VT>(Func<T, ValueTask<VT>> continuation, T state, CancellationToken asyncToken, TaskCreationOptions options, TaskScheduler scheduler = null, [CallerFilePath] string filePath = null,[CallerMemberName] string methodName = null, [CallerLineNumber] int lineNumber = default )
+        protected async ValueTask<VT> ZeroAsync<T,VT>(Func<T, ValueTask<VT>> continuation, T state, CancellationToken asyncToken, TaskCreationOptions options, TaskScheduler scheduler = null, [CallerFilePath] string filePath = null,[CallerMemberName] string methodName = null, [CallerLineNumber] int lineNumber = default )
         {
             var nanite = state as IoNanoprobe??this;
             try
@@ -753,7 +750,7 @@ namespace zero.core.patterns.misc
         }
 
         /// <summary>
-        /// Async execution options. <see cref="Zero"/> needs trust, but verify...
+        /// Async execution options. <see cref="ZeroAsync"/> needs trust, but verify...
         /// </summary>
         /// <param name="continuation">The continuation</param>
         /// <param name="state">user state</param>
@@ -765,7 +762,7 @@ namespace zero.core.patterns.misc
         /// <param name="methodName"></param>
         /// <param name="lineNumber"></param>
         /// <returns>A ValueTask</returns>
-        protected async ValueTask Zero<T>(Func<T, ValueTask> continuation, T state, CancellationToken asyncToken, TaskCreationOptions options, TaskScheduler scheduler = null, bool unwrap = false, [CallerFilePath] string filePath = null, [CallerMemberName] string methodName = null, [CallerLineNumber] int lineNumber = default)
+        protected async ValueTask ZeroAsync<T>(Func<T, ValueTask> continuation, T state, CancellationToken asyncToken, TaskCreationOptions options, TaskScheduler scheduler = null, bool unwrap = false, [CallerFilePath] string filePath = null, [CallerMemberName] string methodName = null, [CallerLineNumber] int lineNumber = default)
         {
             var nanite = state as IoNanoprobe ?? this;
             try
@@ -818,7 +815,7 @@ namespace zero.core.patterns.misc
         }
 
         /// <summary>
-        /// Async execution options. <see cref="Zero"/> needs trust, but verify...
+        /// Async execution options. <see cref="ZeroAsync"/> needs trust, but verify...
         /// </summary>
         /// <param name="continuation">The continuation</param>
         /// <param name="state">user state</param>
@@ -832,17 +829,17 @@ namespace zero.core.patterns.misc
         /// <returns>A ValueTask</returns>
         protected ValueTask<VT> ZeroAsync<T,VT>(Func<T, ValueTask<VT>> continuation, T state, TaskCreationOptions options, TaskScheduler scheduler = null,  [CallerFilePath] string filePath = null, [CallerMemberName] string methodName = null, [CallerLineNumber] int lineNumber = default )
         {
-            return Zero(continuation, state, AsyncTasks.Token, options, scheduler??TaskScheduler.Default, filePath, methodName: methodName, lineNumber);
+            return ZeroAsync(continuation, state, AsyncTasks.Token, options, scheduler??TaskScheduler.Default, filePath, methodName: methodName, lineNumber);
         }
 
         protected ValueTask ZeroAsync<T>(Func<T, ValueTask> continuation, T state, TaskCreationOptions options, TaskScheduler scheduler = null, bool unwrap = false, [CallerFilePath] string filePath = null, [CallerMemberName] string methodName = null, [CallerLineNumber] int lineNumber = default)
         {
             
-            return Zero<T>(continuation, state, AsyncTasks.Token, options, scheduler ?? TaskScheduler.Default, unwrap, filePath, methodName: methodName, lineNumber);
+            return ZeroAsync<T>(continuation, state, AsyncTasks.Token, options, scheduler ?? TaskScheduler.Default, unwrap, filePath, methodName: methodName, lineNumber);
         }
 
         /// <summary>
-        /// Async execution options. <see cref="Zero"/> needs trust, but verify...
+        /// Async execution options. <see cref="ZeroAsync"/> needs trust, but verify...
         /// </summary>
         /// <param name="continuation">The continuation</param>
         /// <param name="state">user state</param>
@@ -857,7 +854,7 @@ namespace zero.core.patterns.misc
         {
             try
             {
-                return Zero(continuation, state, AsyncTasks.Token, options, scheduler ?? TaskScheduler.Default,
+                return ZeroAsync(continuation, state, AsyncTasks.Token, options, scheduler ?? TaskScheduler.Default,
                     unwrap, filePath, methodName, lineNumber);
             }
             catch (Exception) when(Zeroed()){}
@@ -869,7 +866,7 @@ namespace zero.core.patterns.misc
         }
 
         /// <summary>
-        /// Async execution options. <see cref="Zero"/> needs trust, but verify...
+        /// Async execution options. <see cref="ZeroAsync"/> needs trust, but verify...
         /// </summary>
         /// <param name="continuation">The continuation</param>
         /// <param name="state">user state</param>

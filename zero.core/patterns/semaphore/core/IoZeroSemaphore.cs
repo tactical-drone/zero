@@ -1,6 +1,7 @@
 ﻿//#define TOKEN //TODO this primitive does not work this way
 using System;
 using System.Runtime.CompilerServices;
+using System.Runtime.ExceptionServices;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Threading.Tasks.Sources;
@@ -212,6 +213,11 @@ namespace zero.core.patterns.semaphore.core
         /// </summary>
         internal static Action<object> ZeroSentinel;
 
+        /// <summary>
+        /// error info
+        /// </summary>
+        private ExceptionDispatchInfo _error;
+
         #endregion
 
         #region core
@@ -275,8 +281,6 @@ namespace zero.core.patterns.semaphore.core
 #if NET6_0
                 _asyncTokenReg.Unregister();
 #endif
-                _asyncTokenReg.Dispose();
-                _asyncTasks = null;
             }
             catch
             {
@@ -311,11 +315,21 @@ namespace zero.core.patterns.semaphore.core
             Array.Clear(_signalExecutionState, 0, _maxBlockers);
             Array.Clear(_signalCapturedContext, 0, _maxBlockers);
 
+            try
+            {
+                _asyncTokenReg.Dispose();
+            }
+            catch
+            {
+                // ignored
+            }
+
 #if SAFE_RELEASE
             _signalAwaiter = null;
             _signalAwaiterState = null;
             _signalExecutionState = null;
             _signalCapturedContext = null;
+            _asyncTasks = null;
 #endif
             _zeroRef = null;
         }
@@ -358,7 +372,8 @@ namespace zero.core.patterns.semaphore.core
         /// if auto scaling is enabled 
         /// </summary>
         private readonly bool _enableAutoScale;
-#endregion
+
+        #endregion
 
         /// <summary>
         /// Returns true if exit is clean, false otherwise
@@ -374,6 +389,8 @@ namespace zero.core.patterns.semaphore.core
 
             _zeroRef.ZeroTokenBump();
 #endif
+            _error?.Throw();
+
             try
             {
                 return !(_zeroRef == null || _zeroRef.IsCancellationRequested() || _zeroRef.Zeroed());
@@ -550,8 +567,8 @@ namespace zero.core.patterns.semaphore.core
                 throw new ArgumentNullException($"-> {nameof(callback)} = {callback}, {nameof(state)} = {state}");
 #else
             
-            if (callback == null || state == null)
-                throw new InvalidOperationException($"{nameof(InvokeContinuation)}: {nameof(callback)} = {callback}, {nameof(state)} = {state}");
+            //if (callback == null || state == null)
+            //    throw new InvalidOperationException($"{nameof(InvokeContinuation)}: {nameof(callback)} = {callback}, {nameof(state)} = {state}");
 #endif
 
             try
@@ -573,7 +590,7 @@ namespace zero.core.patterns.semaphore.core
                         {
                             LogManager.GetCurrentClassLogger().Trace(e, $"{nameof(ExecutionContext)}: ]");
                         }
-                    }, ValueTuple.Create(_zeroRef, callback, state, capturedContext));
+                    }, (_zeroRef, callback, state, capturedContext));
                     
                     return true;
                 }
@@ -598,8 +615,10 @@ namespace zero.core.patterns.semaphore.core
         private void InvokeContinuation(Action<object> callback, object state, object capturedContext, bool forceAsync)
         {
             //TODO?
+#if DEBUG
             if(callback == null || state == null)
                 throw new InvalidOperationException($"{nameof(InvokeContinuation)}: {nameof(callback)} = {callback}, {nameof(state)} = {state}");
+#endif
 
             switch (capturedContext)
             {
@@ -867,6 +886,14 @@ namespace zero.core.patterns.semaphore.core
 
             //fast path
             return _zeroRef.ZeroEnter() > 0 ? new ValueTask<bool>( true) : new ValueTask<bool>(_zeroRef, 23);
+        }
+
+        /// <summary>Completes with an error.</summary>
+        /// <param name="error">The exception.</param>
+        public void SetException(Exception error)
+        {
+            _error = ExceptionDispatchInfo.Capture(error);
+            Release();
         }
 
         /// <summary>

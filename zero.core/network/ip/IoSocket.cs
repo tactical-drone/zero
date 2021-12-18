@@ -51,7 +51,7 @@ namespace zero.core.network.ip
             }
             catch (ObjectDisposedException)
             {
-                Task.Factory.StartNew(@this => ((IoSocket)@this).Zero((IoSocket)@this, "RACE"),this);
+                Task.Factory.StartNew(@this => ((IoSocket)@this).ZeroAsync((IoSocket)@this, "RACE"),this);
                 return;
             }
             catch (Exception e)

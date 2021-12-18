@@ -121,7 +121,7 @@ namespace zero.core.network.ip
                     }
                     catch (Exception e)
                     {
-                       newSocket.Zero(this, $"{nameof(acceptConnectionHandler)} returned with errors");
+                       newSocket.ZeroAsync(this, $"{nameof(acceptConnectionHandler)} returned with errors");
                         _logger.Error(e, $"There was an error handling a new connection from {newSocket.RemoteNodeAddress} to `{newSocket.LocalNodeAddress}'");
                     }
                 }
@@ -184,7 +184,7 @@ namespace zero.core.network.ip
 
                         if (!@this.IsConnected())
                         {
-                            @this.Zero(@this, $"Connecting timed out, waited {timeout}ms");
+                            @this.ZeroAsync(@this, $"Connecting timed out, waited {timeout}ms");
                             @this.NativeSocket.Close();
                         }
                     }, ValueTuple.Create(this, timeout), TaskCreationOptions.DenyChildAttach);
@@ -248,13 +248,13 @@ namespace zero.core.network.ip
             catch (SocketException e) when (!Zeroed())
             {
                 _logger.Debug($"{nameof(SendAsync)}: {e.Message} - {Description}");
-                Zero(this, $"{nameof(SendAsync)}: {e.Message}");
+                ZeroAsync(this, $"{nameof(SendAsync)}: {e.Message}");
             }
             catch (Exception) when (Zeroed()){}
             catch (Exception e) when(!Zeroed())
             {
                 _logger.Error(e, $"{Description}: {nameof(SendAsync)} failed!");
-                Zero(this, $"{nameof(SendAsync)}: {e.Message}");
+                ZeroAsync(this, $"{nameof(SendAsync)}: {e.Message}");
             }
 
             return 0;
@@ -309,14 +309,14 @@ namespace zero.core.network.ip
             {
                 var errMsg = $"{nameof(ReadAsync)}: {e.Message} -  {Description}";
                 _logger.Debug(errMsg);
-                Zero(this, errMsg);
+                ZeroAsync(this, errMsg);
             }
             catch (Exception) when (Zeroed()){}
             catch (Exception e) when(!Zeroed())
             {
                 var errMsg = $"{nameof(ReadAsync)}: [FAILED], {Description}, l = {length}, o = {offset}: {e.Message}";
                 _logger?.Error(e, errMsg);
-                Zero(this, errMsg);
+                ZeroAsync(this, errMsg);
             }
             return 0;
         }

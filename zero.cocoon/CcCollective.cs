@@ -267,7 +267,7 @@ namespace zero.cocoon
             await base.ZeroManagedAsync().FastPath().ConfigureAwait(Zc);
 
             var autoPeeringDesc = _autoPeering.Description;
-            _autoPeering.Zero(this, $"{nameof(ZeroManagedAsync)}: teardown");
+            _autoPeering.ZeroAsync(this, $"{nameof(ZeroManagedAsync)}: teardown");
 
             _autoPeeringTask.Wait(TimeSpan.FromSeconds(parm_hub_teardown_timeout_s));
 
@@ -277,7 +277,7 @@ namespace zero.cocoon
             }
 
             var id = Hub.Router?.Designation?.IdString();
-            DupSyncRoot.Zero(this, $"{nameof(ZeroManagedAsync)}: teardown");
+            DupSyncRoot.ZeroAsync(this, $"{nameof(ZeroManagedAsync)}: teardown");
             await DupHeap.ZeroManagedAsync<object>().FastPath().ConfigureAwait(false);
             DupChecker.Clear();
 
@@ -964,7 +964,7 @@ namespace zero.cocoon
                     var drone = await ConnectAsync(IoNodeAddress.CreateFromEndpoint("tcp", adjunct.RemoteAddress.IpEndPoint) , adjunct, timeout:adjunct.parm_max_network_latency_ms * 2).FastPath().ConfigureAwait(Zc);
                     if (Zeroed() || drone == null || ((CcDrone)drone).Adjunct.Zeroed())
                     {
-                        if (drone != null) drone.Zero(this, $"{nameof(ConnectAsync)} was not successful [OK]");
+                        if (drone != null) drone.ZeroAsync(this, $"{nameof(ConnectAsync)} was not successful [OK]");
                         _logger.Debug($"{nameof(ConnectToDroneAsync)}: [ABORTED], {adjunct.Description}, {adjunct.MetaDesc}");
                         return false;
                     }
@@ -994,7 +994,7 @@ namespace zero.cocoon
                     else
                     {
                         _logger.Debug($"+|{drone.Description}");
-                        drone.Zero(this, "RACED");
+                        drone.ZeroAsync(this, "RACED");
                     }
 
                     return false;

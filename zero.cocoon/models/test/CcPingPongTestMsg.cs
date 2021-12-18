@@ -162,7 +162,7 @@ namespace zero.cocoon.models.test
                         }
                         else
                         {
-                            @this.Source.Zero(@this, "IsOperational went false");
+                            @this.Source.ZeroAsync(@this, "IsOperational went false");
                         }
 
                         if (@this.Zeroed())
@@ -186,7 +186,7 @@ namespace zero.cocoon.models.test
                         @this.State = IoJobMeta.JobState.ProduceErr;
 
                         if(@this.Source != null)
-                            @this.Source.Zero(@this, string.Empty);
+                            @this.Source.ZeroAsync(@this, string.Empty);
 
                         return false;
                     }

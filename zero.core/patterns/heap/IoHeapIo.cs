@@ -104,7 +104,7 @@ namespace zero.core.patterns.heap
             base.Return(item, zero);
 
             if (zero || Zeroed)
-                item.Zero(null, $"{nameof(IoHeapIo<TItem, TContext>)}: teardown direct = {zero}, cascade = {Zeroed}");
+                item.ZeroAsync(null, $"{nameof(IoHeapIo<TItem, TContext>)}: teardown direct = {zero}, cascade = {Zeroed}");
         }
     }
 

@@ -194,7 +194,7 @@ namespace zero.core.patterns.bushings
             }, this).FastPath().ConfigureAwait(Zc);
 #endif
             if (PreviousJob != null)
-                PreviousJob.Zero(this, $"{nameof(IoJob<TJob>)}: teardown");
+                PreviousJob.ZeroAsync(this, $"{nameof(IoJob<TJob>)}: teardown");
         }
 
         /// <summary>

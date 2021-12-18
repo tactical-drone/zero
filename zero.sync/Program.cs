@@ -1167,7 +1167,7 @@ namespace zero.sync
                     s.Wait();
                     var task = Task.Run(() =>
                     {
-                        n.Zero(null,"MAIN TEARDOWN");
+                        n.ZeroAsync(null,"MAIN TEARDOWN");
                         Interlocked.Increment(ref zeroed);
                     });
 
