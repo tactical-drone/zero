@@ -186,8 +186,8 @@ namespace zero.core.network.ip
                         //TODO more checks?
                         if (!IoNetSocket.IsConnected())
                         {
-                            if(Uptime.ElapsedMsToSec() > 5)
-                                _logger.Error($"DC {IoNetSocket.RemoteNodeAddress} from {IoNetSocket.LocalNodeAddress}, uptime = {TimeSpan.FromSeconds(Uptime.ElapsedMs())}");
+                            if(UpTime.ElapsedMsToSec() > 5)
+                                _logger.Error($"DC {IoNetSocket.RemoteNodeAddress} from {IoNetSocket.LocalNodeAddress}, uptime = {TimeSpan.FromSeconds(UpTime.ElapsedMs())}");
 
                             //Do cleanup
                             return false;

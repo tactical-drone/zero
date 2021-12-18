@@ -32,11 +32,7 @@ namespace zero.core.feat.misc
 
             _carHeap = new IoHeap<ChallengeAsyncResponse>($"{nameof(_valHeap)}: {description}", _capacity, autoScale: autoscale)
             {
-                Malloc = static (_, _) => new ChallengeAsyncResponse(),
-                Constructor = (response, _) =>
-                {
-                    response.Node = null;
-                }
+                Malloc = static (_, _) => new ChallengeAsyncResponse()
             };
 
             _logger = LogManager.GetCurrentClassLogger();
@@ -108,7 +104,7 @@ namespace zero.core.feat.misc
 
         internal class ChallengeAsyncResponse
         {
-            public IoZeroMatcher This;
+            //public IoZeroMatcher This;
             public string Key;
             public byte[] Body;
             public IoQueue<IoChallenge>.IoZNode Node;
@@ -127,42 +123,41 @@ namespace zero.core.feat.misc
             if (body == null)
                 return default;
 
-            
-            ChallengeAsyncResponse state = null;
+            ChallengeAsyncResponse response = null;
             IoQueue<IoChallenge>.IoZNode node;
             try
             {
-                state = _carHeap.Take();
+                response = _carHeap.Take(this);
                 
-                if (state == null)
+                if (response == null)
                     throw new OutOfMemoryException($"{nameof(_carHeap)}, {Description}");
 
-                state.This = this;
-                state.Key = key;
-                state.Body = body;
+                response.Key = key;
+                response.Body = body;
 
                 await ZeroAtomic(static async (_, state, _) =>
                 {
+                    var (@this, response) = state;
                     IoChallenge challenge = null;
                     try
                     {
-                        if ((challenge = state.This._valHeap.Take()) == null)
+                        if ((challenge = @this._valHeap.Take()) == null)
                         {
                             try
                             {
-                                await state.This.PurgeAsync().FastPath().ConfigureAwait(state.This.Zc);
+                                await @this.PurgeAsync().FastPath().ConfigureAwait(@this.Zc);
                             }
                             catch (Exception e)
                             {
-                                state.This._logger.Error(e, $" Purge failed: {state.This.Description}");
+                                @this._logger.Error(e, $" Purge failed: {@this.Description}");
                                 // ignored
                             }
 
-                            challenge = state.This._valHeap.Take();
+                            challenge = @this._valHeap.Take();
                         
                             if (challenge == null)
                             {
-                                var c = state.This._lut.Head;
+                                var c = @this._lut.Head;
                                 long ave = 0;
                                 var aveCounter = 0;
                                 while(c != null)
@@ -175,36 +170,36 @@ namespace zero.core.feat.misc
                                 if (aveCounter == 0)
                                     aveCounter = 1;
 
-                                throw new OutOfMemoryException($"{state.This.Description}: {nameof(_valHeap)} - heapSize = {state.This._valHeap.Count}, ref = {state.This._valHeap.ReferenceCount}, ave Ttl = {ave/aveCounter}ms / {state.This._ttlMs}ms, (c = {aveCounter})");
+                                throw new OutOfMemoryException($"{@this.Description}: {nameof(_valHeap)} - heapSize = {@this._valHeap.Count}, ref = {@this._valHeap.ReferenceCount}, ave Ttl = {ave/aveCounter}ms / {@this._ttlMs}ms, (c = {aveCounter})");
                             }
                             
                         }
 
-                        challenge.Payload = state.Body;
-                        challenge.Key = state.Key;
+                        challenge.Payload = response.Body;
+                        challenge.Key = response.Key;
                         challenge.TimestampMs = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
                         challenge.Hash = 0;
-                        state.Node = await state.This._lut.EnqueueAsync(challenge).FastPath().ConfigureAwait(state.This.Zc);
+                        response.Node = await @this._lut.EnqueueAsync(challenge).FastPath().ConfigureAwait(@this.Zc);
                     }
-                    catch when (state.This.Zeroed()) { }
-                    catch (Exception e) when (!state.This.Zeroed())
+                    catch when (@this.Zeroed()) { }
+                    catch (Exception e) when (!@this.Zeroed())
                     {
-                        state.This._logger.Fatal(e);
+                        @this._logger.Fatal(e);
                         // ignored
                     }
                     finally
                     {
-                        if (challenge != null && state.Node == null && state.This._valHeap != null)
-                            state.This._valHeap.Return(challenge);
+                        if (challenge != null && response.Node == null && @this._valHeap != null)
+                            @this._valHeap.Return(challenge);
                     }
 
                     return true;
-                }, state).FastPath().ConfigureAwait(Zc);
+                }, (this,response)).FastPath().ConfigureAwait(Zc);
             }
             finally
             {
-                node = state?.Node;
-                _carHeap.Return(state);
+                node = response?.Node;
+                _carHeap.Return(response);
             }
 
             return node;
@@ -355,7 +350,6 @@ namespace zero.core.feat.misc
         /// <summary>
         /// Dump challenges to log
         /// </summary>
-        /// <param name="target"></param>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void DumpToLog()
         {
@@ -428,6 +422,7 @@ namespace zero.core.feat.misc
             /// The key
             /// </summary>
             public string Key;
+
             /// <summary>
             /// When the payload was challenged
             /// </summary>
@@ -446,7 +441,6 @@ namespace zero.core.feat.misc
                 get => Volatile.Read(ref _hash);
                 set => Interlocked.Exchange(ref _hash, value);
             }
-
         }
     }
 }

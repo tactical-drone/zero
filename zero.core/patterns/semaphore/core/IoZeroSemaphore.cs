@@ -1,6 +1,5 @@
 ﻿//#define TOKEN //TODO this primitive does not work this way
 using System;
-using System.Buffers;
 using System.Runtime.CompilerServices;
 using System.Runtime.ExceptionServices;
 using System.Threading;
@@ -12,7 +11,7 @@ using zero.core.patterns.misc;
 namespace zero.core.patterns.semaphore.core
 {
     /// <summary>
-    /// ZeroAsync Semaphore with strong order guarantees
+    /// Zero alloc semaphore with strong order guarantees
     /// 
     /// Experimental auto capacity scaling (disabled by default), set max count manually instead for max performance.
     /// </summary>
@@ -35,10 +34,12 @@ namespace zero.core.patterns.semaphore.core
             int asyncWorkerCount = 0,
             bool enableAutoScale = false, bool enableFairQ = true, bool enableDeadlockDetection = false) : this()
         {
+#if DEBUG
             _description = description;
-            
+#endif
+
             //validation
-            if(maxBlockers < 1)
+            if (maxBlockers < 1)
                 throw new ZeroValidationException($"{_description}: invalid {nameof(maxBlockers)} = {maxBlockers} specified, value must be larger than 0");
             if(initialCount < 0)
                 throw new ZeroValidationException($"{_description}: invalid {nameof(initialCount)} = {initialCount} specified, value may not be less than 0");
@@ -46,18 +47,20 @@ namespace zero.core.patterns.semaphore.core
                 throw new ZeroValidationException($"{_description}: invalid {nameof(asyncWorkerCount)} = {asyncWorkerCount} specified, must less of equal to maxBlockers");
 
             _maxBlockers = maxBlockers;
-            _useMemoryBarrier = enableFairQ;
             _maxAsyncWorkers = asyncWorkerCount;
             RunContinuationsAsynchronously = _maxAsyncWorkers > 0;
             _curSignalCount = initialCount;
             _zeroRef = null;
             _asyncTasks = default;
             _asyncTokenReg = default;
+
+#if DEBUG
+            _useMemoryBarrier = enableFairQ;
             _enableAutoScale = enableAutoScale;
-            
             if(_enableAutoScale)
                 _lock = new SpinLock(enableDeadlockDetection);
-            
+#endif
+
             _signalAwaiter = new Action<object>[_maxBlockers];
             _signalAwaiterState = new object[_maxBlockers];
             _signalExecutionState = new ExecutionContext[_maxBlockers];
@@ -80,14 +83,15 @@ namespace zero.core.patterns.semaphore.core
 
         #region settings
 
+#if DEBUG
         /// <summary>
         /// use memory barrier setting
         /// </summary>
         private readonly bool _useMemoryBarrier;
-
+#endif
         #endregion
 
-#region properties
+        #region properties
 
 #if TOKEN
         /// <summary>
@@ -222,7 +226,6 @@ namespace zero.core.patterns.semaphore.core
         #endregion
 
         #region core
-
         /// <summary>
         /// Validation failed exception
         /// </summary>
@@ -331,9 +334,11 @@ namespace zero.core.patterns.semaphore.core
             _signalExecutionState = null;
             _signalCapturedContext = null;
             _asyncTasks = null;
-#endif
             _zeroRef = null;
+#endif
         }
+
+#if DEBUG
 
         /// <summary>
         /// Lock
@@ -363,18 +368,20 @@ namespace zero.core.patterns.semaphore.core
             
             _lock.Exit(_useMemoryBarrier);
         }
-        
+
         /// <summary>
         /// Used for locking internally; when <see cref="_enableAutoScale"/> is enabled
         /// </summary>
         private SpinLock _lock;
 
+
         /// <summary>
         /// if auto scaling is enabled 
         /// </summary>
         private readonly bool _enableAutoScale;
+#endif
 
-        #endregion
+#endregion
 
         /// <summary>
         /// Returns true if exit is clean, false otherwise
@@ -495,7 +502,9 @@ namespace zero.core.patterns.semaphore.core
             }
 
             //lock
-            ZeroLock();
+#if DEBUG
+            ZeroLock();   
+#endif
 
             //choose a head index for blocking state
             var headIdx = (_zeroRef.ZeroNextHead() - 1) % _maxBlockers;
@@ -519,16 +528,20 @@ namespace zero.core.patterns.semaphore.core
                 Volatile.Write(ref _signalAwaiter[headIdx], continuation);
                 
                 _zeroRef.ZeroIncWait();
-
+#if DEBUG
                 ZeroUnlock();
+#endif
                 return;
             }
 
             _zeroRef.ZeroPrevHead();
+#if DEBUG
             if (_enableAutoScale) //EXPERIMENTAL: double concurrent capacity
             {
                 //release lock
+
                 ZeroUnlock();
+
                 
                 //Scale
                 if (_enableAutoScale)
@@ -540,7 +553,11 @@ namespace zero.core.patterns.semaphore.core
                 {
                     throw new ZeroSemaphoreFullException($"{_description}: FATAL!, {nameof(_curWaitCount)} = {_zeroRef.ZeroWaitCount()}/{_maxBlockers}, {nameof(_curAsyncWorkerCount)} = {_zeroRef.ZeroAsyncCount()}/{_maxAsyncWorkers}");
                 }
+
             }
+#else
+            throw new ZeroSemaphoreFullException($"{_description}: FATAL!, {nameof(_curWaitCount)} = {_zeroRef.ZeroWaitCount()}/{_maxBlockers}, {nameof(_curAsyncWorkerCount)} = {_zeroRef.ZeroAsyncCount()}/{_maxAsyncWorkers}");
+#endif
         }
 
         /// <summary>
@@ -549,7 +566,6 @@ namespace zero.core.patterns.semaphore.core
         /// <param name="callback">The callback</param>
         /// <param name="state">The state</param>
         /// <param name="capturedContext"></param>
-        /// <param name="onComplete">Whether this call originates from <see cref="OnCompleted"/></param>
         /// <param name="zeroed">If we are zeroed</param>
         /// <param name="executionContext"></param>
         /// <param name="forceAsync">Forces async execution</param>
@@ -560,10 +576,6 @@ namespace zero.core.patterns.semaphore.core
             //validate
             if (callback == null || state == null)
                 throw new ArgumentNullException($"-> {nameof(callback)} = {callback}, {nameof(state)} = {state}");
-#else
-            
-            //if (callback == null || state == null)
-            //    throw new InvalidOperationException($"{nameof(InvokeContinuation)}: {nameof(callback)} = {callback}, {nameof(state)} = {state}");
 #endif
 
             try
@@ -609,7 +621,6 @@ namespace zero.core.patterns.semaphore.core
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private void InvokeContinuation(Action<object> callback, object state, object capturedContext, bool forceAsync)
         {
-            //TODO?
 #if DEBUG
             if(callback == null || state == null)
                 throw new InvalidOperationException($"{nameof(InvokeContinuation)}: {nameof(callback)} = {callback}, {nameof(state)} = {state}");
@@ -659,14 +670,14 @@ namespace zero.core.patterns.semaphore.core
                 case SynchronizationContext sc:
                     sc.Post(static s =>
                     {
-                        var tuple = (ValueTuple<Action<object>, object>)s;
+                        var tuple = ((Action<object>, object))s!;
                         try
                         {
                             tuple.Item1(tuple.Item2);
                         }
                         catch (Exception e)
                         {
-                            LogManager.GetCurrentClassLogger().Error(e, $"InvokeContinuation.{nameof(sc.Post)}(): ");
+                            LogManager.GetCurrentClassLogger().Error(e, $"InvokeContinuation.callback(): ");
                         }
                     }, (callback, state));
                     break;
@@ -677,6 +688,7 @@ namespace zero.core.patterns.semaphore.core
             }
         }
 
+#if DEBUG
         /// <summary>
         /// Attempts to scale the semaphore to handle higher volumes of concurrency experienced. (for example if worker counts were tied to F(#CPUs))
         /// </summary>
@@ -762,6 +774,7 @@ namespace zero.core.patterns.semaphore.core
             }
             
         }
+#endif
 
         /// <summary>
         /// Allow waiter(s) to enter the semaphore
@@ -792,8 +805,9 @@ namespace zero.core.patterns.semaphore.core
             while (released < releaseCount && _zeroRef.ZeroWaitCount() > 0)
             {
                 //Lock
+#if DEBUG
                 ZeroLock();
-
+#endif
                 var nextTail = _zeroRef.ZeroNextTail();
 
                 if (nextTail < 0)
@@ -837,8 +851,10 @@ namespace zero.core.patterns.semaphore.core
                 Volatile.Write(ref _signalCapturedContext[latchMod], null);
                 Volatile.Write(ref _signalAwaiter[latchMod], null);
 
+#if DEBUG
                 //unlock
                 ZeroUnlock();
+#endif
 
                 if (!ZeroComply(worker.Continuation, worker.State, worker.ExecutionContext, worker.CapturedContext, Zeroed() || worker.Semaphore.Zeroed() || worker.State is IIoNanite nanite && nanite.Zeroed(),bestEffort))
                 {

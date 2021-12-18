@@ -33,9 +33,8 @@ namespace zero.core.patterns.queue
         /// </summary>
         public IoQueue(string description, int capacity, int concurrencyLevel, int prefetch = 1, bool enableBackPressure = false, bool disablePressure = true, bool autoScale = false)
         {
-            _description = description;
-
 #if DEBUG
+            _description = description;
             string desc = $"{nameof(_nodeHeap)}: {_description}";
 #else
             string desc = string.Empty;
@@ -158,8 +157,8 @@ namespace zero.core.patterns.queue
                     _pressure = null;
                     _backPressure = null;
 
-                    //_syncRoot.ZeroSem();
-                    //_syncRoot = null;
+                    _syncValRoot.ZeroSem();
+                    _syncValRoot = null;
                 }
             }
 

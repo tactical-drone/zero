@@ -195,7 +195,7 @@ namespace zero.cocoon
                         foreach (var adjunct in @this._autoPeering.Neighbors.Values.Where(n =>
                                 ((CcAdjunct)n).State is >= CcAdjunct.AdjunctState.Verified) //quick slot
                             .OrderBy(n => ((CcAdjunct)n).Priority)
-                            .ThenBy(n => ((CcAdjunct)n).Uptime.ElapsedMs()))
+                            .ThenBy(n => ((CcAdjunct)n).UpTime.ElapsedMs()))
                         {
                             await ((CcAdjunct)adjunct).ProbeAsync("SYN").FastPath().ConfigureAwait(Zc);
                             c++;
@@ -207,7 +207,7 @@ namespace zero.cocoon
                         //    foreach (var adjunct in @this._autoPeering.Neighbors.Values.Where(n =>
                         //            ((CcAdjunct)n).State >= CcAdjunct.AdjunctState.Verified) //quick slot
                         //        .OrderBy(n => ((CcAdjunct)n).Priority)
-                        //        .ThenBy(n => ((CcAdjunct)n).Uptime.ElapsedMs()))
+                        //        .ThenBy(n => ((CcAdjunct)n).UpTime.ElapsedMs()))
                         //    {
                         //        if (!Zeroed())
                         //            await ((CcAdjunct)adjunct).FuseAsync().FastPath().ConfigureAwait(Zc);
@@ -927,14 +927,14 @@ namespace zero.cocoon
 
                 if(capped)
                 {
-                    await drone.DetachNeighborAsync().FastPath().ConfigureAwait(Zc);
+                    await drone.DropAdjunctAsync().FastPath().ConfigureAwait(Zc);
                 }
 
                 return !capped;
             }
             else
             {
-                _logger.Trace($"{direction} futile request [LOST] {CcDesignation.FromPubKey(packet.PublicKey.Memory.AsArray())} - {remoteEp}: s = {drone.Adjunct.State}, a = {drone.Adjunct.Assimilating}, p = {drone.Adjunct.IsDroneConnected}, pa = {drone.Adjunct.IsDroneAttached}, ut = {drone.Adjunct.Uptime.ElapsedMs()}");
+                _logger.Trace($"{direction} futile request [LOST] {CcDesignation.FromPubKey(packet.PublicKey.Memory.AsArray())} - {remoteEp}: s = {drone.Adjunct.State}, a = {drone.Adjunct.Assimilating}, p = {drone.Adjunct.IsDroneConnected}, pa = {drone.Adjunct.IsDroneAttached}, ut = {drone.Adjunct.UpTime.ElapsedMs()}");
                 return false;
             }
         }

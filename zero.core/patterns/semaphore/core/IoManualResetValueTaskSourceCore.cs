@@ -86,11 +86,12 @@ namespace zero.core.patterns.semaphore.core
             SignalCompletion();
         }
 
-        /// <summary>Gets the operation version.</summary>
 
-#if DEBUG
+#if DEBUG 
+        /// <summary>Gets the operation version.</summary>
         public short Version => _version;
 #else
+        /// <summary>Gets the operation version.</summary>
         public short Version => 9;
 #endif
 
@@ -196,7 +197,7 @@ namespace zero.core.patterns.semaphore.core
                     case SynchronizationContext sc:
                         sc.Post(s =>
                         {
-                            var tuple = (ValueTuple<Action<object>, object>)s;
+                            var tuple = ((Action<object>, object))s;
                             tuple.Item1(tuple.Item2);
                         }, (continuation, state));
                         break;
@@ -270,9 +271,9 @@ namespace zero.core.patterns.semaphore.core
                 case SynchronizationContext sc:
                     sc.Post(s =>
                     {
-                        var state = (Tuple<Action<object>, object>)s;
+                        var state = ((Action<object>, object))s;
                         state.Item1(state.Item2);
-                    }, Tuple.Create(_continuation, _continuationState));
+                    }, (_continuation, _continuationState));
                     break;
 
                 case TaskScheduler ts:

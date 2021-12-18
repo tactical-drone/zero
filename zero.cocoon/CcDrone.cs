@@ -87,12 +87,12 @@ namespace zero.cocoon
                 try
                 {
                     if(!Zeroed())
-                        return _description = $"`drone({(Source.IsOperational?"Active":"Zombie")} {(_assimulated? "Participant" : "Bystander")} [{Adjunct.Hub.Designation.IdString()}, {Adjunct.Designation.IdString()}], {Adjunct.Direction},{Adjunct.MessageService.IoNetSocket.Key} ~ {((IoTcpClient<CcProtocMessage<CcWhisperMsg, CcGossipBatch>>)IoSource).IoNetSocket.Key}, up = {TimeSpan.FromMilliseconds(Uptime.ElapsedMs())}'";
-                    return _description = $"`drone({(Source?.IsOperational ?? false ? "Active" : "Zombie")} {(_assimulated ? "Participant" : "Bystander")}, [{Adjunct?.Hub?.Designation?.IdString()}, {Adjunct?.Designation?.IdString()}], {Adjunct?.MessageService?.IoNetSocket?.Key} ~ {((IoTcpClient<CcProtocMessage<CcWhisperMsg, CcGossipBatch>>)IoSource)?.IoNetSocket?.Key}, up = {TimeSpan.FromMilliseconds(Uptime.ElapsedMs())}'";
+                        return _description = $"`drone({(Source.IsOperational?"Active":"Zombie")} {(_assimulated? "Participant" : "Bystander")} [{Adjunct.Hub.Designation.IdString()}, {Adjunct.Designation.IdString()}], {Adjunct.Direction},{Adjunct.MessageService.IoNetSocket.Key} ~ {((IoTcpClient<CcProtocMessage<CcWhisperMsg, CcGossipBatch>>)IoSource).IoNetSocket.Key}, up = {TimeSpan.FromMilliseconds(UpTime.ElapsedMs())}'";
+                    return _description = $"`drone({(Source?.IsOperational ?? false ? "Active" : "Zombie")} {(_assimulated ? "Participant" : "Bystander")}, [{Adjunct?.Hub?.Designation?.IdString()}, {Adjunct?.Designation?.IdString()}], {Adjunct?.MessageService?.IoNetSocket?.Key} ~ {((IoTcpClient<CcProtocMessage<CcWhisperMsg, CcGossipBatch>>)IoSource)?.IoNetSocket?.Key}, up = {TimeSpan.FromMilliseconds(UpTime.ElapsedMs())}'";
                 }
                 catch
                 {
-                    return _description = $"`drone({(Source?.IsOperational??false ? "Active":"Zombie")} {(_assimulated ? "Participant" : "Bystander")}, [{Adjunct?.Hub?.Designation?.IdString()}, {Adjunct?.Designation?.IdString()}], {Adjunct?.MessageService?.IoNetSocket?.Key} ~ {((IoTcpClient<CcProtocMessage<CcWhisperMsg, CcGossipBatch>>)IoSource)?.IoNetSocket?.Key}, up = {TimeSpan.FromMilliseconds(Uptime.ElapsedMs())}'";
+                    return _description = $"`drone({(Source?.IsOperational??false ? "Active":"Zombie")} {(_assimulated ? "Participant" : "Bystander")}, [{Adjunct?.Hub?.Designation?.IdString()}, {Adjunct?.Designation?.IdString()}], {Adjunct?.MessageService?.IoNetSocket?.Key} ~ {((IoTcpClient<CcProtocMessage<CcWhisperMsg, CcGossipBatch>>)IoSource)?.IoNetSocket?.Key}, up = {TimeSpan.FromMilliseconds(UpTime.ElapsedMs())}'";
                 }
             }
         }
@@ -192,7 +192,7 @@ namespace zero.cocoon
         {
             try
             {
-                await DetachNeighborAsync().FastPath().ConfigureAwait(Zc);
+                await DropAdjunctAsync().FastPath().ConfigureAwait(Zc);
             }
             catch (Exception e)
             {
@@ -201,7 +201,7 @@ namespace zero.cocoon
 
             try
             {
-                if ((Adjunct?.Assimilated??false) && Uptime.ElapsedMs() > parm_min_uptime_ms)
+                if ((Adjunct?.Assimilated??false) && UpTime.ElapsedMs() > parm_min_uptime_ms)
                     _logger.Info($"- {Description}, from: {ZeroedFrom?.Description}");
             }
             catch
@@ -260,10 +260,10 @@ namespace zero.cocoon
         /// <summary>
         /// Detaches current neighbor
         /// </summary>
-        public async ValueTask DetachNeighborAsync()
+        public async ValueTask DropAdjunctAsync()
         {
             var latch = _adjunct;
-            if (Interlocked.CompareExchange(ref _adjunct, null, latch) == latch)
+            if (latch != null && Interlocked.CompareExchange(ref _adjunct, null, latch) == latch)
                 await latch.DetachDroneAsync().FastPath().ConfigureAwait(Zc);
         }
 

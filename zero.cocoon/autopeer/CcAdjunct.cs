@@ -204,22 +204,22 @@ namespace zero.cocoon.autopeer
                     if (!Zeroed())
                     {
                         if (IsProxy)
-                            return _description = $"`adjunct ({EventCount}, {_drone?.EventCount ?? 0}, {(WasAttached ? "C!" : "dc")})[{TotalPats}~{SecondsSincePat:000}s:P({Priority}):{FuseCount}:{FusedCount}] local: ||{MessageService.IoNetSocket.LocalAddress} ~> {MessageService.IoNetSocket.RemoteAddress}||, [{Hub?.Designation.IdString()}, {Designation.IdString()}], uptime = {TimeSpan.FromSeconds(Uptime.ElapsedMsToSec())}'";
+                            return _description = $"`adjunct ({EventCount}, {_drone?.EventCount ?? 0}, {(WasAttached ? "C!" : "dc")})[{TotalPats}~{SecondsSincePat:000}s:P({Priority}):{FuseCount}:{FusedCount}] local: ||{MessageService.IoNetSocket.LocalAddress} ~> {MessageService.IoNetSocket.RemoteAddress}||, [{Hub?.Designation.IdString()}, {Designation.IdString()}], uptime = {TimeSpan.FromSeconds(UpTime.ElapsedMsToSec())}'";
                         else
-                            return _description = $"`hub ({EventCount}, {(WasAttached ? "C!" : "dc")})[{TotalPats}~{SecondsSincePat:000}s:P({Priority}):{FuseCount}:{FusedCount}] local: ||{MessageService.IoNetSocket.LocalAddress} ~> {MessageService.IoNetSocket.RemoteAddress}||, [{Hub?.Designation?.IdString()}, {Designation.IdString()}], uptime = {TimeSpan.FromSeconds(Uptime.ElapsedMsToSec())}'";
+                            return _description = $"`hub ({EventCount}, {(WasAttached ? "C!" : "dc")})[{TotalPats}~{SecondsSincePat:000}s:P({Priority}):{FuseCount}:{FusedCount}] local: ||{MessageService.IoNetSocket.LocalAddress} ~> {MessageService.IoNetSocket.RemoteAddress}||, [{Hub?.Designation?.IdString()}, {Designation.IdString()}], uptime = {TimeSpan.FromSeconds(UpTime.ElapsedMsToSec())}'";
                     }
 
                     if (IsProxy)
-                        return _description ?? $"`adjunct({EventCount}, {_drone?.EventCount ?? 0}, , {(WasAttached ? "C!" : "dc")})[{TotalPats}~{SecondsSincePat:000}s:P({Priority}):{FuseCount}:{FusedCount}] local: ||{MessageService?.IoNetSocket?.LocalAddress} ~> {MessageService?.IoNetSocket?.RemoteAddress}||,' [{Hub?.Designation?.IdString()}, {Designation?.IdString()}], uptime = {TimeSpan.FromSeconds(Uptime.ElapsedMsToSec())}'";
+                        return _description ?? $"`adjunct({EventCount}, {_drone?.EventCount ?? 0}, , {(WasAttached ? "C!" : "dc")})[{TotalPats}~{SecondsSincePat:000}s:P({Priority}):{FuseCount}:{FusedCount}] local: ||{MessageService?.IoNetSocket?.LocalAddress} ~> {MessageService?.IoNetSocket?.RemoteAddress}||,' [{Hub?.Designation?.IdString()}, {Designation?.IdString()}], uptime = {TimeSpan.FromSeconds(UpTime.ElapsedMsToSec())}'";
                     else
-                        return _description = $"`hub ({EventCount}, {(WasAttached ? "C!" : "dc")})[{TotalPats}~{SecondsSincePat:000}s:P({Priority}):{FuseCount}:{FusedCount}] local: ||{MessageService?.IoNetSocket?.LocalAddress} ~> {MessageService?.IoNetSocket?.RemoteAddress}||, [{Hub?.Designation?.IdString()}, {Designation?.IdString()}], uptime = {TimeSpan.FromSeconds(Uptime.ElapsedMsToSec())}'";
+                        return _description = $"`hub ({EventCount}, {(WasAttached ? "C!" : "dc")})[{TotalPats}~{SecondsSincePat:000}s:P({Priority}):{FuseCount}:{FusedCount}] local: ||{MessageService?.IoNetSocket?.LocalAddress} ~> {MessageService?.IoNetSocket?.RemoteAddress}||, [{Hub?.Designation?.IdString()}, {Designation?.IdString()}], uptime = {TimeSpan.FromSeconds(UpTime.ElapsedMsToSec())}'";
                 }
                 catch (Exception)
                 {
                     if(IsProxy)
-                        return _description?? $"`adjunct({EventCount}, {_drone?.EventCount ?? 0}, , {(WasAttached ? "C!" : "dc")})[{TotalPats}~{SecondsSincePat:000}s:P({Priority}):{FuseCount}:{FusedCount}] local: ||{MessageService?.IoNetSocket?.LocalAddress} ~> {MessageService?.IoNetSocket?.RemoteAddress}||,' [{Hub?.Designation?.IdString()}, {Designation?.IdString()}], uptime = {TimeSpan.FromSeconds(Uptime.ElapsedMsToSec())}'";    
+                        return _description?? $"`adjunct({EventCount}, {_drone?.EventCount ?? 0}, , {(WasAttached ? "C!" : "dc")})[{TotalPats}~{SecondsSincePat:000}s:P({Priority}):{FuseCount}:{FusedCount}] local: ||{MessageService?.IoNetSocket?.LocalAddress} ~> {MessageService?.IoNetSocket?.RemoteAddress}||,' [{Hub?.Designation?.IdString()}, {Designation?.IdString()}], uptime = {TimeSpan.FromSeconds(UpTime.ElapsedMsToSec())}'";    
                     else
-                        return _description = $"`hub ({EventCount}, {(WasAttached ? "C!" : "dc")})[{TotalPats}~{SecondsSincePat:000}s:P({Priority}):{FuseCount}:{FusedCount}] local: ||{MessageService?.IoNetSocket?.LocalAddress} ~> {MessageService?.IoNetSocket?.RemoteAddress}||, [{Hub?.Designation?.IdString()}, {Designation?.IdString()}], uptime = {TimeSpan.FromSeconds(Uptime.ElapsedMsToSec())}'";
+                        return _description = $"`hub ({EventCount}, {(WasAttached ? "C!" : "dc")})[{TotalPats}~{SecondsSincePat:000}s:P({Priority}):{FuseCount}:{FusedCount}] local: ||{MessageService?.IoNetSocket?.LocalAddress} ~> {MessageService?.IoNetSocket?.RemoteAddress}||, [{Hub?.Designation?.IdString()}, {Designation?.IdString()}], uptime = {TimeSpan.FromSeconds(UpTime.ElapsedMsToSec())}'";
                 }
             }
         }
@@ -640,7 +640,7 @@ namespace zero.cocoon.autopeer
                 await _chronitonHeap.ZeroManagedAsync<object>().FastPath().ConfigureAwait(Zc);
 
                 var from = ZeroedFrom == this? "self" : ZeroedFrom?.Description??"null";
-                if (Assimilated && WasAttached && Uptime.ElapsedMs() > parm_min_uptime_ms)
+                if (Assimilated && WasAttached && UpTime.ElapsedMs() > parm_min_uptime_ms)
                     _logger.Info($"- `{(Assimilated ? "apex" : "sub")} {Direction}: {Description}, from: {from}, reason : {ZeroReason}");
 
                 await DetachDroneAsync().FastPath().ConfigureAwait(Zc);
@@ -723,7 +723,7 @@ namespace zero.cocoon.autopeer
                     if (SecondsSincePat > CcCollective.parm_mean_pat_delay_s)
                     {
                         _logger.Trace($"w {nameof(EnsureRoboticsAsync)} - {Description}, s = {SecondsSincePat} >> {CcCollective.parm_mean_pat_delay_s}, {MetaDesc}");
-                        ZeroAsync(this.CcCollective,$"-wd: l = {SecondsSincePat}s ago, uptime = {TimeSpan.FromMilliseconds(Uptime.ElapsedMs()).TotalHours:0.00}h");
+                        ZeroAsync(this.CcCollective,$"-wd: l = {SecondsSincePat}s ago, uptime = {TimeSpan.FromMilliseconds(UpTime.ElapsedMs()).TotalHours:0.00}h");
                     }
                 }
             }
@@ -1820,20 +1820,20 @@ namespace zero.cocoon.autopeer
                                     ((CcAdjunct)n).IsProxy &&
                                     (
                                         ((CcAdjunct)n).SecondsSincePat > @this.CcCollective.parm_mean_pat_delay_s ||
-                                        ((CcAdjunct) n).Uptime.ElapsedMs() > @this.parm_min_uptime_ms &&
+                                        ((CcAdjunct) n).UpTime.ElapsedMs() > @this.parm_min_uptime_ms &&
                                         ((CcAdjunct) n).State < AdjunctState.Verified)
                                 )
-                                .OrderByDescending(n => ((CcAdjunct)n).Uptime.ElapsedMs());
+                                .OrderByDescending(n => ((CcAdjunct)n).UpTime.ElapsedMs());
 
                             var good = @this.Hub.Neighbors.Values.Where(n =>
                                     ((CcAdjunct)n).IsProxy &&
                                     (
-                                        ((CcAdjunct)n).Uptime.ElapsedMs() > @this.parm_min_uptime_ms &&
+                                        ((CcAdjunct)n).UpTime.ElapsedMs() > @this.parm_min_uptime_ms &&
                                         ((CcAdjunct)n).State < AdjunctState.Fusing &&
                                         (@this.CcCollective.ZeroDrone || ((CcAdjunct)n).TotalPats > @this.parm_min_pats_before_shuffle))
                                 )
                                 .OrderByDescending(n => ((CcAdjunct)n).Priority)
-                                .ThenByDescending(n => ((CcAdjunct)n).Uptime.ElapsedMs());
+                                .ThenByDescending(n => ((CcAdjunct)n).UpTime.ElapsedMs());
 
                             var badList = bad.ToList();
                             if (badList.Any())
@@ -1976,14 +1976,14 @@ namespace zero.cocoon.autopeer
                     n => n != this && ((CcAdjunct) n).Assimilating)
                 .OrderByDescending(n => ((CcAdjunct)n).IsDroneConnected? 0 : 1)
                 .ThenByDescending(n => (int) ((CcAdjunct) n).Priority)
-                .ThenBy(n => ((CcAdjunct)n).Uptime.ElapsedMs()).ToList();
+                .ThenBy(n => ((CcAdjunct)n).UpTime.ElapsedMs()).ToList();
 
             //if (!certified.Any())
             //{
             //    certified = Hub.Neighbors.Values.Where(n => n != this)
             //        .OrderByDescending(n => ((CcAdjunct)n).IsDroneConnected ? 0 : 1)
             //        .ThenByDescending(n => (int)((CcAdjunct)n).Priority)
-            //        .ThenBy(n => ((CcAdjunct)n).Uptime.ElapsedMs()).ToList();
+            //        .ThenBy(n => ((CcAdjunct)n).UpTime.ElapsedMs()).ToList();
             //}
             
             foreach (var ioNeighbor in certified.Take((int)parm_max_swept_drones))
@@ -2043,7 +2043,14 @@ namespace zero.cocoon.autopeer
             }
         }
 
-        //private volatile int _counterSeductive = 1;
+        [Flags]
+        enum DroneStatus
+        {
+            Undefined = 0,
+            Drone = 1 << 0,
+        }
+
+
         /// <summary>
         /// Probe message
         /// </summary>
@@ -2053,46 +2060,27 @@ namespace zero.cocoon.autopeer
         private async ValueTask ProcessAsync(CcProbeMessage probeMessage, IPEndPoint remoteEp, chroniton packet)
         {
             //syn trigger
-            static bool CheckSynTriggerAsync(CcAdjunct @this, long delay, IoNodeAddress ipEndPoint = null)
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            static void CheckSynTriggerAsync(CcAdjunct @this, long delay)
             {
                 if (!_enableSynTrigger)
-                    return false;
+                    return;
 
-                if (delay < @this.parm_max_network_latency_ms * 2 
-                    //&& Interlocked.CompareExchange(ref @this._counterSeductive, 1, 0) == 0
-                    )
+                if (delay < @this.parm_max_network_latency_ms * 2)
                 {
                     if (@this.Direction == Heading.Undefined && 
                         @this.CcCollective.IngressCount < @this.CcCollective.parm_max_inbound &&
                         @this.Hub?.Router != null)
                     {
                         @this._fuseCount = -@this.parm_zombie_max_connection_attempts;
-                        //if (!await @this.ProbeAsync("SYN-FLD", ipEndPoint).FastPath().ConfigureAwait(@this.Zc))
-                        //{
-                        //    @this._logger.Trace($"<\\- {nameof(ProbeAsync)}(SYN-FLD): [FAILED] {@this.MessageService.IoNetSocket.LocalNodeAddress} ~> {ipEndPoint}");
-                        //}
-                        //else
-                        //{
-                        //    Interlocked.Add(ref @this._triggerTime, -@this.parm_max_network_latency_ms * 2);
-                        //    return true;
-                        //}
-                        return true;
+                        
+                        return;
                     }
                 }
                 else
                 {
-                    //if (@this._counterSeductive > 0)
-                    //{
-                    //    if (Interlocked.Decrement(ref @this._counterSeductive) < 0)
-                    //    {
-                    //        Interlocked.Exchange(ref @this._counterSeductive, 0);
-                    //    }
-                    //}
-
                     Interlocked.Exchange(ref @this._triggerTime, DateTimeOffset.UtcNow.ToUnixTimeMilliseconds());
                 }
-
-                return false;
             }
 
             //Drop old API calls
@@ -2107,26 +2095,15 @@ namespace zero.cocoon.autopeer
             {
                 Protocol = parm_protocol_version,
                 Timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
-                ReqHash = UnsafeByteOperations.UnsafeWrap(CcDesignation.Sha256.ComputeHash(packet.Data.Memory.AsArray()))
+                ReqHash = UnsafeByteOperations.UnsafeWrap(CcDesignation.Sha256.ComputeHash(packet.Data.Memory.AsArray())),
+                Status = (long)(IsDroneAttached? DroneStatus.Drone : DroneStatus.Undefined)
             };
-
-            //if (_serviceMapLocal == null)
-            //{ 
-            //    pong = PrepareServices(packet, RemoteAddress.IpEndPoint ,remoteEp);
-            //}
-            //else
-            //{
-            //    pong = new CcProbeResponse
-            //    {
-            //        ReqHash = UnsafeByteOperations.UnsafeWrap(CcDesignation.Sha256.ComputeHash(packet.Data.Memory.AsArray())),
-            //        DstAddr = $"{remoteEp.Address}", //TODO, add port somehow
-            //        Services = _serviceMapLocal
-            //    };
-            //}
 
             var triggerDelta = CcCollective.ZeroDrone ? parm_max_network_latency_ms : Volatile.Read(ref _triggerTime).ElapsedMs();
 
             //PROCESS DMZ-SYN
+
+
             var sent = 0;
             if (!IsProxy)
             {
@@ -2157,17 +2134,15 @@ namespace zero.cocoon.autopeer
                     _logger.Debug($"-/> {nameof(CcProbeResponse)}({sent})[{response.ToByteString().Memory.PayloadSig()} ~ {response.ReqHash.Memory.HashSig()}]: Sent [[SYN-ACK]], [{MessageService.IoNetSocket.LocalAddress} ~> {toAddress}]");
 #endif
                     //ensure ingress delta trigger
-                    CheckSynTriggerAsync(this, triggerDelta, toAddress);
+                    CheckSynTriggerAsync(this, triggerDelta);
 
                     var idCheck = CcDesignation.FromPubKey(packet.PublicKey.Memory);
 
 #if DEBUG
                     var fromAddress = IoNodeAddress.CreateFromEndpoint("udp", packet.Header.Ip.Src.GetEndpoint());
 #else
-                    //TODO: bugged
                     var fromAddress = IoNodeAddress.CreateFromEndpoint("udp", remoteEp);
 #endif
-
 
                     await ZeroAsync(static async state =>
                     {
@@ -2407,6 +2382,11 @@ namespace zero.cocoon.autopeer
 
                 if (!CcCollective.ZeroDrone)
                     await SeduceAsync("ACK-SYN-VCK", Heading.Both).FastPath().ConfigureAwait(Zc);
+
+                if (((DroneStatus)response.Status).HasFlag(DroneStatus.Drone) && !IsDroneAttached)
+                {
+                    await DeFuseAsync().FastPath().ConfigureAwait(false);
+                }
             }
         }
 
@@ -2443,7 +2423,7 @@ namespace zero.cocoon.autopeer
                     }
                 }
 
-                if (!(CcCollective.ZeroDrone) && ((int)heading & (int)Heading.Ingress) > 0 && CcCollective.IngressCount < CcCollective.parm_max_inbound)
+                if (!CcCollective.ZeroDrone && ((int)heading & (int)Heading.Ingress) > 0 && CcCollective.IngressCount < CcCollective.parm_max_inbound)
                 {
                     var proxy = dmzEndpoint == null ? this : Router;
                     //delta trigger
@@ -2482,7 +2462,7 @@ namespace zero.cocoon.autopeer
                 if (!Collected)
                     return false;
 
-                dest ??= RemoteAddress;
+                dest ??= NatAddress?? RemoteAddress;
                 
                 if (dest == null)
                     throw new ArgumentException($"dest cannot be null at this point!");
@@ -2567,6 +2547,7 @@ namespace zero.cocoon.autopeer
                     }
 
                     await _probeRequest.RemoveAsync(challenge).FastPath().ConfigureAwait(Zc);
+
                     if(Collected)
                         _logger.Trace($"-/> {nameof(CcProbeMessage)}:({desc}) [FAILED], {Description}");
                     return false;

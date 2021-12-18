@@ -53,9 +53,6 @@ namespace zero.core.patterns.misc
         {
             _zId = Interlocked.Increment(ref _uidSeed);
             AsyncTasks = new CancellationTokenSource();
-
-            //TODO hackish - concurrency 0 signals that a source needs to disable queue management
-            
 #if DEBUG
             Description = description ?? GetType().Name;
 #else 
@@ -75,7 +72,7 @@ namespace zero.core.patterns.misc
             _zeroRoot = new IoZeroSemaphore(string.Empty, concurrencyLevel, 1, 0);
             _zeroRoot.ZeroRef(ref _zeroRoot, AsyncTasks);
 
-            Uptime = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+            UpTime = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
         }
 
         /// <summary>
@@ -114,7 +111,7 @@ namespace zero.core.patterns.misc
         /// <summary>
         /// Used for equality compares
         /// </summary>
-        private long _zId;
+        private readonly long _zId;
 
         /// <summary>
         /// returns UID
@@ -125,11 +122,6 @@ namespace zero.core.patterns.misc
         /// Description
         /// </summary>
         public virtual string Description { get; }
-
-        /// <summary>
-        /// Sync root
-        /// </summary>
-        //private IIoZeroSemaphore _nanoMutex;
 
         /// <summary>
         /// Who zeroed this object
@@ -152,9 +144,9 @@ namespace zero.core.patterns.misc
         public long CascadeTime;
 
         /// <summary>
-        /// Uptime
+        /// UpTime
         /// </summary>
-        public readonly long Uptime;
+        public readonly long UpTime;
         
         /// <summary>
         /// Are we zero primed?
@@ -202,11 +194,6 @@ namespace zero.core.patterns.misc
         public virtual ValueTask<bool> ConstructAsync(object localContext = null) {return new ValueTask<bool>(true);}
         
         /// <summary>
-        /// Teardown termination sentinel
-        /// </summary>
-        private static readonly IoNanoprobe Sentinel = new  IoNanoprobe("self");
-
-        /// <summary>
         /// config await
         /// </summary>
         public bool Zc => ContinueOnCapturedContext;
@@ -219,7 +206,9 @@ namespace zero.core.patterns.misc
             ZeroAsync(this, $"{nameof(IDisposable)}");
         }
 
-
+        /// <summary>
+        /// Tracks teardown
+        /// </summary>
         private static long _zCount;
 
         /// <summary>
@@ -254,7 +243,6 @@ namespace zero.core.patterns.misc
             }
         }
 
-
         /// <summary>
         /// Prime for zero
         /// </summary>
@@ -275,11 +263,10 @@ namespace zero.core.patterns.misc
 
             if (_zeroHiveMind != null)
             {
-                IIoNanite nanite;
-                while ((nanite = await _zeroHiveMind.DequeueAsync().FastPath().ConfigureAwait(Zc)) != null)
+                foreach (var ioZNode in _zeroHiveMind)
                 {
-                    if (!nanite.Zeroed())
-                        await nanite.ZeroPrimeAsync().FastPath().ConfigureAwait(Zc);
+                    if (!ioZNode.Value.Zeroed())
+                        await ioZNode.Value.ZeroPrimeAsync().FastPath().ConfigureAwait(Zc);
                 }
             }
         }
@@ -398,8 +385,9 @@ namespace zero.core.patterns.misc
             CascadeTime = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
 
             var desc = Description;
+#if DEBUG
             var reason = ZeroReason;
-
+#endif
             //Dispose managed
             if (disposing)
             {
@@ -486,12 +474,12 @@ namespace zero.core.patterns.misc
 #endif
 
             TearDownTime = TearDownTime.ElapsedMs();
-            //if (Uptime.Elapsed.TotalSeconds > 10 && TeardownTime.ElapsedMilliseconds > 2000)
+            //if (UpTime.Elapsed.TotalSeconds > 10 && TeardownTime.ElapsedMilliseconds > 2000)
             //    _logger.Fatal($"{GetType().Name}:Z/{Description}> t = {TeardownTime.ElapsedMilliseconds/1000.0:0.0}, c = {CascadeTime.ElapsedMilliseconds/1000.0:0.0}");
 
             try
             {
-                if (Uptime.ElapsedMs() > 10 && CascadeTime > TearDownTime * 7 && CascadeTime > 20000)
+                if (UpTime.ElapsedMs() > 10 && CascadeTime > TearDownTime * 7 && CascadeTime > 20000)
                     _logger.Fatal($"{GetType().Name}:Z/{Description}> SLOW TEARDOWN!, c = {CascadeTime:0.0}ms, t = {TearDownTime:0.0}ms");
             }
             catch
@@ -557,71 +545,6 @@ namespace zero.core.patterns.misc
             return _concurrencyLevel;
         }
 
-        ///  <summary>
-        ///  Ensures that a ownership transfer action is synchronized
-        ///  </summary>
-        ///  <param name="ownershipAction">The ownership transfer callback</param>
-        ///  <param name="userData"></param>
-        ///  <param name="disposing">If this call is inside a disposing thread</param>
-        ///  <param name="force">Forces the action regardless of zero state</param>
-        ///  <returns>true if ownership was passed, false otherwise</returns>
-        //public async ValueTask<bool> ZeroAtomicAsync<T>(Func<IIoNanite, T, bool, ValueTask<bool>> ownershipAction,
-        //    T userData = default,
-        //    bool disposing = false, bool force = false)
-        //{
-        //    try
-        //    {
-        //        //Prevents strange things from happening
-        //        if (_zeroed > 0 && !force)
-        //            return false;
-
-        //        try
-        //        {
-        //            if (!force)
-        //            {
-        //                //lock (_nanoMutex)
-        //                try
-        //                {
-        //                    if (await _nanoMutex.WaitAsync().FastPath().ConfigureAwait(Zc))
-        //                    {
-        //                        return (_zeroed == 0) &&
-        //                               await ownershipAction(this, userData, disposing).FastPath().ConfigureAwait(Zc);
-        //                    }
-        //                }
-        //                catch (Exception e)
-        //                {
-        //                    if (!Zeroed())
-        //                        _logger.Error(e, $"{Description}: Unable to ensure action {ownershipAction}, target = {ownershipAction.Target}");
-        //                    return false;
-        //                }
-        //                finally
-        //                {
-        //                    await _nanoMutex.Release().FastPath().ConfigureAwait(Zc);
-        //                }
-        //            }
-        //            else
-        //            {
-        //                return await ownershipAction(this, userData, disposing).FastPath().ConfigureAwait(Zc);
-        //            }
-        //        }
-        //        catch (Exception e)
-        //        {
-        //            _logger.Fatal(e, $"{Description}");
-        //            // ignored
-        //        }
-        //    }
-        //    catch (NullReferenceException e)
-        //    {
-        //        _logger.Trace(e);
-        //    }
-        //    catch (Exception e)
-        //    {
-        //        _logger.Fatal(e, $"Unable to ensure ownership in {Description}");
-        //    }
-
-        //    return false;
-        //}
-        
         public async ValueTask<bool> ZeroAtomic<T>(Func<IIoNanite, T, bool, ValueTask<bool>> ownershipAction,
             T userData = default, bool disposing = false, bool force = false)
         {
@@ -691,20 +614,19 @@ namespace zero.core.patterns.misc
         /// <param name="state">user state</param>
         /// <param name="asyncToken">The async cancellation token</param>
         /// <param name="options">Task options</param>
-        /// <param name="unwrap">If the task awaited should be unwrapped, effectively making this a blocking call</param>
         /// <param name="scheduler">The scheduler</param>
         /// <param name="filePath"></param>
         /// <param name="methodName"></param>
         /// <param name="lineNumber"></param>
         /// <returns>A ValueTask</returns>
-        protected async ValueTask<VT> ZeroAsync<T,VT>(Func<T, ValueTask<VT>> continuation, T state, CancellationToken asyncToken, TaskCreationOptions options, TaskScheduler scheduler = null, [CallerFilePath] string filePath = null,[CallerMemberName] string methodName = null, [CallerLineNumber] int lineNumber = default )
+        protected async ValueTask<TResult> ZeroAsync<T,TResult>(Func<T, ValueTask<TResult>> continuation, T state, CancellationToken asyncToken, TaskCreationOptions options, TaskScheduler scheduler = null, [CallerFilePath] string filePath = null,[CallerMemberName] string methodName = null, [CallerLineNumber] int lineNumber = default )
         {
             var nanite = state as IoNanoprobe??this;
             try
             {
-                var zeroAsyncTask = Task.Factory.StartNew<ValueTask<VT>>(static async nanite =>
+                var zeroAsyncTask = Task.Factory.StartNew<ValueTask<TResult>>(static async nanite =>
                 {
-                    var (@this, action, state, fileName, methodName, lineNumber) = (ValueTuple<IoNanoprobe, Func<T, ValueTask<VT>>, T, string, string, int>)nanite;
+                    var (@this, action, state, fileName, methodName, lineNumber) = (ValueTuple<IoNanoprobe, Func<T, ValueTask<TResult>>, T, string, string, int>)nanite;
 
                     var nanoprobe = state as IoNanoprobe;
                     try
@@ -820,18 +742,27 @@ namespace zero.core.patterns.misc
         /// <param name="continuation">The continuation</param>
         /// <param name="state">user state</param>
         /// <param name="options">Task options</param>
-        /// <param name="unwrap">Whether to unwrap, default false</param>
-        /// <param name="token">Custom cancellation token</param>
         /// <param name="scheduler">The scheduler</param>
         /// <param name="filePath"></param>
         /// <param name="methodName"></param>
         /// <param name="lineNumber"></param>
         /// <returns>A ValueTask</returns>
-        protected ValueTask<VT> ZeroAsync<T,VT>(Func<T, ValueTask<VT>> continuation, T state, TaskCreationOptions options, TaskScheduler scheduler = null,  [CallerFilePath] string filePath = null, [CallerMemberName] string methodName = null, [CallerLineNumber] int lineNumber = default )
+        protected ValueTask<TResult> ZeroAsync<T,TResult>(Func<T, ValueTask<TResult>> continuation, T state, TaskCreationOptions options, TaskScheduler scheduler = null,  [CallerFilePath] string filePath = null, [CallerMemberName] string methodName = null, [CallerLineNumber] int lineNumber = default )
         {
             return ZeroAsync(continuation, state, AsyncTasks.Token, options, scheduler??TaskScheduler.Default, filePath, methodName: methodName, lineNumber);
         }
 
+        /// <summary>
+        /// Async execution options. <see cref="ZeroAsync"/> needs trust, but verify...
+        /// </summary>
+        /// <param name="continuation">The continuation</param>
+        /// <param name="state">user state</param>
+        /// <param name="options">Task options</param>
+        /// <param name="scheduler">The scheduler</param>
+        /// <param name="filePath"></param>
+        /// <param name="methodName"></param>
+        /// <param name="lineNumber"></param>
+        /// <returns>A ValueTask</returns>
         protected ValueTask ZeroAsync<T>(Func<T, ValueTask> continuation, T state, TaskCreationOptions options, TaskScheduler scheduler = null, bool unwrap = false, [CallerFilePath] string filePath = null, [CallerMemberName] string methodName = null, [CallerLineNumber] int lineNumber = default)
         {
             

@@ -23,7 +23,9 @@ namespace zero.core.patterns.queue
         /// </summary>
         public IoBag(string description, int capacity, bool autoScale = false)
         {
+#if DEBUG
             _description = description;
+#endif
             _capacity = capacity;
             _storage = new T[_capacity];
             _autoScale = autoScale;

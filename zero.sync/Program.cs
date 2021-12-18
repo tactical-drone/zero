@@ -79,7 +79,7 @@ namespace zero.sync
             var random = new Random((int)DateTime.Now.Ticks);
             //Tangle("tcp://192.168.1.2:15600");
             var total = 350;
-            var maxDrones = 8;
+            var maxDrones = 3;
             var maxAdjuncts = 16;
             var boot = true;
 
@@ -315,7 +315,7 @@ namespace zero.sync
                                     foreach (var d in ioCcNode.Neighbors.Values)
                                     {
                                         var drone = (CcDrone) d;
-                                        Console.WriteLine($"t = {ioCcNode.TotalConnections} ({ioCcNode.IngressCount},{ioCcNode.EgressCount}), [{ioCcNode.Description}] -> {drone.Description} ][ {drone.Adjunct.MetaDesc}, uptime = {drone.Uptime.ElapsedMs():0.0}s");
+                                        Console.WriteLine($"t = {ioCcNode.TotalConnections} ({ioCcNode.IngressCount},{ioCcNode.EgressCount}), [{ioCcNode.Description}] -> {drone.Description} ][ {drone.Adjunct.MetaDesc}, uptime = {drone.UpTime.ElapsedMs():0.0}s");
                                     }
                                 }
                             
@@ -406,7 +406,7 @@ namespace zero.sync
                     }
                     catch (Exception e)
                     {
-                        Console.WriteLine(e);
+                        Console.WriteLine($"Failed... {e.Message}");
                     }
 
                     
@@ -840,7 +840,7 @@ namespace zero.sync
                         }
                         catch (Exception e)
                         {
-                            Console.WriteLine(e);
+                            Console.WriteLine($"Failed... {e.Message}");
                         }
                     }
                     Console.Write($"({i3}-{q.Count})");
@@ -1131,7 +1131,7 @@ namespace zero.sync
                            }
                            catch (Exception e)
                            {
-                               Console.WriteLine(e);
+                               Console.WriteLine($"Failed... {e.Message}");
                            }
                        }
                        
@@ -1179,7 +1179,7 @@ namespace zero.sync
                 }
                 catch(Exception e)
                 {
-                    Console.WriteLine(e);
+                    Console.WriteLine($"Failed... {e.Message}");
                 }
                 finally
                 {

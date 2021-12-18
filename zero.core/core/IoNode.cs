@@ -100,7 +100,7 @@ namespace zero.core.core
         /// </summary>
         [IoParameter]
         // ReSharper disable once InconsistentNaming
-        protected int parm_nb_teardown_timeout_s  = 10; //currently takes 2 seconds to up
+        protected int parm_nb_teardown_timeout_s  = 60; //currently takes 2 seconds to up
 
         /// <summary>
         /// TCP read ahead
@@ -198,9 +198,9 @@ namespace zero.core.core
                                                 {
                                                     try
                                                     {
-                                                        if (!existingNeighbor.Source.IsOperational && existingNeighbor.Uptime.ElapsedMsToSec() > @this.parm_zombie_connect_time_threshold_s)
+                                                        if (!existingNeighbor.Source.IsOperational && existingNeighbor.UpTime.ElapsedMsToSec() > @this.parm_zombie_connect_time_threshold_s)
                                                         {
-                                                            var errMsg = $"{nameof(SpawnListenerAsync)}: Connection {newNeighbor.Key} [REPLACED], existing {existingNeighbor.Key} with uptime {existingNeighbor.Uptime.ElapsedMs()}ms [DC]";
+                                                            var errMsg = $"{nameof(SpawnListenerAsync)}: Connection {newNeighbor.Key} [REPLACED], existing {existingNeighbor.Key} with uptime {existingNeighbor.UpTime.ElapsedMs()}ms [DC]";
                                                             @this._logger.Warn(errMsg);
 
                                                             //We remove the key here or async race conditions with the listener...
@@ -248,12 +248,7 @@ namespace zero.core.core
                         , ValueTuple.Create(@this, newNeighbor)).FastPath().ConfigureAwait(@this.Zc))
                             {
                                 //Start processing
-                                await @this.ZeroAsync(static async state =>
-                                {
-                                    var (@this, newNeighbor) = state;
-                                    await @this.BlockOnAssimilateAsync(newNeighbor).FastPath().ConfigureAwait(@this.Zc);
-                                }, ValueTuple.Create(@this, newNeighbor), TaskCreationOptions.DenyChildAttach).FastPath()
-                                .ConfigureAwait(@this.Zc);
+                                await @this.BlockOnAssimilateAsync(newNeighbor).FastPath().ConfigureAwait(@this.Zc);
                             }
                             else
                             {
@@ -296,7 +291,7 @@ namespace zero.core.core
                         if(!@this.Zeroed() && !newNeighbor.Zeroed())
                             @this._logger.Warn($"{nameof(newNeighbor.BlockOnReplicateAsync)}: [FAILED]... restarting...");
 
-                    }, ValueTuple.Create(this, newNeighbor, Zc), TaskCreationOptions.None).AsTask()).FastPath().ConfigureAwait(Zc);
+                    }, ValueTuple.Create(this, newNeighbor, Zc), TaskCreationOptions.DenyChildAttach).AsTask()).FastPath().ConfigureAwait(Zc);
 
                 await node.Value.ContinueWith(static async (_, state) =>
                 {
@@ -355,7 +350,7 @@ namespace zero.core.core
 
                                 //Existing and not broken neighbor?
                                 if (@this.Neighbors.TryGetValue(newNeighbor.Key, out var existingNeighbor) &&
-                                    existingNeighbor.Uptime.ElapsedMsToSec() > @this.parm_zombie_connect_time_threshold_s &&
+                                    existingNeighbor.UpTime.ElapsedMsToSec() > @this.parm_zombie_connect_time_threshold_s &&
                                     (existingNeighbor.Source?.IsOperational ?? false))
                                 {
                                     @this._logger.Warn($"{nameof(ConnectAsync)}: Connection {newNeighbor.Key} [DROPPED], existing {existingNeighbor.Key} [OK]");
@@ -366,7 +361,7 @@ namespace zero.core.core
                                     return true;
 
                                 var warnMsg =
-                                    $"{nameof(ConnectAsync)}: Connection {newNeighbor.Key} [REPLACED], existing {existingNeighbor.Key} with uptime {existingNeighbor.Uptime.ElapsedMs()}ms [DC]";
+                                    $"{nameof(ConnectAsync)}: Connection {newNeighbor.Key} [REPLACED], existing {existingNeighbor.Key} with uptime {existingNeighbor.UpTime.ElapsedMs()}ms [DC]";
                                 @this._logger.Warn(warnMsg);
 
                                 //Existing broken neighbor...
@@ -469,11 +464,9 @@ namespace zero.core.core
 
             await NeighborTasks.ZeroManagedAsync(static (neighborTask, @this) =>
             {
-                neighborTask.Wait(TimeSpan.FromSeconds(@this.parm_nb_teardown_timeout_s));
-
-                if (!neighborTask.IsCompletedSuccessfully)
+                if (!neighborTask.Wait(TimeSpan.FromSeconds(@this.parm_nb_teardown_timeout_s)))
                 {
-                    @this._logger.Warn(neighborTask.Exception, $"{nameof(IoNode<TJob>)}.{nameof(ZeroManagedAsync)}: {nameof(neighborTask)} exit [FAILED]");
+                    @this._logger.Warn(neighborTask.Exception, $"{nameof(IoNode<TJob>)}.{nameof(ZeroManagedAsync)}: {nameof(neighborTask)} exit slow...");
                 }
 
                 if (neighborTask.Status != TaskStatus.Running)
