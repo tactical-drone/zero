@@ -37,7 +37,7 @@ namespace zero.cocoon
         public CcCollective(CcDesignation ccDesignation, IoNodeAddress gossipAddress, IoNodeAddress peerAddress,
             IoNodeAddress fpcAddress, IoNodeAddress extAddress, List<IoNodeAddress> bootstrap, int udpPrefetch,
             int tcpPrefetch, int udpConcurrencyLevel, int tpcConcurrencyLevel, bool zeroDrone)
-            : base(gossipAddress, static (node, ioNetClient, extraData) => new CcDrone((CcCollective)node, (CcAdjunct)extraData, ioNetClient), tcpPrefetch, tpcConcurrencyLevel, 16 * 2) //TODO config
+            : base(gossipAddress, static (node, ioNetClient, extraData) => new CcDrone((CcCollective)node, (CcAdjunct)extraData, ioNetClient), tcpPrefetch, udpPrefetch, 16 * 2) //TODO config
         {
             _logger = LogManager.GetCurrentClassLogger();
             _gossipAddress = gossipAddress;
@@ -426,7 +426,7 @@ namespace zero.cocoon
         /// </summary>
         [IoParameter]
         // ReSharper disable once InconsistentNaming
-        public int parm_max_adjunct = 9 * 2;
+        public int parm_max_adjunct = 8 * 2;
 
         /// <summary>
         /// Protocol version
