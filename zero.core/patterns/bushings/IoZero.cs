@@ -268,17 +268,17 @@ namespace zero.core.patterns.bushings
         {
             await base.ZeroManagedAsync().FastPath().ConfigureAwait(Zc);
 
-            Source.ZeroAsync(this, $"{nameof(ZeroManagedAsync)}: teardown");
+            Source.Zero(this, $"{nameof(ZeroManagedAsync)}: teardown");
 
             await _queue.ZeroManagedAsync(static (sink, @this) =>
             {
-                sink.ZeroAsync(@this, $"{nameof(ZeroManagedAsync)}: teardown");
+                sink.Zero(@this, $"{nameof(ZeroManagedAsync)}: teardown");
                 return default;
             }, this,zero: true).FastPath().ConfigureAwait(Zc);
 
             await JobHeap.ZeroManagedAsync(static (sink, @this) =>
             {
-                sink.ZeroAsync(@this, $"{nameof(ZeroManagedAsync)}: teardown");
+                sink.Zero(@this, $"{nameof(ZeroManagedAsync)}: teardown");
                 return default;
             },this).FastPath().ConfigureAwait(Zc);
 
@@ -286,7 +286,7 @@ namespace zero.core.patterns.bushings
             {
                 await _previousJobFragment.ZeroManagedAsync(static (sink, @this) =>
                 {
-                    sink.ZeroAsync(@this, $"{nameof(ZeroManagedAsync)}: teardown");
+                    sink.Zero(@this, $"{nameof(ZeroManagedAsync)}: teardown");
                     return default;
                 }, this, zero: true).FastPath().ConfigureAwait(Zc);
             }
@@ -697,11 +697,7 @@ namespace zero.core.patterns.bushings
                         {
                             try
                             {
-                                //if (@this.Source.AsyncEnabled)
-                                //    preload[i] = @this.ZeroAsync(static async @this => await @this.ProduceAsync(),
-                                //        @this, TaskCreationOptions.DenyChildAttach);
-                                //else
-                                    preload[i] = @this.ProduceAsync();
+                                preload[i] = @this.ProduceAsync();
                             }
                             catch (Exception e)
                             {
@@ -736,10 +732,7 @@ namespace zero.core.patterns.bushings
                     {
                         try
                         {
-                            //if(@this.Source.AsyncEnabled)
-                            //    preload[i] = @this.ZeroAsync(static async @this => await @this.ConsumeAsync<object>(), @this, TaskCreationOptions.DenyChildAttach);
-                            //else
-                                preload[i] = @this.ConsumeAsync<object>();
+                            preload[i] = @this.ConsumeAsync<object>();
                         }
                         catch when (@this.Zeroed()) { }
                         catch (Exception e) when (!@this.Zeroed())

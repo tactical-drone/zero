@@ -176,7 +176,7 @@ namespace zero.core.network.ip
                 if (!connected)
                 {
                     var errMsg = $"{Description}: {nameof(ConnectAsync)} to {remoteAddress.Key} [FAILED]";
-                    ioNetClient!.ZeroAsync(this, errMsg);
+                    ioNetClient!.Zero(this, errMsg);
 
                     if (!Zeroed())
                         _logger.Error(errMsg);

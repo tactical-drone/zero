@@ -30,7 +30,7 @@ namespace zero.core.patterns.misc
         /// <summary>
         /// ZeroAsync pattern
         /// </summary>
-        void ZeroAsync(IIoNanite @from, string reason);
+        void Zero(IIoNanite @from, string reason);
         
         /// <summary>
         /// A description of this object

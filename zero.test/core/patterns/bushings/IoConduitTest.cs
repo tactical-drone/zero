@@ -32,7 +32,7 @@ namespace zero.test.core.patterns.bushings
             {
                 await Task.Delay(15).ConfigureAwait(false);
             }
-            c1.ZeroAsync(null,"test done");
+            c1.Zero(null,"test done");
             await z1.ConfigureAwait(false);
 
             Assert.InRange(ts.ElapsedMs(), 1000, 2000);
@@ -57,7 +57,7 @@ namespace zero.test.core.patterns.bushings
             {
                 await Task.Delay(15).ConfigureAwait(false);
             }
-            c1.ZeroAsync(null, "test done");
+            c1.Zero(null, "test done");
             await z1.ConfigureAwait(false);
 
             Assert.InRange(ts.ElapsedMs(), 1000, 2000 * 1.2);
@@ -83,7 +83,7 @@ namespace zero.test.core.patterns.bushings
             {
                 await Task.Delay(30).ConfigureAwait(false);
             }
-            c1.ZeroAsync(null, "test done");
+            c1.Zero(null, "test done");
             await z1.ConfigureAwait(false);
             var fpses = count * 1000 / ts.ElapsedMs() / 1000;
 
@@ -111,7 +111,7 @@ namespace zero.test.core.patterns.bushings
             {
                 await Task.Delay(50).ConfigureAwait(false);
             }
-            c1.ZeroAsync(null, "test done");
+            c1.Zero(null, "test done");
             await z1.ConfigureAwait(false);
 
             Assert.InRange(ts.ElapsedMs(), totalTimeMs/concurrencyLevel/2, totalTimeMs / concurrencyLevel * 1.25);

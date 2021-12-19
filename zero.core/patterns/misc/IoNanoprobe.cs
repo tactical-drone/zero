@@ -203,7 +203,7 @@ namespace zero.core.patterns.misc
         /// </summary>
         public void Dispose()
         {
-            ZeroAsync(this, $"{nameof(IDisposable)}");
+            Zero(this, $"{nameof(IDisposable)}");
         }
 
         /// <summary>
@@ -219,7 +219,7 @@ namespace zero.core.patterns.misc
         /// <summary>
         /// ZeroAsync
         /// </summary>
-        public void ZeroAsync(IIoNanite @from, string reason)
+        public void Zero(IIoNanite @from, string reason)
         {
             // Only once
             if (_zeroed > 0 || Interlocked.CompareExchange(ref _zeroed, 1, 0) != 0)
@@ -411,7 +411,7 @@ namespace zero.core.patterns.misc
                     {
                         if (zeroSub.Zeroed()) continue;
 
-                        zeroSub.ZeroAsync(this, $"[ZERO CASCADE] teardown from {desc}");
+                        zeroSub.Zero(this, $"[ZERO CASCADE] teardown from {desc}");
 
                         //throttle teardown so it floods in breadth
                         await Task.Delay(32).ConfigureAwait(Zc);
@@ -608,7 +608,7 @@ namespace zero.core.patterns.misc
         }
 
         /// <summary>
-        /// Async execution options. <see cref="ZeroAsync"/> needs trust, but verify...
+        /// Async execution options. <see cref="Zero"/> needs trust, but verify...
         /// </summary>
         /// <param name="continuation">The continuation</param>
         /// <param name="state">user state</param>
@@ -637,7 +637,7 @@ namespace zero.core.patterns.misc
                     catch (TaskCanceledException e) when ( nanoprobe != null && !nanoprobe.Zeroed() ||
                                                nanoprobe == null && @this._zeroed == 0)
                     {
-                        _logger.Trace(e,$"{Path.GetFileName(fileName)}:{methodName}() line {lineNumber} - [{@this.Description}]: {nameof(ZeroAsync)}");
+                        _logger.Trace(e,$"{Path.GetFileName(fileName)}:{methodName}() line {lineNumber} - [{@this.Description}]: {nameof(Zero)}");
                     }
 #else
                     catch (TaskCanceledException) { }
@@ -648,7 +648,7 @@ namespace zero.core.patterns.misc
                     catch (Exception e) when (nanoprobe != null && !nanoprobe.Zeroed() ||
                                               nanoprobe == null && @this._zeroed == 0)
                     {
-                        _logger.Error(e, $"{Path.GetFileName(fileName)}:{methodName}() line {lineNumber} - [{@this.Description}]: {nameof(ZeroAsync)}");
+                        _logger.Error(e, $"{Path.GetFileName(fileName)}:{methodName}() line {lineNumber} - [{@this.Description}]: {nameof(Zero)}");
                     }
 
                     return default;
@@ -665,14 +665,14 @@ namespace zero.core.patterns.misc
             catch(Exception) when (nanite.Zeroed()){}
             catch (Exception e) when (!nanite.Zeroed())
             {
-                throw ZeroException.ErrorReport(this, $"{nameof(ZeroAsync)} returned with errors!", e);
+                throw ZeroException.ErrorReport(this, $"{nameof(Zero)} returned with errors!", e);
             }
 
             return default;
         }
 
         /// <summary>
-        /// Async execution options. <see cref="ZeroAsync"/> needs trust, but verify...
+        /// Async execution options. <see cref="Zero"/> needs trust, but verify...
         /// </summary>
         /// <param name="continuation">The continuation</param>
         /// <param name="state">user state</param>
@@ -702,7 +702,7 @@ namespace zero.core.patterns.misc
                         catch (TaskCanceledException e) when ( nanoprobe != null && !nanoprobe.Zeroed() ||
                                                    nanoprobe == null && @this._zeroed == 0)
                         {
-                            _logger.Trace(e,$"{Path.GetFileName(fileName)}:{methodName}() line {lineNumber} - [{@this.Description}]: {nameof(ZeroAsync)}");
+                            _logger.Trace(e,$"{Path.GetFileName(fileName)}:{methodName}() line {lineNumber} - [{@this.Description}]: {nameof(Zero)}");
                         }
 #else
                     catch (TaskCanceledException) { }
@@ -713,7 +713,7 @@ namespace zero.core.patterns.misc
                     catch (Exception e) when (nanoprobe != null && !nanoprobe.Zeroed() ||
                                               nanoprobe == null && @this._zeroed == 0)
                     {
-                        _logger.Error(e, $"{Path.GetFileName(fileName)}:{methodName}() line {lineNumber} - [{@this.Description}]: {nameof(ZeroAsync)}");
+                        _logger.Error(e, $"{Path.GetFileName(fileName)}:{methodName}() line {lineNumber} - [{@this.Description}]: {nameof(Zero)}");
                     }
 
 
@@ -732,12 +732,12 @@ namespace zero.core.patterns.misc
             catch (Exception) when (nanite.Zeroed()) { }
             catch (Exception e) when (!nanite.Zeroed())
             {
-                throw ZeroException.ErrorReport(this, $"{nameof(ZeroAsync)} returned with errors!", e);
+                throw ZeroException.ErrorReport(this, $"{nameof(Zero)} returned with errors!", e);
             }
         }
 
         /// <summary>
-        /// Async execution options. <see cref="ZeroAsync"/> needs trust, but verify...
+        /// Async execution options. <see cref="Zero"/> needs trust, but verify...
         /// </summary>
         /// <param name="continuation">The continuation</param>
         /// <param name="state">user state</param>
@@ -753,7 +753,7 @@ namespace zero.core.patterns.misc
         }
 
         /// <summary>
-        /// Async execution options. <see cref="ZeroAsync"/> needs trust, but verify...
+        /// Async execution options. <see cref="Zero"/> needs trust, but verify...
         /// </summary>
         /// <param name="continuation">The continuation</param>
         /// <param name="state">user state</param>
@@ -770,7 +770,7 @@ namespace zero.core.patterns.misc
         }
 
         /// <summary>
-        /// Async execution options. <see cref="ZeroAsync"/> needs trust, but verify...
+        /// Async execution options. <see cref="Zero"/> needs trust, but verify...
         /// </summary>
         /// <param name="continuation">The continuation</param>
         /// <param name="state">user state</param>
@@ -797,7 +797,7 @@ namespace zero.core.patterns.misc
         }
 
         /// <summary>
-        /// Async execution options. <see cref="ZeroAsync"/> needs trust, but verify...
+        /// Async execution options. <see cref="Zero"/> needs trust, but verify...
         /// </summary>
         /// <param name="continuation">The continuation</param>
         /// <param name="state">user state</param>

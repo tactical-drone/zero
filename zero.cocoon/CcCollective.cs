@@ -267,17 +267,16 @@ namespace zero.cocoon
             await base.ZeroManagedAsync().FastPath().ConfigureAwait(Zc);
 
             var autoPeeringDesc = _autoPeering.Description;
-            _autoPeering.ZeroAsync(this, $"{nameof(ZeroManagedAsync)}: teardown");
+            _autoPeering.Zero(this, $"{nameof(ZeroManagedAsync)}: teardown");
 
-            _autoPeeringTask.Wait(TimeSpan.FromSeconds(parm_hub_teardown_timeout_s));
-
-            if (!_autoPeeringTask.IsCompletedSuccessfully)
+            
+            if (!_autoPeeringTask.Wait(TimeSpan.FromSeconds(parm_hub_teardown_timeout_s)))
             {
                 _logger.Warn(_autoPeeringTask.Exception,$"{nameof(CcCollective)}.{nameof(ZeroManagedAsync)}: {nameof(_autoPeeringTask)} exit [FAILED], {autoPeeringDesc}");
             }
 
             var id = Hub.Router?.Designation?.IdString();
-            DupSyncRoot.ZeroAsync(this, $"{nameof(ZeroManagedAsync)}: teardown");
+            DupSyncRoot.Zero(this, $"{nameof(ZeroManagedAsync)}: teardown");
             await DupHeap.ZeroManagedAsync<object>().FastPath().ConfigureAwait(false);
             DupChecker.Clear();
 
@@ -464,7 +463,7 @@ namespace zero.cocoon
         /// </summary>
         [IoParameter]
         // ReSharper disable once InconsistentNaming
-        public int parm_hub_teardown_timeout_s = 10;
+        public int parm_hub_teardown_timeout_s = 60;
 
 
         /// <summary>
@@ -964,7 +963,7 @@ namespace zero.cocoon
                     var drone = await ConnectAsync(IoNodeAddress.CreateFromEndpoint("tcp", adjunct.RemoteAddress.IpEndPoint) , adjunct, timeout:adjunct.parm_max_network_latency_ms * 2).FastPath().ConfigureAwait(Zc);
                     if (Zeroed() || drone == null || ((CcDrone)drone).Adjunct.Zeroed())
                     {
-                        if (drone != null) drone.ZeroAsync(this, $"{nameof(ConnectAsync)} was not successful [OK]");
+                        if (drone != null) drone.Zero(this, $"{nameof(ConnectAsync)} was not successful [OK]");
                         _logger.Debug($"{nameof(ConnectToDroneAsync)}: [ABORTED], {adjunct.Description}, {adjunct.MetaDesc}");
                         return false;
                     }
@@ -994,7 +993,7 @@ namespace zero.cocoon
                     else
                     {
                         _logger.Debug($"+|{drone.Description}");
-                        drone.ZeroAsync(this, "RACED");
+                        drone.Zero(this, "RACED");
                     }
 
                     return false;

@@ -133,7 +133,7 @@ namespace zero.core.network.ip
         public override async ValueTask ZeroManagedAsync()
         {
             await base.ZeroManagedAsync().FastPath().ConfigureAwait(Zc);
-            IoNetSocket.ZeroAsync(this, $"{nameof(ZeroManagedAsync)}: teardown");
+            IoNetSocket.Zero(this, $"{nameof(ZeroManagedAsync)}: teardown");
         }
 
         /// <summary>

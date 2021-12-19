@@ -125,7 +125,7 @@ namespace zero.core.core
             //clear previous attempts
             if (_netServer != null)
             {
-                _netServer.ZeroAsync(this, "Recycled");
+                _netServer.Zero(this, "Recycled");
                 _netServer = null;
                 return;
             }
@@ -158,7 +158,7 @@ namespace zero.core.core
                             if (!await acceptConnection(newNeighbor, nanite).FastPath().ConfigureAwait(@this.Zc))
                             {
                                 @this._logger.Trace($"Incoming connection from {ioNetClient.Key} rejected.");
-                                newNeighbor.ZeroAsync(@this,$"Incoming connection from {ioNetClient.Key} not accepted");
+                                newNeighbor.Zero(@this,$"Incoming connection from {ioNetClient.Key} not accepted");
                             }
                         }, (@this, newNeighbor, acceptConnection, nanite, ioNetClient), TaskCreationOptions.DenyChildAttach, unwrap:true).AsTask();
                     }
@@ -166,7 +166,7 @@ namespace zero.core.core
                 }
                 catch (Exception e)
                 {
-                    newNeighbor.ZeroAsync(@this,$"{nameof(acceptConnection)} Exception: {e.Message}");
+                    newNeighbor.Zero(@this,$"{nameof(acceptConnection)} Exception: {e.Message}");
 
                     @this._logger.Error(e, $"Accepting connection {ioNetClient.Key} returned with errors");
                     return;
@@ -205,7 +205,7 @@ namespace zero.core.core
 
                                                             //We remove the key here or async race conditions with the listener...
                                                             @this.Neighbors.Remove(existingNeighbor.Key, out _);
-                                                            existingNeighbor.ZeroAsync(@this,errMsg);
+                                                            existingNeighbor.Zero(@this,errMsg);
                                                             continue;
                                                         }
 
@@ -252,7 +252,7 @@ namespace zero.core.core
                             }
                             else
                             {
-                                newNeighbor.ZeroAsync(@this, "Failed to add new node...");
+                                newNeighbor.Zero(@this, "Failed to add new node...");
                             }
                         }
                     }, (@this, newNeighbor)).ConfigureAwait(@this.Zc);
@@ -365,7 +365,7 @@ namespace zero.core.core
                                 @this._logger.Warn(warnMsg);
 
                                 //Existing broken neighbor...
-                                existingNeighbor.ZeroAsync(@this, warnMsg);
+                                existingNeighbor.Zero(@this, warnMsg);
 
                                 @this.Neighbors.TryRemove(newNeighbor.Key, out _);
 
@@ -380,7 +380,7 @@ namespace zero.core.core
                     else
                     {
                         _logger.Debug($"Neighbor with id = {newNeighbor.Key} already exists! Closing connection from {newClient.IoNetSocket.RemoteNodeAddress} ...");
-                        newNeighbor.ZeroAsync(this, "Dropped, connection already exists");
+                        newNeighbor.Zero(this, "Dropped, connection already exists");
                     }
                 }
             }
@@ -392,7 +392,7 @@ namespace zero.core.core
             {
                 if (newClient != null && newNeighbor == null)
                 {
-                    newClient.ZeroAsync(this, $"{nameof(newClient)} is not null but {nameof(newNeighbor)} is. Should not be...");
+                    newClient.Zero(this, $"{nameof(newClient)} is not null but {nameof(newNeighbor)} is. Should not be...");
                 }
             }
 
@@ -414,7 +414,7 @@ namespace zero.core.core
                     if (!Zeroed())
                         _logger.Warn($"Listener restart... {Description}");
                     else
-                        ZeroAsync(this, "Zeroed");
+                        Zero(this, "Zeroed");
                 }
 
                 if(!Zeroed())
@@ -455,12 +455,12 @@ namespace zero.core.core
 
             foreach (var ioNeighbor in Neighbors.Values)
             {
-                ioNeighbor.ZeroAsync(this, $"{nameof(ZeroManagedAsync)}: teardown");
+                ioNeighbor.Zero(this, $"{nameof(ZeroManagedAsync)}: teardown");
             }
 
             Neighbors.Clear();
 
-            _netServer?.ZeroAsync(this, $"{nameof(ZeroManagedAsync)}: teardown");
+            _netServer?.Zero(this, $"{nameof(ZeroManagedAsync)}: teardown");
 
             await NeighborTasks.ZeroManagedAsync(static (neighborTask, @this) =>
             {
@@ -468,9 +468,6 @@ namespace zero.core.core
                 {
                     @this._logger.Warn(neighborTask.Exception, $"{nameof(IoNode<TJob>)}.{nameof(ZeroManagedAsync)}: {nameof(neighborTask)} exit slow...");
                 }
-
-                if (neighborTask.Status != TaskStatus.Running)
-                    neighborTask.Dispose();
                 return default;
             }, this, zero:true).FastPath().ConfigureAwait(Zc);
         }
@@ -502,7 +499,7 @@ namespace zero.core.core
                   });
 
 
-                Neighbors[address.ToString()].ZeroAsync(this, "blacklisted");
+                Neighbors[address.ToString()].Zero(this, "blacklisted");
 
                 Neighbors.TryRemove(address.ToString(), out var ioNeighbor);
                 return Task.FromResult(ioNeighbor);

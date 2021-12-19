@@ -255,7 +255,7 @@ namespace zero.core.patterns.queue
                         if (item is IIoNanite ioNanite)
                         {
                             if (!ioNanite.Zeroed())
-                                ioNanite.ZeroAsync((IIoNanite)nanite, string.Empty);
+                                ioNanite.Zero((IIoNanite)nanite, string.Empty);
                         }                        
                     }
                     catch (InvalidCastException){}

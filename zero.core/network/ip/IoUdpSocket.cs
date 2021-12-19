@@ -412,7 +412,7 @@ namespace zero.core.network.ip
             {
                 var errMsg = $"Sending to {NativeSocket.LocalAddress()} ~> udp://{endPoint} failed, z = {Zeroed()}, zf = {ZeroedFrom?.Description}:";
                 _logger.Error(e, errMsg);
-                ZeroAsync(this, errMsg);
+                Zero(this, errMsg);
             }
             finally
             {
@@ -512,7 +512,7 @@ namespace zero.core.network.ip
                     catch (Exception e) when (!Zeroed())
                     {
                         _logger.Error(e, "Receive udp failed:");
-                        ZeroAsync(this, $"{nameof(NativeSocket.ReceiveFromAsync)}: [FAILED] {e.Message}");
+                        Zero(this, $"{nameof(NativeSocket.ReceiveFromAsync)}: [FAILED] {e.Message}");
                     }
                     finally
                     {
@@ -559,7 +559,7 @@ namespace zero.core.network.ip
             {
                 var errMsg = $"Unable to read from socket: {Description}";
                 _logger?.Error(e, errMsg);
-                ZeroAsync(this, errMsg);
+                Zero(this, errMsg);
             }
             finally
             {
@@ -613,7 +613,7 @@ namespace zero.core.network.ip
             }
             catch (ObjectDisposedException d)
             {
-                ZeroAsync(this, $"{nameof(IsConnected)}: {d.Message}");
+                Zero(this, $"{nameof(IsConnected)}: {d.Message}");
             }
             catch when(Zeroed()){}
             catch (Exception e) when(!Zeroed())

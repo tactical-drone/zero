@@ -72,7 +72,7 @@ namespace zero.core.core
             
             if (Node.Neighbors.TryRemove(Key, out var zeroNeighbor))
             {
-                zeroNeighbor.ZeroAsync(this, $"{nameof(ZeroManagedAsync)}: teardown");
+                zeroNeighbor.Zero(this, $"{nameof(ZeroManagedAsync)}: teardown");
                 _logger.Trace($"Removed {zeroNeighbor?.Description}");
             }
             else
