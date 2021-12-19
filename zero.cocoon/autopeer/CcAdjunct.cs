@@ -2438,8 +2438,7 @@ namespace zero.cocoon.autopeer
                     }
                 }
 
-                if (!CcCollective.ZeroDrone && ((int)heading & (int)Heading.Ingress) > 0 && CcCollective.IngressCount < CcCollective.parm_max_inbound
-                    && UpTime.ElapsedMs() > parm_min_uptime_ms)
+                if (!CcCollective.ZeroDrone && ((int)heading & (int)Heading.Ingress) > 0 && CcCollective.IngressCount < CcCollective.parm_max_inbound)
                 {
                     var proxy = dmzEndpoint == null ? this : Router;
                     //delta trigger
