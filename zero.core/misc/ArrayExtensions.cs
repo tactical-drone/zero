@@ -1,7 +1,6 @@
 ﻿using System;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
-using System.Security.Cryptography;
 using NLog;
 
 namespace zero.core.misc
@@ -24,7 +23,7 @@ namespace zero.core.misc
         }
 
         /// <summary>
-        /// Casts <see cref="Memory{T}" to <see cref="ArraySegment{T}"/>/>
+        /// Casts <see cref="Memory{T}"/> to <see cref="ArraySegment{T}"/>
         /// </summary>
         /// <param name="memory">The memory</param>
         /// <returns>The array segment</returns>
@@ -35,7 +34,7 @@ namespace zero.core.misc
         }
 
         /// <summary>
-        /// Casts <see cref="Memory{T}" to <see cref="ArraySegment{T}"/>/>
+        /// Casts <see cref="Memory{T}"/> to <see cref="ArraySegment{T}"/>
         /// </summary>
         /// <param name="memory">The memory</param>
         /// <returns>The array segment</returns>
@@ -144,32 +143,7 @@ namespace zero.core.misc
         /// <returns>A weak hash</returns>
         public static long ZeroHash(this byte[] array)
         {
-            var strides = array.Length / sizeof(long);
-            var remainder = array.Length % sizeof(long);
-            long hash = 1;
-
-            for (var i = 0; i < strides; i++)
-            {
-                hash = MemoryMarshal.Read<long>(array.AsSpan()[(i * sizeof(long))..]) ^ hash;
-            }
-
-            if (remainder >= sizeof(int))
-            {
-                var start = strides * 2;
-                strides = start + remainder / sizeof(int);
-                remainder = array.Length % sizeof(int);
-                for (var i = start; i < strides; i++)
-                {
-                    hash = MemoryMarshal.Read<int>(array.AsSpan()[(i * sizeof(int))..]) ^ hash;
-                }
-            }
-
-            for (var i = 0; i < remainder; i++)
-            {
-                hash += array[i];
-            }
-
-            return hash;
+            return ((ReadOnlySpan<byte>)array).ZeroHash();
         }
 
         /// <summary>
@@ -179,32 +153,7 @@ namespace zero.core.misc
         /// <returns>A weak hash</returns>
         public static long ZeroHash(this Span<byte> array)
         {
-            var strides = array.Length / sizeof(long);
-            var remainder = array.Length % sizeof(long);
-            long hash = 1;
-
-            for (var i = 0; i < strides; i++)
-            {
-                hash = MemoryMarshal.Read<long>(array[(i * sizeof(long))..]) ^ hash;
-            }
-
-            if (remainder >= sizeof(int))
-            {
-                var start = strides * 2;
-                strides = start + remainder / sizeof(int);
-                remainder = array.Length % sizeof(int);
-                for (var i = start; i < strides; i++)
-                {
-                    hash = MemoryMarshal.Read<int>(array[(i * sizeof(int))..]) ^ hash;
-                }
-            }
-
-            for (var i = 0; i < remainder; i++)
-            {
-                hash += array[i];
-            }
-
-            return hash;
+            return ((ReadOnlySpan<byte>)array).ZeroHash();
         }
 
         /// <summary>
@@ -216,11 +165,11 @@ namespace zero.core.misc
         {
             var strides = array.Length / sizeof(long);
             var remainder = array.Length % sizeof(long);
-            long hash = 1;
+            long hash = 0xacacacacacacaca;
 
             for (var i = 0; i < strides; i++)
             {
-                hash = MemoryMarshal.Read<long>(array[(i * sizeof(long))..]) ^ hash;
+                hash = MemoryMarshal.Read<long>(array[(i * sizeof(long))..]) ^ hash ^ ((hash >> 31) | (hash << 32)) ^ i;
             }
 
             if (remainder >= sizeof(int))
@@ -230,13 +179,13 @@ namespace zero.core.misc
                 remainder = array.Length % sizeof(int);
                 for (var i = start; i < strides; i++)
                 {
-                    hash = MemoryMarshal.Read<int>(array[(i * sizeof(int))..]) ^ hash;
+                    hash = MemoryMarshal.Read<int>(array[(i * sizeof(int))..]) ^ hash ^ ((hash >> 15) | (hash << 16)) ^ i;
                 }
             }
 
             for (var i = 0; i < remainder; i++)
             {
-                hash += array[i];
+                hash ^= (array[i] << (i << 2)) ^ ((array[i] >> 3) | (array[i] << 4)) ^ i;
             }
 
             return hash;
