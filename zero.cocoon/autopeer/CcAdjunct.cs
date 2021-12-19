@@ -1053,15 +1053,15 @@ namespace zero.cocoon.autopeer
             if (proxy != null)
             {
 #if DEBUG
-                if (proxy.Designation.PkString() != CcDesignation.MakeKey(publicKey))
+                if (proxy.Designation.IdString() != CcDesignation.MakeKey(publicKey))
                 {
                     if (alternate != null)
                     {
                         var badProxy = proxy;
                         proxy = RouteRequest(alternate, publicKey);
-                        if (proxy.IsProxy && proxy.Designation.PkString() != CcDesignation.MakeKey(publicKey))
+                        if (proxy.IsProxy && proxy.Designation.IdString() != CcDesignation.MakeKey(publicKey))
                         {
-                            _logger!.Warn($"Invalid routing detected wanted = {proxy.Designation.PkString()} - {proxy.RemoteAddress.IpEndPoint}, got = {CcDesignation.MakeKey(publicKey)} - {srcEndPoint}");
+                            _logger!.Warn($"Invalid routing detected wanted = {proxy.Designation.IdString()} - {proxy.RemoteAddress.IpEndPoint}, got = {CcDesignation.MakeKey(publicKey)} - {srcEndPoint}");
                             proxy = Router;
                         }
                     }
