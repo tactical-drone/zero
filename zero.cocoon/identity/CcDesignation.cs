@@ -25,32 +25,25 @@ namespace zero.cocoon.identity
         public static SHA256 Sha256 => _sha256 ??= SHA256.Create();
 
         private string _id;
-        private byte[] Id { get; set; }
         public byte[] PublicKey { get; set; }
         private byte[] SecretKey { get; set; }
 
         private const string DevKey = "2BgzYHaa9Yp7TW6QjCe7qWb2fJxXg8xAeZpohW3BdqQZp41g3u";
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static string MakeKey(byte[] publicKey)
+        public static string MakeKey(byte[] keyBytes)
         {
-            return Convert.ToBase64String(publicKey.AsSpan()[..10])[..^2];
+            return Convert.ToBase64String(keyBytes.AsSpan()[..10])[..^2];
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static string MakeKey(ByteString publicKey)
+        public static string MakeKey(ByteString keyBytes)
         {
-            return Convert.ToBase64String(publicKey.Span[..10])[..^2];
+            return Convert.ToBase64String(keyBytes.Span[..10])[..^2];
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public string IdString()
-        {
-            return _id ??= MakeKey(Id);
-        }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public string PkString()
         {
             return _id ??= MakeKey(PublicKey);
         }
@@ -61,15 +54,14 @@ namespace zero.cocoon.identity
             var pkBuf = pk.AsArray();
             return new CcDesignation
             {
-                PublicKey = pkBuf,
-                Id = Sha256.ComputeHash(pkBuf)
+                PublicKey = pkBuf
             };
         }
 
         [ThreadStatic] private static readonly SecureRandom SecureRandom;
         public static CcDesignation Generate(bool devMode = false)
         {
-            var skBuf = Encoding.ASCII.GetBytes(DevKey) ;
+            var skBuf = Encoding.ASCII.GetBytes(DevKey);
             var pkBuf = new byte[Ed25519.PublicKeySize];
             
             if (!devMode)
@@ -80,8 +72,7 @@ namespace zero.cocoon.identity
             return new CcDesignation
             {
                 PublicKey = pkBuf,
-                SecretKey = skBuf,
-                Id = Sha256.ComputeHash(pkBuf)
+                SecretKey = skBuf
             };
         }
 

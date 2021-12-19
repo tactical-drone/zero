@@ -509,7 +509,9 @@ namespace zero.core.patterns.misc
             ZeroedFrom = null;
             _zeroHive = null;
             _zeroHiveMind = null;
+#if !DEBUG
             ZeroReason = null;
+#endif
             ZeroedFrom = null;
             _zeroRoot = null;
 #endif

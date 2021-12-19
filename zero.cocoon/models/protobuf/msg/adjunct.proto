@@ -19,6 +19,7 @@ message CcProbeResponse {
   int64 timestamp = 2;
   bytes req_hash = 3;  
   int64 status = 4;
+  int64 dbgPtr = 5;
 }
 
 message CcFuseRequest {  

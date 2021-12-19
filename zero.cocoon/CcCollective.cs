@@ -515,10 +515,8 @@ namespace zero.cocoon
                     //Handshake
                     if (await @this.FutileAsync((CcDrone)drone).FastPath().ConfigureAwait(@this.Zc))
                     {
-                        await Task.Delay(@this.parm_futile_timeout_ms/2, @this.AsyncTasks.Token);
-                        await ((CcDrone)drone).Adjunct.ProbeAsync("SYN-INS").FastPath().ConfigureAwait(@this.Zc);
-                        await Task.Delay(@this.parm_futile_timeout_ms/2, @this.AsyncTasks.Token);
-                        
+                        await Task.Delay(@this.parm_futile_timeout_ms / 2, @this.AsyncTasks.Token);
+
                         if (drone.Zeroed())
                         {
                             @this._logger.Debug($"+|{drone.Description}");
@@ -978,8 +976,6 @@ namespace zero.cocoon
                         {
                             var (@this, drone) = state;
 
-                            await Task.Delay(@this.parm_futile_timeout_ms / 2, @this.AsyncTasks.Token);
-                            await ((CcDrone)drone).Adjunct.ProbeAsync("SYN-INS").FastPath().ConfigureAwait(@this.Zc);
                             await Task.Delay(@this.parm_futile_timeout_ms / 2, @this.AsyncTasks.Token);
 
                             if (!drone.Zeroed())
