@@ -278,7 +278,7 @@ namespace zero.core.network.ip
         /// <param name="blacklist"></param>
         /// <param name="timeout">Sync read with timeout</param>
         /// <returns>The amounts of bytes read</returns>
-        public abstract ValueTask<int> ReadAsync(Memory<byte> buffer, int offset, int length, IPEndPoint remoteEp = null, byte[] blacklist = null, int timeout = 0);
+        public abstract ValueTask<int> ReadAsync(Memory<byte> buffer, int offset, int length, byte[] remoteEp = null, byte[] blacklist = null, int timeout = 0);
 
         /// <summary>
         /// Connection status

@@ -10,9 +10,9 @@ namespace zero.core.patterns.semaphore
     /// ManualResetValueTaskSource
     /// </summary>
     /// <typeparam name="T">The result type, can be anything</typeparam>
-    public sealed class IoManualResetValueTaskSource<T> : IValueTaskSource<T>, IValueTaskSource
+    public sealed class IoZeroResetValueTaskSource<T> : IValueTaskSource<T>, IValueTaskSource
     {
-        public IoManualResetValueTaskSource(bool asyncInline = false)
+        public IoZeroResetValueTaskSource(bool asyncInline = false)
         {
             _zeroCore.RunContinuationsAsynchronously = asyncInline;
         }

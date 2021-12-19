@@ -23,19 +23,9 @@ namespace zero.core.feat.misc
         {
             var buf = new byte[(address.AddressFamily == AddressFamily.InterNetworkV6? IPv6AddressBytes : IPv4AddressBytes) + 2];
             address.Address.TryWriteBytes(buf, out var w);
-            buf[w] = (byte)address.Port;
+            buf[w] = (byte)(address.Port & 0x00ff);
             buf[w+1] = (byte)(address.Port >> 8);
             return UnsafeByteOperations.UnsafeWrap(buf);
-        }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static byte[] AsBytes(this IPEndPoint address, byte[] buf = null)
-        {
-            buf ??= new byte[(address.AddressFamily == AddressFamily.InterNetworkV6 ? IPv6AddressBytes : IPv4AddressBytes) + 2];
-            address.Address.TryWriteBytes(buf, out var w);
-            buf[w] = (byte)address.Port;
-            buf[w + 1] = (byte)(address.Port >> 8);
-            return buf;
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]  
@@ -43,12 +33,6 @@ namespace zero.core.feat.misc
         {
             var buf = address.Memory.AsArray(); 
             return new IPEndPoint(new IPAddress(buf[..^2]), (buf[^1] << 8 | buf[^2]) & 0x0FFFF);
-        }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static IPEndPoint GetEndpoint(this byte[] buf)
-        {
-            return new IPEndPoint(new IPAddress(buf[..^2]), (buf[^1] << 8) | buf[^2] & 0x0FFFF);
         }
     }
 }

@@ -515,7 +515,9 @@ namespace zero.cocoon
                     //Handshake
                     if (await @this.FutileAsync((CcDrone)drone).FastPath().ConfigureAwait(@this.Zc))
                     {
-                        await Task.Delay(@this.parm_futile_timeout_ms, @this.AsyncTasks.Token);
+                        await Task.Delay(@this.parm_futile_timeout_ms/2, @this.AsyncTasks.Token);
+                        await ((CcDrone)drone).Adjunct.ProbeAsync("SYN-INS").FastPath().ConfigureAwait(@this.Zc);
+                        await Task.Delay(@this.parm_futile_timeout_ms/2, @this.AsyncTasks.Token);
                         
                         if (drone.Zeroed())
                         {
@@ -618,7 +620,7 @@ namespace zero.cocoon
                     {
                         
                         bytesRead += localRead = await ioNetSocket
-                            .ReadAsync(futileBuffer, bytesRead, _futileRequestSize - bytesRead, timeout:parm_futile_timeout_ms).FastPath()
+                            .ReadAsync(futileBuffer, bytesRead, _futileRequestSize - bytesRead, timeout: parm_futile_timeout_ms).FastPath()
                             .ConfigureAwait(Zc);
                     } while (bytesRead < _futileRequestSize && localRead > 0 && !Zeroed());
 
@@ -975,8 +977,11 @@ namespace zero.cocoon
                         await ZeroAsync(static async state =>
                         {
                             var (@this, drone) = state;
-                            await Task.Delay(@this.parm_futile_timeout_ms, @this.AsyncTasks.Token);
-                            
+
+                            await Task.Delay(@this.parm_futile_timeout_ms / 2, @this.AsyncTasks.Token);
+                            await ((CcDrone)drone).Adjunct.ProbeAsync("SYN-INS").FastPath().ConfigureAwait(@this.Zc);
+                            await Task.Delay(@this.parm_futile_timeout_ms / 2, @this.AsyncTasks.Token);
+
                             if (!drone.Zeroed())
                             {
                                 @this._logger.Info($"+ {drone.Description}");

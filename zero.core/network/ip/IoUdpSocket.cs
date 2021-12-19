@@ -4,13 +4,13 @@ using System.Net;
 using System.Net.Sockets;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
-using System.Threading;
 using System.Threading.Tasks;
 using NLog;
 using zero.core.misc;
 using zero.core.patterns.heap;
 using zero.core.patterns.misc;
 using zero.core.patterns.semaphore;
+using zero.core.patterns.semaphore.core;
 
 
 namespace zero.core.network.ip
@@ -105,6 +105,7 @@ namespace zero.core.network.ip
                     {
                         var args = new SocketAsyncEventArgs { RemoteEndPoint = new IPEndPoint(0, 0) };
                         args.Completed += @this.SignalAsync;
+                        args.RemoteEndPoint = new IPEndPoint(IPAddress.Any, 53);
                         return args;
                     },
                     Context = this
@@ -394,7 +395,7 @@ namespace zero.core.network.ip
                     throw new OutOfMemoryException(nameof(_sendArgs));
 
                 var buf = Unsafe.As<ReadOnlyMemory<byte>, Memory<byte>>(ref buffer).Slice(offset, length);
-                var send = new IoManualResetValueTaskSource<bool>();
+                var send = new IoZeroResetValueTaskSource<bool>();
 
                 args.UserToken = send;
                 args.SetBuffer(buf);
@@ -436,6 +437,11 @@ namespace zero.core.network.ip
         private IoHeap<SocketAsyncEventArgs, IoUdpSocket> _sendArgs;
 
 
+        /// <summary>
+        /// Interacts with <see cref="SocketAsyncEventArgs"/>
+        /// </summary>
+        /// <param name="sender">The socket</param>
+        /// <param name="eventArgs">The socket event args</param>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private void SignalAsync(object sender, SocketAsyncEventArgs eventArgs)
         {
@@ -468,7 +474,8 @@ namespace zero.core.network.ip
         /// <param name="blacklist"></param>
         /// <param name="timeout">Timeout after ms</param>
         /// <returns></returns>
-        public override async ValueTask<int> ReadAsync(Memory<byte> buffer, int offset, int length, IPEndPoint remoteEp, byte[] blacklist = null, int timeout = 0)
+        public override async ValueTask<int> ReadAsync(Memory<byte> buffer, int offset, int length, byte[] remoteEp,
+            byte[] blacklist = null, int timeout = 0)
         {
             if (remoteEp == null)
                 throw new ArgumentNullException(nameof(remoteEp));
@@ -491,19 +498,17 @@ namespace zero.core.network.ip
 
                         if (args == null)
                             throw new OutOfMemoryException(nameof(_recvArgs));
-                        var receive = new IoManualResetValueTaskSource<bool>();
-                        args.UserToken = receive;
+                        var recvSource = new IoManualResetValueTaskSource<bool>();
+                        var receiveAsync = new ValueTask<bool>(recvSource, 0);
+                        args.UserToken = recvSource;
                         args.SetBuffer(buffer.Slice(offset, length));
-                        args.RemoteEndPoint = remoteEp;
 
-                        if (NativeSocket.ReceiveFromAsync(args) && !await receive.WaitAsync().FastPath().ConfigureAwait(Zc))
+                        if (NativeSocket.ReceiveFromAsync(args) && !await receiveAsync.FastPath().ConfigureAwait(Zc))
                         {
                             return 0;
                         }
 
-                        remoteEp.Address = new IPAddress(((IPEndPoint)args.RemoteEndPoint).Address.GetAddressBytes());
-                        remoteEp.Port = ((IPEndPoint)args.RemoteEndPoint)!.Port;
-
+                        args.RemoteEndPoint.AsBytes(remoteEp);
                         return args.SocketError == SocketError.Success ? args.BytesTransferred : 0;
                     }
                     catch when (Zeroed())
@@ -531,17 +536,15 @@ namespace zero.core.network.ip
                     }
                 }
 
-                //TODO, not sure this works. 
-                EndPoint remoteEpAny = remoteEp;
+                //TODO, heapify 
+                EndPoint remoteEpAny = new IPEndPoint(0,0);
                 if (MemoryMarshal.TryGetArray((ReadOnlyMemory<byte>)buffer, out var tBuf))
                 {
                     NativeSocket.ReceiveTimeout = timeout;
                     var read = NativeSocket.ReceiveFrom(tBuf.Array!, offset, length, SocketFlags.None, ref remoteEpAny);
                     NativeSocket.ReceiveTimeout = 0;
 
-                    remoteEp.Address = new IPAddress(((IPEndPoint)remoteEpAny).Address.GetAddressBytes());
-                    remoteEp.Port = ((IPEndPoint)remoteEpAny)!.Port;
-
+                    remoteEpAny.AsBytes(remoteEp);
                     return read;
                 }
             }
@@ -578,7 +581,7 @@ namespace zero.core.network.ip
         {
             try
             {
-                var tcs = (IoManualResetValueTaskSource<ValueTuple<int, EndPoint>>)ar.AsyncState;
+                var tcs = (IoZeroResetValueTaskSource<ValueTuple<int, EndPoint>>)ar.AsyncState;
                 EndPoint ep = new IPEndPoint(IPAddress.Any, 0);
                 tcs.SetResult((NativeSocket.EndReceiveFrom(ar, ref ep), ep));
             }

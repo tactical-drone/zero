@@ -62,7 +62,6 @@ namespace zero.cocoon.autopeer
 
             //TODO tuning
             var capMult = CcCollective.ZeroDrone ? 100 : 1;
-            var ttlMult = CcCollective.ZeroDrone ? 10 : 1;
 
             _probeRequest = new IoZeroMatcher(nameof(_probeRequest), Source.PrefetchSize, parm_max_network_latency_ms * 3, (int)(CcCollective.MaxAdjuncts * parm_max_swept_drones * 2 * capMult));
             _fuseRequest = new IoZeroMatcher(nameof(_fuseRequest), Source.PrefetchSize, parm_max_network_latency_ms * 3, (int)(CcCollective.MaxAdjuncts* parm_max_swept_drones * 2 * capMult));
@@ -78,7 +77,7 @@ namespace zero.cocoon.autopeer
                 Key = Designation.PkString();
 
                 //to prevent cascading into the hub we clone the source.
-                Source = new IoUdpClient<CcProtocMessage<chroniton, CcDiscoveryBatch>>($"UDP IsProxy ~> {Description}", MessageService, RemoteAddress.IpEndPoint);
+                Source = new IoUdpClient<CcProtocMessage<chroniton, CcDiscoveryBatch>>($"UDP Proxy ~> {base.Description}", MessageService, RemoteAddress.IpEndPoint);
                 Source.ZeroHiveAsync(this).AsTask().GetAwaiter().GetResult();
 
                 CompareAndEnterState(verified ? AdjunctState.Verified : AdjunctState.Unverified, AdjunctState.Undefined);
@@ -112,50 +111,6 @@ namespace zero.cocoon.autopeer
             _stealthy = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() - parm_max_network_latency_ms * 10;
             var nrOfStates = Enum.GetNames(typeof(AdjunctState)).Length;
             _lastScan = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() - CcCollective.parm_mean_pat_delay_s * 1000 * 2;
-        }
-
-        /// <summary>
-        /// Robotech
-        /// </summary>
-        /// <param name="this"></param>
-        /// <returns></returns>
-        private static async ValueTask RoboAsync(CcAdjunct @this)
-        {
-            try
-            {
-                while (!@this.Zeroed())
-                {
-                    var targetDelay = (@this._random.Next(@this.CcCollective.parm_mean_pat_delay_s / 5) + @this.CcCollective.parm_mean_pat_delay_s / 4) * 1000;
-                    var ts = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-                    await Task.Delay(targetDelay, @this.AsyncTasks.Token).ConfigureAwait(@this.Zc);
-
-                    if (@this.Zeroed())
-                        break;
-
-                    if (ts.ElapsedMs() > targetDelay * 1.25 && ts.ElapsedMsToSec() > 0)
-                    {
-                        @this._logger.Warn($"{@this.Description}: Popdog is slow!!!, {(ts.ElapsedMs() - targetDelay) / 1000.0:0.0}s");
-                    }
-
-                    try
-                    {
-                        await @this.EnsureRoboticsAsync().FastPath().ConfigureAwait(@this.Zc);
-                    }
-                    catch (Exception) when (@this.Zeroed()) {}
-                    catch (Exception e) when (!@this.Zeroed())
-                    {
-                        if (@this.Collected)
-                            @this._logger.Fatal(e, $"{@this.Description}: Watchdog returned with errors!");
-                    }
-                }
-            }
-            finally
-            {
-                if (!@this.Zeroed())
-                {
-                    @this._logger.Fatal($"{@this.Description}: WATCHDOG died!!!");
-                }
-            }
         }
 
         public enum AdjunctState
@@ -292,13 +247,13 @@ namespace zero.cocoon.autopeer
 
         private volatile int _fusedCount;
         /// <summary>
-        /// Indicates whether we have successfully established a connection before
+        /// The number of fuse requests received
         /// </summary>
         protected int FusedCount => _fusedCount;
 
         private volatile int _fuseCount;
         /// <summary>
-        /// Number of fuse requests
+        /// Number of fuse requests sent
         /// </summary>
         public int FuseCount => _fuseCount;
 
@@ -701,6 +656,50 @@ namespace zero.cocoon.autopeer
 
             //Array.Clear(_produceTaskPool,0, _produceTaskPool.Length);
             //Array.Clear(_produceTaskPool, 0, _consumeTaskPool.Length);
+        }
+
+        /// <summary>
+        /// Robotech
+        /// </summary>
+        /// <param name="this"></param>
+        /// <returns></returns>
+        private static async ValueTask RoboAsync(CcAdjunct @this)
+        {
+            try
+            {
+                while (!@this.Zeroed())
+                {
+                    var targetDelay = (@this._random.Next(@this.CcCollective.parm_mean_pat_delay_s / 5) + @this.CcCollective.parm_mean_pat_delay_s / 4) * 1000;
+                    var ts = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+                    await Task.Delay(targetDelay, @this.AsyncTasks.Token).ConfigureAwait(@this.Zc);
+
+                    if (@this.Zeroed())
+                        break;
+
+                    if (ts.ElapsedMs() > targetDelay * 1.25 && ts.ElapsedMsToSec() > 0)
+                    {
+                        @this._logger.Warn($"{@this.Description}: Popdog is slow!!!, {(ts.ElapsedMs() - targetDelay) / 1000.0:0.0}s");
+                    }
+
+                    try
+                    {
+                        await @this.EnsureRoboticsAsync().FastPath().ConfigureAwait(@this.Zc);
+                    }
+                    catch (Exception) when (@this.Zeroed()) { }
+                    catch (Exception e) when (!@this.Zeroed())
+                    {
+                        if (@this.Collected)
+                            @this._logger.Fatal(e, $"{@this.Description}: Watchdog returned with errors!");
+                    }
+                }
+            }
+            finally
+            {
+                if (!@this.Zeroed())
+                {
+                    @this._logger.Fatal($"{@this.Description}: WATCHDOG died!!!");
+                }
+            }
         }
 
         /// <summary>
@@ -1329,12 +1328,6 @@ namespace zero.cocoon.autopeer
         /// <param name="packet">The original packet</param>
         private async ValueTask ProcessAsync(CcDefuseRequest request, IPEndPoint src, chroniton packet)
         {
-            //Drop old stuff
-            if (request.Timestamp.ElapsedMs() > parm_max_network_latency_ms * 2)
-            {
-                return;
-            }
-
             if (!Assimilating)
             {
                 if(IsProxy)
@@ -1702,14 +1695,7 @@ namespace zero.cocoon.autopeer
         {
             Interlocked.Increment(ref _scanCount);
 
-            //Drop old stuff
-            if (response.Timestamp.ElapsedMs() > parm_max_network_latency_ms * 2)
-            {
-                return;
-            }
-
             var matchRequest = await _scanRequest.ResponseAsync(src.ToString(), response.ReqHash).FastPath().ConfigureAwait(Zc);
-
             if(!matchRequest)
                 matchRequest = await Router._scanRequest.ResponseAsync(src.ToString(), response.ReqHash).FastPath().ConfigureAwait(Zc);
 
@@ -2085,9 +2071,7 @@ namespace zero.cocoon.autopeer
                         @this.CcCollective.IngressCount < @this.CcCollective.parm_max_inbound &&
                         @this.Hub?.Router != null)
                     {
-                        @this._fuseCount = -@this.parm_zombie_max_connection_attempts;
-                        
-                        return;
+                        @this._fuseCount = 0;
                     }
                 }
                 else
@@ -2290,12 +2274,6 @@ namespace zero.cocoon.autopeer
         /// <param name="packet">The original packet</param>
         private async ValueTask ProcessAsync(CcProbeResponse response, IPEndPoint src, chroniton packet)
         {
-            //Drop old stuff
-            if (response.Timestamp.ElapsedMs() > parm_max_network_latency_ms)
-            {
-                return;
-            }
-
             var matchRequest = await _probeRequest.ResponseAsync(src.ToString(), response.ReqHash).FastPath().ConfigureAwait(Zc);
             
             //Try the router

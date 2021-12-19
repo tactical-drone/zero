@@ -463,7 +463,7 @@ namespace zero.cocoon.models
                         var batchMsg = _currentBatch[Interlocked.Increment(ref _currentBatch.Count) - 1];
                         batchMsg.EmbeddedMsg = request;
                         batchMsg.Message = packet;
-                        batchMsg.EndPoint = RemoteEndPoint.AsBytes(batchMsg.EndPoint);
+                        batchMsg.EndPoint = RemoteEndPoint;
                     }
                     else
                     {
@@ -472,8 +472,8 @@ namespace zero.cocoon.models
                         batchMsg.EmbeddedMsg = request;
                         batchMsg.Message = packet;
 
-                        var remoteEp = RemoteEndPoint.AsBytes();
-                        if (!_currentBatch.GroupBy.TryAdd(RemoteEndPoint.AsBytes().ZeroHash(), Tuple.Create(remoteEp, new List<CcDiscoveryMessage>(_currentBatch.Messages))))
+                        var remoteEp = RemoteEndPoint;
+                        if (!_currentBatch.GroupBy.TryAdd(RemoteEndPoint.ZeroHash(), Tuple.Create(remoteEp, new List<CcDiscoveryMessage>(_currentBatch.Messages))))
                         {
                             _currentBatch.GroupBy[remoteEp.ZeroHash()].Item2.Add(batchMsg);
                         }

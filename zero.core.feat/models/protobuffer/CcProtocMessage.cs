@@ -7,6 +7,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Google.Protobuf;
 using zero.core.conf;
+using zero.core.misc;
 using zero.core.network.ip;
 using zero.core.patterns.bushings;
 using zero.core.patterns.bushings.contracts;
@@ -109,7 +110,7 @@ namespace zero.core.feat.models.protobuffer
         /// <summary>
         /// User data in the source
         /// </summary>
-        protected IPEndPoint RemoteEndPoint { get; } = new IPEndPoint(IPAddress.Any, 0);
+        protected byte[] RemoteEndPoint { get; } = new IPEndPoint(IPAddress.Any, 0).AsBytes();
 
         public override async ValueTask<IoJobMeta.JobState> ProduceAsync<T>(IIoSource.IoZeroCongestion<T> barrier,
             T ioZero)
