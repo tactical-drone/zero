@@ -54,6 +54,24 @@ namespace zero.test.core.misc
             Assert.NotEqual(span1.ZeroHash(), span4.ZeroHash());
             Assert.NotEqual(span1.ZeroHash(), span5.ZeroHash());
             Assert.NotEqual(span1.ZeroHash(), span6.ZeroHash());
+
+            span1 = stackalloc byte[3] { 0, 1, 2 };
+            span4 = stackalloc byte[3] { 1, 1, 2 };
+            span5 = stackalloc byte[3] { 0, 1, 3 };
+            span6 = stackalloc byte[3] { 0, 2, 2 };
+
+            Assert.NotEqual(span1.ZeroHash(), span4.ZeroHash());
+            Assert.NotEqual(span1.ZeroHash(), span5.ZeroHash());
+            Assert.NotEqual(span1.ZeroHash(), span6.ZeroHash());
+
+            span1 = stackalloc byte[3] { 200, 201, 202 };
+            span4 = stackalloc byte[3] { 201, 201, 202 };
+            span5 = stackalloc byte[3] { 200, 202, 202 };
+            span6 = stackalloc byte[3] { 200, 201, 203 };
+
+            Assert.NotEqual(span1.ZeroHash(), span4.ZeroHash());
+            Assert.NotEqual(span1.ZeroHash(), span5.ZeroHash());
+            Assert.NotEqual(span1.ZeroHash(), span6.ZeroHash());
         }
 
         [Fact]

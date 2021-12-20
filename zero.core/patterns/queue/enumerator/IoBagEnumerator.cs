@@ -38,7 +38,7 @@ namespace zero.core.patterns.queue.enumerator
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public sealed override void Reset()
         {
-            Interlocked.Exchange(ref _iteratorIdx, (Bag.Tail - 1) % Bag.Capacity);
+            Interlocked.Exchange(ref _iteratorIdx, (Bag.Head - 1) % Bag.Capacity);
             Interlocked.Exchange(ref _iteratorCount, Bag.Count);
         }
 

@@ -12,9 +12,13 @@ namespace zero.test.core.patterns.heap
         [Fact]
         void SpamTest()
         {
-            var h = new IoHeapIo<HeapItem, IoHeapIoTest>("test heap", _capacity, context:this)
+            var h = new IoHeapIo<HeapItem, IoHeapIoTest>("test heap", _capacity * _capacity, context:this)
             {
-                Malloc = (o, test) => new HeapItem(_localVar, (int)o)
+                Malloc = (o, test) => new HeapItem(_localVar, (int)o), 
+                PopAction = (item, o) =>
+                {
+                    item.TestVar = (int)o;
+                }
             };
 
             var spamTasks = new List<Task>();
@@ -25,7 +29,12 @@ namespace zero.test.core.patterns.heap
                     var (@this,h) = (ValueTuple<IoHeapIoTest, IoHeapIo<HeapItem, IoHeapIoTest>>)state!;
                     for (var j = 0; j < @this._capacity; j++)
                     {
-                        h.Return(h.Take(3));
+                        var item = h.Take(j);
+                        Assert.NotNull(item);
+                        Assert.Equal(j, item.TestVar);
+                        Assert.Equal(2, item.TestVar2);
+                        Assert.InRange(item.TestVar3, 0, @this._capacity);
+                        h.Return(item);
                     }
                 }, (this, h), TaskCreationOptions.DenyChildAttach));
             }
@@ -34,7 +43,7 @@ namespace zero.test.core.patterns.heap
 
             Assert.Equal(0, h.ReferenceCount);
             Assert.InRange(h.Count, 1,_capacity);
-            Assert.Equal(_capacity, h.MaxSize);
+            Assert.Equal(_capacity * _capacity, h.MaxSize);
 
             Assert.InRange(h.TotalOps, 1,_capacity*_capacity);
         }

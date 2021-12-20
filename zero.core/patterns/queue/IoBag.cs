@@ -38,10 +38,10 @@ namespace zero.core.patterns.queue
         private T[] _storage;        
         private volatile int _capacity;
         private volatile int _count;        
-        public long Head => _head;
-        private long _head;
         public long Tail => _tail;
         private long _tail;
+        public long Head => _head;
+        private long _head;
 
         private IoBagEnumerator<T> _curEnumerator;
 
@@ -127,13 +127,13 @@ namespace zero.core.patterns.queue
 
             try
             {
-                var latch = (Interlocked.Increment(ref _head) - 1) % _capacity;
+                var latch = (Interlocked.Increment(ref _tail) - 1) % _capacity;
                 T latched = default;
                 while (_count < _capacity &&
                        (latched = Interlocked.CompareExchange(ref _storage[latch], item, default)) != default)
                 {
-                    Interlocked.Decrement(ref _head);
-                    latch = (Interlocked.Increment(ref _head) - 1) % _capacity;
+                    Interlocked.Decrement(ref _tail);
+                    latch = (Interlocked.Increment(ref _tail) - 1) % _capacity;
                 }
 
                 if (latched == default)
@@ -143,7 +143,7 @@ namespace zero.core.patterns.queue
                     return (int)latch;
                 }
 
-                Interlocked.Decrement(ref _head);
+                Interlocked.Decrement(ref _tail);
 
                 if (IsAutoScaling)
                 {
@@ -183,31 +183,29 @@ namespace zero.core.patterns.queue
             if (_count == 0)
                 return false;
 
-            var origHead = _head;
-            var latch = Interlocked.Increment(ref _tail) - 1;
-            var latchMod = latch % _capacity;
-            var target = _storage[latchMod];
-            while (_count > 0 && (result = Interlocked.CompareExchange(ref _storage[latchMod], default, target)) != target && latch < origHead)
+            var latchIdx = Interlocked.Increment(ref _head) - 1;
+            var latchMod = latchIdx % _capacity;
+            var latch = Volatile.Read(ref _storage[latchMod]);
+            while (latchIdx < _tail && _count > 0 && (result = Interlocked.CompareExchange(ref _storage[latchMod], default, latch)) != latch)
             {
                 //skip over empty slots
-                if (target != null)
-                    Interlocked.Decrement(ref _tail);
+                if (latch != null)
+                    Interlocked.Decrement(ref _head);
                 else
                     Interlocked.Decrement(ref _count);
 
-                origHead = _head;
-                latch = Interlocked.Increment(ref _tail) - 1;
-                latchMod = latch % _capacity;
-                target = _storage[latchMod];
+                latchIdx = Interlocked.Increment(ref _head) - 1;
+                latchMod = latchIdx % _capacity;
+                latch = Volatile.Read(ref _storage[latchMod]);
             }
 
-            if (result != target || result == default)
+            if (result != latch || result == default)
             {
-                Interlocked.Decrement(ref _tail);
+                Interlocked.Decrement(ref _head);
                 return false;
             }
 
-            _storage[latchMod] = default;
+            Volatile.Write(ref _storage[latchMod], default);
 
             Interlocked.Decrement(ref _count);
 
@@ -222,7 +220,7 @@ namespace zero.core.patterns.queue
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public bool TryPeek([MaybeNullWhen(false)] out T result)
         {                        
-            return (result = _storage[(_head - 1) % _capacity]) != default;
+            return (result = _storage[(_tail - 1) % _capacity]) != default;
         }
 
         /// <summary>

@@ -166,11 +166,13 @@ namespace zero.core.misc
         {
             var strides = array.Length / sizeof(long);
             var remainder = array.Length % sizeof(long);
-            long hash = 0xacacacacacacaca;
+            long hash = 0xaaaaaaaaaaaaaaa;
 
             for (var i = 0; i < strides; i++)
             {
-                hash = MemoryMarshal.Read<long>(array[(i * sizeof(long))..]) ^ hash ^ ((hash >> 31) | (hash << 32)) ^ i;
+                var mod = i;
+                var stride = MemoryMarshal.Read<long>(array[(i * sizeof(long))..]);
+                hash ^= stride ^ ((stride >> 31) | (stride << 32)) ^ i;
             }
 
             if (remainder >= sizeof(int))
@@ -180,13 +182,14 @@ namespace zero.core.misc
                 remainder = array.Length % sizeof(int);
                 for (var i = start; i < strides; i++)
                 {
-                    hash = MemoryMarshal.Read<int>(array[(i * sizeof(int))..]) ^ hash ^ ((hash >> 15) | (hash << 16)) ^ i;
+                    var stride = MemoryMarshal.Read<int>(array[(i * sizeof(int))..]);
+                    hash ^= stride ^ ((stride >> 15) | (stride << 16)) ^ i;
                 }
             }
 
             for (var i = 0; i < remainder; i++)
             {
-                hash ^= (array[i] << (i << 2)) ^ ((array[i] >> 3) | (array[i] << 4)) ^ i;
+                hash ^= (array[i] << (sizeof(int) - ((i + 2) >> 1))) ^ ((array[i] >> 3) | (array[i] << 4));
             }
 
             return hash;

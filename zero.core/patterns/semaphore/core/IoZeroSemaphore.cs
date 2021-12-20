@@ -810,15 +810,12 @@ namespace zero.core.patterns.semaphore.core
 #endif
                 var nextTail = _zeroRef.ZeroNextTail();
 
-                if (nextTail < 0)
-                    nextTail = 0;
-
                 var latchIdx = nextTail - 1;
                 var latchMod = latchIdx % _maxBlockers;
                 var latch = Volatile.Read(ref _signalAwaiter[latchMod]);
 
                 //latch a chosen head
-                while (
+                while ( latchIdx < _head && 
                     _zeroRef.ZeroWaitCount() > 0 && latchIdx < _head &&
                     (latch == ZeroSentinel || latch != null && (worker.Continuation = Interlocked.CompareExchange(ref _signalAwaiter[latchMod], ZeroSentinel, latch)) != latch)
                 )
