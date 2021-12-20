@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Net;
 using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
@@ -204,108 +205,42 @@ namespace zero.cocoon.models
 
         public override async ValueTask<IoJobMeta.JobState> ConsumeAsync()
         {
+            var totalBytesProcessed = 0;
             try
             {
                 //fail fast
                 if (BytesRead == 0 || Zeroed())
                     return State = IoJobMeta.JobState.ConInvalid;
                 
-                long totalBytesProcessed = 0;
                 var verified = false;
 
-                //if (BytesLeftToProcess < 4)
-                //    return State = IoJobMeta.JobState.ConInlined;
-
-                //int chunkSize = 0;
-                //var chunk = ArraySegment[DatumProvisionLengthMax..];
-
-                //chunkSize |= (byte)(chunk[3] & 0x000f);
-                //chunkSize |= (byte)((chunk[2] << 4) & 0x00f0);
-                //chunkSize |= (byte)((chunk[1] << 8) & 0x0f00);
-                //chunkSize |= (byte)((chunk[0] << 12) & 0xf000);
-
-
-                ByteStream.Seek(DatumProvisionLengthMax, SeekOrigin.Begin);
                 while (totalBytesProcessed < BytesRead && State != IoJobMeta.JobState.ConInlined)
                 {
                     chroniton packet = null;
 
-                    long curPos = 0;
-                    long read = 0;
+                    var read = 0;
                     //deserialize
                     try
                     {
-                        try
-                        {
-                            var size = CodedStream.ReadLength();
-                            packet = chroniton.Parser.ParseFrom(ReadOnlySequence.Slice(CodedStream.Position, size));
-                            read = size;
-                        }
-                        catch
-                        {
-                            try
-                            {
-                                ByteStream.Seek(DatumProvisionLengthMax, SeekOrigin.Begin);
-                                curPos = CodedStream.Position;
-                                packet = chroniton.Parser.ParseFrom(CodedStream);
-                                read = (int)(CodedStream.Position - curPos);
-                            }
-                            catch
-                            {
-                                read = (int)(CodedStream.Position - curPos);
-                                // ignored
-                            }
-
-                            //catch
-                            {
-                                //if (!__enableZeroCopyDebug)
-                                    //throw;
-
-                                //packet = chroniton.Parser.ParseFrom(__zeroCopyDebugBuffer.AsSpan().Slice(BufferOffset, BytesRead).ToArray());
-                                //read = packet.CalculateSize();
-                                //_logger.Warn($"FFF {_lastFail}/{_failCounter}");
-                                //Interlocked.Exchange(ref _lastFail, _failCounter);
-                            }
-                        }
-
-                        totalBytesProcessed += read;
-
-                        if (BytesRead == totalBytesProcessed)
-                            State = IoJobMeta.JobState.Consumed;
+                        packet = chroniton.Parser.ParseFrom(ReadOnlySequence.Slice(DatumProvisionLengthMax, BytesRead));
+                        totalBytesProcessed += read = packet.CalculateSize();
                     }
-                    catch (Exception e)
+                    catch (Exception e) when(!Zeroed())
                     {
                         State = IoJobMeta.JobState.ConsumeErr;
-                        read = (int)(CodedStream.Position - curPos);
-                        totalBytesProcessed += read;
-
-                        //sync fragmented datums
-                        //if (IoZero.SyncRecoveryModeEnabled && totalBytesProcessed == BytesRead && State != IoJobMeta.JobState.Consumed)//TODO hacky
-                        //{
-                        //    read = 0;
-                        //    State = IoJobMeta.JobState.ConInlined;
-                        //}
-
-                        var tmpBufferOffset = BufferOffset;
-
-                        if (!Zeroed() && !MessageService.Zeroed())
-                        {
-                            _logger.Debug(e,
-                                $"Parse failed: r = {totalBytesProcessed}/{BytesRead}/{BytesLeftToProcess}, d = {DatumCount}, b={MemoryBuffer.Slice((int)(tmpBufferOffset - 2), 32).ToArray().HashSig()}, {Description}");
-                        }
-
+                        _logger.Debug(e, $"Parse failed: r = {totalBytesProcessed}/{BytesRead}/{BytesLeftToProcess}, d = {DatumCount}, {Description}");
                         continue;
                     }
                     finally
                     {
-                        Interlocked.Add(ref BufferOffset, (int)read);
+                        Interlocked.Add(ref BufferOffset, read);
                     }
 
                     if (read == 0)
                         break;
 
                     //Sanity check the data
-                    if (packet == null || packet.Data == null || packet.Data.Length == 0)
+                    if (packet.Data == null || packet.Data.Length == 0)
                     {
                         continue;
                     }
@@ -371,6 +306,9 @@ namespace zero.cocoon.models
             {
                 try
                 {
+                    if (BytesRead == totalBytesProcessed)
+                        State = IoJobMeta.JobState.Consumed;
+
                     if (State != IoJobMeta.JobState.Consumed)
                     {
                         if (PreviousJob is { Syncing: true })

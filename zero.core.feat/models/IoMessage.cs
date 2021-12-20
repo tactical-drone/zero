@@ -3,7 +3,6 @@ using System.Buffers;
 using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
-using Google.Protobuf;
 using zero.core.patterns.bushings;
 using zero.core.patterns.bushings.contracts;
 using zero.core.patterns.heap;
@@ -60,11 +59,6 @@ namespace zero.core.feat.models
         public Stream ByteStream;
 
         /// <summary>
-        /// Coded Stream
-        /// </summary>
-        public CodedInputStream CodedStream;
-
-        /// <summary>
         /// Read only sequence wrapped for protobuf API
         /// </summary>
         public ReadOnlySequence<byte> ReadOnlySequence { get; protected set; }
@@ -117,7 +111,6 @@ namespace zero.core.feat.models
         {
             BytesRead = 0;
             BufferOffset = DatumProvisionLengthMax;
-            
             //return !Reconfigure ? base.Constructor() : null; //TODO what was this about?
             return base.ReuseAsync();
         }

@@ -62,7 +62,7 @@ namespace zero.sync
         /// <param name="args"></param>
         static void Main(string[] args)
         {
-            Console.WriteLine(Environment.Version);
+            Console.WriteLine($"zero ({Environment.OSVersion}: {Environment.MachineName} - dotnet v{Environment.Version}, CPUs = {Environment.ProcessorCount})");
             //SemTest();
             //QueueTestAsync();
 
@@ -159,6 +159,10 @@ namespace zero.sync
                         //$"udp://127.0.0.1:{1237}"
                     }.ToList(), false);
 
+                tasks = new ConcurrentBag<Task<CcCollective>>
+                {
+                    t1,t2
+                };
 #pragma warning disable VSTHRD110 // Observe result of async calls
                 Task.Factory.StartNew(() => t1.Start(), TaskCreationOptions.DenyChildAttach);
                 Task.Factory.StartNew(() => t2.Start(), TaskCreationOptions.DenyChildAttach);
@@ -167,41 +171,11 @@ namespace zero.sync
 #pragma warning restore CS0162
 
 
-
-            //Task.Factory.StartNew(async () =>
-            //{
-            //    await Task.Delay(1000);
-            //    t2.Start();
-            //}, TaskCreationOptions.DenyChildAttach);
-
-            //Task.Factory.StartNew(async () =>
-            //{
-            //    await Task.Delay(6000);
-            //    t3.Start();
-            //}, TaskCreationOptions.DenyChildAttach);
-
-            //Console.WriteLine("Waiting for queen cluster to bootstrap....");
-            //var bs = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-            //while (true)
-            //{
-            //    Thread.Sleep(delay * 1000/10);
-            //    if (bs.ElapsedMsToSec() > delay)
-            //        break;
-            //    Console.WriteLine($"Gestating ({bs.ElapsedMsToSec() / (double)delay * 100.0:0.0}%)");
-            //}
-            //Console.WriteLine("Queens Ready!");
             for (var i = 2; i < total; i++)
             {
-                //if(1234 + portOffset + i == 1900 )
-                //    continue;
-
-                //tasks.Add(CoCoonAsync(CcDesignation.Generate(), $"tcp://127.0.0.1:{15669 + portOffset + i}", $"udp://127.0.0.1:{1234 + portOffset + i}", $"tcp://127.0.0.1:{11669 + portOffset + i}", $"udp://127.0.0.1:{1234 + portOffset + i}", new[] { $"udp://127.0.0.1:{1234 + portOffset + i - 1}", $"udp://127.0.0.1:{1234 + portOffset + (i + total - 64) % total}", $"udp://127.0.0.1:{1234 + portOffset + (i + total - 128) % total}", $"udp://127.0.0.1:{1235}", $"udp://127.0.0.1:{1234}" }.ToList()));
-                //tasks.Add(CoCoonAsync(CcDesignation.Generate(), $"tcp://127.0.0.1:{1569 + portOffset + i}", $"udp://127.0.0.1:{1234 + portOffset + i}", $"tcp://127.0.0.1:{11669 + portOffset + i}", $"udp://127.0.0.1:{1234 + portOffset + i}", new[] { $"udp://127.0.0.1:{1234}" }.ToList()));
 
                 tasks.Add(CoCoonAsync(CcDesignation.Generate(), $"tcp://127.0.0.1:{1234 + portOffset + i}", $"udp://127.0.0.1:{1234 + portOffset + i}", $"tcp://127.0.0.1:{1334 + portOffset + i}", $"udp://127.0.0.1:{1234 + portOffset + i}", new[] { $"udp://127.0.0.1:{1234 + i%4}", $"udp://127.0.0.1:{1234 + (i+1) % 4}" }.ToList()));
-                //tasks.Add(CoCoonAsync(CcDesignation.Generate(), $"tcp://127.0.0.1:{1234 + portOffset + i}", $"udp://127.0.0.1:{1234 + portOffset + i}", $"tcp://127.0.0.1:{1334 + portOffset + i}", $"udp://127.0.0.1:{1234 + portOffset + i}", new[] { $"udp://127.0.0.1:{1234 + i % 4}" }.ToList()));
-
-                //tasks.Add(CoCoonAsync(CcDesignation.Generate(), $"tcp://127.0.0.1:{15669 + portOffset + i}", $"udp://127.0.0.1:{1234 + portOffset + i}", $"tcp://127.0.0.1:{11669 + portOffset + i}", $"udp://127.0.0.1:{1234 + portOffset + i}", new[] { $"udp://127.0.0.1:{1234}" }.ToList()));
+                //tasks.Add(CoCoonAsync(CcDesignation.Generate(), $"tcp://127.0.0.1:{1234 + portOffset + i}", $"udp://127.0.0.1:{1234 + portOffset + i}", $"tcp://127.0.0.1:{1334 + portOffset + i}", $"udp://127.0.0.1:{1234 + portOffset + i}", new[] { $"udp://127.0.0.1:{1234}" }.ToList()));
                 if (tasks.Count % 10 == 0)
                     Console.WriteLine($"Spawned {tasks.Count}/{total}...");
             }
@@ -414,8 +388,6 @@ namespace zero.sync
                 }
             }, TaskCreationOptions.DenyChildAttach);
 
-           
-
             string line;
             var ts = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
             var tsOrig = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
@@ -493,14 +465,12 @@ namespace zero.sync
                             _rampTarget = int.Parse(line.Split(' ')[2]);
                             Console.WriteLine($"rampTarget = {_rampTarget}");
                         }
-                            
-
+                        
                         if (line.Contains("delay"))
                         {
                             _rampDelay = int.Parse(line.Split(' ')[2]);
                             Console.WriteLine($"rampDelay = {_rampDelay}");
                         }
-                            
                     }
                     catch { }
                 }
@@ -528,10 +498,10 @@ namespace zero.sync
 
                         long v = 1;
                         long C = 0;
-                        _rampDelay = 1500;
+                        _rampDelay = 5000;
                         _rampTarget = 1000;
                         var start = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-                        var threads = 2;
+                        var threads = 3;
                         _running = true;
                         for (int i = 0; i < threads; i++)
                         {
@@ -575,7 +545,7 @@ namespace zero.sync
 
                                         var d = _rampDelay;
                                         d++;
-                                        await Task.Delay(d).ConfigureAwait(Zc);
+                                        await Task.Delay(d).ConfigureAwait(false);
 
                                         if (Interlocked.Increment(ref C) % 5000 == 0)
                                         {
@@ -618,32 +588,18 @@ namespace zero.sync
                     {
                         try
                         {
-                            long sum = 0;
-                            foreach (var ccCollective in _nodes)
-                                sum += ccCollective.EventCount;
-
-                            var ave = sum / _nodes.Count;
-                            long aveDelta = 0;
-                            var std = 0;
                             
-                            foreach (var ccCollective in _nodes)
-                            {
-                                var delta = ccCollective.EventCount - ave;
-                                aveDelta += Math.Abs(delta);
+                            var min = _nodes.Min(n => n.EventCount);
+                            var max = _nodes.Max(n => n.EventCount);
 
-                                Console.Write($"{delta}, ");
-                            }
+                            var ave = _nodes.Average(n => n.EventCount);
+                            var aveError = _nodes.Select(n => Math.Abs(n.EventCount - ave)).Average();
+                            var good = _nodes.Where(n => aveError < 2 || Math.Abs(n.EventCount - ave) < aveError * 2);
 
-                            aveDelta /= _nodes.Count;
+                            var aveGood = good.Average(n => n.EventCount);
+                            var goodError = good.Select(n => Math.Abs(n.EventCount - aveGood)).Average();
 
-                            foreach (var ccCollective in _nodes)
-                            {
-                                var delta = ccCollective.EventCount - ave;
-                                if (aveDelta > 0 && delta < 0 && ave - delta > aveDelta * 2)
-                                    std++;
-                            }
-
-                            Console.WriteLine($"\nave = {ave}, std = {std}/{_nodes.Count} ({aveDelta})");
+                            Console.WriteLine($"zero liveness at {good.Count()/(double)_nodes.Count*100:0.00}% - {good.Count()}/{_nodes.Count}, min/max = [{min},{max}], ave = {aveGood:0.0} ({ave:0.0}), err = {goodError:0.0} ({aveError:0.0})");
                         }
                         catch (Exception) { }
                     }

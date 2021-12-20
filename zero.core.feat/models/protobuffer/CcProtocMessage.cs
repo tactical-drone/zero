@@ -21,7 +21,7 @@ namespace zero.core.feat.models.protobuffer
         protected CcProtocMessage(string sinkDesc, string jobDesc, IoSource<CcProtocMessage<TModel, TBatch>> source)
             : base(sinkDesc, jobDesc, source)
         {
-            DatumSize = 1492; //SET to MTU
+            DatumSize = 373 * 2; //SET to MTU
             
             //Init buffers
             BufferSize = DatumSize * parm_datums_per_buffer;
@@ -29,7 +29,6 @@ namespace zero.core.feat.models.protobuffer
             
             MemoryOwner = MemoryPool<byte>.Shared.Rent(BufferSize + DatumProvisionLengthMax);
 
-            //Buffer = new sbyte[BufferSize + DatumProvisionLengthMax];
             if (MemoryMarshal.TryGetArray((ReadOnlyMemory<byte>)MemoryOwner.Memory, out var malloc))
             {
                 if (Buffer != null && Buffer.Length < BufferSize)
@@ -40,10 +39,9 @@ namespace zero.core.feat.models.protobuffer
 
                 Buffer = ArraySegment.Array;
                 
-                ReadOnlySequence = new ReadOnlySequence<byte>(Buffer!);
+                ReadOnlySequence = new ReadOnlySequence<byte>(Buffer);
                 MemoryBuffer = new Memory<byte>(Buffer);
                 ByteStream = new MemoryStream(Buffer!);
-                CodedStream = new CodedInputStream(ByteStream);
             }
         }
 
@@ -71,7 +69,7 @@ namespace zero.core.feat.models.protobuffer
         /// </summary>
         [IoParameter]
         // ReSharper disable once InconsistentNaming
-        public int parm_datums_per_buffer = 5;
+        public int parm_datums_per_buffer = 2;
 
 
         /// <summary>

@@ -117,48 +117,23 @@ namespace zero.cocoon.models
                 }
 
                 var round = 0;
-
                 while (BytesLeftToProcess > 0 && State == IoJobMeta.JobState.Consuming)
                 {
-                    CcWhisperMsg whispers;                    
+                    CcWhisperMsg whispers = null;                    
                         
                     //deserialize
                     try
                     {
-                        whispers = CcWhisperMsg.Parser.ParseFrom(ReadOnlySequence.Slice(BufferOffset,BytesLeftToProcess));
-                        if (whispers == null)
-                            break;
-
+                        whispers = CcWhisperMsg.Parser.ParseFrom(ReadOnlySequence.Slice(BufferOffset, BytesLeftToProcess));
                         read = whispers.CalculateSize();
-                        Interlocked.Add(ref BufferOffset, read);
                     }
-                    catch (Exception e)
+                    catch when(!Zeroed())
                     {
-
-                        try
-                        {
-                            ByteStream.Seek(BufferOffset, SeekOrigin.Begin);
-                            CcWhisperMsg.Parser.ParseFrom(CodedStream);
-                            read = (int)(ByteStream.Position - ByteStream.Position);
-
-                            if (!Zeroed() && !MessageService.Zeroed())
-                                _logger.Debug(e,
-                                    $"Parse failed on round {round}: r = {read}/{BytesRead}/{BytesLeftToProcess}, d = {DatumCount}, b={MemoryBuffer.Slice((int)(BufferOffset - 2), 32).ToArray().HashSig()}, {Description}");
-                        }
-                        catch
-                        {
-                            // ignored
-                        }
-                        finally
-                        {
-                            //try again                     
-                            Interlocked.Add(ref BufferOffset, read);
-                        }
-
-                        if (read == 0)
-                            break;
-
-                        continue;
+                        State = IoJobMeta.JobState.ConsumeErr;
+                    }
+                    finally
+                    {
+                        Interlocked.Add(ref BufferOffset, read);
                     }
 
                     if (read == 0)
@@ -167,7 +142,7 @@ namespace zero.cocoon.models
                     }
 
                     //Sanity check the data
-                    if (whispers == null || whispers.Data == null || whispers.Data.Length == 0)
+                    if (whispers.Data == null || whispers.Data.Length == 0)
                     {
                         continue;
                     }                    
@@ -267,6 +242,7 @@ namespace zero.cocoon.models
 
                     IoZero.IncEventCounter();
                     CcCollective.IncEventCounter();
+
                     foreach (var drone in CcCollective.WhisperingDrones)
                     {
                         try

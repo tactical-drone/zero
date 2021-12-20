@@ -1654,10 +1654,10 @@ namespace zero.cocoon.autopeer
                         if (stream == null)
                             throw new OutOfMemoryException($"{nameof(_protoHeap)}, {_protoHeap.Description}");
 
-                        int packetLen;
-                        var headerLen = stream.Item3.Position;
-                        stream.Item3.WriteLength(packetLen = packet.CalculateSize());
-                        headerLen = stream.Item3.Position - headerLen;
+                        //int packetLen;
+                        //var headerLen = stream.Item3.Position;
+                        //stream.Item3.WriteLength(packetLen = packet.CalculateSize());
+                        //headerLen = stream.Item3.Position - headerLen;
                         packet.WriteTo(stream.Item3);
                         stream.Item3.Flush();
 //simulate byzantine failure.                
@@ -1684,7 +1684,7 @@ namespace zero.cocoon.autopeer
 
                         return sent;
 #else
-                        return await MessageService.IoNetSocket.SendAsync(stream.Item1, 0, (int)(headerLen + packetLen), dest.IpEndPoint).FastPath().ConfigureAwait(Zc);
+                        return await MessageService.IoNetSocket.SendAsync(stream.Item1, 0, packet.CalculateSize(), dest.IpEndPoint).FastPath().ConfigureAwait(Zc);
                     }
                     finally
                     {
