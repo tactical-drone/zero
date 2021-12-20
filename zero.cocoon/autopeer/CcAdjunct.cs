@@ -113,19 +113,10 @@ namespace zero.cocoon.autopeer
                 }
             };
 
-            _protoHeap = new IoHeap<Tuple<byte[], MemoryStream, CodedOutputStream>>(protoHeapDesc, CcCollective.ZeroDrone & !IsProxy ? 32 : 16,
+            _protoHeap = new IoHeap<byte[]>(protoHeapDesc, CcCollective.ZeroDrone & !IsProxy ? 32 : 16,
                 autoScale: true)
             {
-                Malloc = (_, _) =>
-                {
-                    var buf = new byte[1492];
-                    var stream = new MemoryStream(buf);
-                    return Tuple.Create(buf, stream,new CodedOutputStream(stream, true));
-                }, 
-                PopAction = (stream, _) =>
-                {
-                    stream.Item2.Seek(0, SeekOrigin.Begin);
-                }
+                Malloc = (_, _) => new byte[1492],
             };
 
             _stealthy = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() - parm_max_network_latency_ms * 10;
@@ -237,7 +228,7 @@ namespace zero.cocoon.autopeer
         /// <summary>
         /// Holds all coded outputstreams used for sending messages
         /// </summary>
-        private IoHeap<Tuple<byte[], MemoryStream, CodedOutputStream>> _protoHeap;
+        private IoHeap<byte[]> _protoHeap;
 
         /// <summary>
         /// The udp routing table 
@@ -1647,19 +1638,13 @@ namespace zero.cocoon.autopeer
                     var packetMsgRaw = packet.Data.Memory.AsArray();
                     packet.Signature = UnsafeByteOperations.UnsafeWrap(CcCollective.CcId.Sign(packetMsgRaw, 0, packetMsgRaw.Length));
 
-                    Tuple<byte[], MemoryStream,CodedOutputStream> stream = null;
+                    byte[] stream = null;
                     try
                     {
                         stream = _protoHeap.Take();
                         if (stream == null)
                             throw new OutOfMemoryException($"{nameof(_protoHeap)}, {_protoHeap.Description}");
 
-                        //int packetLen;
-                        //var headerLen = stream.Item3.Position;
-                        //stream.Item3.WriteLength(packetLen = packet.CalculateSize());
-                        //headerLen = stream.Item3.Position - headerLen;
-                        packet.WriteTo(stream.Item3);
-                        stream.Item3.Flush();
 //simulate byzantine failure.                
 #if LOSS
                         var sent = 0;
@@ -1684,7 +1669,7 @@ namespace zero.cocoon.autopeer
 
                         return sent;
 #else
-                        return await MessageService.IoNetSocket.SendAsync(stream.Item1, 0, packet.CalculateSize(), dest.IpEndPoint).FastPath().ConfigureAwait(Zc);
+                        return await MessageService.IoNetSocket.SendAsync(packet.ToByteArray(), 0, packet.CalculateSize(), dest.IpEndPoint).FastPath().ConfigureAwait(Zc);
                     }
                     finally
                     {

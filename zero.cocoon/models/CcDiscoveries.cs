@@ -222,13 +222,13 @@ namespace zero.cocoon.models
                     //deserialize
                     try
                     {
-                        packet = chroniton.Parser.ParseFrom(ReadOnlySequence.Slice(DatumProvisionLengthMax, BytesRead));
+                        packet = chroniton.Parser.ParseFrom(ReadOnlySequence.Slice(BufferOffset, BytesLeftToProcess));
                         totalBytesProcessed += read = packet.CalculateSize();
                     }
                     catch (Exception e) when(!Zeroed())
                     {
                         State = IoJobMeta.JobState.ConsumeErr;
-                        _logger.Debug(e, $"Parse failed: r = {totalBytesProcessed}/{BytesRead}/{BytesLeftToProcess}, d = {DatumCount}, {Description}");
+                        _logger.Debug(e, $"Parse failed: buf[{BufferOffset}], r = {totalBytesProcessed}/{BytesRead}/{BytesLeftToProcess}, d = {DatumCount}, {Description}");
                         continue;
                     }
                     finally
