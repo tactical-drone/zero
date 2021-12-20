@@ -567,8 +567,8 @@ namespace zero.core.patterns.misc
                     {
                         try
                         {
-                            return (_zeroed == 0) && ownershipAction(this, userData, disposing).FastPath().GetAwaiter()
-                                .GetResult();
+                            return _zeroed == 0 && await ownershipAction(this, userData, disposing).FastPath().ConfigureAwait(Zc);
+
                         }
                         catch when (Zeroed())
                         {
@@ -582,7 +582,7 @@ namespace zero.core.patterns.misc
                     }
                     else
                     {
-                        return ownershipAction(this, userData, disposing).FastPath().GetAwaiter().GetResult();
+                        return await ownershipAction(this, userData, disposing).FastPath().ConfigureAwait(Zc);
                     }
                 }
                 catch when (Zeroed())

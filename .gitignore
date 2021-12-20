@@ -264,3 +264,4 @@ __pycache__/
 /zero.web/.cache-loader
 *.DotSettings
 /zero.core/zero.key
+/zero.gauge/BenchmarkDotNet.Artifacts/results

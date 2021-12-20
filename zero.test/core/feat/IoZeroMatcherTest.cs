@@ -8,6 +8,7 @@ using Google.Protobuf;
 using Xunit;
 using zero.core.feat.misc;
 using zero.core.misc;
+using zero.core.patterns.misc;
 
 namespace zero.test.core.feat
 {
@@ -35,7 +36,7 @@ namespace zero.test.core.feat
                     var key = ((ReadOnlyMemory<byte>)array).HashSig();
                     var c = await m.ChallengeAsync(key, array);
 
-                    var reqHash = ArrayPool<byte>.Shared.Rent(32);
+                    var reqHash = RandomNumberGenerator.GetBytes(32);
 
                     Sha256.TryComputeHash(array, reqHash, out var written);
 
@@ -44,10 +45,10 @@ namespace zero.test.core.feat
                         var (k, hash, matcher) = (ValueTuple<string, byte[], IoZeroMatcher>)state;
                         var dud = new byte[hash.Length];
                         hash.CopyTo(dud, 0);
-                        dud[dud.Length / 2] = (byte)(dud[dud.Length / 2]>>1);
+                        dud[0] = 0;
 
-                        Assert.False(await matcher.ResponseAsync(k, UnsafeByteOperations.UnsafeWrap(dud)));
-                        Assert.True(await matcher.ResponseAsync(k, UnsafeByteOperations.UnsafeWrap(hash)));
+                        Assert.False(await matcher.ResponseAsync(k, UnsafeByteOperations.UnsafeWrap(dud)).FastPath());
+                        Assert.True(await matcher.ResponseAsync(k, UnsafeByteOperations.UnsafeWrap(hash)).FastPath());
                     }, (key, reqHash, m), TaskCreationOptions.DenyChildAttach).Unwrap();
 
                 }, BitConverter.GetBytes(i), TaskCreationOptions.DenyChildAttach));
@@ -84,7 +85,7 @@ namespace zero.test.core.feat
                         var (k, hash, matcher) = (ValueTuple<string, byte[], IoZeroMatcher>)state;
                         var dud = new byte[hash.Length];
                         hash.CopyTo(dud, 0);
-                        dud[dud.Length / 2] = (byte)(dud[dud.Length / 2] >> 1);
+                        dud[0] = 0;
 
                         Assert.False(await matcher.ResponseAsync(k, UnsafeByteOperations.UnsafeWrap(dud)));
                         Assert.True(await matcher.ResponseAsync(k, UnsafeByteOperations.UnsafeWrap(hash)));
@@ -127,7 +128,7 @@ namespace zero.test.core.feat
                         var (k, hash, matcher, delay) = (ValueTuple<string, byte[], IoZeroMatcher, int>)state;
                         var dud = new byte[hash.Length];
                         hash.CopyTo(dud, 0);
-                        dud[dud.Length / 2] = (byte)(dud[dud.Length / 2] >> 1);
+                        dud[0] = 0;
 
                         Assert.False(await matcher.ResponseAsync(k, UnsafeByteOperations.UnsafeWrap(dud)));
                         await Task.Delay(delay + 100);

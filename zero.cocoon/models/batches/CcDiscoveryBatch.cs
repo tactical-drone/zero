@@ -3,8 +3,8 @@ using System.Buffers;
 using System.Collections.Generic;
 using System.Runtime.CompilerServices;
 using System.Threading;
-using Google.Protobuf;
 using NLog;
+using zero.core.misc;
 using zero.core.patterns.heap;
 
 namespace zero.cocoon.models.batches
@@ -23,7 +23,7 @@ namespace zero.cocoon.models.batches
             }
 
             if (_groupByEpEnabled)
-                GroupBy = new Dictionary<long, Tuple<byte[], List<CcDiscoveryMessage>>>();
+                GroupBy = new Dictionary<byte[], Tuple<byte[], List<CcDiscoveryMessage>>>(new IoByteArrayComparer());
         }
 
         IoHeap<CcDiscoveryBatch, CcDiscoveries> _heapRef;
@@ -36,7 +36,7 @@ namespace zero.cocoon.models.batches
 
         public CcDiscoveryMessage[] Messages => _messages;
 
-        public Dictionary<long, Tuple<byte[], List<CcDiscoveryMessage>>> GroupBy;
+        public Dictionary<byte[], Tuple<byte[], List<CcDiscoveryMessage>>> GroupBy;
 
         /// <summary>
         /// Return this instance to the heap

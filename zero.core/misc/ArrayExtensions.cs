@@ -1,7 +1,12 @@
 ﻿using System;
+using System.Collections;
+using System.Collections.Generic;
+#if DEBUG
+using System.Security.Cryptography;
+#endif
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
-using System.Security.Cryptography;
+
 using NLog;
 
 namespace zero.core.misc
@@ -56,84 +61,42 @@ namespace zero.core.misc
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static bool ArrayEqual<T>(this ReadOnlyMemory<T> array, ReadOnlyMemory<T> cmp)
+            where T : IEquatable<T>
         {
-            for (int i = 0; i < array.Length; i++)
-            {
-                if (!array.Span[i].Equals(cmp.Span[i]))
-                    return false;
-            }
-
-            return true;
+            return array.Span.ArrayEqual(cmp.Span);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static bool ArrayEqual<T>(this T[] array, ReadOnlyMemory<T> cmp)
+            where T : IEquatable<T>
         {
-            for (var i = 0; i < array.Length; i++)
-            {
-                if (!array[i].Equals(cmp.Span[i]))
-                    return false;
-            }
-            return true;
+            return ((ReadOnlySpan<T>)array).ArrayEqual(cmp.Span);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static bool ArrayEqual<T>(this T[] array, T[] cmp)
+            where T : IEquatable<T>
         {
-            for (var i = array.Length; i--> 0;)
-            {
-                if (!array[i].Equals(cmp[i]))
-                        return false;
-            }
-            return true;
+            return ((ReadOnlySpan<T>)array).ArrayEqual(cmp);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static bool ArrayEqual(this byte[] array, byte[] cmp)
         {
-            if (array.Length < sizeof(int))
-            {
-                for (var i = array.Length; i-- > 0;)
-                {
-                    if (!array[i].Equals(cmp[i]))
-                        return false;
-                }
-            }
-            else
-            {
-                return array.ZeroHash() == cmp.ZeroHash();
-            }
-            return true;
+            return ((IStructuralEquatable)array).Equals(cmp, EqualityComparer<byte>.Default);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static bool ArrayEqual<T>(this ReadOnlySpan<T> array, ReadOnlySpan<T> cmp)
+            where T : IEquatable<T>
         {
-            for (var i = array.Length; i-- > 0;)
-            {
-                if (!array[i].Equals(cmp[i]))
-                    return false;
-            }
-
-            return true;
+            return array.SequenceEqual(cmp);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static bool ArrayEqual(this ReadOnlySpan<byte> array, ReadOnlySpan<byte> cmp)
         {
-            if (array.Length < sizeof(int))
-            {
-                for (var i = array.Length; i-- > 0;)
-                {
-                    if (!array[i].Equals(cmp[i]))
-                        return false;
-                }
-            }
-            else
-            {
-                return array.ZeroHash() == cmp.ZeroHash();
-            }
-            return true;
+            return array.SequenceEqual(cmp);
         }
 
 
@@ -166,11 +129,10 @@ namespace zero.core.misc
         {
             var strides = array.Length / sizeof(long);
             var remainder = array.Length % sizeof(long);
-            long hash = 0xaaaaaaaaaaaaaaa;
+            var hash = 0xaaaaaaaaaaaaaaa;
 
             for (var i = 0; i < strides; i++)
             {
-                var mod = i;
                 var stride = MemoryMarshal.Read<long>(array[(i * sizeof(long))..]);
                 hash ^= stride ^ ((stride >> 31) | (stride << 32)) ^ i;
             }

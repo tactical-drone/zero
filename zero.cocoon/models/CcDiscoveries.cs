@@ -473,9 +473,9 @@ namespace zero.cocoon.models
                         batchMsg.Message = packet;
 
                         var remoteEp = RemoteEndPoint;
-                        if (!_currentBatch.GroupBy.TryAdd(RemoteEndPoint.ZeroHash(), Tuple.Create(remoteEp, new List<CcDiscoveryMessage>(_currentBatch.Messages))))
+                        if (!_currentBatch.GroupBy.TryAdd(RemoteEndPoint, Tuple.Create(remoteEp, new List<CcDiscoveryMessage>(_currentBatch.Messages))))
                         {
-                            _currentBatch.GroupBy[remoteEp.ZeroHash()].Item2.Add(batchMsg);
+                            _currentBatch.GroupBy[remoteEp].Item2.Add(batchMsg);
                         }
                     }
 

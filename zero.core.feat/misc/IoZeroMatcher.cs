@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 using System.Security.Cryptography;
 using System.Threading;
 using System.Threading.Tasks;
@@ -264,10 +265,10 @@ namespace zero.core.feat.misc
                         }
 
                         potential.Payload = default;
-                        potential.Hash = h.ZeroHash();
+                        potential.Hash = MemoryMarshal.Read<long>(h);
                     }
 
-                    if (potential.Hash != 0 && potential.Hash == reqHashMemory.Span.ZeroHash())
+                    if (potential.Hash != 0 && potential.Hash == MemoryMarshal.Read<long>(reqHashMemory.Span))
                     {
                         await @this._lut.RemoveAsync(cur).FastPath().ConfigureAwait(@this.Zc);
                         @this._valHeap.Return(potential);
@@ -366,7 +367,7 @@ namespace zero.core.feat.misc
 
                     cur.Value.Payload = default;
 
-                    _logger.Error($"{h.HashSig()}[{cur.Value.Key}], t = {cur.Value.TimestampMs.ElapsedMs()}ms, z = {h.ZeroHash()}");
+                    _logger.Error($"{h.HashSig()}[{cur.Value.Key}], t = {cur.Value.TimestampMs.ElapsedMs()}ms, z = {MemoryMarshal.Read<long>(h)}");
                     cur = cur.Next;
                 }
             }
