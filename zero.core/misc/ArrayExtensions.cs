@@ -189,7 +189,8 @@ namespace zero.core.misc
 
             for (var i = 0; i < remainder; i++)
             {
-                hash ^= (array[i] << (sizeof(int) - ((i + 2) >> 1))) ^ ((array[i] >> 3) | (array[i] << 4));
+                var stride = array[i];
+                hash ^= (stride << (sizeof(int) - ((i + 2) >> 1))) ^ ((stride >> 3) | (stride << 4));
             }
 
             return hash;
