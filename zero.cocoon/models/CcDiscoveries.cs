@@ -237,23 +237,22 @@ namespace zero.cocoon.models
                     {
                         try
                         {
-                            var startPos = ByteStream.Position;
-                            packet = chroniton.Parser.ParseDelimitedFrom(ByteStream);
-                            //packet = chroniton.Parser.ParseDelimitedFrom(ReadOnlySequence.Slice(BufferOffset, BytesRead));
-                            read = ByteStream.Position - startPos;
+                            var size = CodedStream.ReadLength();
+                            packet = chroniton.Parser.ParseFrom(ReadOnlySequence.Slice(CodedStream.Position, size));
+                            read = size;
                         }
                         catch
                         {
                             try
                             {
                                 ByteStream.Seek(DatumProvisionLengthMax, SeekOrigin.Begin);
-                                curPos = ByteStream.Position;
+                                curPos = CodedStream.Position;
                                 packet = chroniton.Parser.ParseFrom(CodedStream);
-                                read = (int)(ByteStream.Position - curPos);
+                                read = (int)(CodedStream.Position - curPos);
                             }
                             catch
                             {
-                                read = (int)(ByteStream.Position - curPos);
+                                read = (int)(CodedStream.Position - curPos);
                                 // ignored
                             }
 

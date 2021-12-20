@@ -250,11 +250,11 @@ namespace zero.core.feat.misc
 
                     if (potential.Hash == 0)
                     {
-                        StacklessAsync();
+                        StacklessAsync(potential, @this);
                     }
 
                     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-                    void StacklessAsync()
+                    static void StacklessAsync(IoChallenge potential, IoZeroMatcher @this)
                     {
                         Span<byte> h = stackalloc byte[32];
                         

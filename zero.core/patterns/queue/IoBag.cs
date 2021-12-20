@@ -25,6 +25,8 @@ namespace zero.core.patterns.queue
         {
 #if DEBUG
             _description = description;
+#else
+            _description = string.Empty;
 #endif
             _capacity = capacity;
             _storage = new T[_capacity];
@@ -35,6 +37,7 @@ namespace zero.core.patterns.queue
         private volatile int _zeroed;
         private readonly bool Zc = IoNanoprobe.ContinueOnCapturedContext;
         private readonly string _description;
+
         private T[] _storage;        
         private volatile int _capacity;
         private volatile int _count;        

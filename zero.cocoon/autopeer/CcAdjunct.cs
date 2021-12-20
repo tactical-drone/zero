@@ -1,5 +1,6 @@
 ﻿//#define LOSS
 using System;
+using System.Collections;
 using System.Collections.Concurrent;
 using System.IO;
 using System.Linq;
@@ -99,14 +100,31 @@ namespace zero.cocoon.autopeer
             }
 
 #if DEBUG
-            string desc = $"{nameof(_chronitonHeap)}, {_description}";
+            string packetHeapDesc = $"{nameof(_chronitonHeap)}, {_description}";
+            string protoHeapDesc = $"{nameof(_protoHeap)}, {_description}";
 #else
-            string desc = $"";
+            string packetHeapDesc = string.Empty;
+            string protoHeapDesc = string.Empty;
 #endif
 
-            _chronitonHeap = new IoHeap<chroniton>(desc, CcCollective.ZeroDrone & !IsProxy? 4096: 4, autoScale: true) { Malloc = (_, _) => new chroniton
+            _chronitonHeap = new IoHeap<chroniton>(packetHeapDesc, CcCollective.ZeroDrone & !IsProxy? 32: 16, autoScale: true) { Malloc = (_, _) => new chroniton
                 {
                     Header = new z_header { Ip = new net_header() }
+                }
+            };
+
+            _protoHeap = new IoHeap<Tuple<byte[], MemoryStream, CodedOutputStream>>(protoHeapDesc, CcCollective.ZeroDrone & !IsProxy ? 32 : 16,
+                autoScale: true)
+            {
+                Malloc = (_, _) =>
+                {
+                    var buf = new byte[1492];
+                    var stream = new MemoryStream(buf);
+                    return Tuple.Create(buf, stream,new CodedOutputStream(stream, true));
+                }, 
+                PopAction = (stream, _) =>
+                {
+                    stream.Item2.Seek(0, SeekOrigin.Begin);
                 }
             };
 
@@ -215,6 +233,11 @@ namespace zero.cocoon.autopeer
         /// Holds all messages
         /// </summary>
         private IoHeap<chroniton> _chronitonHeap;
+
+        /// <summary>
+        /// Holds all coded outputstreams used for sending messages
+        /// </summary>
+        private IoHeap<Tuple<byte[], MemoryStream, CodedOutputStream>> _protoHeap;
 
         /// <summary>
         /// The udp routing table 
@@ -1622,46 +1645,57 @@ namespace zero.cocoon.autopeer
                     packet.Type = (int)type;
                     
                     var packetMsgRaw = packet.Data.Memory.AsArray();
-
                     packet.Signature = UnsafeByteOperations.UnsafeWrap(CcCollective.CcId.Sign(packetMsgRaw, 0, packetMsgRaw.Length));
 
-                    var size = packet.CalculateSize();
+                    Tuple<byte[], MemoryStream,CodedOutputStream> stream = null;
+                    try
+                    {
+                        stream = _protoHeap.Take();
+                        if (stream == null)
+                            throw new OutOfMemoryException($"{nameof(_protoHeap)}, {_protoHeap.Description}");
 
-                    var buf = new byte[size * 2];
-                    var cd = new MemoryStream(buf);
-                    packet.WriteDelimitedTo(cd);
-                    
+                        int packetLen;
+                        var headerLen = stream.Item3.Position;
+                        stream.Item3.WriteLength(packetLen = packet.CalculateSize());
+                        headerLen = stream.Item3.Position - headerLen;
+                        packet.WriteTo(stream.Item3);
+                        stream.Item3.Flush();
 //simulate byzantine failure.                
 #if LOSS
-                var sent = 0;
-                var loss = 51;
-                if (_random.Next(100) < loss) //drop
-                {
-                    sent = msgRaw.Length;
-                } 
-                else if(_random.Next(100) < loss) //duplicate
-                {
-                    sent = await MessageService.IoNetSocket.SendAsync(msgRaw, 0, msgRaw.Length, dest.IpEndPoint)
-                        .FastPath().ConfigureAwait(ZC);
-                    
-                    sent = await MessageService.IoNetSocket.SendAsync(msgRaw, 0, msgRaw.Length, dest.IpEndPoint)
-                        .FastPath().ConfigureAwait(ZC);
-                }
-                else //nominal
-                {
-                    sent = await MessageService.IoNetSocket.SendAsync(msgRaw, 0, msgRaw.Length, dest.IpEndPoint)
-                        .FastPath().ConfigureAwait(ZC);
-                }
+                        var sent = 0;
+                        var loss = 51;
+                        if (_random.Next(100) < loss) //drop
+                        {
+                            sent = msgRaw.Length;
+                        } 
+                        else if(_random.Next(100) < loss) //duplicate
+                        {
+                            sent = await MessageService.IoNetSocket.SendAsync(msgRaw, 0, msgRaw.Length, dest.IpEndPoint)
+                                .FastPath().ConfigureAwait(ZC);
+                            
+                            sent = await MessageService.IoNetSocket.SendAsync(msgRaw, 0, msgRaw.Length, dest.IpEndPoint)
+                                .FastPath().ConfigureAwait(ZC);
+                        }
+                        else //nominal
+                        {
+                            sent = await MessageService.IoNetSocket.SendAsync(msgRaw, 0, msgRaw.Length, dest.IpEndPoint)
+                                .FastPath().ConfigureAwait(ZC);
+                        }
 
-                return sent;
+                        return sent;
 #else
-                    return await MessageService.IoNetSocket.SendAsync(buf, 0, buf.Length, dest.IpEndPoint).FastPath().ConfigureAwait(Zc);
+                        return await MessageService.IoNetSocket.SendAsync(stream.Item1, 0, (int)(headerLen + packetLen), dest.IpEndPoint).FastPath().ConfigureAwait(Zc);
+                    }
+                    finally
+                    {
+                        _protoHeap.Return(stream);
+                    }
 #endif
-                
+
 #if DEBUG
-                //await sent.OverBoostAsync().FastPath().ConfigureAwait(ZC);
-                //_logger.Trace(
-                //    $"=/> {Enum.GetName(typeof(CcDiscoveries.MessageTypes), packet.Type)} {MessageService.IoNetSocket.LocalAddress} /> {dest.IpEndPoint}>>{data.Memory.PayloadSig()}: s = {sent}");
+                    //await sent.OverBoostAsync().FastPath().ConfigureAwait(ZC);
+                    //_logger.Trace(
+                    //    $"=/> {Enum.GetName(typeof(CcDiscoveries.MessageTypes), packet.Type)} {MessageService.IoNetSocket.LocalAddress} /> {dest.IpEndPoint}>>{data.Memory.PayloadSig()}: s = {sent}");
 #endif
                 }
                 catch when (Zeroed()) { }

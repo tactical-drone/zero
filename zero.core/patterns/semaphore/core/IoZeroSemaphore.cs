@@ -36,6 +36,8 @@ namespace zero.core.patterns.semaphore.core
         {
 #if DEBUG
             _description = description;
+#else
+            _description = string.Empty;
 #endif
 
             //validation

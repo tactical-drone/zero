@@ -37,7 +37,7 @@ namespace zero.core.patterns.queue
             _description = description;
             string desc = $"{nameof(_nodeHeap)}: {_description}";
 #else
-            string desc = string.Empty;
+            string desc = _description = string.Empty;
 #endif
 
             _nodeHeap = new IoHeap<IoZNode>(desc, capacity, autoScale: autoScale) {Malloc = static (_,_) => new IoZNode()};
