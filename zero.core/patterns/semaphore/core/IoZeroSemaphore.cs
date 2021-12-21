@@ -487,79 +487,91 @@ namespace zero.core.patterns.semaphore.core
                 }
             }
 
-            //fast path, RACES with SetResult through _zeroRef. 
-            int latch;
-            if ((latch = _zeroRef.ZeroEnter()) > 0)
+            try
             {
-                if (latch == 1 || Release(1, bestEffort: true) != 1)
+//fast path, RACES with SetResult through _zeroRef. 
+                int latch;
+                if ((latch = _zeroRef.ZeroEnter()) > 0)
                 {
-                    TaskScheduler cc = null;
-                    if (TaskScheduler.Current != TaskScheduler.Default)
-                        cc = TaskScheduler.Current;
+                    if (latch == 1 || Release(1, bestEffort: true) != 1)
+                    {
+                        TaskScheduler cc = null;
+                        if (TaskScheduler.Current != TaskScheduler.Default)
+                            cc = TaskScheduler.Current;
 
-                    InvokeContinuation(continuation, state, cc, true);
+                        InvokeContinuation(continuation, state, cc, true);
 
+                        return;
+                    }
+                }
+
+                //lock
+#if DEBUG
+                ZeroLock();
+#endif
+
+                //choose a head index for blocking state
+                var headIdx = (_zeroRef.ZeroNextHead() - 1) % _maxBlockers;
+                Action<object> slot = null;
+
+                //Did we win?
+                while (_zeroRef.ZeroWaitCount() < _maxBlockers &&
+                       (slot = Interlocked.CompareExchange(ref _signalAwaiter[headIdx], ZeroSentinel, null)) != null)
+                {
+                    if (slot == ZeroSentinel) continue;
+
+                    _zeroRef.ZeroPrevHead();
+                    headIdx = (_zeroRef.ZeroNextHead() - 1) % _maxBlockers;
+                }
+
+                if (slot == null)
+                {
+                    ExtractStack(out var executionContext, out var capturedContext);
+                    Volatile.Write(ref _signalExecutionState[headIdx], executionContext);
+                    Volatile.Write(ref _signalCapturedContext[headIdx], capturedContext);
+                    Volatile.Write(ref _signalAwaiterState[headIdx], state);
+                    Volatile.Write(ref _signalAwaiter[headIdx], continuation);
+
+                    _zeroRef.ZeroIncWait();
+#if DEBUG
+                    ZeroUnlock();
+#endif
                     return;
                 }
-            }
-
-            //lock
-#if DEBUG
-            ZeroLock();   
-#endif
-
-            //choose a head index for blocking state
-            var headIdx = (_zeroRef.ZeroNextHead() - 1) % _maxBlockers;
-            Action<object> slot = null;
-
-            //Did we win?
-            while ( _zeroRef.ZeroWaitCount() < _maxBlockers && (slot = Interlocked.CompareExchange(ref _signalAwaiter[headIdx], ZeroSentinel, null)) != null)
-            {
-                if (slot == ZeroSentinel) continue;
 
                 _zeroRef.ZeroPrevHead();
-                headIdx = (_zeroRef.ZeroNextHead() - 1) % _maxBlockers;
-            }
-            
-            if (slot == null)
-            {
-                ExtractStack(out var executionContext, out var capturedContext);
-                Volatile.Write(ref _signalExecutionState[headIdx], executionContext);
-                Volatile.Write(ref _signalCapturedContext[headIdx], capturedContext);
-                Volatile.Write(ref _signalAwaiterState[headIdx], state);
-                Volatile.Write(ref _signalAwaiter[headIdx], continuation);
-                
-                _zeroRef.ZeroIncWait();
 #if DEBUG
-                ZeroUnlock();
-#endif
-                return;
-            }
-
-            _zeroRef.ZeroPrevHead();
-#if DEBUG
-            if (_enableAutoScale) //EXPERIMENTAL: double concurrent capacity
-            {
-                //release lock
-
-                ZeroUnlock();
-
-                
-                //Scale
-                if (_enableAutoScale)
+                if (_enableAutoScale) //EXPERIMENTAL: double concurrent capacity
                 {
-                    ZeroScale();
-                    OnCompleted(continuation, state, token, flags);
-                }
-                else
-                {
-                    throw new ZeroSemaphoreFullException($"{_description}: FATAL!, {nameof(_curWaitCount)} = {_zeroRef.ZeroWaitCount()}/{_maxBlockers}, {nameof(_curAsyncWorkerCount)} = {_zeroRef.ZeroAsyncCount()}/{_maxAsyncWorkers}");
-                }
+                    //release lock
 
-            }
+                    ZeroUnlock();
+
+
+                    //Scale
+                    if (_enableAutoScale)
+                    {
+                        ZeroScale();
+                        OnCompleted(continuation, state, token, flags);
+                    }
+                    else
+                    {
+                        throw new ZeroSemaphoreFullException(
+                            $"{_description}: FATAL!, {nameof(_curWaitCount)} = {_zeroRef.ZeroWaitCount()}/{_maxBlockers}, {nameof(_curAsyncWorkerCount)} = {_zeroRef.ZeroAsyncCount()}/{_maxAsyncWorkers}");
+                    }
+
+                }
 #else
             throw new ZeroSemaphoreFullException($"{_description}: FATAL!, {nameof(_curWaitCount)} = {_zeroRef.ZeroWaitCount()}/{_maxBlockers}, {nameof(_curAsyncWorkerCount)} = {_zeroRef.ZeroAsyncCount()}/{_maxAsyncWorkers}");
 #endif
+            }
+            catch when (Zeroed())
+            {
+            }
+            catch (Exception e) when (!Zeroed())
+            {
+                LogManager.GetCurrentClassLogger().Error(e, $"{nameof(OnCompleted)}:");
+            }
         }
 
         /// <summary>
@@ -1043,7 +1055,7 @@ namespace zero.core.patterns.semaphore.core
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public bool Zeroed()
         {
-            return _zeroed > 0;
+            return _zeroRef == null || _zeroed > 0;
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]

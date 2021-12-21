@@ -96,7 +96,7 @@ namespace zero.cocoon.identity
             if (obj is not CcDesignation id)
                 throw new ArgumentNullException(nameof(obj));
 
-            return id == this || id.PublicKey.SequenceEqual(PublicKey);
+            return id == this || id.PublicKey.ArrayEqual(PublicKey);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]

@@ -586,20 +586,24 @@ namespace zero.sync
                     }
                     else
                     {
+                        var nodes= _nodes.Where(n=>!n.ZeroDrone).ToList();
                         try
                         {
                             
-                            var min = _nodes.Min(n => n.EventCount);
-                            var max = _nodes.Max(n => n.EventCount);
+                            var min = nodes.Min(n => n.EventCount);
+                            var max = nodes.Max(n => n.EventCount);
 
-                            var ave = _nodes.Average(n => n.EventCount);
-                            var aveError = _nodes.Select(n => Math.Abs(n.EventCount - ave)).Average();
-                            var good = _nodes.Where(n => aveError < 2 || Math.Abs(n.EventCount - ave) < aveError * 2);
+                            var ave = nodes.Average(n => n.EventCount);
+                            var err = nodes.Select(n => Math.Abs(n.EventCount - ave)).Average();
 
-                            var aveGood = good.Average(n => n.EventCount);
-                            var goodError = good.Select(n => Math.Abs(n.EventCount - aveGood)).Average();
-
-                            Console.WriteLine($"zero liveness at {good.Count()/(double)_nodes.Count*100:0.00}% - {good.Count()}/{_nodes.Count}, min/max = [{min},{max}], ave = {aveGood:0.0} ({ave:0.0}), err = {goodError:0.0} ({aveError:0.0})");
+                            while (err > 2)
+                            {
+                                nodes = nodes.Where(n => err < (max*0.01) || Math.Abs(n.EventCount - ave) < err * 2).ToList();
+                                ave = nodes.Average(n => n.EventCount);
+                                err = nodes.Select(n => Math.Abs(n.EventCount - ave)).Average();
+                            }
+                            
+                            Console.WriteLine($"zero liveness at {nodes.Count()/(double)_nodes.Count*100:0.00}% - {nodes.Count()}/{_nodes.Count}, min/max = [{min},{max}], ave = {ave:0.0}, err = {err:0.0}");
                         }
                         catch (Exception) { }
                     }

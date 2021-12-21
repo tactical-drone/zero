@@ -186,7 +186,7 @@ namespace zero.cocoon.models
                         {
                             if (CcCollective.DupSyncRoot.Release() == -1)
                             {
-                                if (CcCollective != null && !CcCollective.DupSyncRoot.Zeroed() && !Zeroed() && !Source.Zeroed())
+                                if (CcCollective != null && !CcCollective.DupSyncRoot.Zeroed() && !Zeroed())
                                 {
                                     _logger.Error($"{Description}, rounds = {round}, drone = {CcDrone}, adjunct = {CcAdjunct}, cc = {CcCollective}, sync = `{CcCollective.DupSyncRoot}'");
                                     //PrintStateHistory();
@@ -200,7 +200,7 @@ namespace zero.cocoon.models
                         {
                             State = IoJobMeta.JobState.ConsumeErr;
                         }
-                        catch (Exception e) when (!Zeroed() && CcCollective != null && !CcCollective.Zeroed() && CcCollective?.DupSyncRoot != null)
+                        catch (Exception e) when (!Zeroed() && CcCollective is { DupSyncRoot: { } } && !CcCollective.DupSyncRoot.Zeroed() && !CcCollective.Zeroed() )
                         {
                             _logger?.Fatal(e, $"{Description}, rounds = {round}, drone = {CcDrone}, adjunct = {CcDrone?.Adjunct}, cc = {CcDrone?.Adjunct?.CcCollective}, sync = `{CcDrone?.Adjunct?.CcCollective?.DupSyncRoot}'");
                             //PrintStateHistory();

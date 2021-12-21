@@ -805,7 +805,7 @@ namespace zero.cocoon
                             {
                                 if (!CcDesignation.Sha256
                                     .ComputeHash(futileRequestBuf.Memory.AsArray())
-                                    .SequenceEqual(futileResponse.ReqHash))
+                                    .ArrayEqual(futileResponse.ReqHash.Memory))
                                 {
                                     _logger.Error($"{nameof(ConnectForTheWinAsync)}: Invalid futile response! Closing {ioNetSocket.Key}");
                                     return false;
@@ -1090,85 +1090,29 @@ namespace zero.cocoon
                 if(Zeroed() || Hub?.Router == null)
                     return;
 
-                //if (ZeroDrone)
-                //    await Task.Delay(3000);
-
-                //var foundVector = false;
-                foreach (var vector in Hub.Neighbors.Values.Where(n=>((CcAdjunct)n).Assimilating))
+                var foundVector = false;
+                foreach (var vector in Hub.Neighbors.Values.Where(n=>((CcAdjunct)n).Assimilating).OrderBy(n=>((CcAdjunct)n).Priority))
                 {
                     var adjunct = (CcAdjunct)vector;
 
                     if(ensureFuse)
                         adjunct.EnsureFuseChecks();
 
-                    //Only probe when we are running lean
-                    //if (adjunct.CcCollective.Hub.Neighbors.Values.ToList().Count >= adjunct.CcCollective.MaxAdjuncts)
-                    //    break;
-
-                    //if (await adjunct.SeduceAsync("SYN-SE", passive: false).FastPath().ConfigureAwait(Zc))
-                    //{
-                    //    _logger.Debug($"SE> {adjunct.Description}");
-                    //    foundVector = true;
-                    //}
-                    if (adjunct.Probed)
+                    if (!await adjunct.ScanAsync().FastPath().ConfigureAwait(Zc))
                     {
-                        if (!await adjunct.ScanAsync().FastPath().ConfigureAwait(Zc))
-                        {
-                            if (!Zeroed())
-                                _logger.Trace($"{nameof(adjunct.ScanAsync)}: Unable to probe adjuncts, {Description}");
-                        }
-                        else
-                        {
-                            //foundVector = true;
-                        }
+                        if (!Zeroed())
+                            _logger.Trace($"{nameof(adjunct.ScanAsync)}: Unable to probe adjuncts, {Description}");
                     }
                     else
                     {
-                        //if (!await adjunct.SeduceAsync("SYN-DE", CcAdjunct.Heading.Both, force:true).FastPath().ConfigureAwait(Zc))
-                        //{
-                        //    if (!Zeroed())
-                        //        _logger.Trace($"{nameof(adjunct.ScanAsync)}: Unable to seduce adjuncts, {Description}");
-                        //}
-                        //else
-                        //{
-                        //    //foundVector = true;
-                        //}
+                        foundVector = true;
                     }
-
-                    //if (adjunct.Probed) 
-                    //{
-                    //    //probe
-                    //    if (!await adjunct.ScanAsync().FastPath().ConfigureAwait(Zc))
-                    //    {
-                    //        if (!Zeroed())
-                    //            _logger.Trace($"{nameof(DeepScanAsync)}: {Description}, Unable to probe adjuncts");
-                    //    }
-                    //    else
-                    //    {
-                    //        _logger.Debug($"R> {adjunct.Description}");
-                    //        foundVector = true;
-                    //    }
-                    //}
-                    //else
-                    //{
-                    //    //probe
-                    //    if (!await adjunct.ProbeAsync("SYN!").FastPath().ConfigureAwait(Zc))
-                    //    {
-                    //        if (!Zeroed())
-                    //            _logger.Trace($"{nameof(DeepScanAsync)}: {Description}, Unable to probe adjuncts");
-                    //    }
-                    //    else
-                    //    {
-                    //        _logger.Debug($"P> {adjunct.Description}");
-                    //        foundVector = true;
-                    //    }
-                    //}
 
                     await Task.Delay(((CcAdjunct)vector).parm_max_network_latency_ms, AsyncTasks.Token).ConfigureAwait(Zc);
                 }
 
-                //if(foundVector)
-                //    return;
+                if(foundVector)
+                    return;
 
                 _logger.Trace($"Bootstrapping {Description} from {BootstrapAddress.Count} bootnodes...");
                 if (BootstrapAddress != null)

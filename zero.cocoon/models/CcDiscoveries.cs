@@ -137,7 +137,7 @@ namespace zero.cocoon.models
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public override bool Zeroed()
         {
-            return base.Zeroed() || Source.Zeroed();
+            return base.Zeroed() || Source.Zeroed() || IoZero.Zeroed();
         }
 
         /// <summary>
