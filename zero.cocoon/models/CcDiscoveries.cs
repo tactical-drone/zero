@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Net;
 using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
 using Google.Protobuf;
@@ -205,7 +206,6 @@ namespace zero.cocoon.models
 
         public override async ValueTask<IoJobMeta.JobState> ConsumeAsync()
         {
-            var totalBytesProcessed = 0;
             try
             {
                 //fail fast
@@ -214,7 +214,7 @@ namespace zero.cocoon.models
                 
                 var verified = false;
 
-                while (totalBytesProcessed < BytesRead && State != IoJobMeta.JobState.ConInlined)
+                while (BytesLeftToProcess > 0 && State != IoJobMeta.JobState.ConInlined)
                 {
                     chroniton packet = null;
 
@@ -222,13 +222,22 @@ namespace zero.cocoon.models
                     //deserialize
                     try
                     {
-                        packet = chroniton.Parser.ParseFrom(ReadOnlySequence.Slice(BufferOffset, BytesLeftToProcess));
-                        totalBytesProcessed += read = packet.CalculateSize();
+                        var length = MemoryMarshal.Read<ushort>(Buffer.AsSpan(BufferOffset));
+                        Interlocked.Add(ref BufferOffset, sizeof(ushort));
+
+                        if (length > BytesLeftToProcess)
+                        {
+                            State = IoJobMeta.JobState.ConInlined;
+                            continue;
+                        }
+
+                        packet = chroniton.Parser.ParseFrom(ReadOnlySequence.Slice(BufferOffset, length));
+                        read = length;
                     }
                     catch (Exception e) when(!Zeroed())
                     {
                         State = IoJobMeta.JobState.ConsumeErr;
-                        _logger.Debug(e, $"Parse failed: buf[{BufferOffset}], r = {totalBytesProcessed}/{BytesRead}/{BytesLeftToProcess}, d = {DatumCount}, {Description}");
+                        _logger.Debug(e, $"Parse failed: buf[{BufferOffset}], r = {BytesRead - BytesLeftToProcess}/{BytesRead}/{BytesLeftToProcess}, d = {DatumCount}, syncing = {Syncing}, {Description}");
                         continue;
                     }
                     finally
@@ -306,7 +315,7 @@ namespace zero.cocoon.models
             {
                 try
                 {
-                    if (BytesRead == totalBytesProcessed)
+                    if (BytesLeftToProcess == 0)
                         State = IoJobMeta.JobState.Consumed;
 
                     if (State != IoJobMeta.JobState.Consumed)

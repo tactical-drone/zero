@@ -21,10 +21,11 @@ namespace zero.core.feat.models.protobuffer
         protected CcProtocMessage(string sinkDesc, string jobDesc, IoSource<CcProtocMessage<TModel, TBatch>> source)
             : base(sinkDesc, jobDesc, source)
         {
-            DatumSize = 373 * 2; //SET to MTU
+            DatumSize = 1492; 
             
             //Init buffers
-            BufferSize = DatumSize * parm_datums_per_buffer;
+            BufferSize = DatumSize * parm_datums_per_buffer;//SET to MTU
+
             DatumProvisionLengthMax = DatumSize - 1;
             
             MemoryOwner = MemoryPool<byte>.Shared.Rent(BufferSize + DatumProvisionLengthMax);

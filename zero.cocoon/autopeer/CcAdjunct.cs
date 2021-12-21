@@ -102,7 +102,7 @@ namespace zero.cocoon.autopeer
 
 #if DEBUG
             string packetHeapDesc = $"{nameof(_chronitonHeap)}, {_description}";
-            string protoHeapDesc = $"{nameof(_protoHeap)}, {_description}";
+            string protoHeapDesc = $"{nameof(_sendBuf)}, {_description}";
 #else
             string packetHeapDesc = string.Empty;
             string protoHeapDesc = string.Empty;
@@ -115,11 +115,11 @@ namespace zero.cocoon.autopeer
                 }
             };
 
-            //_protoHeap = new IoHeap<byte[]>(protoHeapDesc, CcCollective.ZeroDrone & !IsProxy ? 32 : 16,
-            //    autoScale: true)
-            //{
-            //    Malloc = (_, _) => new byte[1492],
-            //};
+            _sendBuf = new IoHeap<byte[]>(protoHeapDesc, CcCollective.ZeroDrone & !IsProxy ? 32 : 16,
+                autoScale: true)
+            {
+                Malloc = (_, _) => new byte[1492],
+            };
 
             _stealthy = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() - parm_max_network_latency_ms * 10;
             var nrOfStates = Enum.GetNames(typeof(AdjunctState)).Length;
@@ -230,7 +230,7 @@ namespace zero.cocoon.autopeer
         /// <summary>
         /// Holds all coded outputstreams used for sending messages
         /// </summary>
-        //private IoHeap<byte[]> _protoHeap;
+        private IoHeap<byte[]> _sendBuf;
 
         /// <summary>
         /// The udp routing table 
@@ -628,7 +628,7 @@ namespace zero.cocoon.autopeer
                 }
 
                 await _chronitonHeap.ZeroManagedAsync<object>().FastPath().ConfigureAwait(Zc);
-                //await _protoHeap.ZeroManagedAsync<object>().FastPath().ConfigureAwait(Zc);
+                await _sendBuf.ZeroManagedAsync<object>().FastPath().ConfigureAwait(Zc);
 
                 var from = ZeroedFrom == this? "self" : ZeroedFrom?.Description??"null";
                 if (Assimilated && WasAttached && UpTime.ElapsedMs() > parm_min_uptime_ms)
@@ -1620,13 +1620,18 @@ namespace zero.cocoon.autopeer
                     var packetMsgRaw = packet.Data.Memory.AsArray();
                     packet.Signature = UnsafeByteOperations.UnsafeWrap(CcCollective.CcId.Sign(packetMsgRaw, 0, packetMsgRaw.Length));
 
-                    byte[] stream = null;
+                    byte[] buf = null;
                     try
                     {
-                        //stream = _protoHeap.Take();
-                        //if (stream == null)
-                        //    throw new OutOfMemoryException($"{nameof(_protoHeap)}, {_protoHeap.Description}");
+                        buf = _sendBuf.Take();
+                        if (buf == null)
+                            throw new OutOfMemoryException($"{nameof(_sendBuf)}, {_sendBuf.Description}");
 
+                        var length = (ushort)packet.CalculateSize();
+                        MemoryMarshal.Write(buf, ref length);
+                        packet.WriteTo(buf.AsSpan(sizeof(ushort), length));
+                        length += sizeof(ushort);
+                        buf[length] = 0;
 //simulate byzantine failure.                
 #if LOSS
                         var sent = 0;
@@ -1651,18 +1656,12 @@ namespace zero.cocoon.autopeer
 
                         return sent;
 #else
-                        return await MessageService.IoNetSocket.SendAsync(packet.ToByteArray(), 0, packet.CalculateSize(), dest.IpEndPoint).FastPath().ConfigureAwait(Zc);
+                        return await MessageService.IoNetSocket.SendAsync(buf, 0, length, dest.IpEndPoint).FastPath().ConfigureAwait(Zc);
                     }
                     finally
                     {
-                        //_protoHeap.Return(stream);
+                        _sendBuf.Return(buf);
                     }
-#endif
-
-#if DEBUG
-                    //await sent.OverBoostAsync().FastPath().ConfigureAwait(ZC);
-                    //_logger.Trace(
-                    //    $"=/> {Enum.GetName(typeof(CcDiscoveries.MessageTypes), packet.Type)} {MessageService.IoNetSocket.LocalAddress} /> {dest.IpEndPoint}>>{data.Memory.PayloadSig()}: s = {sent}");
 #endif
                 }
                 catch when (Zeroed()) { }
@@ -2102,7 +2101,7 @@ namespace zero.cocoon.autopeer
                         .FastPath().ConfigureAwait(Zc) > 0)
                 {
 #if DEBUG
-                    _logger.Trace($"-/> {nameof(CcProbeResponse)}({sent})[{response.ToByteString().Memory.PayloadSig()} ~ {response.ReqHash.Memory.HashSig()}]: Sent [[SYN-ACK]], [{MessageService.IoNetSocket.LocalAddress} ~> {toAddress}]");
+                    _logger.Trace($"-/> {nameof(CcProbeResponse)}({sent})[{response.ToByteArray().PayloadSig()} ~ {response.ReqHash.Memory.HashSig()}]: Sent [[SYN-ACK]], [{MessageService.IoNetSocket.LocalAddress} ~> {toAddress}]");
 #endif
                     
                     var ccId = CcDesignation.FromPubKey(packet.PublicKey.Memory);
@@ -2161,8 +2160,8 @@ namespace zero.cocoon.autopeer
                 {
 #if DEBUG
                     _logger.Trace(IsDroneConnected
-                        ? $"-/> {nameof(CcProbeResponse)}({sent})[{response.ToByteString().Memory.PayloadSig()} ~ {response.ReqHash.Memory.HashSig()}]: Sent [[KEEP-ALIVE]], {Description}"
-                        : $"-/> {nameof(CcProbeResponse)}({sent})[{response.ToByteString().Memory.PayloadSig()} ~ {response.ReqHash.Memory.HashSig()}]: Sent [[SYN-VCK]], {Description}");
+                        ? $"-/> {nameof(CcProbeResponse)}({sent})[{response.ToByteArray().PayloadSig()} ~ {response.ReqHash.Memory.HashSig()}]: Sent [[KEEP-ALIVE]], {Description}"
+                        : $"-/> {nameof(CcProbeResponse)}({sent})[{response.ToByteArray().PayloadSig()} ~ {response.ReqHash.Memory.HashSig()}]: Sent [[SYN-VCK]], {Description}");
 #endif
 
                     //ensure ingress delta trigger
@@ -2334,7 +2333,7 @@ namespace zero.cocoon.autopeer
                     _logger.Warn($"Verified with queen `{src}'");
 
 #if DEBUG
-                _logger.Trace($"<\\- {nameof(CcProbeResponse)}[{response.ToByteString().Memory.PayloadSig()} ~ {response.ReqHash.Memory.HashSig()}]: Processed <<SYN-ACK>>: {Description}");
+                _logger.Trace($"<\\- {nameof(CcProbeResponse)}[{response.ToByteArray().PayloadSig()} ~ {response.ReqHash.Memory.HashSig()}]: Processed <<SYN-ACK>>: {Description}");
 #endif
                 await SeduceAsync("ACK-SYN", Heading.Ingress, force:true).FastPath().ConfigureAwait(Zc);
             }
