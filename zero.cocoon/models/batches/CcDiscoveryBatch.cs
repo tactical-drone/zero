@@ -50,7 +50,7 @@ namespace zero.cocoon.models.batches
 
             foreach (var t in _messages)
             {
-                t.Message = null;
+                t.Chroniton = null;
                 t.EmbeddedMsg = null;
             }
 

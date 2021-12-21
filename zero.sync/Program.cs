@@ -595,15 +595,15 @@ namespace zero.sync
 
                             var ave = nodes.Average(n => n.EventCount);
                             var err = nodes.Select(n => Math.Abs(n.EventCount - ave)).Average();
-
-                            while (err > 2)
+                            var r = 0;
+                            while (err > 2 && r++ < 10)
                             {
                                 nodes = nodes.Where(n => err < (max*0.01) || Math.Abs(n.EventCount - ave) < err * 2).ToList();
                                 ave = nodes.Average(n => n.EventCount);
                                 err = nodes.Select(n => Math.Abs(n.EventCount - ave)).Average();
                             }
                             
-                            Console.WriteLine($"zero liveness at {nodes.Count()/(double)_nodes.Count*100:0.00}% - {nodes.Count()}/{_nodes.Count}, min/max = [{min},{max}], ave = {ave:0.0}, err = {err:0.0}");
+                            Console.WriteLine($"zero liveness at {nodes.Count()/(double)_nodes.Count*100:0.00}% - r={r}, {nodes.Count()}/{_nodes.Count}, min/max = [{min},{max}], ave = {ave:0.0}, err = {err:0.0}");
                         }
                         catch (Exception) { }
                     }

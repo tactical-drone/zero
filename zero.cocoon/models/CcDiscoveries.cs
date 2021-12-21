@@ -349,68 +349,22 @@ namespace zero.cocoon.models
                 
                 if (request != null)
                 {
-                    //_logger.Debug($"[{Base58Check.Base58CheckEncoding.Encode(packet.PublicKey.ToByteArray())}]{typeof(T).Name}: Received {packet.Data.Length}" );
-                    //IIoZero zero = null;
-                    //if (((IoNetClient<CcPeerMessage>)Source).Socket.FfAddress != null)
-                    //    zero = IoZero;
-
-                    //var ingressEp = packet.Header.Ip.Src.GetEndpoint();
-
-                    //byte[] ingressEpBytes;
-                    //if (_currentBatch.Count == 0)
-                    //{
-                    //    _currentBatch.RemoteEndPoint = ingressEpBytes = ingressEp.AsBytes(_currentBatch.RemoteEndPoint);
-                    //}
-                    //else
-                    //{
-                    //    ingressEpBytes = ingressEp.AsBytes();
-                    //}
-
-                    //if (!Equals(RemoteEndPoint, ingressEp))
-                    //{
-                    //    _logger.Fatal($"{nameof(CcDiscoveries)}: Bad external routing, got {RemoteEndPoint}, wanted {ingressEp}, count = {_currentBatch.Count}");
-                    //}
-
-                    //bool routingSuccess = true;
-                    //if (_currentBatch.Count >= parm_max_msg_batch_size - 2 || !(routingSuccess = _currentBatch.RemoteEndPoint.ArrayEqual(ingressEpBytes)))
-                    //{
-                    //    if (!routingSuccess)
-                    //    {
-                    //        _logger.Warn($"{nameof(CcDiscoveries)}: Internal msg routing SRC fragmented, got {_currentBatch.RemoteEndPoint.GetEndpoint()}, wanted {ingressEp}, count = {_currentBatch.Count}");
-                    //    }
-                    //    await ZeroBatchAsync().FastPath().ConfigureAwait(Zc);
-                    //}
-
-                    //bool routingSuccess = true;
-
-                    //byte[] ingressEpBytes;
-                    //if (_currentBatch.Count == 0 || _currentBatch.RemoteEndPoint == null) 
-                    //{
-                    //    _currentBatch.RemoteEndPoint = ingressEpBytes = RemoteEndPoint.AsBytes(_currentBatch.RemoteEndPoint);
-                    //}
-                    //else
-                    //{
-                    //    ingressEpBytes = RemoteEndPoint.AsBytes();
-                    //}
-
-                    
-
                     if (!_groupByEp)
                     {
                         var batchMsg = _currentBatch[Interlocked.Increment(ref _currentBatch.Count) - 1];
                         batchMsg.EmbeddedMsg = request;
-                        batchMsg.Message = packet;
-                        batchMsg.EndPoint = RemoteEndPoint;
+                        batchMsg.Chroniton = packet;
+                        RemoteEndPoint.CopyTo(batchMsg.EndPoint,0);
                     }
                     else
                     {
                         var batchMsg = _currentBatch[Interlocked.Increment(ref _currentBatch.Count) - 1];
 
                         batchMsg.EmbeddedMsg = request;
-                        batchMsg.Message = packet;
+                        batchMsg.Chroniton = packet;
 
-                        var remoteEp = RemoteEndPoint;
-                        if (!_currentBatch.GroupBy.TryAdd(RemoteEndPoint, Tuple.Create(remoteEp, new List<CcDiscoveryMessage>(_currentBatch.Messages))))
+                        var remoteEp = (byte[])RemoteEndPoint.Clone();
+                        if (!_currentBatch.GroupBy.TryAdd(remoteEp, Tuple.Create(remoteEp, new List<CcDiscoveryMessage>(_currentBatch.Messages))))
                         {
                             _currentBatch.GroupBy[remoteEp].Item2.Add(batchMsg);
                         }

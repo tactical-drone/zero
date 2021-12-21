@@ -13,9 +13,11 @@ namespace zero.cocoon.identity
 {
     public class CcDesignation
     {
+
         static CcDesignation()
         {
-            SecureRandom = SecureRandom.GetInstance("SHA512PRNG");
+            SecureRandom = SecureRandom.GetInstance("SHA512PRNG", false);
+            SecureRandom.SetSeed(SecureRandom.GenerateSeed(256));
         }
 
         private const int PubKeySize = 256;
