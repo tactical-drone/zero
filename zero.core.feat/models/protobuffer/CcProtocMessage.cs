@@ -21,10 +21,10 @@ namespace zero.core.feat.models.protobuffer
         protected CcProtocMessage(string sinkDesc, string jobDesc, IoSource<CcProtocMessage<TModel, TBatch>> source)
             : base(sinkDesc, jobDesc, source)
         {
-            DatumSize = 1492; 
+            DatumSize = 1492/2; 
             
             //Init buffers
-            BufferSize = DatumSize * parm_datums_per_buffer;//SET to MTU
+            BufferSize = DatumSize * parm_datums_per_buffer;//SET to MTU x2 for decompression
 
             DatumProvisionLengthMax = DatumSize - 1;
             

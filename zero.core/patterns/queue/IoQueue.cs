@@ -55,7 +55,7 @@ namespace zero.core.patterns.queue
             if (enableBackPressure)
             {
                 _backPressure = new IoZeroSemaphore($"qbp {description}",
-                    maxBlockers: concurrencyLevel, asyncWorkerCount: 0, initialCount: prefetch);
+                    maxBlockers: concurrencyLevel, asyncWorkerCount: prefetch, initialCount: prefetch);
                 _backPressure.ZeroRef(ref _backPressure, _asyncTasks);
             }
 
@@ -170,7 +170,19 @@ namespace zero.core.patterns.queue
         /// </summary>
         /// <param name="item">The item to enqueue</param>
         /// <returns>The queued item's linked list node</returns>
-        public async ValueTask<IoZNode> EnqueueAsync(T item)
+        public ValueTask<IoZNode> EnqueueAsync(T item)
+        {
+            return EnqueueAsync<object>(item);
+        }
+
+        /// <summary>
+        /// Blocking enqueue at the back
+        /// </summary>
+        /// <param name="item">The item to enqueue</param>
+        /// <param name="onAtomicAdd">Additional actions to perform in the critical area</param>
+        /// <param name="context">atomic context</param>
+        /// <returns>The queued item's linked list node</returns>
+        public async ValueTask<IoZNode> EnqueueAsync<TC>(T item, Func<TC,ValueTask> onAtomicAdd = null, TC context = default)
         {
             var entered = false;
             IoZNode retVal = default;
@@ -223,13 +235,35 @@ namespace zero.core.patterns.queue
             {
                 var success = _tail != null && _tail == retVal;
 
-                if (entered)
-                    _syncValRoot.Release();
+                try
+                {
+                    if (entered)
+                    {
+                        //additional atomic actions
+                        try
+                        {
+                            if (onAtomicAdd != null)
+                                await onAtomicAdd.Invoke(context).FastPath().ConfigureAwait(Zc);
 
-                if (success)
-                    _pressure?.Release();
-                else
-                    _backPressure?.Release();
+                            _syncValRoot.Release();
+                        }
+                        catch when (Zeroed) { }
+                        catch (Exception e) when (!Zeroed)
+                        {
+                            LogManager.GetCurrentClassLogger().Error(e, $"{nameof(EnqueueAsync)}");
+                        }
+                    }
+
+                    if (_pressure!= null && success)
+                        _pressure.Release();
+                    else
+                        _backPressure?.Release();
+                }
+                catch when (Zeroed) { }
+                catch (Exception e) when (!Zeroed)
+                {
+                    LogManager.GetCurrentClassLogger().Error(e, $"{nameof(EnqueueAsync)}");
+                }
             }
         }
 

@@ -54,12 +54,12 @@ namespace zero.core.patterns.bushings
         /// <summary>
         /// ZeroAsync handle
         /// </summary>
-        public IIoZero IoZero { get; set; }
+        public IIoZero IoZero { get; protected internal set; }
 
         /// <summary>
         /// Q handler
         /// </summary>
-        public IoQueue<IoSink<TJob>>.IoZNode PrevJobQHook { get; set; }
+        public IoQueue<IoSink<TJob>>.IoZNode PrevJobQHook { get; internal set; }
 
         /// <summary>
         /// Heap constructor
@@ -100,14 +100,14 @@ namespace zero.core.patterns.bushings
         }
 
         /// <summary>
-        /// Handle fragments
+        /// Handle fragmented jobs
         /// </summary>
-        public abstract void SyncPrevJob();
+        protected internal abstract void AddRecoveryBits();
 
         /// <summary>
         /// Updates buffer meta data
         /// </summary>
-        public abstract void JobSync();
+        protected internal abstract bool ZeroEnsureRecovery();
 
         /// <summary>
         /// Used to debug
@@ -116,6 +116,12 @@ namespace zero.core.patterns.bushings
         public virtual bool Verify([CallerMemberName] string desc = "", [CallerLineNumber] int sourceLineNumber = 0)
         {
             return true;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public void GenerateJobId()
+        {
+            Id = Source.NextJobIdSeed();
         }
     }
 }

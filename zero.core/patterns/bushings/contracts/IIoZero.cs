@@ -11,7 +11,7 @@ namespace zero.core.patterns.bushings.contracts
         
         bool IsArbitrating { get; }
 
-        bool SyncRecoveryModeEnabled { get; }
+        bool ZeroRecoveryEnabled { get; }
 
         long EventCount { get; }
 

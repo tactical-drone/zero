@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Concurrent;
+using System.Threading;
 using System.Threading.Tasks;
 using zero.core.data.contracts;
 using zero.core.patterns.misc;
@@ -85,6 +86,11 @@ namespace zero.core.patterns.bushings.contracts
         /// Counters for <see cref="IoJobMeta.JobState"/>
         /// </summary>
         public long[] Counters { get; }
+
+        /// <summary>
+        /// Generated Unique job Ids seed
+        /// </summary>
+        public long NextJobIdSeed();
 
 #if DEBUG
         /// <summary>

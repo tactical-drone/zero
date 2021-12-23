@@ -73,12 +73,12 @@ namespace zero.tangle.models
             return ValueTask.FromResult(State);
         }
 
-        public override void SyncPrevJob()
+        protected override void AddRecoveryBits()
         {
             throw new NotImplementedException();
         }
 
-        public override void JobSync()
+        protected override bool ZeroEnsureRecovery()
         {
             throw new NotImplementedException();
         }

@@ -279,7 +279,7 @@ namespace zero.tangle.models
             }
             finally
             {
-                if (State != IoJobMeta.JobState.Consumed && State != IoJobMeta.JobState.Syncing)
+                if (State != IoJobMeta.JobState.Consumed && State != IoJobMeta.JobState.Recovery)
                     State = IoJobMeta.JobState.ConsumeErr;
                 t.Stop();
                 _logger.Trace($"{TraceDescription} Deserializing `{DatumCount}' messages took `{t.ElapsedMilliseconds}ms', `{DatumCount*1000/(t.ElapsedMilliseconds+1)} m/s'");
@@ -331,7 +331,7 @@ namespace zero.tangle.models
             {                
                 
                 _logger.Debug($"{TraceDescription} Synchronizing `{Source.Description}'...");
-                State = IoJobMeta.JobState.Syncing;
+                State = IoJobMeta.JobState.Recovery;
 
                 for (var i = 0; i < DatumCount; i++)
                 {                    
@@ -396,7 +396,7 @@ namespace zero.tangle.models
                     DatumFragmentLength = BytesLeftToProcess % DatumSize;
 
                     //Mark this job so that it does not go back into the heap until the remaining fragment has been picked up
-                    Syncing = DatumFragmentLength > 0;                 
+                    InRecovery = DatumFragmentLength > 0;                 
                 }
 
                 stopwatch.Stop();
@@ -416,7 +416,7 @@ namespace zero.tangle.models
 
         private void TransferPreviousBits()
         {
-            if (PreviousJob?.Syncing ?? false)
+            if (PreviousJob?.InRecovery ?? false)
             {
                 var previousJobFragment = (IoMessage<IoTangleMessage<TKey>>)PreviousJob;
                 try
@@ -426,7 +426,7 @@ namespace zero.tangle.models
                     //DatumProvisionLength -= bytesToTransfer;
                     DatumCount = BytesLeftToProcess / DatumSize;
                     DatumFragmentLength = BytesLeftToProcess % DatumSize;
-                    Syncing = DatumFragmentLength > 0;
+                    InRecovery = DatumFragmentLength > 0;
 
                     Array.Copy(previousJobFragment.Buffer, previousJobFragment.BufferOffset, Buffer, BufferOffset, bytesToTransfer);
                 }
@@ -439,7 +439,7 @@ namespace zero.tangle.models
                     BytesRead = 0;
                     State = IoJobMeta.JobState.Consumed;
                     DatumFragmentLength = 0;
-                    Syncing = false;                    
+                    InRecovery = false;                    
                 }
             }
             
@@ -524,7 +524,7 @@ namespace zero.tangle.models
                                     DatumFragmentLength = BytesLeftToProcess % DatumSize;
 
                                     //Mark this job so that it does not go back into the heap until the remaining fragment has been picked up
-                                    Syncing = DatumFragmentLength > 0;
+                                    InRecovery = DatumFragmentLength > 0;
 
                                     State = IoJobMeta.JobState.Produced;
 

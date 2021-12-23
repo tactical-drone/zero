@@ -5,6 +5,7 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using NLog;
+using NLog.Filters;
 using zero.core.misc;
 using zero.core.patterns.queue;
 using zero.core.patterns.semaphore.core;
@@ -603,7 +604,14 @@ namespace zero.core.patterns.misc
             }
             finally
             {
-                _zeroRoot.Release();
+                try
+                {
+                    _zeroRoot.Release();
+                }
+                catch
+                {
+                    // ignored
+                }
             }
 
             return false;

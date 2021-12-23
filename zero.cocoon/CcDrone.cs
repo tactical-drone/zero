@@ -34,7 +34,7 @@ namespace zero.cocoon
                 node,
                 ioNetClient, 
                 static (ioZero, _) =>
-                    new CcWhispers(string.Empty, string.Empty, ((CcDrone)ioZero).IoSource), true
+                    new CcWhispers(string.Empty, string.Empty, ((CcDrone)ioZero).IoSource), false
             )
         {
             _logger = LogManager.GetCurrentClassLogger();

@@ -59,23 +59,23 @@ namespace zero.core.patterns.bushings
                 if (PressureEnabled)
                 {
                     _pressure = new IoZeroSemaphoreSlim(AsyncTasks, $"{nameof(_pressure)}: {description}",
-                        maxBlockers: PrefetchSize, maxAsyncWork: MaxAsyncSources);
+                        maxBlockers: PrefetchSize, maxAsyncWork: 0);
                 }
 
                 if (BackPressureEnabled)
                 {
                     _backPressure = new IoZeroSemaphoreSlim(AsyncTasks, $"{nameof(_backPressure)}: {description}",
                         maxBlockers: PrefetchSize,
-                        initialCount: prefetchSize,
-                        maxAsyncWork: 0);
+                        initialCount: 1,
+                        maxAsyncWork: PrefetchSize);
                 }
 
                 if (PrefetchEnabled)
                 {
                     _prefetchPressure = new IoZeroSemaphoreSlim(AsyncTasks, $"{nameof(_prefetchPressure)}: {description}", 
                         maxBlockers: PrefetchSize,
-                        initialCount: prefetchSize,
-                        maxAsyncWork: 0);
+                        initialCount: PrefetchSize,
+                        maxAsyncWork: PrefetchSize);
                 }
             }
             catch (Exception e)
@@ -110,6 +110,11 @@ namespace zero.core.patterns.bushings
         /// Counters for <see cref="IoJobMeta.JobState"/>
         /// </summary>
         public long[] Counters { get; protected set; } = new long[Enum.GetNames(typeof(IoJobMeta.JobState)).Length];
+
+        /// <summary>
+        /// Seeds job Ids
+        /// </summary>
+        private long _jobIdSeed = 0;
 
         /// <summary>
         /// Total service times per <see cref="Counters"/>
@@ -515,6 +520,16 @@ namespace zero.core.patterns.bushings
             if (PrefetchEnabled && _prefetchPressure != null)
                 return PrefetchEnabled ? _prefetchPressure.WaitAsync() : new ValueTask<bool>(true);
             return new ValueTask<bool>(!PrefetchEnabled);
+        }
+
+        /// <summary>
+        /// Seeds job Ids
+        /// </summary>
+        /// <returns>The next unique job Id</returns>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public long NextJobIdSeed()
+        {
+            return Interlocked.Increment(ref _jobIdSeed);
         }
     }
 }

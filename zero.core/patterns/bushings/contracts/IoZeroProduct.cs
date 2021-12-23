@@ -67,14 +67,14 @@ namespace zero.core.patterns.bushings.contracts
             return new ValueTask<IoJobMeta.JobState>(State = IoJobMeta.JobState.Consumed);
         }
 
-        public override void SyncPrevJob()
+        protected internal override void AddRecoveryBits()
         {
-            
+            throw new NotImplementedException();
         }
 
-        public override void JobSync()
+        protected internal override bool ZeroEnsureRecovery()
         {
-            
+            throw new NotImplementedException();
         }
     }
 }

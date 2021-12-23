@@ -1,17 +1,22 @@
 ﻿using System;
+using System.Buffers;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Net;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using Google.Protobuf;
+using K4os.Compression.LZ4;
 using zero.cocoon.autopeer;
 using zero.cocoon.identity;
 using zero.cocoon.models.batches;
 using zero.core.conf;
 using zero.core.feat.misc;
+using zero.core.feat.models;
 using zero.core.feat.models.protobuffer;
 using zero.core.feat.models.protobuffer.sources;
 using zero.core.misc;
@@ -43,9 +48,9 @@ namespace zero.cocoon.models
                 if (!Source.Proxy && ((CcAdjunct)IoZero)!.CcCollective.ZeroDrone)
                 {
                     parm_max_msg_batch_size *= 2;
-                    //cc = 8;
-                    //pf = 16;
-                    //ac = 4;
+                    cc *= 4;
+                    pf *= 4;
+                    ac *= 4;
                     //_groupByEp = true;
                 }
 
@@ -199,22 +204,27 @@ namespace zero.cocoon.models
         /// </summary>
         private volatile bool _groupByEp;
 
-        public override ValueTask<IoJobMeta.JobState> ProduceAsync<T>(IIoSource.IoZeroCongestion<T> barrier, T ioZero)
-        {
-            return base.ProduceAsync(barrier, ioZero);  
-        }
-
         public override async ValueTask<IoJobMeta.JobState> ConsumeAsync()
         {
             try
             {
                 //fail fast
-                if (BytesRead == 0 || Zeroed())
-                    return State = IoJobMeta.JobState.ConInvalid;
+                if (BytesRead == 0)
+                    return State = IoJobMeta.JobState.BadData;
                 
                 var verified = false;
 
-                while (BytesLeftToProcess > 0 && State != IoJobMeta.JobState.ConInlined)
+                //Ensure that the previous job (which could have been launched out of sync) has completed
+                if (PreviousJob != null)
+                {
+                    var recoverPrevJob = ((CcDiscoveries)PreviousJob).ZeroRecovery;
+                    
+                    var recovery = new ValueTask<bool>(recoverPrevJob, recoverPrevJob.Version);
+                    if(await recovery.FastPath().ConfigureAwait(Zc))
+                        AddRecoveryBits();
+                }
+
+                while (BytesLeftToProcess > 0)
                 {
                     chroniton packet = null;
 
@@ -222,35 +232,58 @@ namespace zero.cocoon.models
                     //deserialize
                     try
                     {
-                        var length = MemoryMarshal.Read<ushort>(Buffer.AsSpan(BufferOffset));
-                        Interlocked.Add(ref BufferOffset, sizeof(ushort));
-
-                        if (length > BytesLeftToProcess)
+                        int length;
+                        while ((length = ZeroSync()) > 0)
                         {
-                            State = IoJobMeta.JobState.ConInlined;
-                            continue;
+                            if (length > BytesLeftToProcess)
+                            {
+                                State = IoJobMeta.JobState.Fragmented;
+                                break;
+                            }
+
+                            read = length + sizeof(ulong);
+                            var packetLen = LZ4Codec.Decode(Buffer, BufferOffset + sizeof(ulong), length, Buffer, DatumProvisionLengthMax<<1, length*2);
+                            try
+                            {
+                                packet = chroniton.Parser.ParseFrom(ReadOnlySequence.Slice(DatumProvisionLengthMax << 1, packetLen));
+                                Interlocked.Add(ref BufferOffset, read);
+                            }
+#if DEBUG
+                            catch (Exception e)
+                            {
+
+                                _logger.Debug(e, $"Parse failed: buf[{BufferOffset}], r = {BytesRead - BytesLeftToProcess }/{BytesRead}/{BytesLeftToProcess }, d = {DatumCount}, syncing = {InRecovery}, {Description}");
+                            }
+#else
+                            catch
+                            {
+                                //if(BytesLeftToProcess - read == 0) //TODO?
+                                State = IoJobMeta.JobState.BadData;
+                                //_logger.Trace(e, $"Parse failed: buf[{BufferOffset}], r = {BytesRead - BytesLeftToProcess }/{BytesRead}/{BytesLeftToProcess }, d = {DatumCount}, syncing = {InRecovery}, {Description}");
+                            }
+#endif
                         }
 
-                        packet = chroniton.Parser.ParseFrom(ReadOnlySequence.Slice(BufferOffset, length));
-                        read = length;
+                        if (read == 0 && length == -1)
+                        {
+                            State = IoJobMeta.JobState.Fragmented;
+                            break;
+                        }
                     }
                     catch (Exception e) when(!Zeroed())
                     {
                         State = IoJobMeta.JobState.ConsumeErr;
-                        _logger.Debug(e, $"Parse failed: buf[{BufferOffset}], r = {BytesRead - BytesLeftToProcess}/{BytesRead}/{BytesLeftToProcess}, d = {DatumCount}, syncing = {Syncing}, {Description}");
-                        continue;
-                    }
-                    finally
-                    {
-                        Interlocked.Add(ref BufferOffset, read);
+                        _logger.Debug(e, $"Parse failed: buf[{BufferOffset}], r = {BytesRead - BytesLeftToProcess }/{BytesRead}/{BytesLeftToProcess }, d = {DatumCount}, syncing = {InRecovery}, {Description}");
+                        break;
                     }
 
-                    if (read == 0)
+                    if (State != IoJobMeta.JobState.Consuming)
                         break;
 
                     //Sanity check the data
-                    if (packet.Data == null || packet.Data.Length == 0)
+                    if (packet == null || packet.Data == null || packet.Data.Length == 0)
                     {
+                        State = IoJobMeta.JobState.BadData;
                         continue;
                     }
 
@@ -263,14 +296,16 @@ namespace zero.cocoon.models
 
                     var messageType = Enum.GetName(typeof(MessageTypes), packet.Type);
 #if DEBUG
-                    _logger.Trace($"<\\= {messageType ?? "Unknown"} [{RemoteEndPoint} ~> {MessageService.IoNetSocket.LocalNodeAddress}], ({CcCollective.CcId.IdString()})<<[{(verified ? "signed" : "un-signed")}]{packet.Data.Memory.PayloadSig()}: <{MessageService.Description}> id = {Id}, r = {BytesRead}");
+                    _logger.Trace($"<\\= {messageType ?? "Unknown"} [{RemoteEndPoint.GetEndpoint()} ~> {MessageService.IoNetSocket.LocalNodeAddress}], ({CcCollective.CcId.IdString()})<<[{(verified ? "signed" : "un-signed")}]{packet.Data.Memory.PayloadSig()}: <{MessageService.Description}> id = {Id}, r = {BytesRead}");
 #endif
 
                     //Don't process unsigned or unknown messages
                     if (!verified || messageType == null)
                     {
+                        State = IoJobMeta.JobState.BadData;
                         continue;
                     }
+                    
                     switch ((MessageTypes)packet.Type)
                     {
                         case MessageTypes.Probe:
@@ -296,49 +331,88 @@ namespace zero.cocoon.models
                             break;
                         default:
                             _logger.Debug($"Unknown auto peer msg type = {packet.Type}");
+                            State = IoJobMeta.JobState.BadData;
                             break;
                     }
+                    
                 }
-
+                
                 //TODO tuning
-                if(_currentBatch.Count > _batchHeap.MaxSize * 3 / 2)
+                if (_currentBatch.Count > _batchHeap.MaxSize * 3 / 2)
                     _logger.Warn($"{nameof(_batchHeap)} running lean {_currentBatch.Count}/{_batchHeap.MaxSize}, {_batchHeap}, {_batchHeap.Description}");
                 //Release a waiter
                 await ZeroBatchAsync().FastPath().ConfigureAwait(Zc);
             }
-            catch when(!Zeroed()){}
-            catch (Exception e) when (Zeroed())
+            catch when(Zeroed()){State = IoJobMeta.JobState.ConsumeErr;}
+            catch (Exception e) when (!Zeroed())
             {
+                State = IoJobMeta.JobState.ConsumeErr;
                 _logger.Error(e, $"Unmarshal chroniton failed in {Description}");
             }
             finally
             {
                 try
                 {
+                    
                     if (BytesLeftToProcess == 0)
                         State = IoJobMeta.JobState.Consumed;
-
-                    if (State != IoJobMeta.JobState.Consumed)
+                    else if(BytesLeftToProcess != BytesRead)
+                        State = IoJobMeta.JobState.Fragmented;
+#if DEBUG
+                    else if (State == IoJobMeta.JobState.Fragmented)
                     {
-                        if (PreviousJob is { Syncing: true })
-                        {
-                            State = IoJobMeta.JobState.ConsumeErr;
-                        }
-                        else
-                        {
-                            State = IoJobMeta.JobState.ConInlined;
-                            _logger.Debug($"[{Id}] FRAGGED = {DatumCount}, {BytesRead}/{BytesLeftToProcess}");
-                        }
+                        _logger.Debug($"[{Id}] FRAGGED = {DatumCount}, {BytesRead}/{BytesLeftToProcess }");
                     }
+                    else
+                    {
+                        _logger.Fatal($"[{Id}] FRAGGED = {DatumCount}, {BytesRead}/{BytesLeftToProcess }");
+                    }
+#else
+                    else if (State == IoJobMeta.JobState.Fragmented && !IoZero.ZeroRecoveryEnabled)
+                    {
+                        State = IoJobMeta.JobState.BadData;
+                    }
+#endif
                 }
-                catch when(Zeroed()){}
+                catch when(Zeroed()){ State = IoJobMeta.JobState.ConsumeErr; }
                 catch (Exception e) when(!Zeroed())
                 {
+                    State = IoJobMeta.JobState.ConsumeErr;
                     _logger.Error(e, $"{nameof(State)}: re setting state failed!");
-                }                
+                }
+
             }
 
             return State;
+        }
+
+        /// <summary>
+        /// Synchronizes the stream
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private int ZeroSync()
+        {
+            var read = 0;
+            var buf = (ReadOnlySpan<byte>)Buffer.AsSpan(BufferOffset);
+            try
+            {
+                while (read + sizeof(ulong) < BytesLeftToProcess)
+                {
+                    if (MemoryMarshal.Read<uint>(buf[(sizeof(ulong)>>1 + read)..]) == 0)
+                    {
+                        var p = MemoryMarshal.Read<ulong>(buf[read..]);
+                        if(p != 0 && p < ushort.MaxValue)
+                            return (int)p;
+                    }
+                    read += sizeof(uint);
+                }
+                return read = -1;
+            }
+            finally
+            {
+                if(read != -1 && read > 0)
+                    Interlocked.Add(ref BufferOffset, read);
+            }
         }
 
         /// <summary>

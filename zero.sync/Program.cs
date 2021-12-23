@@ -186,7 +186,7 @@ namespace zero.sync
                 var c = 1;
                 var rateLimit = 9000;
                 var injectionCount = 75;
-                var rampDelay = 2000;
+                var rampDelay = 500;
                 foreach (var task in tasks)
                 {
                     await Task.Factory.StartNew(async () =>
@@ -592,15 +592,17 @@ namespace zero.sync
                             
                             var min = nodes.Min(n => n.EventCount);
                             var max = nodes.Max(n => n.EventCount);
+                            var nmax = max;
 
                             var ave = nodes.Average(n => n.EventCount);
                             var err = nodes.Select(n => Math.Abs(n.EventCount - ave)).Average();
                             var r = 0;
-                            while (err > 20 && r++ < 10)
+                            while (err > 20 && r++ < 100)
                             {
-                                nodes = nodes.Where(n => err < (max*0.01) || Math.Abs(n.EventCount - ave) < err * 2).ToList();
+                                nodes = nodes.Where(n => err < (nmax*0.01) || Math.Abs(n.EventCount - ave) < err).ToList();
                                 ave = nodes.Average(n => n.EventCount);
                                 err = nodes.Select(n => Math.Abs(n.EventCount - ave)).Average();
+                                nmax = nodes.Max(n => n.EventCount);
                             }
                             
                             Console.WriteLine($"zero liveness at {nodes.Count()/(double)_nodes.Count*100:0.00}%, {nodes.Count()}/{_nodes.Count}, min/max = [{min},{max}], ave = {ave:0.0}, err = {err:0.0}, r = {r}");
@@ -1187,7 +1189,7 @@ namespace zero.sync
 //        }
 
         private static Task<CcCollective> CoCoonAsync(CcDesignation ccDesignation, string gossipAddress, string peerAddress,
-            string fpcAddress, string extAddress, List<string> bootStrapAddress, bool zeroDrone = false)
+            string fpcAddress, string extAddress, IEnumerable<string> bootStrapAddress, bool zeroDrone = false)
         {
 
             var cocoon = new CcCollective(ccDesignation,

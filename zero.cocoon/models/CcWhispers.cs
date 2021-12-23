@@ -275,7 +275,7 @@ namespace zero.cocoon.models
                                     }).FastPath().ConfigureAwait(Zc);
                             }
                         }
-                        catch when(Zeroed()){}
+                        catch when(Zeroed() || CcCollective == null || CcCollective.Zeroed() || CcCollective.DupSyncRoot == null) {}
                         catch (Exception e)when(!Zeroed())
                         {
                             _logger.Trace(e, Description);
@@ -285,8 +285,9 @@ namespace zero.cocoon.models
 
                 State = IoJobMeta.JobState.Consumed;
             }
-            catch when(Zeroed()){}
-            catch (Exception e)when(!Zeroed())
+            catch when(Zeroed() || CcCollective == null || CcCollective.Zeroed() || CcCollective.DupSyncRoot == null) {}
+            //catch(NullReferenceException){}//TODO
+            catch (Exception e) when(!Zeroed())
             {
                 _logger.Error(e, $"Unmarshal chroniton failed in {Description}");
             }
@@ -294,7 +295,6 @@ namespace zero.cocoon.models
             {
                 if (State == IoJobMeta.JobState.Consuming)
                     State = IoJobMeta.JobState.ConsumeErr;
-                JobSync();
             }
 
             return State;

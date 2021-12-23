@@ -112,7 +112,7 @@ namespace zero.core.network.ip
                 };
             }
             
-            _sendArgs = new IoHeap<SocketAsyncEventArgs, IoUdpSocket>($"{nameof(_sendArgs)}: {Description}", concurrencyLevel * 2)
+            _sendArgs = new IoHeap<SocketAsyncEventArgs, IoUdpSocket>($"{nameof(_sendArgs)}: {Description}", concurrencyLevel * 4)
             {
                 Malloc = static (_, @this) =>
                 {
@@ -395,7 +395,7 @@ namespace zero.core.network.ip
                     throw new OutOfMemoryException(nameof(_sendArgs));
 
                 var buf = Unsafe.As<ReadOnlyMemory<byte>, Memory<byte>>(ref buffer).Slice(offset, length);
-                var send = new IoZeroResetValueTaskSource<bool>();
+                var send = new IoZeroResetValueTaskSource<bool>(true);
 
                 args.UserToken = send;
                 args.SetBuffer(buf);
@@ -498,7 +498,7 @@ namespace zero.core.network.ip
 
                         if (args == null)
                             throw new OutOfMemoryException(nameof(_recvArgs));
-                        var recvSource = new IoManualResetValueTaskSource<bool>();
+                        var recvSource = new IoManualResetValueTaskSource<bool>(true);
                         var receiveAsync = new ValueTask<bool>(recvSource, 0);
                         args.UserToken = recvSource;
                         args.SetBuffer(buffer.Slice(offset, length));

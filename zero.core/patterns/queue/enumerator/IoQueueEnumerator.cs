@@ -23,6 +23,12 @@ namespace zero.core.patterns.queue.enumerator
             if (_q.Count == 0 || _iteratorIoZNode == null)
                 return false;
 
+            if (_q.Modified)
+            {
+                _q.Reset();
+                return MoveNext();
+            }
+
             _iteratorIoZNode = _iteratorIoZNode.Next;
 
             return _iteratorIoZNode != null && Disposed == 0;

@@ -67,6 +67,17 @@ namespace zero.core.feat.models.protobuffer
             await ClearAsync().FastPath().ConfigureAwait(Zc);
         }
 
+        protected override void AddRecoveryBits()
+        {
+            throw new NotImplementedException();
+        }
+
+        protected override bool ZeroEnsureRecovery()
+        {
+            throw new NotImplementedException();
+            
+        }
+
         /// <summary>
         /// get
         /// </summary>
@@ -95,22 +106,6 @@ namespace zero.core.feat.models.protobuffer
         {
             _batch?.Dispose();
             return default;
-        }
-
-        /// <summary>
-        /// 
-        /// </summary>
-        public override void SyncPrevJob()
-        {
-            
-        }
-
-        /// <summary>
-        /// 
-        /// </summary>
-        public override void JobSync()
-        {
-            
         }
 
         /// <summary>

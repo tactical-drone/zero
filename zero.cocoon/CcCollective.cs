@@ -36,7 +36,7 @@ namespace zero.cocoon
     {
         public CcCollective(CcDesignation ccDesignation, IoNodeAddress gossipAddress, IoNodeAddress peerAddress,
             IoNodeAddress fpcAddress, IoNodeAddress extAddress, List<IoNodeAddress> bootstrap, int udpPrefetch,
-            int tcpPrefetch, int udpConcurrencyLevel, int tpcConcurrencyLevel, bool zeroDrone)
+            int tcpPrefetch, int udpConcurrencyLevel, int tcpConcurrencyLevel, bool zeroDrone)
             : base(gossipAddress, static (node, ioNetClient, extraData) => new CcDrone((CcCollective)node, (CcAdjunct)extraData, ioNetClient), tcpPrefetch, udpPrefetch, 16 * 2) //TODO config
         {
             _logger = LogManager.GetCurrentClassLogger();
@@ -52,8 +52,8 @@ namespace zero.cocoon
                 _zeroDrone = true;
                 parm_max_drone = 0;
                 parm_max_adjunct = 64; //TODO tuning:
-                udpPrefetch = 3;
-                udpConcurrencyLevel = 2;
+                udpPrefetch = 6;
+                udpConcurrencyLevel = 4;
                 NeighborTasks = new IoQueue<Task>($"{nameof(NeighborTasks)}", parm_max_adjunct + 1, ZeroConcurrencyLevel());
             }
 
@@ -64,7 +64,7 @@ namespace zero.cocoon
             _autoPeering =  new CcHub(this, _peerAddress,static (node, client, extraData) => new CcAdjunct((CcHub) node, client, extraData), udpPrefetch, udpConcurrencyLevel);
             _autoPeering.ZeroHiveAsync(this).AsTask().GetAwaiter().GetResult();
             
-            DupSyncRoot = new IoZeroSemaphoreSlim(AsyncTasks,  $"Dup checker for {ccDesignation.IdString()}", maxBlockers: Math.Max(MaxDrones * tpcConcurrencyLevel,1), initialCount: 1);
+            DupSyncRoot = new IoZeroSemaphoreSlim(AsyncTasks,  $"Dup checker for {ccDesignation.IdString()}", maxBlockers: Math.Max(MaxDrones * tcpConcurrencyLevel,1), initialCount: 1);
             DupSyncRoot.ZeroHiveAsync(this).AsTask().GetAwaiter().GetResult();
             
             // Calculate max handshake
@@ -123,11 +123,19 @@ namespace zero.cocoon
                     popped.Add(endpoint.GetHashCode());
                 },
                 Context = this
-            };
+            };//ensure robotics
+        }
 
-            //ensure robotics
-            if(!ZeroDrone)
-                ZeroAsync(RoboAsync,this,TaskCreationOptions.DenyChildAttach).AsTask().GetAwaiter().GetResult();
+        /// <summary>
+        /// Tasks
+        /// </summary>
+        /// <param name="newNeighbor">The adjunct to block on</param>
+        /// <returns>Async state</returns>
+        public override ValueTask BlockOnAssimilateAsync(IoNeighbor<CcProtocMessage<CcWhisperMsg, CcGossipBatch>> newNeighbor)
+        {
+            if (!ZeroDrone)
+                ZeroAsync(RoboAsync, this, TaskCreationOptions.DenyChildAttach).AsTask().GetAwaiter().GetResult();
+            return base.BlockOnAssimilateAsync(newNeighbor);
         }
 
         /// <summary>

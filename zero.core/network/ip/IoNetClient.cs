@@ -47,7 +47,7 @@ namespace zero.core.network.ip
         /// <param name="prefetchSize">The amount of socket reads the upstream is allowed to lead the consumer</param>
         /// <param name="concurrencyLevel">Concurrency level</param>
         /// <param name="proxy">Whether this source is a proxy</param>
-        protected IoNetClient(string description, IoNetSocket netSocket, int prefetchSize, int concurrencyLevel, bool proxy = false) : base(description, proxy, prefetchSize, concurrencyLevel)
+        protected IoNetClient(string description, IoNetSocket netSocket, int prefetchSize, int concurrencyLevel, int maxAsyncSources, bool proxy = false) : base(description, proxy, prefetchSize, concurrencyLevel, maxAsyncSources)
         {
             IoNetSocket = netSocket;
             _logger = LogManager.GetCurrentClassLogger();

@@ -5,8 +5,12 @@ namespace zero.core.patterns.semaphore.core
 {
     public sealed class IoManualResetValueTaskSource<T> : IValueTaskSource<T>, IValueTaskSource
     {
+        public IoManualResetValueTaskSource(bool runContinuationsAsynchronously = false)
+        {
+            _core.RunContinuationsAsynchronously = runContinuationsAsynchronously;
+        }
 #if DEBUG
-        private ManualResetValueTaskSourceCore<T> _core;
+        private IoManualResetValueTaskSourceCore<T> _core;
 
         public bool RunContinuationsAsynchronously { get => _core.RunContinuationsAsynchronously; set => _core.RunContinuationsAsynchronously = value; }
         public short Version => _core.Version;

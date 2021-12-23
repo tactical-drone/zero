@@ -22,11 +22,11 @@ namespace zero.core.core
         /// <param name="node">The node this neighbor is connected to</param>
         /// <param name="ioNetClient">The neighbor rawSocket wrapper</param>
         /// <param name="mallocJob">The callback that allocates new message buffer space</param>
-        /// <param name="enableSync"></param>
+        /// <param name="enableZeroRecovery"></param>
         /// <param name="cascade"></param>
         public IoNeighbor(IoNode<TJob> node, IoNetClient<TJob> ioNetClient, Func<object, IIoNanite, IoSink<TJob>> mallocJob,
-            bool enableSync, bool cascade = true)
-            : base($"neighbor({ioNetClient?.Description})", ioNetClient, mallocJob, enableSync, cascade)
+            bool enableZeroRecovery, bool cascade = true)
+            : base($"neighbor({ioNetClient?.Description})", ioNetClient, mallocJob, enableZeroRecovery, cascade)
         {
             _logger = LogManager.GetCurrentClassLogger();
             Node = node;

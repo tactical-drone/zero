@@ -35,6 +35,6 @@ namespace zero.core.patterns.bushings.contracts
         /// Whether this job needs to be synced with a future job
         /// because the future job contains the tail end of this job
         /// </summary>
-        bool Syncing { get; }
+        bool InRecovery { get; }
     }
 }

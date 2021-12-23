@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Buffers;
 using System.IO;
+using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
 using zero.core.patterns.bushings;
@@ -72,7 +73,7 @@ namespace zero.core.feat.models
         /// The number of bytes left to process in this buffer
         /// </summary>
         public int BytesLeftToProcess => BytesRead - (BufferOffset - DatumProvisionLengthMax);
-        
+
         /// <summary>
         /// The current offset
         /// </summary>
@@ -111,6 +112,7 @@ namespace zero.core.feat.models
         {
             BytesRead = 0;
             BufferOffset = DatumProvisionLengthMax;
+            DatumFragmentLength = 0;
             //return !Reconfigure ? base.Constructor() : null; //TODO what was this about?
             return base.ReuseAsync();
         }
@@ -135,50 +137,52 @@ namespace zero.core.feat.models
         }
 
         /// <summary>
-        /// Handle fragments
+        /// Pulls previous fragment bytes into this job
         /// </summary>
-        public override void SyncPrevJob()
+        protected override void AddRecoveryBits()
         {
-            if (!IoZero.SyncRecoveryModeEnabled || !(PreviousJob?.Syncing ?? false)) return;
-
             var p = (IoMessage<TJob>)PreviousJob;
             try
             {
                 var bytesLeft = Math.Min(p.DatumFragmentLength, DatumProvisionLengthMax);
+
+                if (p.DatumFragmentLength > DatumProvisionLengthMax)
+                    throw new InvalidOperationException($"{nameof(AddRecoveryBits)}: de-sync, {nameof(DatumFragmentLength)} >= {DatumFragmentLength}/{DatumProvisionLengthMax}");
+
                 Interlocked.Add(ref BufferOffset, -bytesLeft);
-                
-                Interlocked.Add(ref BytesRead, bytesLeft);
 
-                p.MemoryBuffer[(DatumProvisionLengthMax + p.BytesRead - bytesLeft)..].CopyTo(MemoryBuffer[BufferOffset..]);
-                
-                p.State = IoJobMeta.JobState.Consumed;
+                p.MemoryBuffer.Slice(p.BufferOffset,bytesLeft).CopyTo(MemoryBuffer.Slice(BufferOffset, MemoryBuffer.Length - BufferOffset));
                 p.State = IoJobMeta.JobState.Accept;
-                p.Syncing = false;
-
-                _logger.Warn($"{Description}: >>> {bytesLeft} bytes <<<");
+                p.InRecovery = false;
             }
-            catch (Exception) // we de-synced 
+            catch // we de-synced 
             {
                 Source.Synced = false;
                 DatumCount = 0;
                 BytesRead = 0;
-                State = IoJobMeta.JobState.ConInvalid;
+                State = IoJobMeta.JobState.RSync;
+
                 DatumFragmentLength = 0;
-                Syncing = false;
+                InRecovery = false;
             }
         }
 
         /// <summary>
-        /// Updates buffer meta data
+        /// If there are still <see cref="BytesLeftToProcess"/>, set status to syncing
         /// </summary>
-        public override void JobSync()
+        protected override bool ZeroEnsureRecovery()
         {
             //Set how many datums we have available to process
+
             DatumCount = BytesLeftToProcess / DatumSize;
             DatumFragmentLength = BytesLeftToProcess;
 
             //Mark this job so that it does not go back into the heap until the remaining fragment has been picked up
-            Syncing = DatumFragmentLength > 0 && IoZero.SyncRecoveryModeEnabled && State >= IoJobMeta.JobState.Consuming;
+            InRecovery = DatumFragmentLength > 0 && IoZero.ZeroRecoveryEnabled && State >= IoJobMeta.JobState.Consuming;
+            if(InRecovery)
+                State = IoJobMeta.JobState.Recovery;
+
+            return InRecovery;
         }
     }
 }

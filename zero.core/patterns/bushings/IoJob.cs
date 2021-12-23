@@ -9,6 +9,7 @@ using zero.core.patterns.bushings.contracts;
 using zero.core.patterns.heap;
 using zero.core.patterns.misc;
 using zero.core.patterns.queue;
+using zero.core.patterns.semaphore.core;
 
 namespace zero.core.patterns.bushings
 {
@@ -52,12 +53,12 @@ namespace zero.core.patterns.bushings
         /// <summary>
         /// A unique id for this work
         /// </summary>
-        public long Id { get; private set; }
+        public long Id { get; protected set; }
 
         /// <summary>
         /// Work spanning multiple jobs
         /// </summary>
-        public IIoJob PreviousJob { get; set; }
+        public IIoJob PreviousJob { get; protected internal set; }
 
         private string _description;
         /// <summary>
@@ -101,12 +102,15 @@ namespace zero.core.patterns.bushings
 #else
         private readonly IoStateTransition<IoJobMeta.JobState> _stateMeta = new();
 #endif
-
-
         /// <summary>
         /// Indicates that this job contains unprocessed fragments
         /// </summary>
-        public bool Syncing { get; protected set; }
+        public bool InRecovery { get; protected set; }
+
+        /// <summary>
+        /// Enables async jobs to synchronize at certain parts of the pipeline, effectively chaining them into a unique processing order, ordered by <see cref="Id"/>
+        /// </summary>
+        protected internal volatile IoManualResetValueTaskSource<bool> ZeroRecovery = new(true);
 
         /// <summary>
         /// Uses <see cref="Source"/> to produce a job
@@ -138,9 +142,9 @@ namespace zero.core.patterns.bushings
             _stateMeta.Set((int)IoJobMeta.JobState.Undefined);
 #endif
             FinalState = State = IoJobMeta.JobState.Undefined;
-            Syncing = false;
-            Id = Interlocked.Increment(ref Source.Counters[(int)IoJobMeta.JobState.Undefined]);
-
+            InRecovery = false;
+            Id = -1;
+            ZeroRecovery.Reset();
 #if DEBUG
             return this;
 #else

@@ -149,11 +149,13 @@ namespace zero.cocoon.models.test
                             }
 
                             //Set how many datums we have available to process
+                            //@this.DatumCount = @this.BytesLeftToProcess / @this.DatumSize;
+                            //@this.DatumFragmentLength = @this.BytesLeftToProcess % @this.DatumSize;
                             @this.DatumCount = @this.BytesLeftToProcess / @this.DatumSize;
                             @this.DatumFragmentLength = @this.BytesLeftToProcess % @this.DatumSize;
 
                             //Mark this job so that it does not go back into the heap until the remaining fragment has been picked up
-                            @this.Syncing = @this.DatumFragmentLength > 0;
+                            @this.InRecovery = @this.DatumFragmentLength > 0;
 
                             @this.State = IoJobMeta.JobState.Produced;
 
@@ -221,7 +223,7 @@ namespace zero.cocoon.models.test
         /// </summary>
         private void TransferPreviousBits()
         {
-            if (PreviousJob?.Syncing ?? false)
+            if (PreviousJob?.InRecovery ?? false)
             {
                 var previousJobFragment = (IoMessage<CcPingPongTestMsg>)PreviousJob;
                 try
@@ -231,7 +233,7 @@ namespace zero.cocoon.models.test
                     //Interlocked.Add(ref DatumProvisionLength, -bytesToTransfer);
                     DatumCount = BytesLeftToProcess / DatumSize;
                     DatumFragmentLength = BytesLeftToProcess % DatumSize;
-                    Syncing = DatumFragmentLength > 0;
+                    InRecovery = DatumFragmentLength > 0;
 
                     //TODO
                     Array.Copy(previousJobFragment.Buffer, previousJobFragment.BufferOffset, Buffer, BufferOffset, bytesToTransfer);
@@ -245,7 +247,7 @@ namespace zero.cocoon.models.test
                     BytesRead = 0;
                     State = IoJobMeta.JobState.Consumed;
                     DatumFragmentLength = 0;
-                    Syncing = false;
+                    InRecovery = false;
                 }
             }
 
@@ -324,10 +326,6 @@ namespace zero.cocoon.models.test
             catch (Exception e)
             {
                 _logger.Error(e, "Unmarshal chroniton failed!");
-            }
-            finally
-            {
-                JobSync();
             }
 
             return State = IoJobMeta.JobState.Consumed;
