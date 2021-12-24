@@ -34,14 +34,14 @@ namespace zero.core.network.ip
 
         }
 
-
         /// <summary>
-        /// 
+        /// Enable TCP keep alive
         /// </summary>
         [IoParameter]
-        private bool parm_enable_tcp_keep_alive = false;        
-        [IoParameter]
+        private bool parm_enable_tcp_keep_alive = false;
+
 #if NET6_0
+        [IoParameter]
         private int parm_enable_tcp_keep_alive_time = 120;
         [IoParameter]
         private int parm_enable_tcp_keep_alive_retry_interval_sec = 2;
@@ -50,7 +50,7 @@ namespace zero.core.network.ip
 #endif
 
         /// <summary>
-        /// Configures the socket
+        /// Configure Socket
         /// </summary>
         protected virtual void ConfigureSocket()
         {
@@ -72,10 +72,10 @@ namespace zero.core.network.ip
             NativeSocket.NoDelay = true;
 
             // Set the receive buffer size to 64k
-            NativeSocket.ReceiveBufferSize = 8192 * 80;
+            NativeSocket.ReceiveBufferSize = 8192 * 8;
 
             // Set the send buffer size to 64k.
-            NativeSocket.SendBufferSize = 8192 * 80;
+            NativeSocket.SendBufferSize = 8192 * 8;
 
             // Set the timeout for synchronous receive methods to
             // 1 second (1000 milliseconds.)

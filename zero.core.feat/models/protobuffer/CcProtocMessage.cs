@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Buffers;
+using System.Diagnostics;
 using System.IO;
 using System.Net;
 using System.Runtime.InteropServices;
@@ -21,22 +22,21 @@ namespace zero.core.feat.models.protobuffer
         protected CcProtocMessage(string sinkDesc, string jobDesc, IoSource<CcProtocMessage<TModel, TBatch>> source)
             : base(sinkDesc, jobDesc, source)
         {
-            DatumSize = 1492/2; 
-            
+            Debug.Assert(parm_datums_per_buffer >=4);
+
+            DatumSize = 4096 / parm_datums_per_buffer;
+            DatumProvisionLengthMax = DatumSize;
             //Init buffers
             BufferSize = DatumSize * parm_datums_per_buffer;//SET to MTU x2 for decompression
+            //MemoryOwner = MemoryPool<byte>.Shared.Rent(BufferSize + DatumProvisionLengthMax);
 
-            DatumProvisionLengthMax = DatumSize - 1;
-            
-            MemoryOwner = MemoryPool<byte>.Shared.Rent(BufferSize + DatumProvisionLengthMax);
-
-            if (MemoryMarshal.TryGetArray((ReadOnlyMemory<byte>)MemoryOwner.Memory, out var malloc))
+            //if (MemoryMarshal.TryGetArray((ReadOnlyMemory<byte>)MemoryOwner.Memory, out var malloc))
             {
                 if (Buffer != null && Buffer.Length < BufferSize)
                 {
                     throw new InternalBufferOverflowException($"Invalid buffer size of {BufferSize} < {Buffer.Length}");
                 }
-                ArraySegment = malloc;
+                ArraySegment = new ArraySegment<byte>(new byte[4096 * 2]);
 
                 Buffer = ArraySegment.Array;
                 
@@ -70,7 +70,7 @@ namespace zero.core.feat.models.protobuffer
         /// </summary>
         [IoParameter]
         // ReSharper disable once InconsistentNaming
-        public int parm_datums_per_buffer = 2;
+        public int parm_datums_per_buffer = 4; // This must be at least 4
 
 
         /// <summary>
@@ -85,9 +85,9 @@ namespace zero.core.feat.models.protobuffer
         {
             base.ZeroUnmanaged();
 
-            MemoryOwner.Dispose();
+            //MemoryOwner.Dispose();
 #if SAFE_RELEASE
-            MemoryOwner = null;
+            //MemoryOwner = null;
             ProtocolConduit = null;
             ArraySegment = null;
             Buffer = null;

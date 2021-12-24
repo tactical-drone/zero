@@ -103,11 +103,6 @@ namespace zero.core.patterns.bushings
         private readonly IoStateTransition<IoJobMeta.JobState> _stateMeta = new();
 #endif
         /// <summary>
-        /// Indicates that this job contains unprocessed fragments
-        /// </summary>
-        public bool InRecovery { get; protected set; }
-
-        /// <summary>
         /// Enables async jobs to synchronize at certain parts of the pipeline, effectively chaining them into a unique processing order, ordered by <see cref="Id"/>
         /// </summary>
         protected internal volatile IoManualResetValueTaskSource<bool> ZeroRecovery = new(true);
@@ -142,7 +137,6 @@ namespace zero.core.patterns.bushings
             _stateMeta.Set((int)IoJobMeta.JobState.Undefined);
 #endif
             FinalState = State = IoJobMeta.JobState.Undefined;
-            InRecovery = false;
             Id = -1;
             ZeroRecovery.Reset();
 #if DEBUG

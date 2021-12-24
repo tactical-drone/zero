@@ -76,6 +76,7 @@ namespace zero.core.patterns.bushings
         /// <summary>
         /// Consumes the job
         /// </summary>
+        /// <param name="zeroRecovery"></param>
         /// <returns>The state of the consumption</returns>
         public abstract ValueTask<IoJobMeta.JobState> ConsumeAsync();
 

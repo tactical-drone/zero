@@ -141,16 +141,87 @@ namespace zero.core.network.ip
         protected int parm_socket_listen_backlog = 16;
 
         /// <summary>
+        /// zero unmanaged
+        /// </summary>
+        public override void ZeroUnmanaged()
+        {
+            base.ZeroUnmanaged();
+
+            if (!Proxy)
+                NativeSocket?.Dispose();
+
+#if SAFE_RELEASE
+            _logger = null;
+            LocalNodeAddress = null;
+            RemoteNodeAddress = null;
+            NativeSocket = null;
+#endif
+        }
+
+        /// <summary>
+        /// zero managed
+        /// </summary>
+        public override async ValueTask ZeroManagedAsync()
+        {
+            try
+            {
+                await base.ZeroManagedAsync().FastPath().ConfigureAwait(Zc);
+
+                if (!Proxy && NativeSocket.IsBound && NativeSocket.Connected)
+                {
+                    NativeSocket.Shutdown(SocketShutdown.Both);
+                    NativeSocket.Disconnect(true);
+                }
+            }
+            catch when (Zeroed()) { }
+            catch (Exception e) when (!Zeroed())
+            {
+                _logger.Error(e, $"Socket shutdown returned with errors: {Description}");
+            }
+
+            if (!Proxy)
+                NativeSocket.Close();
+#if DEBUG
+            _logger.Trace($"Closed {Description} from {ZeroedFrom}: reason = {ZeroReason}");
+#endif
+        }
+
+        /// <summary>
+        /// prime for zero
+        /// </summary>
+        /// <returns>The task</returns>
+        public override async ValueTask ZeroPrimeAsync()
+        {
+            await base.ZeroPrimeAsync().FastPath().ConfigureAwait(Zc);
+            if (!Proxy && NativeSocket.IsBound && NativeSocket.Connected)
+            {
+                try
+                {
+                    if (!Proxy && NativeSocket.IsBound && NativeSocket.Connected)
+                    {
+                        NativeSocket.Shutdown(SocketShutdown.Both);
+                        NativeSocket.Disconnect(true);
+                    }
+                }
+                catch when (Zeroed()) { }
+                catch (Exception e) when (!Zeroed())
+                {
+                    _logger.Error(e, $"Socket shutdown returned with errors: {Description}");
+                }
+            }
+        }
+
+        /// <summary>
         /// Listen for TCP or UDP data depending on the URL scheme used. udp://address:port or tcp://address:port
         /// </summary>
         /// <param name="listeningAddress">Address to listen on</param>
         /// <param name="acceptConnectionHandler">The callback that handles a new connection</param>
-        /// <param name="nanite"></param>
+        /// <param name="context"></param>
         /// <param name="bootstrapAsync"></param>
         /// <returns>True on success, false otherwise</returns>
         public virtual ValueTask BlockOnListenAsync<T>(IoNodeAddress listeningAddress,
             Func<IoSocket, T, ValueTask> acceptConnectionHandler,
-            T nanite,
+            T context,
             Func<ValueTask> bootstrapAsync = null)
         {
             //If there was a coding mistake throw
@@ -209,52 +280,6 @@ namespace zero.core.network.ip
             Kind = Connection.Egress;
 
             return true;
-        }
-
-        /// <summary>
-        /// zero unmanaged
-        /// </summary>
-        public override void ZeroUnmanaged()
-        {
-            base.ZeroUnmanaged();
-
-            if (!Proxy)
-                NativeSocket?.Dispose();
-            
-#if SAFE_RELEASE
-            _logger = null;
-            LocalNodeAddress = null;
-            RemoteNodeAddress = null;
-            NativeSocket = null;
-#endif
-        }
-
-        /// <summary>
-        /// zero managed
-        /// </summary>
-        public override async ValueTask ZeroManagedAsync()
-        {
-            try
-            {
-                await base.ZeroManagedAsync().FastPath().ConfigureAwait(Zc);
-
-                if (!Proxy && NativeSocket.IsBound && NativeSocket.Connected)
-                {
-                    NativeSocket.Shutdown(SocketShutdown.Both);
-                    NativeSocket.Disconnect(true);
-                }
-            }
-            catch when (Zeroed()){}
-            catch (Exception e) when(!Zeroed())
-            {
-                _logger.Error(e, $"Socket shutdown returned with errors: {Description}");
-            }
-
-            if (!Proxy)
-                NativeSocket.Close();
-#if DEBUG
-            _logger.Trace($"Closed {Description} from {ZeroedFrom}: reason = {ZeroReason}");
-#endif
         }
 
         /// <summary>

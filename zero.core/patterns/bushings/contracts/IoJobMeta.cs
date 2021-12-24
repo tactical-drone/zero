@@ -13,6 +13,7 @@
             ProStarting,
             Queued,
             Consuming,
+            ZeroRecovery,
             Consumed,
             ConInlined,
             Error,

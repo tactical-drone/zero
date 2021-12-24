@@ -65,15 +65,15 @@ namespace zero.core.network.ip
         /// </summary>
         /// <param name="listeningAddress">The <see cref="IoNodeAddress"/> that this socket listener will initialize with</param>
         /// <param name="acceptConnectionHandler">A handler that is called once a new connection was formed</param>
-        /// <param name="bootstrapAsync"></param>
+        /// <param name="context">handler context</param>
+        /// <param name="bootstrapAsync">Optional bootstrap function called after connect</param>
         /// <returns></returns>
         public override async ValueTask BlockOnListenAsync<T>(IoNodeAddress listeningAddress,
-            Func<IoSocket, T,ValueTask> acceptConnectionHandler,
-            T nanite,
+            Func<IoSocket, T,ValueTask> acceptConnectionHandler, T context,
             Func<ValueTask> bootstrapAsync = null)
         {
             //base
-            await base.BlockOnListenAsync(listeningAddress, acceptConnectionHandler, nanite, bootstrapAsync).FastPath().ConfigureAwait(Zc);
+            await base.BlockOnListenAsync(listeningAddress, acceptConnectionHandler, context, bootstrapAsync).FastPath().ConfigureAwait(Zc);
             
             //Configure the socket
 
@@ -90,7 +90,7 @@ namespace zero.core.network.ip
 
             //Execute bootstrap
             if(bootstrapAsync!=null)
-                await bootstrapAsync().ConfigureAwait(Zc);
+                await bootstrapAsync().FastPath().ConfigureAwait(Zc);
 
             var description = Description;
             // Accept incoming connections
@@ -117,7 +117,7 @@ namespace zero.core.network.ip
                     try
                     {
                         //ZERO
-                        await acceptConnectionHandler(newSocket, nanite).FastPath().ConfigureAwait(Zc);
+                        await acceptConnectionHandler(newSocket, context).FastPath().ConfigureAwait(Zc);
                     }
                     catch (Exception e)
                     {

@@ -155,7 +155,7 @@ namespace zero.cocoon.models.test
                             @this.DatumFragmentLength = @this.BytesLeftToProcess % @this.DatumSize;
 
                             //Mark this job so that it does not go back into the heap until the remaining fragment has been picked up
-                            @this.InRecovery = @this.DatumFragmentLength > 0;
+                            //@this.InRecovery = @this.DatumFragmentLength > 0;
 
                             @this.State = IoJobMeta.JobState.Produced;
 
@@ -217,49 +217,14 @@ namespace zero.cocoon.models.test
             }
             return State;
         }
-        
-        /// <summary>
-        /// Transfers previous job bits to this one
-        /// </summary>
-        private void TransferPreviousBits()
-        {
-            if (PreviousJob?.InRecovery ?? false)
-            {
-                var previousJobFragment = (IoMessage<CcPingPongTestMsg>)PreviousJob;
-                try
-                {
-                    var bytesToTransfer = previousJobFragment.DatumFragmentLength;
-                    BufferOffset -= bytesToTransfer;
-                    //Interlocked.Add(ref DatumProvisionLength, -bytesToTransfer);
-                    DatumCount = BytesLeftToProcess / DatumSize;
-                    DatumFragmentLength = BytesLeftToProcess % DatumSize;
-                    InRecovery = DatumFragmentLength > 0;
-
-                    //TODO
-                    Array.Copy(previousJobFragment.Buffer, previousJobFragment.BufferOffset, Buffer, BufferOffset, bytesToTransfer);
-                }
-                catch (Exception e) // we de-synced 
-                {
-                    _logger.Warn(e, $"{TraceDescription} We desynced!:");
-
-                    Source.Synced = false;
-                    DatumCount = 0;
-                    BytesRead = 0;
-                    State = IoJobMeta.JobState.Consumed;
-                    DatumFragmentLength = 0;
-                    InRecovery = false;
-                }
-            }
-
-        }
-
+  
         /// <summary>
         /// Process a gossip message
         /// </summary>
+        /// <param name="zeroRecovery"></param>
         /// <returns>The state</returns>
         public override async ValueTask<IoJobMeta.JobState> ConsumeAsync()
         {
-            TransferPreviousBits();
             try
             {
                 for (var i = 0; i < DatumCount; i++)

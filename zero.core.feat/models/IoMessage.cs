@@ -37,7 +37,7 @@ namespace zero.core.feat.models
         /// <summary>
         /// buffer owner
         /// </summary>
-        public IMemoryOwner<byte> MemoryOwner;
+        //public IMemoryOwner<byte> MemoryOwner;
 
         /// <summary>
         /// A buffer to receive the message in
@@ -144,26 +144,27 @@ namespace zero.core.feat.models
             var p = (IoMessage<TJob>)PreviousJob;
             try
             {
-                var bytesLeft = Math.Min(p.DatumFragmentLength, DatumProvisionLengthMax);
-
                 if (p.DatumFragmentLength > DatumProvisionLengthMax)
-                    throw new InvalidOperationException($"{nameof(AddRecoveryBits)}: de-sync, {nameof(DatumFragmentLength)} >= {DatumFragmentLength}/{DatumProvisionLengthMax}");
+                {
+                    Source.Synced = false;
+                    DatumCount = 0;
+                    BytesRead = 0;
+                    State = IoJobMeta.JobState.RSync;
+
+                    DatumFragmentLength = 0;
+                    return;
+                }
+
+                var bytesLeft = p.DatumFragmentLength;
 
                 Interlocked.Add(ref BufferOffset, -bytesLeft);
 
                 p.MemoryBuffer.Slice(p.BufferOffset,bytesLeft).CopyTo(MemoryBuffer.Slice(BufferOffset, MemoryBuffer.Length - BufferOffset));
-                p.State = IoJobMeta.JobState.Accept;
-                p.InRecovery = false;
             }
-            catch // we de-synced 
+            catch when(Zeroed()){}
+            catch (Exception e)when(!Zeroed())
             {
-                Source.Synced = false;
-                DatumCount = 0;
-                BytesRead = 0;
-                State = IoJobMeta.JobState.RSync;
-
-                DatumFragmentLength = 0;
-                InRecovery = false;
+                _logger.Error(e,$"{nameof(AddRecoveryBits)}");
             }
         }
 
@@ -172,17 +173,12 @@ namespace zero.core.feat.models
         /// </summary>
         protected override bool ZeroEnsureRecovery()
         {
-            //Set how many datums we have available to process
-
             DatumCount = BytesLeftToProcess / DatumSize;
             DatumFragmentLength = BytesLeftToProcess;
 
-            //Mark this job so that it does not go back into the heap until the remaining fragment has been picked up
-            InRecovery = DatumFragmentLength > 0 && IoZero.ZeroRecoveryEnabled && State >= IoJobMeta.JobState.Consuming;
-            if(InRecovery)
-                State = IoJobMeta.JobState.Recovery;
+            Source.Synced = !(IoZero.ZeroRecoveryEnabled && DatumFragmentLength > 0);
 
-            return InRecovery;
+            return !Source.Synced;
         }
     }
 }

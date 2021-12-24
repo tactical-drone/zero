@@ -146,6 +146,7 @@ namespace zero.core.feat.models.protobuffer
         /// <summary>
         /// Consumes the job
         /// </summary>
+        /// <param name="zeroRecovery"></param>
         /// <returns>
         /// The state of the consumption
         /// </returns>

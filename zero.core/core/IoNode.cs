@@ -100,7 +100,7 @@ namespace zero.core.core
         /// </summary>
         [IoParameter]
         // ReSharper disable once InconsistentNaming
-        protected int parm_nb_teardown_timeout_s  = 60; //currently takes 2 seconds to up
+        protected int parm_nb_teardown_timeout_s  = 3; //currently takes 2 seconds to up
 
         /// <summary>
         /// TCP read ahead
@@ -116,6 +116,61 @@ namespace zero.core.core
         /// A set of all node tasks that are currently running
         /// </summary>
         protected IoQueue<Task> NeighborTasks;
+
+
+        /// <summary>
+        /// zero unmanaged
+        /// </summary>
+        public override void ZeroUnmanaged()
+        {
+            base.ZeroUnmanaged();
+
+#if SAFE_RELEASE
+            _logger = null;
+            Neighbors = null;
+            NeighborTasks = default;
+            _netServer = null;
+            _address = null;
+            _whiteList = null;
+#endif
+        }
+
+        /// <summary>
+        /// zero managed
+        /// </summary>
+        public override async ValueTask ZeroManagedAsync()
+        {
+            await base.ZeroManagedAsync().FastPath().ConfigureAwait(Zc);
+
+            foreach (var ioNeighbor in Neighbors.Values)
+            {
+                ioNeighbor.Zero(this, $"{nameof(ZeroManagedAsync)}: teardown");
+            }
+
+            Neighbors.Clear();
+
+            _netServer?.Zero(this, $"{nameof(ZeroManagedAsync)}: teardown");
+
+            await NeighborTasks.ZeroManagedAsync(static (neighborTask, @this) =>
+            {
+                if (!neighborTask.Wait(TimeSpan.FromSeconds(@this.parm_nb_teardown_timeout_s)))
+                {
+                    @this._logger.Warn(neighborTask.Exception, $"{nameof(IoNode<TJob>)}.{nameof(ZeroManagedAsync)}: {nameof(neighborTask)} exit slow...");
+                }
+                return default;
+            }, this, zero: true).FastPath().ConfigureAwait(Zc);
+        }
+
+        /// <summary>
+        /// Primes for Zero
+        /// </summary>
+        /// <returns>The task</returns>
+        public override async ValueTask ZeroPrimeAsync()
+        {
+            await base.ZeroPrimeAsync().FastPath().ConfigureAwait(Zc);
+            foreach (var ioNeighbor in Neighbors.Values)
+                await ioNeighbor.ZeroPrimeAsync().FastPath().ConfigureAwait(Zc);
+        }
 
         /// <summary>
         /// Starts the node's listener
@@ -184,7 +239,7 @@ namespace zero.core.core
 
                         if (task.IsCompletedSuccessfully)
                         {
-                            if (await @this.ZeroAtomic(static (_, state, _) =>
+                            if (await @this.ZeroAtomic(static (_, state, _) => 
                                     {
                                         var (@this, newNeighbor) = state;
                                         try
@@ -242,10 +297,8 @@ namespace zero.core.core
                                         {
                                             @this._logger.Error(e, $"Adding new node failed! {@this.Description}");
                                         }
-
                                         return new ValueTask<bool>(false);
-                                    }
-                        , ValueTuple.Create(@this, newNeighbor)).FastPath().ConfigureAwait(@this.Zc))
+                                    },ValueTuple.Create(@this, newNeighbor)).FastPath().ConfigureAwait(@this.Zc))
                             {
                                 //Start processing
                                 await @this.BlockOnAssimilateAsync(newNeighbor).FastPath().ConfigureAwait(@this.Zc);
@@ -427,49 +480,6 @@ namespace zero.core.core
             {
                 _logger.Error(e, $"Unimatrix Failed ~> {Description}");
             }
-        }
-
-        /// <summary>
-        /// zero unmanaged
-        /// </summary>
-        public override void ZeroUnmanaged()
-        {
-            base.ZeroUnmanaged();
-
-#if SAFE_RELEASE
-            _logger = null;
-            Neighbors = null;
-            NeighborTasks = default;
-            _netServer = null;
-            _address = null;
-            _whiteList = null;
-#endif
-        }
-
-        /// <summary>
-        /// zero managed
-        /// </summary>
-        public override async ValueTask ZeroManagedAsync()
-        {
-            await base.ZeroManagedAsync().FastPath().ConfigureAwait(Zc);
-
-            foreach (var ioNeighbor in Neighbors.Values)
-            {
-                ioNeighbor.Zero(this, $"{nameof(ZeroManagedAsync)}: teardown");
-            }
-
-            Neighbors.Clear();
-
-            _netServer?.Zero(this, $"{nameof(ZeroManagedAsync)}: teardown");
-
-            await NeighborTasks.ZeroManagedAsync(static (neighborTask, @this) =>
-            {
-                if (!neighborTask.Wait(TimeSpan.FromSeconds(@this.parm_nb_teardown_timeout_s)))
-                {
-                    @this._logger.Warn(neighborTask.Exception, $"{nameof(IoNode<TJob>)}.{nameof(ZeroManagedAsync)}: {nameof(neighborTask)} exit slow...");
-                }
-                return default;
-            }, this, zero:true).FastPath().ConfigureAwait(Zc);
         }
 
         public bool WhiteList(IoNodeAddress address)

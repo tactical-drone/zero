@@ -99,6 +99,7 @@ namespace zero.cocoon.models
         /// <summary>
         /// random number generator
         /// </summary>
+        /// <param name="zeroRecovery"></param>
         //readonly Random _random = new Random((int)DateTime.Now.Ticks);
 
         //private IoHeap<ConcurrentBag<string>> _dupHeap;

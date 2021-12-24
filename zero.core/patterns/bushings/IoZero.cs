@@ -402,27 +402,19 @@ namespace zero.core.patterns.bushings
                                 //signal back pressure
                                 Source.BackPressureAsync();
 
-                                //Enqueue the job for the consumer so that it can stay in sync
-                                //nextJob.State = IoJobMeta.JobState.ConCancel; 
+                                await ReturnJobToHeapAsync(nextJob).FastPath().ConfigureAwait(Zc);
+                                nextJob = null;
 
-                                //if (await _queue.EnqueueAsync(nextJob).FastPath().ConfigureAwait(Zc) == null ||
-                                //    nextJob.Source == null)
-                                {
-                                    await ReturnJobToHeapAsync(nextJob).FastPath()
-                                        .ConfigureAwait(Zc);
+                                //Are we in teardown?
+                                if (Zeroed())
+                                    return false;
 
-                                    nextJob = null;
+                                //Is the producer spinning? Slow it down
+                                if (_producerStopwatch.ElapsedMilliseconds < parm_min_failed_production_time)
+                                    await Task.Delay(parm_min_failed_production_time, AsyncTasks.Token).ConfigureAwait(Zc);
 
-                                    //Are we in teardown?
-                                    if (Zeroed())
-                                        return false;
-
-                                    //Is the producer spinning? Slow it down
-                                    if (_producerStopwatch.ElapsedMilliseconds < parm_min_failed_production_time)
-                                        await Task.Delay(parm_min_failed_production_time, AsyncTasks.Token).ConfigureAwait(Zc);
-
-                                    return true; //maybe we retry
-                                }
+                                await Task.Delay(parm_min_failed_production_time).ConfigureAwait(Zc);
+                                return true; //maybe we retry
                             }
                         }
                     }
@@ -499,16 +491,13 @@ namespace zero.core.patterns.bushings
                     //Tell future jobs if recovery is needed from past jobs
                     job.ZeroRecovery.SetResult(job.ZeroEnsureRecovery());
                 }
-
-                if (!job.InRecovery || force)
+                else if (!force)
                 {
                     if (job.PrevJobQHook != null)
                     {
                         await _previousJobFragment.RemoveAsync(job.PrevJobQHook).FastPath().ConfigureAwait(Zc);
                         job.PrevJobQHook = null;
                     }
-                    
-                    //Console.WriteLine($"[{job.Id}] -> Returned");
 
                     JobHeap.Return(job, job.FinalState != IoJobMeta.JobState.Accept);
                 }
@@ -589,7 +578,7 @@ namespace zero.core.patterns.bushings
                         if (await curJob.ConsumeAsync().FastPath().ConfigureAwait(Zc) == IoJobMeta.JobState.Consumed ||
                             curJob.State is IoJobMeta.JobState.ConInlined or 
                                 IoJobMeta.JobState.FastDup or 
-                                IoJobMeta.JobState.BadData or 
+                                //IoJobMeta.JobState.BadData or 
                                 IoJobMeta.JobState.Fragmented or
                                 IoJobMeta.JobState.ConsumeErr or 
                                 IoJobMeta.JobState.RSync)

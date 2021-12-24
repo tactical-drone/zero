@@ -247,7 +247,7 @@ namespace zero.core.patterns.misc
         /// <summary>
         /// Prime for zero
         /// </summary>
-        public async ValueTask ZeroPrimeAsync()
+        public virtual async ValueTask ZeroPrimeAsync()
         {
             if (_zeroPrimed > 0 || Interlocked.CompareExchange(ref _zeroPrimed, 1, 0) != 0)
                 return;
@@ -473,10 +473,7 @@ namespace zero.core.patterns.misc
                 throw new ApplicationException($"{Description}: BUG!!! Memory leaks detected in type {GetType().Name}!!!");
             }
 #endif
-
             TearDownTime = TearDownTime.ElapsedMs();
-            //if (UpTime.Elapsed.TotalSeconds > 10 && TeardownTime.ElapsedMilliseconds > 2000)
-            //    _logger.Fatal($"{GetType().Name}:Z/{Description}> t = {TeardownTime.ElapsedMilliseconds/1000.0:0.0}, c = {CascadeTime.ElapsedMilliseconds/1000.0:0.0}");
 
             try
             {

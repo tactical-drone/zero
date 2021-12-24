@@ -131,11 +131,11 @@ namespace zero.cocoon
         /// </summary>
         /// <param name="newNeighbor">The adjunct to block on</param>
         /// <returns>Async state</returns>
-        public override ValueTask BlockOnAssimilateAsync(IoNeighbor<CcProtocMessage<CcWhisperMsg, CcGossipBatch>> newNeighbor)
+        public override async ValueTask BlockOnAssimilateAsync(IoNeighbor<CcProtocMessage<CcWhisperMsg, CcGossipBatch>> newNeighbor)
         {
             if (!ZeroDrone)
-                ZeroAsync(RoboAsync, this, TaskCreationOptions.DenyChildAttach).AsTask().GetAwaiter().GetResult();
-            return base.BlockOnAssimilateAsync(newNeighbor);
+                await ZeroAsync(RoboAsync, this, TaskCreationOptions.DenyChildAttach).FastPath().ConfigureAwait(Zc);
+            await base.BlockOnAssimilateAsync(newNeighbor).FastPath().ConfigureAwait(Zc);
         }
 
         /// <summary>
@@ -311,6 +311,16 @@ namespace zero.cocoon
             }
         }
 
+        /// <summary>
+        /// Primes for Zero
+        /// </summary>
+        /// <returns>The task</returns>
+        public override async ValueTask ZeroPrimeAsync()
+        {
+            await base.ZeroPrimeAsync().FastPath().ConfigureAwait(Zc);
+            await _autoPeering.ZeroPrimeAsync().FastPath().ConfigureAwait(Zc);
+        }
+
         private Logger _logger;
 
         private string _description;
@@ -461,7 +471,7 @@ namespace zero.cocoon
         // ReSharper disable once InconsistentNaming
 
 #if DEBUG
-        public int parm_mean_pat_delay_s = 60 * 4;
+        public int parm_mean_pat_delay_s = 60 * 1;
 #else
         public int parm_mean_pat_delay_s = 60 * 5;
 #endif

@@ -63,6 +63,7 @@ namespace zero.tangle.models
         /// <summary>
         /// Consumes the job
         /// </summary>
+        /// <param name="zeroRecovery"></param>
         /// <returns>
         /// The state of the consumption
         /// </returns>

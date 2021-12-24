@@ -395,8 +395,6 @@ namespace zero.tangle.models
                     DatumCount = BytesLeftToProcess / DatumSize;
                     DatumFragmentLength = BytesLeftToProcess % DatumSize;
 
-                    //Mark this job so that it does not go back into the heap until the remaining fragment has been picked up
-                    InRecovery = DatumFragmentLength > 0;                 
                 }
 
                 stopwatch.Stop();
@@ -414,36 +412,6 @@ namespace zero.tangle.models
             return requiredSync;
         }
 
-        private void TransferPreviousBits()
-        {
-            if (PreviousJob?.InRecovery ?? false)
-            {
-                var previousJobFragment = (IoMessage<IoTangleMessage<TKey>>)PreviousJob;
-                try
-                {
-                    var bytesToTransfer = previousJobFragment.DatumFragmentLength;                    
-                    BufferOffset -= bytesToTransfer;                    
-                    //DatumProvisionLength -= bytesToTransfer;
-                    DatumCount = BytesLeftToProcess / DatumSize;
-                    DatumFragmentLength = BytesLeftToProcess % DatumSize;
-                    InRecovery = DatumFragmentLength > 0;
-
-                    Array.Copy(previousJobFragment.Buffer, previousJobFragment.BufferOffset, Buffer, BufferOffset, bytesToTransfer);
-                }
-                catch (Exception e) // we de-synced 
-                {
-                    _logger.Warn(e, $"{TraceDescription} We desynced!:");
-
-                    Source.Synced = false;
-                    DatumCount = 0;
-                    BytesRead = 0;
-                    State = IoJobMeta.JobState.Consumed;
-                    DatumFragmentLength = 0;
-                    InRecovery = false;                    
-                }
-            }
-            
-        }
 
         /// <inheritdoc />
         /// <summary>
@@ -452,8 +420,6 @@ namespace zero.tangle.models
         /// <returns>The <see cref="F:zero.core.patterns.bushes.IoStateTransition`1.IoJobMeta.CurrentState" /> of the barrier's outcome</returns>
         public override async ValueTask<IoJobMeta.JobState> ConsumeAsync()
         {
-            TransferPreviousBits();
-            
             return await ProcessProtocolMessageAsync(); 
         }
 
@@ -522,9 +488,6 @@ namespace zero.tangle.models
                                     //Set how many datums we have available to process
                                     DatumCount = BytesLeftToProcess / DatumSize;
                                     DatumFragmentLength = BytesLeftToProcess % DatumSize;
-
-                                    //Mark this job so that it does not go back into the heap until the remaining fragment has been picked up
-                                    InRecovery = DatumFragmentLength > 0;
 
                                     State = IoJobMeta.JobState.Produced;
 

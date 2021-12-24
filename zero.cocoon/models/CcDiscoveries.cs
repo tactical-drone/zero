@@ -44,7 +44,7 @@ namespace zero.cocoon.models
                 _configured = true;
                 var cc = 2;
                 var pf = 3;
-                var ac = 0;
+                var ac = 1;
                 if (!Source.Proxy && ((CcAdjunct)IoZero)!.CcCollective.ZeroDrone)
                 {
                     parm_max_msg_batch_size *= 2;
@@ -204,8 +204,16 @@ namespace zero.cocoon.models
         /// </summary>
         private volatile bool _groupByEp;
 
+        /// <summary>
+        /// Consumer discovery messages
+        /// </summary>
+        /// <returns>The task</returns>
         public override async ValueTask<IoJobMeta.JobState> ConsumeAsync()
         {
+            //are we in recovery mode?
+            var zeroRecovery = State == IoJobMeta.JobState.ZeroRecovery;
+            var pos = BufferOffset;
+
             try
             {
                 //fail fast
@@ -213,15 +221,17 @@ namespace zero.cocoon.models
                     return State = IoJobMeta.JobState.BadData;
                 
                 var verified = false;
-
+                
                 //Ensure that the previous job (which could have been launched out of sync) has completed
-                if (PreviousJob != null)
+                if (zeroRecovery)
                 {
                     var recoverPrevJob = ((CcDiscoveries)PreviousJob).ZeroRecovery;
                     
                     var recovery = new ValueTask<bool>(recoverPrevJob, recoverPrevJob.Version);
-                    if(await recovery.FastPath().ConfigureAwait(Zc))
+                    if (await recovery.FastPath().ConfigureAwait(Zc))
                         AddRecoveryBits();
+                    
+                    State = IoJobMeta.JobState.Consuming;
                 }
 
                 while (BytesLeftToProcess > 0)
@@ -240,24 +250,35 @@ namespace zero.cocoon.models
                                 State = IoJobMeta.JobState.Fragmented;
                                 break;
                             }
-
-                            read = length + sizeof(ulong);
-                            var packetLen = LZ4Codec.Decode(Buffer, BufferOffset + sizeof(ulong), length, Buffer, DatumProvisionLengthMax<<1, length*2);
+                            
                             try
                             {
-                                packet = chroniton.Parser.ParseFrom(ReadOnlySequence.Slice(DatumProvisionLengthMax << 1, packetLen));
+                                var unpackOffset = DatumProvisionLengthMax << 2;
+                                Array.Clear(Buffer, unpackOffset, Buffer.Length - unpackOffset - 1);
+                                var packetLen = LZ4Codec.Decode(Buffer, BufferOffset + sizeof(ulong), length, Buffer, unpackOffset, Buffer.Length - unpackOffset - 1);
+
+                                read = length + sizeof(ulong);
                                 Interlocked.Add(ref BufferOffset, read);
+
+                                var zeroIdx = unpackOffset + packetLen + 1;
+                                var c = 4;
+                                while (zeroIdx < Buffer.Length && c --> 0 )
+                                {
+                                    Buffer[zeroIdx++] = 0;
+                                }
+                                
+                                if (packetLen > 0)
+                                    packet = chroniton.Parser.ParseFrom(ReadOnlySequence.Slice(unpackOffset, packetLen));
                             }
 #if DEBUG
                             catch (Exception e)
                             {
 
-                                _logger.Debug(e, $"Parse failed: buf[{BufferOffset}], r = {BytesRead - BytesLeftToProcess }/{BytesRead}/{BytesLeftToProcess }, d = {DatumCount}, syncing = {InRecovery}, {Description}");
+                                _logger.Trace(e, $"Parse failed: buf[{BufferOffset}], r = {BytesRead - BytesLeftToProcess }/{BytesRead}/{BytesLeftToProcess }, d = {DatumCount}, {Description}");
                             }
 #else
                             catch
                             {
-                                //if(BytesLeftToProcess - read == 0) //TODO?
                                 State = IoJobMeta.JobState.BadData;
                                 //_logger.Trace(e, $"Parse failed: buf[{BufferOffset}], r = {BytesRead - BytesLeftToProcess }/{BytesRead}/{BytesLeftToProcess }, d = {DatumCount}, syncing = {InRecovery}, {Description}");
                             }
@@ -273,7 +294,7 @@ namespace zero.cocoon.models
                     catch (Exception e) when(!Zeroed())
                     {
                         State = IoJobMeta.JobState.ConsumeErr;
-                        _logger.Debug(e, $"Parse failed: buf[{BufferOffset}], r = {BytesRead - BytesLeftToProcess }/{BytesRead}/{BytesLeftToProcess }, d = {DatumCount}, syncing = {InRecovery}, {Description}");
+                        _logger.Debug(e, $"Parse failed: buf[{BufferOffset}], r = {BytesRead - BytesLeftToProcess }/{BytesRead}/{BytesLeftToProcess }, d = {DatumCount}, {Description}");
                         break;
                     }
 
@@ -383,6 +404,13 @@ namespace zero.cocoon.models
 
             }
 
+            ////attempt zero recovery
+            if (!zeroRecovery && BytesLeftToProcess > 0 && IoZero.ZeroRecoveryEnabled && PreviousJob != null)
+            {
+                State = IoJobMeta.JobState.ZeroRecovery;
+                await ConsumeAsync().FastPath().ConfigureAwait(Zc);
+            }
+
             return State;
         }
 
@@ -401,10 +429,13 @@ namespace zero.cocoon.models
                     if (MemoryMarshal.Read<uint>(buf[(sizeof(ulong)>>1 + read)..]) == 0)
                     {
                         var p = MemoryMarshal.Read<ulong>(buf[read..]);
-                        if(p != 0 && p < ushort.MaxValue)
+                        if (p != 0 && p < ushort.MaxValue && p <= (ulong)BytesLeftToProcess)
+                        {
                             return (int)p;
+                        }
                     }
-                    read += sizeof(uint);
+
+                    read++;
                 }
                 return read = -1;
             }

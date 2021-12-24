@@ -30,11 +30,5 @@ namespace zero.core.patterns.bushings.contracts
         /// The source of these jobs
         /// </summary>
         IIoSource Source { get; }
-        
-        /// <summary>
-        /// Whether this job needs to be synced with a future job
-        /// because the future job contains the tail end of this job
-        /// </summary>
-        bool InRecovery { get; }
     }
 }
