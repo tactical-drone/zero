@@ -2464,7 +2464,8 @@ namespace zero.cocoon.autopeer
                 if ((challenge = await _probeRequest.ChallengeAsync(dest.IpPort, probeMsgBuf)
                         .FastPath().ConfigureAwait(Zc)) == null)
                 {
-                    _logger.Fatal($"{nameof(ProbeAsync)} No challange");
+                    if(!Zeroed())
+                        _logger.Fatal($"{nameof(ProbeAsync)} No challange, {_probeRequest.Count}/{_probeRequest.Capacity}");
                     return false;
                 }
                     

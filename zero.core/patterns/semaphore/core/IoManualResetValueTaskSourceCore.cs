@@ -67,7 +67,6 @@ namespace zero.core.patterns.semaphore.core
 
         /// <summary>Completes with a successful result.</summary>
         /// <param name="result">The result.</param>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void SetResult(TResult result)
         {
             if (_completed)
@@ -79,13 +78,11 @@ namespace zero.core.patterns.semaphore.core
 
         /// <summary>Completes with an error.</summary>
         /// <param name="error"></param>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void SetException(Exception error)
         {
             _error = ExceptionDispatchInfo.Capture(error);
             SignalCompletion();
         }
-
 
 #if DEBUG 
         /// <summary>Gets the operation version.</summary>
@@ -222,7 +219,6 @@ namespace zero.core.patterns.semaphore.core
 #endif
 
         /// <summary>Signals that the operation has completed.  Invoked after the result or error has been set.</summary>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private void SignalCompletion()
         {
             if (_completed)

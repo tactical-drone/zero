@@ -396,6 +396,12 @@ namespace zero.core.feat.misc
         /// </summary>
         public int Count => _lut.Count;
 
+
+        /// <summary>
+        /// Capacity
+        /// </summary>
+        public int Capacity => _lut.Capacity;
+
 #if DEBUG
         /// <summary>
         /// used internally for debug

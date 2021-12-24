@@ -7,6 +7,7 @@ using System.Runtime.InteropServices;
 using System.Threading.Tasks;
 using zero.core.patterns.misc;
 using NLog;
+using NLog.Fluent;
 using zero.core.patterns.semaphore;
 
 namespace zero.core.network.ip
@@ -162,9 +163,16 @@ namespace zero.core.network.ip
                 var connected = new IoZeroResetValueTaskSource<bool>();
                 NativeSocket.BeginConnect(remoteAddress.IpEndPoint, static result =>
                 {
-                    var (socket, connected) = (ValueTuple<Socket, IoZeroResetValueTaskSource<bool>>)result.AsyncState;
-                    socket.EndConnect(result);
-                    connected.SetResult(socket.Connected);
+                    try
+                    {
+                        var (socket, connected) = (ValueTuple<Socket, IoZeroResetValueTaskSource<bool>>)result.AsyncState;
+                        socket.EndConnect(result);
+                        connected.SetResult(socket.Connected);
+                    }
+                    catch (Exception e)
+                    {
+                        LogManager.GetCurrentClassLogger().Trace(e, $"{nameof(NativeSocket.BeginConnect)}");
+                    }
                 }, (NativeSocket,connected));
 
                 if (timeout > 0)
