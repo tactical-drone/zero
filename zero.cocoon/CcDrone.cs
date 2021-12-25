@@ -93,7 +93,7 @@ namespace zero.cocoon
                 }
                 catch
                 {
-                    return _description = $"`drone({(Source.Zeroed()? "Active":"Zombie")} {(_assimulated ? "Participant" : "Bystander")}, [{Adjunct?.Hub?.Designation?.IdString()}, {Adjunct?.Designation?.IdString()}], {Adjunct?.MessageService?.IoNetSocket?.Key} ~ {((IoTcpClient<CcProtocMessage<CcWhisperMsg, CcGossipBatch>>)IoSource)?.IoNetSocket?.Key}, up = {TimeSpan.FromMilliseconds(UpTime.ElapsedMs())}'";
+                    return _description = $"`drone({(Source?.Zeroed()??false? "Active":"Zombie")} {(_assimulated ? "Participant" : "Bystander")}, [{Adjunct?.Hub?.Designation?.IdString()}, {Adjunct?.Designation?.IdString()}], {Adjunct?.MessageService?.IoNetSocket?.Key} ~ {((IoTcpClient<CcProtocMessage<CcWhisperMsg, CcGossipBatch>>)IoSource)?.IoNetSocket?.Key}, up = {TimeSpan.FromMilliseconds(UpTime.ElapsedMs())}'";
                 }
             }
         }

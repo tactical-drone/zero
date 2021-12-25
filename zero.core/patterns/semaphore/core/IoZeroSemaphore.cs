@@ -515,7 +515,7 @@ namespace zero.core.patterns.semaphore.core
                 Action<object> slot = null;
 
                 //Did we win?
-                while (_zeroRef.ZeroWaitCount() < _maxBlockers &&
+                while (!_zeroRef.Zeroed() && _zeroRef.ZeroWaitCount() < _maxBlockers &&
                        (slot = Interlocked.CompareExchange(ref _signalAwaiter[headIdx], ZeroSentinel, null)) != null)
                 {
                     if (slot == ZeroSentinel) continue;
@@ -816,7 +816,7 @@ namespace zero.core.patterns.semaphore.core
             worker.Semaphore = _zeroRef;
 
             //awaiter entries
-            while (released < releaseCount && _zeroRef.ZeroWaitCount() > 0)
+            while (released < releaseCount && _zeroRef.ZeroWaitCount() > 0 && !Zeroed())
             {
                 //Lock
 #if DEBUG
@@ -829,7 +829,8 @@ namespace zero.core.patterns.semaphore.core
                 var latch = Volatile.Read(ref _signalAwaiter[latchMod]);
 
                 //latch a chosen head
-                while ( latchIdx < _head && 
+                while ( !Zeroed() &&
+                    latchIdx < _head && 
                     _zeroRef.ZeroWaitCount() > 0 && latchIdx < _head &&
                     (latch == ZeroSentinel || latch != null && (worker.Continuation = Interlocked.CompareExchange(ref _signalAwaiter[latchMod], ZeroSentinel, latch)) != latch)
                 )

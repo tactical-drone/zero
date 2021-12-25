@@ -132,7 +132,7 @@ namespace zero.core.patterns.queue
             {
                 var latch = (Interlocked.Increment(ref _tail) - 1) % _capacity;
                 T latched = default;
-                while (_count < _capacity &&
+                while (!Zeroed && _count < _capacity &&
                        (latched = Interlocked.CompareExchange(ref _storage[latch], item, default)) != default)
                 {
                     Interlocked.Decrement(ref _tail);
@@ -189,7 +189,7 @@ namespace zero.core.patterns.queue
             var latchIdx = Interlocked.Increment(ref _head) - 1;
             var latchMod = latchIdx % _capacity;
             var latch = Volatile.Read(ref _storage[latchMod]);
-            while (latchIdx < _tail && _count > 0 && (result = Interlocked.CompareExchange(ref _storage[latchMod], default, latch)) != latch)
+            while (!Zeroed && latchIdx < _tail && _count > 0 && (result = Interlocked.CompareExchange(ref _storage[latchMod], default, latch)) != latch)
             {
                 //skip over empty slots
                 if (latch != null)
