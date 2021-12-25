@@ -200,7 +200,7 @@ namespace zero.cocoon.autopeer
         /// return extra information about the state
         /// </summary>
 #if DEBUG
-        public string MetaDesc => $"{(Zeroed() ? "Zeroed!!!," : "")} d={Direction},s={State},v={(Verified?"1":"0")},a={(Assimilating ? "1":"0")},da={(IsDroneAttached ? "1":"0")},cc={(IsDroneConnected ? "1":"0")},g={(IsGossiping ? "1":"0")},arb={(IsArbitrating ? "1":"0")},S={MessageService?.IsOperational}";
+        public string MetaDesc => $"{(Zeroed() ? "Zeroed!!!," : "")} d={Direction},s={State},v={(Verified?"1":"0")},a={(Assimilating ? "1":"0")},da={(IsDroneAttached ? "1":"0")},cc={(IsDroneConnected ? "1":"0")},g={(IsGossiping ? "1":"0")},arb={(IsArbitrating ? "1":"0")}";
 #else
         public string MetaDesc => string.Empty;
 #endif
@@ -1073,7 +1073,7 @@ namespace zero.cocoon.autopeer
                     if (alternate != null)
                     {
                         var badProxy = proxy;
-                        proxy = RouteAsync(alternate, publicKey);
+                        proxy = await RouteAsync(alternate, publicKey).FastPath().ConfigureAwait(Zc);
                         if (proxy.IsProxy && proxy.Designation.IdString() != CcDesignation.MakeKey(publicKey))
                         {
                             _logger!.Warn($"Invalid routing detected wanted = {proxy.Designation.IdString()} - {proxy.RemoteAddress.IpEndPoint}, got = {CcDesignation.MakeKey(publicKey)} - {srcEndPoint}");
@@ -1160,7 +1160,7 @@ namespace zero.cocoon.autopeer
                             @this._logger?.Error(e, $"{@this.Description}");
                         }
                     
-                    },this, TaskCreationOptions.DenyChildAttach | TaskCreationOptions.LongRunning);
+                    },this, TaskCreationOptions.AttachedToParent);
 
                     consumer = ZeroOptionAsync(static async @this  =>
                     {
@@ -1304,7 +1304,7 @@ namespace zero.cocoon.autopeer
                         {
                             @this._logger?.Error(e, $"{@this.Description}");
                         }
-                    }, this, TaskCreationOptions.AttachedToParent | TaskCreationOptions.PreferFairness);
+                    }, this, TaskCreationOptions.AttachedToParent | TaskCreationOptions.PreferFairness );
                     await Task.WhenAll(producer.AsTask(), consumer.AsTask()).ConfigureAwait(Zc);
                 }
                 while (!Zeroed());
@@ -2476,7 +2476,7 @@ namespace zero.cocoon.autopeer
                     if (ZeroProbes > parm_zombie_max_connection_attempts)
                     {
 #if DEBUG
-                        Zero(this, $"drone left, T = {TimeSpan.FromMilliseconds(UpTime.ElapsedMs()).TotalMinutes:0.0}min ~ {_sibling?.UpTime.ElapsedMsToSec()/60.0:0.0}min, {_sibling?.Description}");
+                        await Zero(this, $"drone left, T = {TimeSpan.FromMilliseconds(UpTime.ElapsedMs()).TotalMinutes:0.0}min ~ {_sibling?.UpTime.ElapsedMsToSec()/60.0:0.0}min, {_sibling?.Description}").FastPath().ConfigureAwait(Zc);
 #else
                         await Zero(this, $"drone left, T = {TimeSpan.FromMilliseconds(UpTime.ElapsedMs()).TotalMinutes:0.0}min").FastPath().ConfigureAwait(Zc);
 #endif

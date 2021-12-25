@@ -67,7 +67,7 @@ namespace zero.core.patterns.bushings
                     _backPressure = new IoZeroSemaphoreSlim(AsyncTasks, $"{nameof(_backPressure)}: {description}",
                         maxBlockers: PrefetchSize,
                         initialCount: 1,
-                        maxAsyncWork: PrefetchSize);
+                        maxAsyncWork: 0);
                 }
 
                 if (PrefetchEnabled)
@@ -75,7 +75,7 @@ namespace zero.core.patterns.bushings
                     _prefetchPressure = new IoZeroSemaphoreSlim(AsyncTasks, $"{nameof(_prefetchPressure)}: {description}", 
                         maxBlockers: PrefetchSize,
                         initialCount: PrefetchSize,
-                        maxAsyncWork: PrefetchSize);
+                        maxAsyncWork: 0);
                 }
             }
             catch (Exception e)

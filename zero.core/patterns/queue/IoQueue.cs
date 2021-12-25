@@ -37,12 +37,12 @@ namespace zero.core.patterns.queue
             _description = description;
             string desc = $"{nameof(_nodeHeap)}: {_description}";
 #else
-            string desc = _description = string.Empty;
+            var desc = _description = string.Empty;
 #endif
 
             _nodeHeap = new IoHeap<IoZNode>(desc, capacity, autoScale: autoScale) {Malloc = static (_,_) => new IoZNode()};
 
-            _syncValRoot = new IoZeroSemaphore(desc, maxBlockers: concurrencyLevel, initialCount: 1);
+            _syncValRoot = new IoZeroSemaphore(desc, maxBlockers: concurrencyLevel, initialCount: 1, asyncWorkerCount: 0);
             _syncValRoot.ZeroRef(ref _syncValRoot, _asyncTasks);
 
             if (!disablePressure)
@@ -55,7 +55,7 @@ namespace zero.core.patterns.queue
             if (enableBackPressure)
             {
                 _backPressure = new IoZeroSemaphore($"qbp {description}",
-                    maxBlockers: concurrencyLevel, asyncWorkerCount: prefetch, initialCount: prefetch);
+                    maxBlockers: concurrencyLevel, asyncWorkerCount: 0, initialCount: prefetch);
                 _backPressure.ZeroRef(ref _backPressure, _asyncTasks);
             }
 

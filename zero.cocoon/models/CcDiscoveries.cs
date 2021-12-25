@@ -44,13 +44,13 @@ namespace zero.cocoon.models
                 _configured = true;
                 var cc = 2;
                 var pf = 3;
-                var ac = 1;
+                var ac = 0;
                 if (!Source.Proxy && ((CcAdjunct)IoZero)!.CcCollective.ZeroDrone)
                 {
                     parm_max_msg_batch_size *= 2;
                     cc *= 1;
                     pf *= 1;
-                    ac *= 1;
+                    //ac *= 1;
                     //_groupByEp = true;
                 }
 

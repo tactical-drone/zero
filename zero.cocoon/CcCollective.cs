@@ -1053,7 +1053,7 @@ namespace zero.cocoon
 
         private int _currentOutboundConnectionAttempts;
         private Poisson _poisson = new(_lambda, new Random(DateTimeOffset.Now.Ticks.GetHashCode() * DateTimeOffset.Now.Ticks.GetHashCode()));
-        private readonly bool _zeroDrone;
+        private volatile bool _zeroDrone;
         public bool ZeroDrone => _zeroDrone;
 
         /// <summary>

@@ -70,7 +70,7 @@ namespace zero.core.patterns.misc
             _zeroHiveMind = new IoQueue<IIoNanite>(string.Empty, 16, _concurrencyLevel, autoScale: true);
 #endif
 
-            _zeroRoot = new IoZeroSemaphore(string.Empty, concurrencyLevel, 1, 0);
+            _zeroRoot = new IoZeroSemaphore(string.Empty, concurrencyLevel, 1, 1);
             _zeroRoot.ZeroRef(ref _zeroRoot, AsyncTasks);
 
             UpTime = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();

@@ -605,7 +605,7 @@ namespace zero.sync
                                 nmax = nodes.Max(n => n.EventCount);
                             }
                             
-                            Console.WriteLine($"zero liveness at {nodes.Count()/((double)_nodes.Count)*100:0.00}%, {nodes.Count()}/{_nodes.Count}, min/max = [{min},{max}], ave = {ave:0.0}, err = {err:0.0}, r = {r}");
+                            Console.WriteLine($"zero liveness at {nodes.Count()/((double)_nodes.Count - 4)*100:0.00}%, {nodes.Count()}/{_nodes.Count-4}, min/max = [{min},{max}], ave = {ave:0.0}, err = {err:0.0}, r = {r}");
                         }
                         catch (Exception) { }
                     }
@@ -1128,9 +1128,9 @@ namespace zero.sync
                 try
                 {
                     s.Wait();
-                    var task = Task.Run(() =>
+                    var task = Task.Run(async () =>
                     {
-                        n.Zero(null,"MAIN TEARDOWN");
+                        await n.Zero(null,"MAIN TEARDOWN").FastPath().ConfigureAwait(Zc);
                         Interlocked.Increment(ref zeroed);
                     });
 
