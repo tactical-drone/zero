@@ -104,7 +104,7 @@ namespace zero.core.network.ip
                     Malloc = static (_, @this) =>
                     {
                         var args = new SocketAsyncEventArgs { RemoteEndPoint = new IPEndPoint(0, 0) };
-                        args.Completed += @this.SignalAsync;
+                        args.Completed += @this.ZeroCompletion;
                         args.RemoteEndPoint = new IPEndPoint(IPAddress.Any, 53);
                         return args;
                     },
@@ -117,7 +117,7 @@ namespace zero.core.network.ip
                 Malloc = static (_, @this) =>
                 {
                     var args = new SocketAsyncEventArgs();
-                    args.Completed += @this.SignalAsync;
+                    args.Completed += @this.ZeroCompletion;
                     return args;
                 },
                 Context = this
@@ -152,7 +152,7 @@ namespace zero.core.network.ip
             {
                 await _recvArgs.ZeroManagedAsync(static (o, @this) =>
                 {
-                    o.Completed -= @this.SignalAsync;
+                    o.Completed -= @this.ZeroCompletion;
                     o.UserToken = null;
                     //o.RemoteEndPoint = null; Leave not null
                     try
@@ -171,7 +171,7 @@ namespace zero.core.network.ip
             
             await _sendArgs.ZeroManagedAsync(static (o,@this) =>
             {
-                o.Completed -= @this.SignalAsync;
+                o.Completed -= @this.ZeroCompletion;
                 o.UserToken = null;
                 //o.RemoteEndPoint = null;
                 
@@ -438,17 +438,16 @@ namespace zero.core.network.ip
 
 
         /// <summary>
-        /// Interacts with <see cref="SocketAsyncEventArgs"/>
+        /// Interacts with <see cref="SocketAsyncEventArgs"/> to complete async reads
         /// </summary>
         /// <param name="sender">The socket</param>
         /// <param name="eventArgs">The socket event args</param>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private void SignalAsync(object sender, SocketAsyncEventArgs eventArgs)
+        private void ZeroCompletion(object sender, SocketAsyncEventArgs eventArgs)
         {
             try
             {
                 var tcs = (IoManualResetValueTaskSource<bool>)eventArgs.UserToken;
-                tcs.SetResult(eventArgs.SocketError == SocketError.Success && tcs.GetStatus(tcs.Version) == System.Threading.Tasks.Sources.ValueTaskSourceStatus.Pending);
+                tcs.SetResult(!Zeroed() && eventArgs.SocketError == SocketError.Success && tcs.GetStatus(tcs.Version) == System.Threading.Tasks.Sources.ValueTaskSourceStatus.Pending);
             }
             catch(Exception) when(Zeroed()){}
             catch(Exception e) when (!Zeroed())
@@ -527,7 +526,7 @@ namespace zero.core.network.ip
                             if (dispose)
                             {
                                 args.SetBuffer(null, 0, 0);
-                                args.Completed -= SignalAsync;
+                                args.Completed -= ZeroCompletion;
                                 args.Dispose();
                             }
 

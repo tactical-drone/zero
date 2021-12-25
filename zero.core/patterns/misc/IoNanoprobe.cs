@@ -415,7 +415,7 @@ namespace zero.core.patterns.misc
                         zeroSub.Zero(this, $"[ZERO CASCADE] teardown from {desc}");
 
                         //throttle teardown so it floods in breadth
-                        await Task.Delay(32).ConfigureAwait(Zc);
+                        await Task.Yield();
                     }
 
                     await _zeroHiveMind.ZeroManagedAsync<object>(zero: true).FastPath().ConfigureAwait(Zc);

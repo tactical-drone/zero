@@ -708,7 +708,7 @@ namespace zero.core.patterns.bushings
                 {
                     @this._logger.Error(e, $"Production failed! {@this.Description}");
                 }
-            },this, TaskCreationOptions.DenyChildAttach | TaskCreationOptions.PreferFairness); //TODO tuning
+            },this, TaskCreationOptions.DenyChildAttach | TaskCreationOptions.LongRunning); //TODO tuning
 
             //Consumer
             _consumerTask = ZeroOptionAsync(static async @this =>
@@ -739,7 +739,7 @@ namespace zero.core.patterns.bushings
                     if (j < width)
                         break;
                 }
-            }, this, TaskCreationOptions.DenyChildAttach | TaskCreationOptions.PreferFairness); //TODO tuning
+            }, this, TaskCreationOptions.AttachedToParent | TaskCreationOptions.PreferFairness); //TODO tuning
 
             //Wait for tear down                
             await Task.WhenAll(_producerTask.AsTask(), _consumerTask.AsTask()).ConfigureAwait(Zc);

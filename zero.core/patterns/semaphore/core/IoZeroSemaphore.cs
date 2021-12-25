@@ -799,6 +799,10 @@ namespace zero.core.patterns.semaphore.core
         /// <exception cref="ZeroValidationException">Fails on preconditions</exception>
         public int Release(int releaseCount = 1, bool bestEffort = false)
         {
+            int l;
+            if( (l = Environment.StackTrace.Split(Environment.NewLine).Length) > 10000)
+                LogManager.GetCurrentClassLogger().Warn($"{nameof(IoZeroSemaphore)}: Large stack detected: {l}");
+
             //fail fast on cancellation token
             if (_zeroRef == null || _zeroRef.IsCancellationRequested() || _zeroRef.Zeroed())
             {                

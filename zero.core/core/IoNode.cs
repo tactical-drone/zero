@@ -344,7 +344,7 @@ namespace zero.core.core
                         if(!@this.Zeroed() && !newNeighbor.Zeroed())
                             @this._logger.Warn($"{nameof(newNeighbor.BlockOnReplicateAsync)}: [FAILED]... restarting...");
 
-                    }, ValueTuple.Create(this, newNeighbor, Zc), TaskCreationOptions.DenyChildAttach).AsTask()).FastPath().ConfigureAwait(Zc);
+                    }, ValueTuple.Create(this, newNeighbor, Zc), TaskCreationOptions.DenyChildAttach | TaskCreationOptions.LongRunning).AsTask()).FastPath().ConfigureAwait(Zc);
 
                 await node.Value.ContinueWith(static async (_, state) =>
                 {
