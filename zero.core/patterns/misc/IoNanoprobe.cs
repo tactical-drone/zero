@@ -204,7 +204,10 @@ namespace zero.core.patterns.misc
         /// </summary>
         public void Dispose()
         {
-            Zero(this, $"{nameof(IDisposable)}");
+            Task.Factory.StartNew(async () =>
+            {
+                await Zero(this, $"{nameof(IDisposable)}").FastPath().ConfigureAwait(false);
+            }, TaskCreationOptions.None);
         }
 
         /// <summary>
@@ -220,7 +223,7 @@ namespace zero.core.patterns.misc
         /// <summary>
         /// ZeroAsync
         /// </summary>
-        public void Zero(IIoNanite @from, string reason)
+        public async ValueTask Zero(IIoNanite @from, string reason)
         {
             // Only once
             if (_zeroed > 0 || Interlocked.CompareExchange(ref _zeroed, 1, 0) != 0)
@@ -230,12 +233,12 @@ namespace zero.core.patterns.misc
             ZeroReason = $"ZERO: {reason??"N/A"}";
 
 #pragma warning disable CS4014
-            ZeroAsync(static async @this =>
+            await ZeroAsync(static async @this =>
             {
                 //prime garbage
                 await @this.ZeroPrimeAsync().FastPath().ConfigureAwait(false);
                 await @this.ZeroAsync(true).FastPath().ConfigureAwait(false);
-            }, this, default,TaskCreationOptions.DenyChildAttach);
+            }, this, default,TaskCreationOptions.DenyChildAttach).FastPath().ConfigureAwait(Zc);
 #pragma warning restore CS4014
 
             if (Interlocked.Increment(ref _zCount) % 100000 == 0)
@@ -412,10 +415,10 @@ namespace zero.core.patterns.misc
                     {
                         if (zeroSub.Zeroed()) continue;
 
-                        zeroSub.Zero(this, $"[ZERO CASCADE] teardown from {desc}");
+                        await zeroSub.Zero(this, $"[ZERO CASCADE] teardown from {desc}").FastPath().ConfigureAwait(Zc);
 
                         //throttle teardown so it floods in breadth
-                        await Task.Yield();
+                        //await Task.Yield();
                     }
 
                     await _zeroHiveMind.ZeroManagedAsync<object>(zero: true).FastPath().ConfigureAwait(Zc);

@@ -168,7 +168,10 @@ namespace zero.core.patterns.bushings
         /// <value>
         ///   <c>true</c> if this instance is operational; otherwise, <c>false</c>.
         /// </value>
-        public abstract bool IsOperational { get; }
+        public virtual ValueTask<bool> IsOperational()
+        {
+            return new ValueTask<bool>(false);
+        }
 
         /// <summary>
         /// Gets a value indicating whether this source is originating or terminating
@@ -256,21 +259,21 @@ namespace zero.core.patterns.bushings
         {
             await base.ZeroManagedAsync().FastPath().ConfigureAwait(Zc);
 
-            _pressure.Zero(this, $"{nameof(ZeroManagedAsync)}: teardown");
-            _backPressure.Zero(this, $"{nameof(ZeroManagedAsync)}: teardown");
-            _prefetchPressure.Zero(this, $"{nameof(ZeroManagedAsync)}: teardown");
+            await _pressure.Zero(this, $"{nameof(ZeroManagedAsync)}: teardown").FastPath().ConfigureAwait(Zc);
+            await _backPressure.Zero(this, $"{nameof(ZeroManagedAsync)}: teardown").FastPath().ConfigureAwait(Zc);
+            await _prefetchPressure.Zero(this, $"{nameof(ZeroManagedAsync)}: teardown").FastPath().ConfigureAwait(Zc);
 
             var reason = $"{nameof(IoSource<TJob>)}: teardown";
 
             foreach (var o in ObjectStorage)
             {
                 if (o.Value is IIoNanite ioNanite)
-                    ioNanite.Zero(this, reason);
+                    await ioNanite.Zero(this, reason).FastPath().ConfigureAwait(Zc);
             }
             ObjectStorage.Clear();
 
             foreach (var ioConduit in IoConduits.Values)
-                ioConduit.Zero(this, reason);
+                await ioConduit.Zero(this, reason).FastPath().ConfigureAwait(Zc);
             
             IoConduits.Clear();
 
@@ -315,19 +318,19 @@ namespace zero.core.patterns.bushings
         {
             if (channelSource != null && !IoConduits.ContainsKey(id))
             {
-                if (!await ZeroAtomic(static (_, @params, _) =>
+                if (!await ZeroAtomic(static async (_, @params, _) =>
                     {
                         var (@this, id, channelSource, jobMalloc, concurrencyLevel) = @params;
                         var newConduit = new IoConduit<TFJob>($"`conduit({id}>{ channelSource.UpstreamSource.Description} ~> { channelSource.Description}", channelSource, jobMalloc, concurrencyLevel);
 
                         if (!@this.IoConduits.TryAdd(id, newConduit))
                         {
-                            newConduit.Zero(@this,$"{nameof(CreateConduitOnceAsync)}: lost race");
+                            await newConduit.Zero(@this,$"{nameof(CreateConduitOnceAsync)}: lost race").FastPath().ConfigureAwait(@this.Zc);
                             @this._logger.Trace($"Could not add {id}, already exists = {@this.IoConduits.ContainsKey(id)}");
-                            return new ValueTask<bool>(false);
+                            return false;
                         }
 
-                        return new ValueTask<bool>(true);
+                        return true;
                     }, ValueTuple.Create(this, id,channelSource, jobMalloc, concurrencyLevel)).FastPath().ConfigureAwait(Zc))
                 {
                     if (!Zeroed())
@@ -419,6 +422,7 @@ namespace zero.core.patterns.bushings
 
             _logger.Info($"{Description} Counters: {heading}{str}");
         }
+
 
         /// <summary>
         /// Executes the specified function in the context of the source

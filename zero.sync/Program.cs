@@ -78,7 +78,7 @@ namespace zero.sync
 
             var random = new Random((int)DateTime.Now.Ticks);
             //Tangle("tcp://192.168.1.2:15600");
-            var total = 350;
+            var total = 352;
             var maxDrones = 3;
             var maxAdjuncts = 16;
             var boot = true;

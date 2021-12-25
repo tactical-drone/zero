@@ -122,7 +122,7 @@ namespace zero.core.network.ip
                     }
                     catch (Exception e)
                     {
-                       newSocket.Zero(this, $"{nameof(acceptConnectionHandler)} returned with errors");
+                       await newSocket.Zero(this, $"{nameof(acceptConnectionHandler)} returned with errors").FastPath().ConfigureAwait(Zc);
                         _logger.Error(e, $"There was an error handling a new connection from {newSocket.RemoteNodeAddress} to `{newSocket.LocalNodeAddress}'");
                     }
                 }
@@ -190,9 +190,9 @@ namespace zero.core.network.ip
                             // ignored
                         }
 
-                        if (!@this.IsConnected())
+                        if (!await @this.IsConnected().FastPath().ConfigureAwait(@this.Zc))
                         {
-                            @this.Zero(@this, $"Connecting timed out, waited {timeout}ms");
+                            await @this.Zero(@this, $"Connecting timed out, waited {timeout}ms").FastPath().ConfigureAwait(@this.Zc);
                             @this.NativeSocket.Close();
                         }
                     }, ValueTuple.Create(this, timeout), TaskCreationOptions.DenyChildAttach);
@@ -236,7 +236,7 @@ namespace zero.core.network.ip
         public override async ValueTask<int> SendAsync(ReadOnlyMemory<byte> buffer, int offset, int length,
             EndPoint endPoint = null, int timeout = 0)
         {
-            if (!IsConnected())
+            if (!await IsConnected().FastPath().ConfigureAwait(Zc))
                 return 0;
 
             try
@@ -256,13 +256,13 @@ namespace zero.core.network.ip
             catch (SocketException e) when (!Zeroed())
             {
                 _logger.Debug($"{nameof(SendAsync)}: {e.Message} - {Description}");
-                Zero(this, $"{nameof(SendAsync)}: {e.Message}");
+                await Zero(this, $"{nameof(SendAsync)}: {e.Message}").FastPath().ConfigureAwait(Zc);
             }
             catch (Exception) when (Zeroed()){}
             catch (Exception e) when(!Zeroed())
             {
                 _logger.Error(e, $"{Description}: {nameof(SendAsync)} failed!");
-                Zero(this, $"{nameof(SendAsync)}: {e.Message}");
+                await Zero(this, $"{nameof(SendAsync)}: {e.Message}").FastPath().ConfigureAwait(Zc);
             }
 
             return 0;
@@ -283,7 +283,7 @@ namespace zero.core.network.ip
             byte[] remoteEp = null,
             byte[] blacklist = null, int timeout = 0) //TODO can we go back to array buffers?
         {
-            if (!IsConnected())
+            if (!await IsConnected().FastPath().ConfigureAwait(Zc))
                 return 0;
 
             try
@@ -317,14 +317,14 @@ namespace zero.core.network.ip
             {
                 var errMsg = $"{nameof(ReadAsync)}: {e.Message} -  {Description}";
                 _logger.Debug(errMsg);
-                Zero(this, errMsg);
+                await Zero(this, errMsg).FastPath().ConfigureAwait(Zc);
             }
             catch (Exception) when (Zeroed()){}
             catch (Exception e) when(!Zeroed())
             {
                 var errMsg = $"{nameof(ReadAsync)}: [FAILED], {Description}, l = {length}, o = {offset}: {e.Message}";
                 _logger?.Error(e, errMsg);
-                Zero(this, errMsg);
+                await Zero(this, errMsg).FastPath().ConfigureAwait(Zc);
             }
             return 0;
         }
@@ -338,12 +338,12 @@ namespace zero.core.network.ip
         /// </summary>
         /// <returns>True if the connection is up, false otherwise</returns>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public override bool IsConnected()
+        public override ValueTask<bool> IsConnected()
         {
             
             try
             {
-                return !Zeroed() && NativeSocket is { IsBound: true, Connected: true };//&& (_expensiveCheck++ % 10000 == 0 && NativeSocket.Send(_sentinelBuf, SocketFlags.None) == 0  || true);
+                return new ValueTask<bool>(!Zeroed() && NativeSocket is { IsBound: true, Connected: true });//&& (_expensiveCheck++ % 10000 == 0 && NativeSocket.Send(_sentinelBuf, SocketFlags.None) == 0  || true);
 
                 //||
                 // IoNetSocket.NativeSocket.Poll(-1, SelectMode.SelectError) ||
@@ -356,7 +356,7 @@ namespace zero.core.network.ip
             {                
                 _logger.Error(e, Description);
             }
-            return false;
+            return new ValueTask<bool>(false);
         }
 
     }

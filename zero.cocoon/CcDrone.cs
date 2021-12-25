@@ -55,7 +55,7 @@ namespace zero.cocoon
                         {
                             @this._logger.Debug($"! {@this.Description} - n = {@this.Adjunct}, d = {@this.Adjunct?.Direction}, s = {@this.Adjunct?.State} (wants {CcAdjunct.AdjunctState.Connected}), {@this.Adjunct?.MetaDesc}");
                         }
-                        @this.Zero(@this, $"Invalid state after {@this.parm_insane_checks_delay_s}: s = {@this.Adjunct?.State}, wants = {CcAdjunct.AdjunctState.Connected}), {@this.Adjunct?.MetaDesc}");
+                        await @this.Zero(@this, $"Invalid state after {@this.parm_insane_checks_delay_s}: s = {@this.Adjunct?.State}, wants = {CcAdjunct.AdjunctState.Connected}), {@this.Adjunct?.MetaDesc}").FastPath().ConfigureAwait(@this.Zc);
                     }
 
                     if (@this.Adjunct != null) 
@@ -88,12 +88,12 @@ namespace zero.cocoon
                 try
                 {
                     if(!Zeroed())
-                        return _description = $"`drone({(Source.IsOperational?"Active":"Zombie")} {(_assimulated? "Participant" : "Bystander")} [{Adjunct.Hub.Designation.IdString()}, {Adjunct.Designation.IdString()}], {Adjunct.Direction},{Adjunct.MessageService.IoNetSocket.Key} ~ {((IoTcpClient<CcProtocMessage<CcWhisperMsg, CcGossipBatch>>)IoSource).IoNetSocket.Key}, up = {TimeSpan.FromMilliseconds(UpTime.ElapsedMs())}'";
-                    return _description = $"`drone({(Source?.IsOperational ?? false ? "Active" : "Zombie")} {(_assimulated ? "Participant" : "Bystander")}, [{Adjunct?.Hub?.Designation?.IdString()}, {Adjunct?.Designation?.IdString()}], {Adjunct?.MessageService?.IoNetSocket?.Key} ~ {((IoTcpClient<CcProtocMessage<CcWhisperMsg, CcGossipBatch>>)IoSource)?.IoNetSocket?.Key}, up = {TimeSpan.FromMilliseconds(UpTime.ElapsedMs())}'";
+                        return _description = $"`drone({(Source.Zeroed()? "Active":"Zombie")} {(_assimulated? "Participant" : "Bystander")} [{Adjunct.Hub.Designation.IdString()}, {Adjunct.Designation.IdString()}], {Adjunct.Direction},{Adjunct.MessageService.IoNetSocket.Key} ~ {((IoTcpClient<CcProtocMessage<CcWhisperMsg, CcGossipBatch>>)IoSource).IoNetSocket.Key}, up = {TimeSpan.FromMilliseconds(UpTime.ElapsedMs())}'";
+                    return _description = $"`drone({(Source.Zeroed()? "Active" : "Zombie")} {(_assimulated ? "Participant" : "Bystander")}, [{Adjunct?.Hub?.Designation?.IdString()}, {Adjunct?.Designation?.IdString()}], {Adjunct?.MessageService?.IoNetSocket?.Key} ~ {((IoTcpClient<CcProtocMessage<CcWhisperMsg, CcGossipBatch>>)IoSource)?.IoNetSocket?.Key}, up = {TimeSpan.FromMilliseconds(UpTime.ElapsedMs())}'";
                 }
                 catch
                 {
-                    return _description = $"`drone({(Source?.IsOperational??false ? "Active":"Zombie")} {(_assimulated ? "Participant" : "Bystander")}, [{Adjunct?.Hub?.Designation?.IdString()}, {Adjunct?.Designation?.IdString()}], {Adjunct?.MessageService?.IoNetSocket?.Key} ~ {((IoTcpClient<CcProtocMessage<CcWhisperMsg, CcGossipBatch>>)IoSource)?.IoNetSocket?.Key}, up = {TimeSpan.FromMilliseconds(UpTime.ElapsedMs())}'";
+                    return _description = $"`drone({(Source.Zeroed()? "Active":"Zombie")} {(_assimulated ? "Participant" : "Bystander")}, [{Adjunct?.Hub?.Designation?.IdString()}, {Adjunct?.Designation?.IdString()}], {Adjunct?.MessageService?.IoNetSocket?.Key} ~ {((IoTcpClient<CcProtocMessage<CcWhisperMsg, CcGossipBatch>>)IoSource)?.IoNetSocket?.Key}, up = {TimeSpan.FromMilliseconds(UpTime.ElapsedMs())}'";
                 }
             }
         }
@@ -281,7 +281,7 @@ namespace zero.cocoon
                 if (Interlocked.Read(ref ((CcCollective) Node).Testing) == 0)
                     return;
 
-                if(!Source.IsOperational || Adjunct.CcCollective.TotalConnections < 1)
+                if(!await Source.IsOperational().FastPath().ConfigureAwait(Zc) || Adjunct.CcCollective.TotalConnections < 1)
                     return;
 
                 //if (Interlocked.Read(ref _isTesting) > 0)
@@ -304,7 +304,7 @@ namespace zero.cocoon
                         Adjunct.CcCollective.IncEventCounter();
                         
                         var socket = MessageService.IoNetSocket;
-                        if (socket.IsConnected() && await socket.SendAsync(buf, 0, buf.Length, timeout: 20).FastPath().ConfigureAwait(Zc) > 0)
+                        if (await socket.IsConnected().FastPath().ConfigureAwait(Zc) && await socket.SendAsync(buf, 0, buf.Length, timeout: 20).FastPath().ConfigureAwait(Zc) > 0)
                         {                            
                             if (AutoPeeringEventService.Operational)
                                 await AutoPeeringEventService.AddEventAsync(new AutoPeerEvent

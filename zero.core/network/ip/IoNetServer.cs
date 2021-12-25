@@ -136,7 +136,7 @@ namespace zero.core.network.ip
             try
             {
                 connected = await ioNetClient!.ConnectAsync(remoteAddress, timeout).FastPath().ConfigureAwait(Zc);
-                if (connected && ioNetClient.IsOperational)
+                if (connected && await ioNetClient.IsOperational().FastPath().ConfigureAwait(Zc))
                 {
                     //Check things
 
@@ -176,7 +176,7 @@ namespace zero.core.network.ip
                 if (!connected)
                 {
                     var errMsg = $"{Description}: {nameof(ConnectAsync)} to {remoteAddress.Key} [FAILED]";
-                    ioNetClient!.Zero(this, errMsg);
+                    await ioNetClient!.Zero(this, errMsg).FastPath().ConfigureAwait(Zc);
 
                     if (!Zeroed())
                         _logger.Error(errMsg);

@@ -144,7 +144,7 @@ namespace zero.core.core
 
             foreach (var ioNeighbor in Neighbors.Values)
             {
-                ioNeighbor.Zero(this, $"{nameof(ZeroManagedAsync)}: teardown");
+                await ioNeighbor.Zero(this, $"{nameof(ZeroManagedAsync)}: teardown").FastPath().ConfigureAwait(Zc);
             }
 
             Neighbors.Clear();
@@ -180,7 +180,7 @@ namespace zero.core.core
             //clear previous attempts
             if (_netServer != null)
             {
-                _netServer.Zero(this, "Recycled");
+                await _netServer.Zero(this, "Recycled").FastPath().ConfigureAwait(Zc);
                 _netServer = null;
                 return;
             }
@@ -213,7 +213,7 @@ namespace zero.core.core
                             if (!await acceptConnection(newNeighbor, nanite).FastPath().ConfigureAwait(@this.Zc))
                             {
                                 @this._logger.Trace($"Incoming connection from {ioNetClient.Key} rejected.");
-                                newNeighbor.Zero(@this,$"Incoming connection from {ioNetClient.Key} not accepted");
+                                await newNeighbor.Zero(@this,$"Incoming connection from {ioNetClient.Key} not accepted").FastPath().ConfigureAwait(@this.Zc);
                             }
                         }, (@this, newNeighbor, acceptConnection, nanite, ioNetClient), TaskCreationOptions.DenyChildAttach, unwrap:true).AsTask();
                     }
@@ -221,7 +221,7 @@ namespace zero.core.core
                 }
                 catch (Exception e)
                 {
-                    newNeighbor.Zero(@this,$"{nameof(acceptConnection)} Exception: {e.Message}");
+                    await newNeighbor.Zero(@this,$"{nameof(acceptConnection)} Exception: {e.Message}").FastPath().ConfigureAwait(@this.Zc);
 
                     @this._logger.Error(e, $"Accepting connection {ioNetClient.Key} returned with errors");
                     return;
@@ -239,7 +239,7 @@ namespace zero.core.core
 
                         if (task.IsCompletedSuccessfully)
                         {
-                            if (await @this.ZeroAtomic(static (_, state, _) => 
+                            if (await @this.ZeroAtomic(static async (_, state, _) => 
                                     {
                                         var (@this, newNeighbor) = state;
                                         try
@@ -253,19 +253,19 @@ namespace zero.core.core
                                                 {
                                                     try
                                                     {
-                                                        if (!existingNeighbor.Source.IsOperational && existingNeighbor.UpTime.ElapsedMsToSec() > @this.parm_zombie_connect_time_threshold_s)
+                                                        if (!await existingNeighbor.Source.IsOperational().FastPath().ConfigureAwait(@this.Zc) && existingNeighbor.UpTime.ElapsedMsToSec() > @this.parm_zombie_connect_time_threshold_s)
                                                         {
                                                             var errMsg = $"{nameof(SpawnListenerAsync)}: Connection {newNeighbor.Key} [REPLACED], existing {existingNeighbor.Key} with uptime {existingNeighbor.UpTime.ElapsedMs()}ms [DC]";
                                                             @this._logger.Warn(errMsg);
 
                                                             //We remove the key here or async race conditions with the listener...
                                                             @this.Neighbors.Remove(existingNeighbor.Key, out _);
-                                                            existingNeighbor.Zero(@this,errMsg);
+                                                            await existingNeighbor.Zero(@this,errMsg).FastPath().ConfigureAwait(@this.Zc);
                                                             continue;
                                                         }
 
                                                         @this._logger.Warn($"{nameof(SpawnListenerAsync)}: Connection {newNeighbor.Key} [DROPPED], existing {existingNeighbor.Key} [OK]");
-                                                        return new ValueTask<bool>(false);
+                                                        return false;
 
                                                         ////Only drop incoming if the existing one is working and originating
                                                         //if (existingNeighbor.Source.IsOriginating && existingNeighbor.Source.IsOperational)
@@ -290,14 +290,14 @@ namespace zero.core.core
                                                 }
                                             }
 
-                                            return new ValueTask<bool>(success);
+                                            return success;
                                         }
                                         catch when (@this.Zeroed() || newNeighbor.Zeroed()) { }
                                         catch (Exception e) when (!@this.Zeroed() && !newNeighbor.Zeroed())
                                         {
                                             @this._logger.Error(e, $"Adding new node failed! {@this.Description}");
                                         }
-                                        return new ValueTask<bool>(false);
+                                        return false;
                                     },ValueTuple.Create(@this, newNeighbor)).FastPath().ConfigureAwait(@this.Zc))
                             {
                                 //Start processing
@@ -305,7 +305,7 @@ namespace zero.core.core
                             }
                             else
                             {
-                                newNeighbor.Zero(@this, "Failed to add new node...");
+                                await newNeighbor.Zero(@this, "Failed to add new node...").FastPath().ConfigureAwait(@this.Zc);
                             }
                         }
                     }, (@this, newNeighbor)).ConfigureAwait(@this.Zc);
@@ -392,7 +392,7 @@ namespace zero.core.core
                         {
                             var (@this, newNeighbor) = state;
 
-                            static bool AddOrUpdate(IoNode<TJob> @this, IoNeighbor<TJob> newNeighbor)
+                            static async Task<bool> AddOrUpdate(IoNode<TJob> @this, IoNeighbor<TJob> newNeighbor)
                             {
                                 //New neighbor?
                                 if (@this.Neighbors.TryAdd(newNeighbor.Key, newNeighbor))
@@ -403,7 +403,7 @@ namespace zero.core.core
                                 //Existing and not broken neighbor?
                                 if (@this.Neighbors.TryGetValue(newNeighbor.Key, out var existingNeighbor) &&
                                     existingNeighbor.UpTime.ElapsedMsToSec() > @this.parm_zombie_connect_time_threshold_s &&
-                                    (existingNeighbor.Source?.IsOperational ?? false))
+                                    (await existingNeighbor.Source.IsOperational().FastPath().ConfigureAwait(@this.Zc)))
                                 {
                                     @this._logger.Warn($"{nameof(ConnectAsync)}: Connection {newNeighbor.Key} [DROPPED], existing {existingNeighbor.Key} [OK]");
                                     return false;
@@ -417,11 +417,11 @@ namespace zero.core.core
                                 @this._logger.Warn(warnMsg);
 
                                 //Existing broken neighbor...
-                                existingNeighbor.Zero(@this, warnMsg);
+                                await existingNeighbor.Zero(@this, warnMsg).FastPath().ConfigureAwait(@this.Zc);
 
                                 @this.Neighbors.TryRemove(newNeighbor.Key, out _);
 
-                                return AddOrUpdate(@this, newNeighbor);
+                                return await AddOrUpdate(@this, newNeighbor).ConfigureAwait(@this.Zc);
                             }
 
                             return new ValueTask<bool>(AddOrUpdate(@this, newNeighbor));
@@ -432,7 +432,7 @@ namespace zero.core.core
                     else
                     {
                         _logger.Debug($"Neighbor with id = {newNeighbor.Key} already exists! Closing connection from {newClient.IoNetSocket.RemoteNodeAddress} ...");
-                        newNeighbor.Zero(this, "Dropped, connection already exists");
+                        await newNeighbor.Zero(this, "Dropped, connection already exists").FastPath().ConfigureAwait(Zc);
                     }
                 }
             }
@@ -444,7 +444,7 @@ namespace zero.core.core
             {
                 if (newClient != null && newNeighbor == null)
                 {
-                    newClient.Zero(this, $"{nameof(newClient)} is not null but {nameof(newNeighbor)} is. Should not be...");
+                    await newClient.Zero(this, $"{nameof(newClient)} is not null but {nameof(newNeighbor)} is. Should not be...").FastPath().ConfigureAwait(Zc);
                 }
             }
 
@@ -466,7 +466,7 @@ namespace zero.core.core
                     if (!Zeroed())
                         _logger.Warn($"Listener restart... {Description}");
                     else
-                        Zero(this, "Zeroed");
+                        await Zero(this, "Zeroed").FastPath().ConfigureAwait(Zc);
                 }
 
                 if(!Zeroed())
@@ -497,7 +497,7 @@ namespace zero.core.core
         /// </summary>
         /// <param name="address">The address of the neighbor</param>
         /// <returns>The blacklisted neighbor if it was connected</returns>
-        public Task<IoNeighbor<TJob>> BlackListAsync(IoNodeAddress address)
+        public async Task<IoNeighbor<TJob>> BlackListAsync(IoNodeAddress address)
         {
             if (_whiteList.TryRemove(address.ToString(), out var ioNodeAddress))
             {
@@ -508,10 +508,10 @@ namespace zero.core.core
                   });
 
 
-                Neighbors[address.ToString()].Zero(this, "blacklisted");
+                await Neighbors[address.ToString()].Zero(this, "blacklisted").FastPath().ConfigureAwait(Zc);
 
                 Neighbors.TryRemove(address.ToString(), out var ioNeighbor);
-                return Task.FromResult(ioNeighbor);
+                return ioNeighbor;
             }
 
             _logger.Warn($"Unable to blacklist `{address}', not found!");

@@ -135,7 +135,7 @@ namespace zero.cocoon.models.test
                             return false;
 
                         //Async read the message from the message stream
-                        if (@this.Source.IsOperational)
+                        if (await @this.Source.IsOperational().FastPath().ConfigureAwait(@this.Zc))
                         {
                             Interlocked.Add(ref @this.BytesRead, await ((IoSocket)ioSocket)
                                 .ReadAsync(@this.ArraySegment, @this.BufferOffset, @this.BufferSize).FastPath()
@@ -164,7 +164,7 @@ namespace zero.cocoon.models.test
                         }
                         else
                         {
-                            @this.Source.Zero(@this, "IsOperational went false");
+                            await @this.Source.Zero(@this, "IsOperational went false").FastPath().ConfigureAwait(@this.Zc);
                         }
 
                         if (@this.Zeroed())
@@ -188,7 +188,7 @@ namespace zero.cocoon.models.test
                         @this.State = IoJobMeta.JobState.ProduceErr;
 
                         if(@this.Source != null)
-                            @this.Source.Zero(@this, string.Empty);
+                            await @this.Source.Zero(@this, string.Empty).FastPath().ConfigureAwait(@this.Zc);
 
                         return false;
                     }

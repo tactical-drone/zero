@@ -268,27 +268,18 @@ namespace zero.core.patterns.bushings
         {
             await base.ZeroManagedAsync().FastPath().ConfigureAwait(Zc);
 
-            Source.Zero(this, $"{nameof(ZeroManagedAsync)}: teardown");
+            await Source.Zero(this, $"{nameof(ZeroManagedAsync)}: teardown").FastPath().ConfigureAwait(Zc);
 
-            await _queue.ZeroManagedAsync(static (sink, @this) =>
-            {
-                sink.Zero(@this, $"{nameof(ZeroManagedAsync)}: teardown");
-                return default;
-            }, this,zero: true).FastPath().ConfigureAwait(Zc);
+            await _queue.ZeroManagedAsync(static async (sink, @this) => await sink.Zero(@this, $"{nameof(ZeroManagedAsync)}: teardown").FastPath().ConfigureAwait(@this.Zc), this,zero: true).FastPath().ConfigureAwait(Zc);
 
-            await JobHeap.ZeroManagedAsync(static (sink, @this) =>
+            await JobHeap.ZeroManagedAsync(static async (sink, @this) =>
             {
-                sink.Zero(@this, $"{nameof(ZeroManagedAsync)}: teardown");
-                return default;
+                await sink.Zero(@this, $"{nameof(ZeroManagedAsync)}: teardown").FastPath().ConfigureAwait(@this.Zc);
             },this).FastPath().ConfigureAwait(Zc);
 
             if (_previousJobFragment != null)
             {
-                await _previousJobFragment.ZeroManagedAsync(static (sink, @this) =>
-                {
-                    sink.Zero(@this, $"{nameof(ZeroManagedAsync)}: teardown");
-                    return default;
-                }, this, zero: true).FastPath().ConfigureAwait(Zc);
+                await _previousJobFragment.ZeroManagedAsync(static (sink, @this) => sink.Zero(@this, $"{nameof(ZeroManagedAsync)}: teardown"), this, zero: true).FastPath().ConfigureAwait(Zc);
             }
 
 #if DEBUG

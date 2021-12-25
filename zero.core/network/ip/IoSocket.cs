@@ -310,6 +310,6 @@ namespace zero.core.network.ip
         /// </summary>
         /// <returns>True if the connection is up, false otherwise</returns>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public abstract bool IsConnected();
+        public abstract ValueTask<bool> IsConnected();
     }
 }

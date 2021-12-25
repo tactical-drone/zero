@@ -670,9 +670,9 @@ namespace zero.cocoon.autopeer
                 _logger.Info($"{Source.Proxy} ~> {Description}, from: {ZeroedFrom?.Description}, reason: {ZeroReason}");
             }
 
-            _probeRequest.Zero(this, $"{nameof(ZeroManagedAsync)}: teardown");
-            _fuseRequest.Zero(this, $"{nameof(ZeroManagedAsync)}: teardown");
-            _scanRequest.Zero(this, $"{nameof(ZeroManagedAsync)}: teardown");
+            await _probeRequest.Zero(this, $"{nameof(ZeroManagedAsync)}: teardown").FastPath().ConfigureAwait(Zc);
+            await _fuseRequest.Zero(this, $"{nameof(ZeroManagedAsync)}: teardown").FastPath().ConfigureAwait(Zc);
+            await _scanRequest.Zero(this, $"{nameof(ZeroManagedAsync)}: teardown").FastPath().ConfigureAwait(Zc);
 
             ResetState(AdjunctState.FinalState);
             //Array.Clear(_produceTaskPool,0, _produceTaskPool.Length);
@@ -763,7 +763,7 @@ namespace zero.cocoon.autopeer
                     if (SecondsSincePat > CcCollective.parm_mean_pat_delay_s)
                     {
                         _logger.Trace($"w {nameof(EnsureRoboticsAsync)} - {Description}, s = {SecondsSincePat} >> {CcCollective.parm_mean_pat_delay_s}, {MetaDesc}");
-                        Zero(CcCollective,$"-wd: l = {SecondsSincePat}s ago, up-time = {TimeSpan.FromMilliseconds(UpTime.ElapsedMs()).TotalHours:0.00}h");
+                        await Zero(CcCollective,$"-wd: l = {SecondsSincePat}s ago, up-time = {TimeSpan.FromMilliseconds(UpTime.ElapsedMs()).TotalHours:0.00}h").FastPath().ConfigureAwait(Zc);
                     }
                 }
             }
@@ -831,12 +831,12 @@ namespace zero.cocoon.autopeer
 
                 if (CcCollective.Neighbors.TryGetValue(Key, out var existingNeighbor))
                 {
-                    if (existingNeighbor.Source?.IsOperational??false)
+                    if (await existingNeighbor.Source.IsOperational().FastPath().ConfigureAwait(Zc))
                     {
                         _logger.Trace($"Drone already operational, dropping {existingNeighbor.Description}");
                         return false;
                     }
-                    existingNeighbor.Zero(this, $"Dropped because stale from {existingNeighbor.Description}");
+                    await existingNeighbor.Zero(this, $"Dropped because stale from {existingNeighbor.Description}").FastPath().ConfigureAwait(Zc);
                 }
 
                 await ZeroAsync(static async @this =>
@@ -920,7 +920,7 @@ namespace zero.cocoon.autopeer
                                 continue;
 
                             var srcEndPoint = epGroups.Value.Item1.GetEndpoint();
-                            var proxy = RouteRequest(srcEndPoint, epGroups.Value.Item2[0].Chroniton.PublicKey);
+                            var proxy = await RouteAsync(srcEndPoint, epGroups.Value.Item2[0].Chroniton.PublicKey).FastPath().ConfigureAwait(Zc);
                             if (proxy != null)
                             {
                                 foreach (var message in msgGroup.Item2)
@@ -964,12 +964,12 @@ namespace zero.cocoon.autopeer
                                 cachedEp = message.EndPoint;
                                 cachedPk = message.Chroniton.PublicKey;
 #if DEBUG
-                                proxy = RouteRequest(cachedEp.GetEndpoint(), cachedPk, message.Chroniton.Header.Ip.Src.GetEndpoint());
+                                proxy = await RouteAsync(cachedEp.GetEndpoint(), cachedPk, message.Chroniton.Header.Ip.Src.GetEndpoint()).FastPath().ConfigureAwait(Zc);
 #else
-                                //proxy = RouteRequest(message.Chroniton.Header.Ip.Src.GetEndpoint(), cachedPk);
-                                //proxy = RouteRequest(cachedEp.GetEndpoint(), cachedPk, message.Chroniton.Header.Ip.Src.GetEndpoint());
+                                //proxy = RouteAsync(message.Chroniton.Header.Ip.Src.GetEndpoint(), cachedPk);
+                                //proxy = RouteAsync(cachedEp.GetEndpoint(), cachedPk, message.Chroniton.Header.Ip.Src.GetEndpoint());
                                 //TODO route issue
-                                proxy = RouteRequest(cachedEp.GetEndpoint(), cachedPk);
+                                proxy = await RouteAsync(cachedEp.GetEndpoint(), cachedPk).FastPath().ConfigureAwait(Zc);
 #endif
 
                             }
@@ -1013,7 +1013,7 @@ namespace zero.cocoon.autopeer
         /// <param name="publicKey">The public key of the request</param>
         /// <param name="alternate">for debug purposes</param>
         /// <returns>The proxy</returns>
-        private CcAdjunct RouteRequest(IPEndPoint srcEndPoint, ByteString publicKey, IPEndPoint alternate = null)
+        private async ValueTask<CcAdjunct> RouteAsync(IPEndPoint srcEndPoint, ByteString publicKey, IPEndPoint alternate = null)
         {
             var key = srcEndPoint.ToString();
             var routed = Router._routingTable.TryGetValue(key, out var proxy);
@@ -1054,7 +1054,7 @@ namespace zero.cocoon.autopeer
 #if DEBUG
                     _logger?.Warn(msg);           
 #endif
-                    proxy.Zero(this, msg);
+                    await proxy.Zero(this, msg).FastPath().ConfigureAwait(Zc);
                     proxy = null;
                 }
             }
@@ -1073,7 +1073,7 @@ namespace zero.cocoon.autopeer
                     if (alternate != null)
                     {
                         var badProxy = proxy;
-                        proxy = RouteRequest(alternate, publicKey);
+                        proxy = RouteAsync(alternate, publicKey);
                         if (proxy.IsProxy && proxy.Designation.IdString() != CcDesignation.MakeKey(publicKey))
                         {
                             _logger!.Warn($"Invalid routing detected wanted = {proxy.Designation.IdString()} - {proxy.RemoteAddress.IpEndPoint}, got = {CcDesignation.MakeKey(publicKey)} - {srcEndPoint}");
@@ -1132,9 +1132,9 @@ namespace zero.cocoon.autopeer
                         {
                             var width = @this._protocolConduit.Source.PrefetchSize;
                             var preload = new ValueTask<bool>[width];
-                            while (!@this.Zeroed() && @this._protocolConduit.UpstreamSource.IsOperational)
+                            while (!@this.Zeroed() && await @this._protocolConduit.UpstreamSource.IsOperational().FastPath().ConfigureAwait(@this.Zc))
                             {
-                                for (var i = 0; i < width && @this._protocolConduit.UpstreamSource.IsOperational; i++)
+                                for (var i = 0; i < width && await @this._protocolConduit.UpstreamSource.IsOperational().FastPath().ConfigureAwait(@this.Zc); i++)
                                 {
                                     try
                                     {
@@ -1169,10 +1169,10 @@ namespace zero.cocoon.autopeer
                         {
                             var width = @this._protocolConduit.Source.PrefetchSize;
                             var preload = new ValueTask<bool>[width];
-                            while (!@this.Zeroed() && @this._protocolConduit.UpstreamSource.IsOperational)
+                            while (!@this.Zeroed() && await @this._protocolConduit.UpstreamSource.IsOperational().FastPath().ConfigureAwait(@this.Zc))
                             {
                                 //consume
-                                for (var i = 0; i < width && @this._protocolConduit.UpstreamSource.IsOperational; i++)
+                                for (var i = 0; i < width && await @this._protocolConduit.UpstreamSource.IsOperational().FastPath().ConfigureAwait(@this.Zc); i++)
                                 {
                                     
                                     preload[i] = @this._protocolConduit.ConsumeAsync(ProcessMessages(), @this);
@@ -1798,7 +1798,7 @@ namespace zero.cocoon.autopeer
 
             var newAdjunct = (CcAdjunct) Hub.MallocNeighbor(Hub, MessageService, Tuple.Create(designation, newRemoteEp, verified));
 
-            if (!Zeroed() && await Hub.ZeroAtomic(static (s, state, ___) =>
+            if (!Zeroed() && await Hub.ZeroAtomic(static async (s, state, ___) =>
                 {
                     var (@this, newAdjunct) = state;
                     try
@@ -1831,7 +1831,7 @@ namespace zero.cocoon.autopeer
                                 var dropped = badList.FirstOrDefault();
                                 if (dropped != default && ((CcAdjunct)dropped).State < AdjunctState.Verified) 
                                 {
-                                    ((CcAdjunct)dropped).Zero(@this,"got collected");
+                                    await ((CcAdjunct)dropped).Zero(@this,"got collected").FastPath().ConfigureAwait(@this.Zc);
                                     @this._logger.Debug($"@ {dropped.Description}");
                                 }
                             }
@@ -1841,7 +1841,7 @@ namespace zero.cocoon.autopeer
                                 {
                                     if (((CcAdjunct)ioNeighbor).State < AdjunctState.Connected)
                                     {
-                                        ((CcAdjunct)ioNeighbor).Zero(@this,"Assimilated!");
+                                        await ((CcAdjunct)ioNeighbor).Zero(@this,"Assimilated!").FastPath().ConfigureAwait(@this.Zc);
                                         @this._logger.Debug($"@ {ioNeighbor.Description}");
                                         break;
                                     }
@@ -1852,10 +1852,10 @@ namespace zero.cocoon.autopeer
                         //Transfer?
                         if (@this.Hub.Neighbors.Count > @this.CcCollective.MaxAdjuncts || !@this.Hub.Neighbors.TryAdd(newAdjunct.Key, newAdjunct))
                         {
-                            newAdjunct.Zero(@this,$"Adjunct already exists, dropping {newAdjunct.Description}");
-                            return new ValueTask<bool>(false);    
+                            await newAdjunct.Zero(@this,$"Adjunct already exists, dropping {newAdjunct.Description}").FastPath().ConfigureAwait(@this.Zc);
+                            return false;    
                         }
-                        return new ValueTask<bool>(true);
+                        return true;
                     }
                     catch when(@this.Zeroed()){}
                     catch (Exception e) when(!@this.Zeroed())
@@ -1863,7 +1863,7 @@ namespace zero.cocoon.autopeer
                         @this._logger.Error(e, $"{@this.Description??"N/A"}");
                     }
 
-                    return new ValueTask<bool>(false);
+                    return false;
                 }, ValueTuple.Create(this, newAdjunct)).FastPath().ConfigureAwait(Zc))
             {
                 //Start processing on adjunct
@@ -2478,7 +2478,7 @@ namespace zero.cocoon.autopeer
 #if DEBUG
                         Zero(this, $"drone left, T = {TimeSpan.FromMilliseconds(UpTime.ElapsedMs()).TotalMinutes:0.0}min ~ {_sibling?.UpTime.ElapsedMsToSec()/60.0:0.0}min, {_sibling?.Description}");
 #else
-                        Zero(this, $"drone left, T = {TimeSpan.FromMilliseconds(UpTime.ElapsedMs()).TotalMinutes:0.0}min");
+                        await Zero(this, $"drone left, T = {TimeSpan.FromMilliseconds(UpTime.ElapsedMs()).TotalMinutes:0.0}min").FastPath().ConfigureAwait(Zc);
 #endif
 
                         return false;
@@ -2893,7 +2893,7 @@ namespace zero.cocoon.autopeer
             }
             finally
             {
-                severedDrone.Zero(this, $"detached from adjunct, was attached = {WasAttached}");
+                await severedDrone.Zero(this, $"detached from adjunct, was attached = {WasAttached}").FastPath().ConfigureAwait(Zc);
                 if(WasAttached)
                     await DeFuseAsync().FastPath().ConfigureAwait(Zc);
 

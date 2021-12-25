@@ -68,14 +68,14 @@ namespace zero.core.network.ip
                     {
                         @this._logger.Error(e, $"Accept udp connection failed: {@this.Description}");
 
-                        ioSocket.Zero(@this, $"{nameof(ZeroManagedAsync)}: teardown");
+                        await ioSocket.Zero(@this, $"{nameof(ZeroManagedAsync)}: teardown").FastPath().ConfigureAwait(@this.Zc);
                     }
                 },ValueTuple.Create(this,context, connectionReceivedAction), bootstrapAsync).ConfigureAwait(Zc);
 
                 if(!Zeroed())
                     _logger.Warn($"Listener stopped, restarting: {Description}");
 
-                IoListenSocket.Zero(this, $"{nameof(ZeroManagedAsync)}: teardown");
+                await IoListenSocket.Zero(this, $"{nameof(ZeroManagedAsync)}: teardown").FastPath().ConfigureAwait(Zc);
             }
         }
 

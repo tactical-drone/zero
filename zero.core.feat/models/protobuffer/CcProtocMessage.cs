@@ -131,7 +131,7 @@ namespace zero.core.feat.models.protobuffer
                             return false;
 
                         //Async read the message from the message stream
-                        if (job.MessageService.IsOperational && !job.Zeroed())
+                        if (await job.MessageService.IsOperational().FastPath().ConfigureAwait(job.Zc) && !job.Zeroed())
                         {
                             var read = await ((IoNetClient<CcProtocMessage<TModel, TBatch>>)ioSocket).IoNetSocket
                                 .ReadAsync(job.MemoryBuffer, job.BufferOffset, job.BufferSize, job.RemoteEndPoint).FastPath().ConfigureAwait(job.Zc);

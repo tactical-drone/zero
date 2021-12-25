@@ -32,7 +32,7 @@ namespace zero.test.core.patterns.bushings
             {
                 await Task.Delay(15).ConfigureAwait(false);
             }
-            c1.Zero(null,"test done");
+            await c1.Zero(null,"test done").FastPath().ConfigureAwait(Zc);
             await z1.ConfigureAwait(false);
 
             Assert.InRange(ts.ElapsedMs(), 1000, 2000);
@@ -57,7 +57,7 @@ namespace zero.test.core.patterns.bushings
             {
                 await Task.Delay(15).ConfigureAwait(false);
             }
-            c1.Zero(null, "test done");
+            await c1.Zero(null, "test done").FastPath().ConfigureAwait(Zc);
             await z1.ConfigureAwait(false);
 
             Assert.InRange(ts.ElapsedMs(), 1000, 4000 * 1.2);
@@ -83,7 +83,7 @@ namespace zero.test.core.patterns.bushings
             {
                 await Task.Delay(30).ConfigureAwait(false);
             }
-            c1.Zero(null, "test done");
+            await c1.Zero(null, "test done").FastPath().ConfigureAwait(Zc);
             await z1.ConfigureAwait(false);
             var fpses = count * 1000 / ts.ElapsedMs() / 1000;
 
@@ -97,30 +97,30 @@ namespace zero.test.core.patterns.bushings
 
         //TODO
         //[Fact]
-        public async Task IoConduitHorizontalScaleSmokeAsync()
-        {
-            var count = 200;
-            var totalTimeMs = count * 15;
-            var concurrencyLevel = 4;
-            var s1 = new IoZeroSource("zero source 1", false, concurrencyLevel * 2, concurrencyLevel, 4, false);
-            var c1 = new IoConduit<IoZeroProduct>("conduit smoke test 1", s1, static (ioZero, _) => new IoZeroProduct("test product 1", ((IoConduit<IoZeroProduct>)ioZero).Source, 15));
+        //public async Task IoConduitHorizontalScaleSmokeAsync()
+        //{
+        //    var count = 200;
+        //    var totalTimeMs = count * 15;
+        //    var concurrencyLevel = 4;
+        //    var s1 = new IoZeroSource("zero source 1", false, concurrencyLevel * 2, concurrencyLevel, 4, false);
+        //    var c1 = new IoConduit<IoZeroProduct>("conduit smoke test 1", s1, static (ioZero, _) => new IoZeroProduct("test product 1", ((IoConduit<IoZeroProduct>)ioZero).Source, 15));
 
-            var z1 = Task.Factory.StartNew(async () => await c1.BlockOnReplicateAsync(), TaskCreationOptions.DenyChildAttach).Unwrap();
+        //    var z1 = Task.Factory.StartNew(async () => await c1.BlockOnReplicateAsync(), TaskCreationOptions.DenyChildAttach).Unwrap();
 
-            var ts = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-            while (!z1.IsCompleted && c1.EventCount < count)
-            {
-                //await Task.Delay(50).ConfigureAwait(false);
-            }
-            c1.Zero(null, "test done");
-            await z1.ConfigureAwait(false);
+        //    var ts = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+        //    while (!z1.IsCompleted && c1.EventCount < count)
+        //    {
+        //        //await Task.Delay(50).ConfigureAwait(false);
+        //    }
+        //    await c1.Zero(null, "test done").FastPath().ConfigureAwait(Zc);
+        //    await z1.ConfigureAwait(false);
 
-            Assert.InRange(ts.ElapsedMs(), totalTimeMs/concurrencyLevel/2, totalTimeMs / concurrencyLevel * 1.25);
-            _output.WriteLine($"{ts.ElapsedMs()}ms ~ {totalTimeMs / concurrencyLevel / 2}ms");
+        //    Assert.InRange(ts.ElapsedMs(), totalTimeMs/concurrencyLevel/2, totalTimeMs / concurrencyLevel * 1.25);
+        //    _output.WriteLine($"{ts.ElapsedMs()}ms ~ {totalTimeMs / concurrencyLevel / 2}ms");
 
-            await Task.Delay(100);
-            Assert.InRange(c1.EventCount, count, count * 1.25);
-            _output.WriteLine($"#event = {c1.EventCount} ~ {count}");
-        }
+        //    await Task.Delay(100);
+        //    Assert.InRange(c1.EventCount, count, count * 1.25);
+        //    _output.WriteLine($"#event = {c1.EventCount} ~ {count}");
+        //}
     }
 }

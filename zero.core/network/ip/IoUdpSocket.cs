@@ -374,7 +374,7 @@ namespace zero.core.network.ip
             if (endPoint == null)
                 throw new ArgumentNullException(nameof(endPoint));
 
-            if (!IsConnected())
+            if (!await IsConnected().FastPath().ConfigureAwait(Zc))
                 return 0;
 
 //#if DEBUG
@@ -413,7 +413,7 @@ namespace zero.core.network.ip
             {
                 var errMsg = $"Sending to {NativeSocket.LocalAddress()} ~> udp://{endPoint} failed, z = {Zeroed()}, zf = {ZeroedFrom?.Description}:";
                 _logger.Error(e, errMsg);
-                Zero(this, errMsg);
+                await Zero(this, errMsg).FastPath().ConfigureAwait(Zc);
             }
             finally
             {
@@ -479,7 +479,7 @@ namespace zero.core.network.ip
             if (remoteEp == null)
                 throw new ArgumentNullException(nameof(remoteEp));
 
-            if (!IsConnected())
+            if (!await IsConnected().FastPath().ConfigureAwait(Zc))
                 return 0;
 
             try
@@ -516,7 +516,7 @@ namespace zero.core.network.ip
                     catch (Exception e) when (!Zeroed())
                     {
                         _logger.Error(e, "Receive udp failed:");
-                        Zero(this, $"{nameof(NativeSocket.ReceiveFromAsync)}: [FAILED] {e.Message}");
+                        await Zero(this, $"{nameof(NativeSocket.ReceiveFromAsync)}: [FAILED] {e.Message}").FastPath().ConfigureAwait(Zc);
                     }
                     finally
                     {
@@ -561,7 +561,7 @@ namespace zero.core.network.ip
             {
                 var errMsg = $"Unable to read from socket: {Description}";
                 _logger?.Error(e, errMsg);
-                Zero(this, errMsg);
+                await Zero(this, errMsg).FastPath().ConfigureAwait(Zc);
             }
             finally
             {
@@ -605,7 +605,7 @@ namespace zero.core.network.ip
         /// </summary>
         /// <returns>True if the connection is up, false otherwise</returns>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public override bool IsConnected()
+        public override async ValueTask<bool> IsConnected()
         {
             try
             {
@@ -615,7 +615,7 @@ namespace zero.core.network.ip
             }
             catch (ObjectDisposedException d)
             {
-                Zero(this, $"{nameof(IsConnected)}: {d.Message}");
+                await Zero(this, $"{nameof(IsConnected)}: {d.Message}").FastPath().ConfigureAwait(Zc);
             }
             catch when(Zeroed()){}
             catch (Exception e) when(!Zeroed())

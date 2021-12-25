@@ -1,5 +1,6 @@
 ﻿using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Threading.Tasks;
 using NLog;
 using zero.core.patterns.bushings;
 using zero.core.patterns.bushings.contracts;
@@ -53,7 +54,7 @@ namespace zero.tangle.models.sources
         /// <value>
         /// <c>true</c> if this instance is operational; otherwise, <c>false</c>.
         /// </value>
-        public override bool IsOperational => false;
+        public override ValueTask<bool> IsOperational() => new(false);
 
         /// <inheritdoc />        
         //public override IoConduit<TFJob> EnsureChannel<TFJob>(string id, IoSource<TFJob> channelSource = null,

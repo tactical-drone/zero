@@ -10,6 +10,7 @@ using zero.core.data.contracts;
 using zero.core.network.ip;
 using zero.core.patterns.bushings;
 using zero.core.patterns.bushings.contracts;
+using zero.core.patterns.misc;
 using zero.tangle.data.cassandra.tangle;
 using zero.tangle.models;
 using zero.tangle.utils;
@@ -136,7 +137,7 @@ namespace zero.tangle
                     }
                 });
 
-                if (!transactionArbiter.UpstreamSource.IsOperational)
+                if (!await transactionArbiter.UpstreamSource.IsOperational().FastPath().ConfigureAwait(Zc))
                     break;
             }
 

@@ -133,7 +133,7 @@ namespace zero.core.network.ip
         public override async ValueTask ZeroManagedAsync()
         {
             await base.ZeroManagedAsync().FastPath().ConfigureAwait(Zc);
-            IoNetSocket.Zero(this, $"{nameof(ZeroManagedAsync)}: teardown");
+            await IoNetSocket.Zero(this, $"{nameof(ZeroManagedAsync)}: teardown").FastPath().ConfigureAwait(Zc);
         }
 
         /// <summary>
@@ -165,47 +165,48 @@ namespace zero.core.network.ip
         /// Detects socket drops
         /// </summary>
         /// <returns>True it the connection is up, false otherwise</returns>
-        public override bool IsOperational
+        public override async ValueTask<bool> IsOperational()
         {
-            get
+            try
             {
-                try
-                {
-                    //fail fast
-                    if (Zeroed())
-                        return false;
-                    
-                    //check TCP
-                    if (IoNetSocket.IsTcpSocket)
-                    {
-                        //rate limit
-                        if (_lastSocketHealthCheck.ElapsedMs() < 5000)
-                            return IoNetSocket.NativeSocket.Connected && IoNetSocket.NativeSocket.IsBound;
-                        
-                        _lastSocketHealthCheck = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-                        //TODO more checks?
-                        if (!IoNetSocket.IsConnected())
-                        {
-                            if(UpTime.ElapsedMsToSec() > 5)
-                                _logger.Error($"DC {IoNetSocket.RemoteNodeAddress} from {IoNetSocket.LocalNodeAddress}, uptime = {TimeSpan.FromSeconds(UpTime.ElapsedMs())}");
+                //fail fast
+                if (Zeroed())
+                    return false;
 
-                            //Do cleanup
-                            return false;
-                        }
-                        
-                        return true;
+                //check TCP
+                if (IoNetSocket.IsTcpSocket)
+                {
+                    //rate limit
+                    if (_lastSocketHealthCheck.ElapsedMs() < 5000)
+                        return IoNetSocket.NativeSocket.Connected && IoNetSocket.NativeSocket.IsBound;
+
+                    _lastSocketHealthCheck = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+                    //TODO more checks?
+                    if (!await IoNetSocket.IsConnected().FastPath().ConfigureAwait(Zc))
+                    {
+                        if (UpTime.ElapsedMsToSec() > 5)
+                            _logger.Error(
+                                $"DC {IoNetSocket.RemoteNodeAddress} from {IoNetSocket.LocalNodeAddress}, uptime = {TimeSpan.FromSeconds(UpTime.ElapsedMs())}");
+
+                        //Do cleanup
+                        return false;
                     }
 
-                    //Check UDP
-                    return (bool) IoNetSocket?.IsConnected();
+                    return true;
                 }
-                catch when (Zeroed()){}
-                catch (Exception e) when(!Zeroed())
-                {
-                    _logger.Trace(e, $"{Description}");
-                }
-                return false;
-            }            
+
+                //Check UDP
+                return await IoNetSocket.IsConnected().FastPath().ConfigureAwait(Zc);
+            }
+            catch when (Zeroed())
+            {
+            }
+            catch (Exception e) when (!Zeroed())
+            {
+                _logger.Trace(e, $"{Description}");
+            }
+
+            return false;
         }
 
         /// <summary>

@@ -86,11 +86,11 @@ namespace zero.tangle
                 {
                     await ((IoNetClient<TJob>) ioNeighbor.Source).ZeroSubAsync<object>(static (from, newNeighbor) =>
                     {
-                        ((IIoNanite)newNeighbor).Zero(@from, string.Empty);
+                        ((IIoNanite)newNeighbor).Zero(@from, string.Empty).AsTask().GetAwaiter().GetResult();
                         return new ValueTask<bool>(true);
                     }, newNeighbor).FastPath().ConfigureAwait(false);
 
-                    if (newNeighbor.Source.IsOperational)
+                    if (await newNeighbor.Source.IsOperational().FastPath().ConfigureAwait(Zc))
                         await newNeighbor.Source.ProduceAsync<object>((client,_, _, _) =>
                         {
                             //TODO

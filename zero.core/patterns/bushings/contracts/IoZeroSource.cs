@@ -1,4 +1,5 @@
-﻿using NLog;
+﻿using System.Threading.Tasks;
+using NLog;
 
 namespace zero.core.patterns.bushings.contracts
 {
@@ -12,7 +13,10 @@ namespace zero.core.patterns.bushings.contracts
 
         private readonly ILogger _logger;
         public override string Key { get; }
-        public override bool IsOperational => true;
+        public override ValueTask<bool> IsOperational()
+        {
+            return new ValueTask<bool>(true);
+        }
 
         public bool Produce()
         {

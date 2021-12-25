@@ -275,7 +275,7 @@ namespace zero.cocoon
             await base.ZeroManagedAsync().FastPath().ConfigureAwait(Zc);
 
             var autoPeeringDesc = _autoPeering.Description;
-            _autoPeering.Zero(this, $"{nameof(ZeroManagedAsync)}: teardown");
+            await _autoPeering.Zero(this, $"{nameof(ZeroManagedAsync)}: teardown").FastPath().ConfigureAwait(Zc);
 
             
             if (!_autoPeeringTask.Wait(TimeSpan.FromSeconds(parm_hub_teardown_timeout_s)))
@@ -284,7 +284,7 @@ namespace zero.cocoon
             }
 
             var id = Hub.Router?.Designation?.IdString();
-            DupSyncRoot.Zero(this, $"{nameof(ZeroManagedAsync)}: teardown");
+            await DupSyncRoot.Zero(this, $"{nameof(ZeroManagedAsync)}: teardown").FastPath().ConfigureAwait(Zc);
             await DupHeap.ZeroManagedAsync<object>().FastPath().ConfigureAwait(false);
             DupChecker.Clear();
 
@@ -724,7 +724,7 @@ namespace zero.cocoon
                         //return await ConnectForTheWinAsync(CcNeighbor.Kind.Inbound, peer, packet,
                         //        (IPEndPoint)ioNetSocket.NativeSocket.RemoteEndPoint)
                         //    .FastPath().ConfigureAwait(ZC);
-                        success = !Zeroed() && drone.Adjunct != null && !drone.Adjunct.Zeroed() && won && drone.Adjunct.Direction == CcAdjunct.Heading.Ingress && drone.Source.IsOperational;
+                        success = !Zeroed() && drone.Adjunct != null && !drone.Adjunct.Zeroed() && won && drone.Adjunct.Direction == CcAdjunct.Heading.Ingress && await drone.Source.IsOperational().FastPath().ConfigureAwait(Zc);
                         return success;
                     }
                 }
@@ -835,7 +835,7 @@ namespace zero.cocoon
                             }
                         }
                     
-                        success = !Zeroed() && drone.Adjunct != null && !drone.Adjunct.Zeroed() && drone.Adjunct?.Direction == CcAdjunct.Heading.Egress && drone.Source.IsOperational;
+                        success = !Zeroed() && drone.Adjunct != null && !drone.Adjunct.Zeroed() && drone.Adjunct?.Direction == CcAdjunct.Heading.Egress && await drone.Source.IsOperational().FastPath().ConfigureAwait(Zc);
                         return success;
                     }
                 }
@@ -981,7 +981,7 @@ namespace zero.cocoon
                     var drone = await ConnectAsync(IoNodeAddress.CreateFromEndpoint("tcp", adjunct.RemoteAddress.IpEndPoint) , adjunct, timeout:adjunct.parm_max_network_latency_ms * 2).FastPath().ConfigureAwait(Zc);
                     if (Zeroed() || drone == null || ((CcDrone)drone).Adjunct.Zeroed())
                     {
-                        if (drone != null) drone.Zero(this, $"{nameof(ConnectAsync)} was not successful [OK]");
+                        if (drone != null) await drone.Zero(this, $"{nameof(ConnectAsync)} was not successful [OK]").FastPath().ConfigureAwait(Zc);
                         _logger.Debug($"{nameof(ConnectToDroneAsync)}: [ABORTED], {adjunct.Description}, {adjunct.MetaDesc}");
                         return false;
                     }
@@ -1012,7 +1012,7 @@ namespace zero.cocoon
                     else
                     {
                         _logger.Debug($"+|{drone.Description}");
-                        drone.Zero(this, "RACED");
+                        await drone.Zero(this, "RACED").FastPath().ConfigureAwait(Zc);
                     }
 
                     return false;

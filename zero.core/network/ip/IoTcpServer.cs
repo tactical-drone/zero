@@ -65,7 +65,7 @@ namespace zero.core.network.ip
                 {
                     var errMsg = $"{@this.Description} Connection received handler returned with errors:";
                     @this._logger.Error(e, errMsg);
-                    newConnectionSocket.Zero(@this, errMsg);
+                    await newConnectionSocket.Zero(@this, errMsg).FastPath().ConfigureAwait(@this.Zc);
                 }
             }, ValueTuple.Create(this, context, connectionReceivedAction), bootstrapAsync).FastPath().ConfigureAwait(Zc);
         }

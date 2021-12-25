@@ -256,9 +256,9 @@ namespace zero.cocoon.models
                             if (source.IoNetSocket.RemoteAddress == endpoint || dupEndpoints != null && dupEndpoints.Contains(source.IoNetSocket.RemoteAddress.GetHashCode()))
                                 continue;
 
-                            if (source.IsOperational && await source.IoNetSocket.SendAsync(Buffer, BufferOffset - read, read).FastPath().ConfigureAwait(Zc) <= 0)
+                            if (await source.IsOperational().FastPath().ConfigureAwait(Zc) && await source.IoNetSocket.SendAsync(Buffer, BufferOffset - read, read).FastPath().ConfigureAwait(Zc) <= 0)
                             {
-                                if(source.IsOperational)
+                                if(await source.IsOperational().FastPath().ConfigureAwait(Zc))
                                     _logger.Trace($"Failed to forward new msg message to {drone.Description}");
                             }
                             else
