@@ -324,7 +324,7 @@ namespace zero.core.core
             try
             {
                 //Start replication
-                IoQueue<Task>.IoZNode node  = default;
+                IoQueue<Task>.IoZNode node = default;
                     
                 node = await NeighborTasks.EnqueueAsync(ZeroOptionAsync(static async state =>
                     {
@@ -343,7 +343,6 @@ namespace zero.core.core
 
                         if(!@this.Zeroed() && !newNeighbor.Zeroed())
                             @this._logger.Warn($"{nameof(newNeighbor.BlockOnReplicateAsync)}: [FAILED]... restarting...");
-
                     }, ValueTuple.Create(this, newNeighbor, Zc), TaskCreationOptions.DenyChildAttach | TaskCreationOptions.LongRunning).AsTask()).FastPath().ConfigureAwait(Zc);
 
                 await node.Value.ContinueWith(static async (_, state) =>
