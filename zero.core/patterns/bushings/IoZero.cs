@@ -352,8 +352,7 @@ namespace zero.core.patterns.bushings
                                 //Enqueue the job for the consumer
                                 nextJob.State = IoJobMeta.JobState.Queued;
 
-                                if (await _queue.EnqueueAsync(nextJob, static async state =>
-                                    {
+                                if (await _queue.EnqueueAsync(nextJob, static async state => {
                                         var (@this, nextJob) = state;
                                         nextJob.GenerateJobId();
 
@@ -472,8 +471,8 @@ namespace zero.core.patterns.bushings
 
                 if (job.PreviousJob != null)
                 {
-                   // Console.WriteLine($"[{job.PreviousJob.Id}] -> Returned");
-                   JobHeap.Return((IoSink<TJob>)job.PreviousJob);
+                    var prevJob = (IoSink<TJob>)job.PreviousJob;
+                    JobHeap.Return(prevJob, prevJob.FinalState != IoJobMeta.JobState.Accept);
                    job.PreviousJob = null;
                 }
 
@@ -558,7 +557,6 @@ namespace zero.core.patterns.bushings
                                 if (jobNode.Value.Id < curJob.Id - Source.PrefetchSize - 1)
                                 {
                                     await _previousJobFragment.RemoveAsync(jobNode).FastPath().ConfigureAwait(Zc);
-                                    continue;
                                 }
                             }
 
@@ -579,7 +577,6 @@ namespace zero.core.patterns.bushings
                             {
                                 //forward any jobs                                                                             
                                 await inlineCallback(curJob, nanite).FastPath().ConfigureAwait(Zc);
-                                curJob.State = IoJobMeta.JobState.Consumed;
                             }
 
                             //count the number of work done

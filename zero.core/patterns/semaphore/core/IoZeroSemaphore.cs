@@ -298,7 +298,7 @@ namespace zero.core.patterns.semaphore.core
             {
                 var latch = _signalAwaiter[i];
                 var waiter = Interlocked.CompareExchange(ref _signalAwaiter[i], ZeroSentinel, latch);
-                if (waiter == latch)
+                if (waiter == latch && latch != null)
                 {
                     var state = Volatile.Read(ref _signalAwaiterState[i]);
                     var executionState = Volatile.Read(ref _signalExecutionState[i]);

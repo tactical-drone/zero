@@ -11,7 +11,7 @@ using zero.core.patterns.queue;
 namespace zero.core.feat.models.protobuffer.sources
 {
     /// <summary>
-    /// Used as a source of unmarshalled protobuf msgs by <see cref="IoConduit{TJob}"/> for <see cref="CcAdjunct"/>
+    /// Used as a source of unmarshalled protobuf msgs by <see cref="IoConduit{TJob}"/>
     /// </summary>
     public class CcProtocBatchSource<TModel, TBatch> : IoSource<CcProtocBatchJob<TModel, TBatch>>
     where TModel : IMessage
@@ -142,9 +142,7 @@ namespace zero.core.feat.models.protobuffer.sources
         /// Queue count
         /// </summary>
         /// <returns>returns number of items in the q</returns>
-        public uint Count()
-        {
-            return (uint)BatchQueue.Count;
-        }
+        public uint Count => (uint)BatchQueue.Count;
+
     }
 }

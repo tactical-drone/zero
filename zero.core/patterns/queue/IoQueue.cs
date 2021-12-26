@@ -208,10 +208,8 @@ namespace zero.core.patterns.queue
                 
                 var node = _nodeHeap.Take();
                 if(node == null)
-                {
                     throw new OutOfMemoryException($"{_description} - ({_nodeHeap.Count} + {_nodeHeap.ReferenceCount})/{_nodeHeap.Capacity}, count = {_count}, \n {Environment.StackTrace}");
-                }
-                
+
                 node.Value = item;
                 
                 // ReSharper disable once ConditionIsAlwaysTrueOrFalse
@@ -414,15 +412,16 @@ namespace zero.core.patterns.queue
         public async ValueTask<bool> RemoveAsync(IoZNode node)
         {
             Debug.Assert(_backPressure == null);
+            Debug.Assert(node != null);
+
             var deDup = true;
             try
             {
-                if (!await _syncValRoot.WaitAsync().FastPath().ConfigureAwait(Zc) || _zeroed > 0)
+                if (!await _syncValRoot.WaitAsync().FastPath().ConfigureAwait(Zc) || _count == 0)
+                {
                     return false;
-
-                if (_count == 0 || _zeroed > 0 || node == null)
-                    return false;
-
+                }
+                
                 deDup = false;
                 _curEnumerator.Modified = true;
 
