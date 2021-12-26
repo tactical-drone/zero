@@ -262,7 +262,7 @@ namespace zero.cocoon
             _badSigResponse = null;
             _gossipAddress = null;
             _peerAddress = null;
-            _poisson = null;
+            //_poisson = null;
             _random = null;
 #endif
         }
@@ -343,7 +343,7 @@ namespace zero.cocoon
         public IoZeroSemaphoreSlim DupSyncRoot { get; protected set; }
         public ConcurrentDictionary<long, IoHashCodes> DupChecker { get; private set; } = new();
         public IoHeap<IoHashCodes, CcCollective> DupHeap { get; protected set; }
-        private readonly int _dupPoolFpsTarget;
+        private volatile int _dupPoolFpsTarget;
         public int DupPoolFPSTarget => _dupPoolFpsTarget;
 
         private long _eventCounter;
@@ -471,7 +471,7 @@ namespace zero.cocoon
         // ReSharper disable once InconsistentNaming
 
 #if DEBUG
-        public int parm_mean_pat_delay_s = 60 * 1;
+        public int parm_mean_pat_delay_s = 60 * 3;
 #else
         public int parm_mean_pat_delay_s = 60 * 5;
 #endif
@@ -1048,11 +1048,13 @@ namespace zero.cocoon
             }
         }
 
-        private static readonly double _lambda = 20;
-        private static readonly int _maxAsyncConnectionAttempts = 16;
+        //private static readonly double _lambda = 20;
+        private const int _maxAsyncConnectionAttempts = 16;
 
         private int _currentOutboundConnectionAttempts;
-        private Poisson _poisson = new(_lambda, new Random(DateTimeOffset.Now.Ticks.GetHashCode() * DateTimeOffset.Now.Ticks.GetHashCode()));
+
+        //private Poisson _poisson = new(_lambda, new Random(DateTimeOffset.Now.Ticks.GetHashCode() * DateTimeOffset.Now.Ticks.GetHashCode()));
+
         private volatile bool _zeroDrone;
         public bool ZeroDrone => _zeroDrone;
 
@@ -1218,7 +1220,7 @@ namespace zero.cocoon
 
         public void ClearDupBuf()
         {
-            if (DupChecker.Count > DupHeap.MaxSize * 4 / 5)
+            if (DupChecker.Count > DupHeap.Capacity * 4 / 5)
             {
                 foreach (var mId in DupChecker.Keys)
                 {

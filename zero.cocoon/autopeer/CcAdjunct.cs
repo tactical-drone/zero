@@ -148,7 +148,7 @@ namespace zero.cocoon.autopeer
             FinalState = AdjunctState.FinalState
         };
 #else
-        private readonly IoStateTransition<AdjunctState> _currState = new()
+        private volatile IoStateTransition<AdjunctState> _currState = new()
         {
             FinalState = AdjunctState.FinalState
         };
@@ -454,7 +454,7 @@ namespace zero.cocoon.autopeer
         /// <summary>
         /// Whether to enable syn triggers. Useful for seduction, 
         /// </summary>
-        private static readonly bool _enableSynTrigger = true;
+        private const bool EnableSynTrigger = true;
 
         /// <summary>
         /// Enable or disable EP caching while unpacking batches. (if adjuncts move around regularly disable, or always disable)
@@ -2081,7 +2081,7 @@ namespace zero.cocoon.autopeer
             };
 
             //ensure ingress delta trigger
-            if (!CcCollective.ZeroDrone && _enableSynTrigger && Volatile.Read(ref _lastSeduced).ElapsedMs() < parm_max_network_latency_ms * 2)
+            if (!CcCollective.ZeroDrone && EnableSynTrigger && Volatile.Read(ref _lastSeduced).ElapsedMs() < parm_max_network_latency_ms * 2)
                 _fuseCount = -parm_zombie_max_connection_attempts;
             
             Interlocked.Exchange(ref _lastSeduced, DateTimeOffset.UtcNow.ToUnixTimeMilliseconds());

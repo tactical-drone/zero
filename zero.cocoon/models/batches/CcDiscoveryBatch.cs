@@ -30,7 +30,7 @@ namespace zero.cocoon.models.batches
         private CcDiscoveryMessage[] _messages;
         private Dictionary<string, ReadOnlyMemory<CcDiscoveryMessage>> _messagesDictionary = new();
         private volatile int _disposed;
-        private readonly bool _groupByEpEnabled;
+
 
         public CcDiscoveryMessage this[int i] => _messages[i];
 
@@ -45,7 +45,7 @@ namespace zero.cocoon.models.batches
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void ReturnToHeap()
         {
-            if(_heapRef.Count / (double)_heapRef.MaxSize > 0.8)
+            if(_heapRef.Count / (double)_heapRef.Capacity > 0.8)
                 LogManager.GetCurrentClassLogger().Warn($"{nameof(CcDiscoveryBatch)}: Heap is running lean, {_heapRef} ");
 
             foreach (var t in _messages)
@@ -61,6 +61,7 @@ namespace zero.cocoon.models.batches
 
         public int Capacity => _messages.Length;
         public volatile int Count;
+        private readonly bool _groupByEpEnabled;
         public bool GroupByEpEnabled => _groupByEpEnabled;
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]

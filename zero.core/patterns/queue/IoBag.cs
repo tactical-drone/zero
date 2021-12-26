@@ -48,7 +48,7 @@ namespace zero.core.patterns.queue
 
         private IoBagEnumerator<T> _curEnumerator;
 
-        private readonly bool _autoScale;
+        private volatile bool _autoScale;
 
         /// <summary>
         /// ZeroAsync status
@@ -106,10 +106,12 @@ namespace zero.core.patterns.queue
                 return false;
             }
         }
+
         /// <summary>
         /// Add item to the bag
         /// </summary>
         /// <param name="item">The item to be added</param>
+        /// <param name="deDup">Whether to de-dup this item from the bag</param>
         /// <exception cref="OutOfMemoryException">Thrown if we are internally OOM</exception>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public int Add(T item, bool deDup = false)

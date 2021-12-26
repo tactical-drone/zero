@@ -296,8 +296,9 @@ namespace zero.core.patterns.semaphore.core
             var i = 0;
             while (i < _signalAwaiter.Length)
             {
-                var waiter = Interlocked.CompareExchange(ref _signalAwaiter[i], ZeroSentinel, _signalAwaiter[i]);
-                if (waiter != null)
+                var latch = _signalAwaiter[i];
+                var waiter = Interlocked.CompareExchange(ref _signalAwaiter[i], ZeroSentinel, latch);
+                if (waiter == latch)
                 {
                     var state = Volatile.Read(ref _signalAwaiterState[i]);
                     var executionState = Volatile.Read(ref _signalExecutionState[i]);
@@ -450,20 +451,6 @@ namespace zero.core.patterns.semaphore.core
             if (_zeroRef.ZeroToken() != token)
                 throw new ZeroValidationException($"{Description}: Invalid token: wants = {token}, has = {_zeroRef.ZeroToken()}");
 #endif
-
-#if DEBUG
-            if (state == null)
-                throw new ArgumentNullException(nameof(state));
-
-            if (continuation == null)
-                throw new ArgumentNullException(nameof(continuation));
-#endif
-            if (state == null)
-                throw new ArgumentNullException(nameof(state));
-
-            if (continuation == null)
-                throw new ArgumentNullException(nameof(continuation));
-
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
             void ExtractStack(out ExecutionContext ec, out object cc)
             {
@@ -638,9 +625,12 @@ namespace zero.core.patterns.semaphore.core
 #if DEBUG
             if(callback == null || state == null)
                 throw new InvalidOperationException($"{nameof(InvokeContinuation)}: {nameof(callback)} = {callback}, {nameof(state)} = {state}");
+#else
+            if (state == null) //TODO: bug
+                return;
 #endif
 
-            switch (capturedContext)
+                switch (capturedContext)
             {
                 case null:
                     if (RunContinuationsAsynchronously || forceAsync)
@@ -806,9 +796,11 @@ namespace zero.core.patterns.semaphore.core
             }
 
             //preconditions
-            if(releaseCount < 1 || releaseCount + _zeroRef.ZeroCount() > _maxBlockers)
+            if (!bestEffort && (releaseCount < 1 || releaseCount + _zeroRef.ZeroCount() > _maxBlockers))
+            {
                 throw new SemaphoreFullException($"{Description}: Invalid {nameof(releaseCount)} = {releaseCount} < 0 or  {nameof(_curSignalCount)}({releaseCount + _zeroRef.ZeroCount()}) > {nameof(_maxBlockers)} = {_maxBlockers}");
-
+            }
+            
             //lock in return value
             var released = 0;
 

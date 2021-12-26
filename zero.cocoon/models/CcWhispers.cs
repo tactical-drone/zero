@@ -1,5 +1,4 @@
 using System;
-using System.IO;
 using System.Linq;
 using System.Runtime.InteropServices;
 using System.Threading;
@@ -9,7 +8,6 @@ using zero.cocoon.events.services;
 using zero.cocoon.identity;
 using zero.cocoon.models.batches;
 using zero.core.feat.models.protobuffer;
-using zero.core.misc;
 using zero.core.network.ip;
 using zero.core.patterns.bushings;
 using zero.core.patterns.bushings.contracts;
@@ -26,7 +24,7 @@ namespace zero.cocoon.models
         }
 
         /// <summary>
-        /// 
+        /// Zero managed
         /// </summary>
         /// <returns></returns>
         public override async ValueTask ZeroManagedAsync()
@@ -160,7 +158,7 @@ namespace zero.cocoon.models
                             break;
                         }
 
-                        if (CcCollective.DupChecker.Count > CcCollective.DupHeap.MaxSize*4/5)
+                        if (CcCollective.DupChecker.Count > CcCollective.DupHeap.Capacity*4/5)
                         {
                             var culled = CcCollective.DupChecker.Keys.Where(k => k < req - CcCollective.DupPoolFPSTarget / 3).ToList();
                             foreach (var mId in culled)
@@ -221,7 +219,7 @@ namespace zero.cocoon.models
 
                         if (dupEndpoints == null)
                             throw new OutOfMemoryException(
-                                $"{CcCollective.DupHeap}: {CcCollective.DupHeap.ReferenceCount}/{CcCollective.DupHeap.MaxSize} - c = {CcCollective.DupChecker.Count}, m = _maxReq");
+                                $"{CcCollective.DupHeap}: {CcCollective.DupHeap.ReferenceCount}/{CcCollective.DupHeap.Capacity} - c = {CcCollective.DupChecker.Count}, m = _maxReq");
                         
                         if (!CcCollective.DupChecker.TryAdd(req, dupEndpoints))
                         {

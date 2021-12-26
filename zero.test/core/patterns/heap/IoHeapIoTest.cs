@@ -43,9 +43,7 @@ namespace zero.test.core.patterns.heap
 
             Assert.Equal(0, h.ReferenceCount);
             Assert.InRange(h.Count, 1,_capacity);
-            Assert.Equal(_capacity * _capacity, h.MaxSize);
-
-            Assert.InRange(h.TotalOps, 1,_capacity*_capacity);
+            Assert.Equal(_capacity * _capacity, h.Capacity);
         }
 
         [Fact]
@@ -65,8 +63,6 @@ namespace zero.test.core.patterns.heap
             Assert.Equal(3, item.TestVar3);
 
             h.Return(item);
-
-            Assert.Equal(1, h.TotalOps);
         }
 
         [Fact]
@@ -101,8 +97,6 @@ namespace zero.test.core.patterns.heap
 
             Assert.Equal(0, h.ReferenceCount);
             Assert.Equal(0, h.Count);
-
-            Assert.InRange(h.TotalOps,1,_capacity);
         }
 
         public IoHeapIoTest()

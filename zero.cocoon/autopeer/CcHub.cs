@@ -31,7 +31,7 @@ namespace zero.cocoon.autopeer
             int concurrencyLevel) : base(address, mallocNeighbor, prefetch, concurrencyLevel, ccCollective.MaxAdjuncts + 1)//TODO config
         {
             CcCollective = ccCollective;
-            _designation = ccCollective.CcId;
+            Designation = ccCollective.CcId;
         }
 
         /// <summary>
@@ -42,12 +42,7 @@ namespace zero.cocoon.autopeer
         /// <summary>
         /// The hub id
         /// </summary>
-        private readonly CcDesignation _designation;
-
-        /// <summary>
-        /// The hub id
-        /// </summary>
-        public CcDesignation Designation => _designation;
+        public CcDesignation Designation { get; }
 
         /// <summary>
         /// The cocoon node this discovery service belongs to 

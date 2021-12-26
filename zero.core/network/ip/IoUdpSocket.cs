@@ -378,9 +378,9 @@ namespace zero.core.network.ip
                 return 0;
 
 //#if DEBUG
-//                if (_sendSync.CurNrOfBlockers >= _sendArgs.MaxSize / 2)
+//                if (_sendSync.CurNrOfBlockers >= _sendArgs.Capacity / 2)
 //                    _logger.Warn(
-//                        $"{Description}: Send semaphore is running lean {_sendSync.CurNrOfBlockers}/{_sendArgs.MaxSize}");
+//                        $"{Description}: Send semaphore is running lean {_sendSync.CurNrOfBlockers}/{_sendArgs.Capacity}");
 
 //                Debug.Assert(endPoint != null);
 //#endif

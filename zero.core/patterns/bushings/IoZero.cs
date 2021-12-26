@@ -44,7 +44,7 @@ namespace zero.core.patterns.bushings
             //    //update heap to match max Q size
             //    if (pair.Key == nameof(parm_max_q_size))
             //    {
-            //        JobHeap.MaxSize = parm_max_q_size;
+            //        JobHeap.Capacity = parm_max_q_size;
             //    }
             //};
 
@@ -415,7 +415,7 @@ namespace zero.core.patterns.bushings
                         if (Zeroed())
                             return false;
 
-                        _logger.Warn($"{GetType().Name}: Production for: `{Description}` failed. Cannot allocate job resources!, heap =>  {JobHeap.Count}/{JobHeap.MaxSize}");
+                        _logger.Warn($"{GetType().Name}: Production for: `{Description}` failed. Cannot allocate job resources!, heap =>  {JobHeap.Count}/{JobHeap.Capacity}");
                         await Task.Delay(parm_min_failed_production_time, AsyncTasks.Token).ConfigureAwait(Zc);
                         return false;
                     }
@@ -616,7 +616,7 @@ namespace zero.core.patterns.bushings
                                     var (@this, curJob) = state;
                                     @this._lastStat = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
                                     @this._logger?.Info(
-                                        $"{@this.Description} {@this.JobHeap.OpsPerSecond:0.0} j/s, [{@this.JobHeap.ReferenceCount} / {@this.JobHeap.CacheSize()} / {@this.JobHeap.ReferenceCount + @this.JobHeap.CacheSize()} / {@this.JobHeap.FreeCapacity()} / {@this.JobHeap.MaxSize}]");
+                                        $"{@this.Description} {@this.EventCount/(double)@this.UpTime.ElapsedMsToSec():0.0} j/s, [{@this.JobHeap.ReferenceCount} / {@this.JobHeap.CacheSize} / {@this.JobHeap.ReferenceCount + @this.JobHeap.CacheSize} / {@this.JobHeap.AvailableCapacity} / {@this.JobHeap.Capacity}]");
                                     curJob.Source.PrintCounters();
                                     return new ValueTask<bool>(true);
                                 }, (this, curJob)).FastPath().ConfigureAwait(Zc);

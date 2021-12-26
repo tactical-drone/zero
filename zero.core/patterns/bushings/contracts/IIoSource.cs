@@ -92,12 +92,10 @@ namespace zero.core.patterns.bushings.contracts
         /// </summary>
         public long NextJobIdSeed();
 
-#if DEBUG
         /// <summary>
         /// Total service times per <see cref="Counters"/>
         /// </summary>
         public long[] ServiceTimes { get; }
-#endif
 
         /// <summary>
         /// Print counters

@@ -40,7 +40,13 @@ namespace zero.core.patterns.queue
             var desc = _description = string.Empty;
 #endif
 
-            _nodeHeap = new IoHeap<IoZNode>(desc, capacity, autoScale: autoScale) {Malloc = static (_,_) => new IoZNode()};
+            _nodeHeap = new IoHeap<IoZNode>(desc, capacity, autoScale: autoScale) {Malloc = static (_,_) => new IoZNode(), PopAction =
+                (node, _) =>
+                {
+                    node.Next = null;
+                    node.Prev = null;
+                }
+            };
 
             _syncValRoot = new IoZeroSemaphore(desc, maxBlockers: concurrencyLevel, initialCount: 1, asyncWorkerCount: 0);
             _syncValRoot.ZeroRef(ref _syncValRoot, _asyncTasks);
@@ -203,13 +209,11 @@ namespace zero.core.patterns.queue
                 var node = _nodeHeap.Take();
                 if(node == null)
                 {
-                    throw new OutOfMemoryException($"{_description} - ({_nodeHeap.Count} + {_nodeHeap.ReferenceCount})/{_nodeHeap.MaxSize}, count = {_count}, \n {Environment.StackTrace}");
+                    throw new OutOfMemoryException($"{_description} - ({_nodeHeap.Count} + {_nodeHeap.ReferenceCount})/{_nodeHeap.Capacity}, count = {_count}, \n {Environment.StackTrace}");
                 }
                 
                 node.Value = item;
-                node.Prev = null;
-                node.Next = null;
-
+                
                 // ReSharper disable once ConditionIsAlwaysTrueOrFalse
                 if (!await _syncValRoot.WaitAsync().FastPath().ConfigureAwait(Zc) || !(entered = true) || _zeroed > 0)
                 {
@@ -293,11 +297,9 @@ namespace zero.core.patterns.queue
 
                 var node = _nodeHeap.Take();
                 if (node == null)
-                    throw new OutOfMemoryException($"{_description} - ({_nodeHeap.Count} + {_nodeHeap.ReferenceCount})/{_nodeHeap.MaxSize}, count = {_count}");
+                    throw new OutOfMemoryException($"{_description} - ({_nodeHeap.Count} + {_nodeHeap.ReferenceCount})/{_nodeHeap.Capacity}, count = {_count}");
                 
                 node.Value = item;
-                node.Prev = null;
-                node.Next = null;
 
                 // ReSharper disable once ConditionIsAlwaysTrueOrFalse
                 if (!await _syncValRoot.WaitAsync().FastPath().ConfigureAwait(Zc) || !(entered = true) || _zeroed > 0)

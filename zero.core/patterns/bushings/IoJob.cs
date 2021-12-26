@@ -100,7 +100,7 @@ namespace zero.core.patterns.bushings
 #if DEBUG
         private volatile IoStateTransition<IoJobMeta.JobState> _stateMeta;
 #else
-        private readonly IoStateTransition<IoJobMeta.JobState> _stateMeta = new();
+        private volatile IoStateTransition<IoJobMeta.JobState> _stateMeta = new();
 #endif
         /// <summary>
         /// Enables async jobs to synchronize at certain parts of the pipeline, effectively chaining them into a unique processing order, ordered by <see cref="Id"/>
@@ -309,8 +309,8 @@ namespace zero.core.patterns.bushings
 
                     if (_stateMeta.Value == IoJobMeta.JobState.Halted && value != IoJobMeta.JobState.Undefined)
                     {
-                        PrintStateHistory();
                         _stateMeta.Set((int)IoJobMeta.JobState.Race);
+                        PrintStateHistory();
                         throw new ApplicationException($"{TraceDescription} Cannot transition from `{IoJobMeta.JobState.Halted}' to `{value}'");
                     }
 
@@ -349,6 +349,11 @@ namespace zero.core.patterns.bushings
                 
 #else
                 _stateMeta.ExitTime = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+                if (!Zeroed())
+                {
+                    Interlocked.Increment(ref Source.Counters[(int)_stateMeta.Value]);
+                    Interlocked.Add(ref Source.ServiceTimes[(int)_stateMeta.Value], _stateMeta.Mu);
+                }
                 _stateMeta.Set((int)value);
                 _stateMeta.EnterTime = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
 #endif

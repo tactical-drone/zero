@@ -359,8 +359,8 @@ namespace zero.cocoon.models
                 }
                 
                 //TODO tuning
-                if (_currentBatch.Count > _batchHeap.MaxSize * 3 / 2)
-                    _logger.Warn($"{nameof(_batchHeap)} running lean {_currentBatch.Count}/{_batchHeap.MaxSize}, {_batchHeap}, {_batchHeap.Description}");
+                if (_currentBatch.Count > _batchHeap.Capacity * 3 / 2)
+                    _logger.Warn($"{nameof(_batchHeap)} running lean {_currentBatch.Count}/{_batchHeap.Capacity}, {_batchHeap}, {_batchHeap.Description}");
                 //Release a waiter
                 await ZeroBatchAsync().FastPath().ConfigureAwait(Zc);
             }
@@ -528,7 +528,7 @@ namespace zero.cocoon.models
 
                             @this._currentBatch = @this._batchHeap.Take();
                             if (@this._currentBatch == null)
-                                throw new OutOfMemoryException($"{@this.Description}: {nameof(@this._batchHeap)}, c = {@this._batchHeap.Count}/{@this._batchHeap.MaxSize}, ref = {@this._batchHeap.ReferenceCount}");
+                                throw new OutOfMemoryException($"{@this.Description}: {nameof(@this._batchHeap)}, c = {@this._batchHeap.Count}/{@this._batchHeap.Capacity}, ref = {@this._batchHeap.ReferenceCount}");
 
                             @this._currentBatch.Count = 0;
 

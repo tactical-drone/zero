@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Runtime.CompilerServices;
-using System.Threading;
 using System.Threading.Tasks;
 using NLog;
 using zero.core.patterns.misc;
@@ -16,13 +15,15 @@ namespace zero.core.patterns.heap
     public class IoHeapIo<TItem,TContext>: IoHeap<TItem, TContext> where TItem: class, IIoHeapItem, IIoNanite where TContext : class
     {
         /// <summary>
-        /// ConstructAsync
+        /// Constructs a new Heap that manages types of <see cref="IIoNanite"/>.
+        ///
+        /// For POCO types use the more performant <see cref="IoHeap{TItem,TContext}"/>
         /// </summary>
         /// <param name="description"></param>
-        /// <param name="maxSize"></param>
-        /// <param name="context"></param>
-        /// <param name="autoScale"></param>
-        public IoHeapIo(string description, int maxSize, bool autoScale = false, TContext context = null) : base(description, maxSize, autoScale, context)
+        /// <param name="context">dev setup context</param>
+        /// <param name="capacity">Total capacity</param>
+        /// <param name="autoScale">Whether to ramp capacity</param>
+        public IoHeapIo(string description, int capacity, bool autoScale = false, TContext context = null) : base(description, capacity, autoScale, context)
         {
             _logger = LogManager.GetCurrentClassLogger();
         }
@@ -38,7 +39,6 @@ namespace zero.core.patterns.heap
             try
             {
                 //Take from heap
-                
                 if ((next = Take(userData)) != null && !await next.ConstructAsync(userData))
                     return null;
                 
@@ -52,24 +52,6 @@ namespace zero.core.patterns.heap
                 //Custom constructor
                 localReuse?.Invoke(next, userData);
 
-                //The constructor signals a flush by returning null
-                while (next == null)
-                {
-                    Interlocked.Increment(ref CurrentCount);
-                    _logger.Trace($"Flushing `{GetType()}'");
-
-                    next = Take(userData);
-                    //Return another item from the heap
-                    if (next == null)
-                    {
-                        _logger.Error($"`{GetType()}', unable to allocate memory");
-                        return null;
-                    }
-
-                    //Try the next one
-                    next = (TItem) await next.ReuseAsync().FastPath().ConfigureAwait(Zc);
-                }
-
                 return next;
             }
             catch when(Zeroed){}
@@ -82,7 +64,7 @@ namespace zero.core.patterns.heap
                 }                    
                 else
                 {
-                    _logger.Warn($"Heap `{this}' ran out of capacity, Free = {FreeCapacity()}/{MaxSize}");
+                    _logger.Warn($"Heap `{this}' ran out of capacity, Free = {AvailableCapacity}/{Capacity}");
                 }              
             }
 
@@ -101,7 +83,7 @@ namespace zero.core.patterns.heap
             if (item == null)
                 return;
 
-            base.Return(item, zero);
+            base.Return(item, zero, deDup);
 
             if (zero || Zeroed)
                 item.Zero(null, $"{nameof(IoHeapIo<TItem, TContext>)}: teardown direct = {zero}, cascade = {Zeroed}");
@@ -110,7 +92,7 @@ namespace zero.core.patterns.heap
 
     public class IoHeapIo<TItem>: IoHeapIo<TItem, IIoNanite> where TItem : class, IIoHeapItem, IIoNanite
     {
-        public IoHeapIo(string description, int maxSize, bool autoScale = false) : base(description, maxSize, autoScale: autoScale)
+        public IoHeapIo(string description, int capacity, bool autoScale = false) : base(description, capacity, autoScale: autoScale)
         {
         }
     }

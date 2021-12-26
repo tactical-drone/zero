@@ -531,6 +531,7 @@ namespace zero.core.patterns.misc
 
             if (_zeroHiveMind != null)
                 await _zeroHiveMind.ZeroManagedAsync<object>(zero:true).FastPath().ConfigureAwait(Zc);
+
             if (_zeroHive != null)
                 await _zeroHive.ZeroManagedAsync<object>(zero: true).FastPath().ConfigureAwait(Zc);
 #if DEBUG

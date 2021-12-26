@@ -347,6 +347,12 @@ namespace zero.test.core.patterns.queue{
             await q.EnqueueAsync(3);
             await q.EnqueueAsync(4);
 
+            await q.DequeueAsync();
+            await q.DequeueAsync();
+            await q.DequeueAsync();
+            await q.DequeueAsync();
+            await q.DequeueAsync();
+
             Assert.Equal(8, q.Capacity);
         }
 

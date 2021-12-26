@@ -165,7 +165,7 @@ namespace zero.tangle.api.controllers.generic
                             }
                             stopwatch.Stop();
                             Interlocked.Exchange(ref outstanding, relaySource.JobHeap.ReferenceCount);
-                            Interlocked.Exchange(ref freeBufferSpace, relaySource.JobHeap.FreeCapacity());
+                            Interlocked.Exchange(ref freeBufferSpace, relaySource.JobHeap.AvailableCapacity);
                         }
                         else
                             @this._logger.Warn($"Waiting for multicast source `{n.Source.Description}' to initialize...");

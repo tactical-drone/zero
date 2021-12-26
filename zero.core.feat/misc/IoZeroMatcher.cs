@@ -270,8 +270,8 @@ namespace zero.core.feat.misc
 
                     if (potential.Hash != 0 && potential.Hash == MemoryMarshal.Read<long>(reqHashMemory.Span))
                     {
-                        await @this._lut.RemoveAsync(cur).FastPath().ConfigureAwait(@this.Zc);
                         @this._valHeap.Return(potential);
+                        await @this._lut.RemoveAsync(cur).FastPath().ConfigureAwait(@this.Zc);
                         return potential.TimestampMs.ElapsedMs() < @this._ttlMs;
                     }
                 }
@@ -279,8 +279,8 @@ namespace zero.core.feat.misc
                 //drop old ones while we are at it
                 if (cur.Value.TimestampMs.ElapsedMs() > @this._ttlMs)
                 {
-                    await @this._lut.RemoveAsync(cur).FastPath().ConfigureAwait(@this.Zc);
                     @this._valHeap.Return(cur.Value);
+                    await @this._lut.RemoveAsync(cur).FastPath().ConfigureAwait(@this.Zc);
                 }
 
                 cur = cur.Next;
@@ -316,8 +316,8 @@ namespace zero.core.feat.misc
                     var t = n.Next;
                     if (n.Value.TimestampMs.ElapsedMs() > _ttlMs)
                     {
-                        await _lut.RemoveAsync(n).FastPath().ConfigureAwait(Zc);
                         _valHeap.Return(n.Value);
+                        await _lut.RemoveAsync(n).FastPath().ConfigureAwait(Zc);
                     }
                     n = t;
                 }
@@ -385,8 +385,8 @@ namespace zero.core.feat.misc
         /// <returns>true on success, false otherwise</returns>
         public async ValueTask<bool> RemoveAsync(IoQueue<IoChallenge>.IoZNode node)
         {
-            await _lut.RemoveAsync(node).FastPath().ConfigureAwait(Zc);
             _valHeap.Return(node.Value);
+            await _lut.RemoveAsync(node).FastPath().ConfigureAwait(Zc);
 
             return true;
         }

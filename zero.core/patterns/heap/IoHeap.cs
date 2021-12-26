@@ -27,22 +27,17 @@ namespace zero.core.patterns.heap
         }
 
         /// <summary>
-        /// Constructor a heap that has a maximum capacity of <see cref="maxSize"/>
+        /// Construct a heap with capacity
         /// </summary>
-        /// <param name="description"></param>
-        /// <param name="maxSize">The maximum capacity of this heap</param>
-        /// <param name="context"></param>
-        /// <param name="enablePerf"></param>
+        /// <param name="description">A description</param>
+        /// <param name="context">dev context</param>
+        /// <param name="capacity">Heap  capacity</param>
         /// <param name="autoScale">Whether this heap capacity grows (exponentially) with demand</param>
-        /// 
-        public IoHeap(string description, int maxSize, bool autoScale = false, TContext context = null)
+        public IoHeap(string description, int capacity, bool autoScale = false, TContext context = null)
         {
             _description = description;
-            _maxSize = maxSize;
-            _ioHeapBuf = new IoBag<TItem>($"{nameof(_ioHeapBuf)}: {description}", _maxSize, autoScale);
+            _ioHeapBuf = new IoBag<TItem>($"{nameof(_ioHeapBuf)}: {description}", capacity, autoScale);
             Context = context;
-            CurrentCount = 0;
-            _refCount = 0;
             Malloc = default;
         }
 
@@ -59,7 +54,7 @@ namespace zero.core.patterns.heap
         /// <summary>
         /// 
         /// </summary>
-        public string Description => $"{nameof(IoHeap<TItem,TContext>)}: {nameof(Count)} = {CurrentCount}, capacity = {_maxSize}, refs = {_refCount}, desc = {_description}, bag ~> {_ioHeapBuf.Description}";
+        public string Description => $"{nameof(IoHeap<TItem,TContext>)}: {nameof(Count)} = {Count}, capacity = {Capacity}, refs = {_refCount}, desc = {_description}, bag ~> {_ioHeapBuf.Description}";
 
         /// <summary>
         /// Config await
@@ -71,26 +66,30 @@ namespace zero.core.patterns.heap
         /// </summary>
         private volatile int _zeroed;
 
+        /// <summary>
+        /// If we are in zero state
+        /// </summary>
         public bool Zeroed => _zeroed > 0;
+
         /// <summary>
         /// The heap buffer space
         /// </summary>
         private IoBag<TItem> _ioHeapBuf;
 
+        private volatile int _count;
         /// <summary>
         /// The current WorkHeap size
         /// </summary>
-        protected volatile int CurrentCount;
-        
-        /// <summary>
-        /// The current WorkHeap size
-        /// </summary>
-        public int Count => CurrentCount;
+        public int Count
+        {
+            get => _count;
+            set => _count = value;
+        }
 
         /// <summary>
         /// The maximum heap size
         /// </summary>
-        private int _maxSize;
+        public int Capacity => _ioHeapBuf.Capacity;
 
         /// <summary>
         /// The number of outstanding references
@@ -100,47 +99,12 @@ namespace zero.core.patterns.heap
         /// <summary>
         /// The number of outstanding references
         /// </summary>
-        public int ReferenceCount =>_refCount; //TODO refactor
-
-        /// <summary>
-        /// Current Capacity
-        /// </summary>
-        public int Capacity => _maxSize;
+        public int ReferenceCount => _refCount; //TODO refactor
 
         /// <summary>
         /// Whether we are auto scaling
         /// </summary>
         public bool IsAutoScaling => _ioHeapBuf.IsAutoScaling;
-
-        /// <summary>
-        /// The maximum heap size allowed. Configurable, collects & compacts on shrinks
-        /// </summary>
-        public int MaxSize
-        {
-            get => _maxSize;
-            set
-            {
-                value = Math.Max(value, _refCount);
-
-                var trimCount = _maxSize - value;
-                while (trimCount-- > 0 && _ioHeapBuf.TryTake(out _))
-                {
-                    Interlocked.Decrement(ref CurrentCount);
-                }
-                _maxSize = value;
-            }
-        }
-
-        
-        /// <summary>
-        /// Provides perf stats
-        /// </summary>
-        public double OpsPerSecond => 0;
-
-        /// <summary>
-        /// Total ops this heap has performed
-        /// </summary>
-        public double TotalOps => _opsCounter;
 
         /// <summary>
         /// zero unmanaged
@@ -150,6 +114,7 @@ namespace zero.core.patterns.heap
 #if SAFE_RELEASE
             _logger = null;
             _ioHeapBuf = default;
+            Context = null;
             Malloc = null;
 #endif
         }
@@ -167,7 +132,7 @@ namespace zero.core.patterns.heap
             else
                 await _ioHeapBuf.ZeroManagedAsync<object>(zero:true).FastPath().ConfigureAwait(Zc);
 
-            CurrentCount = 0;
+            _count = 0;
             _refCount = 0;
         }
 
@@ -184,27 +149,13 @@ namespace zero.core.patterns.heap
                 //If the heap is empty
                 if (!_ioHeapBuf.TryTake(out var heapItem))
                 {
-                    //And we can allocate more heap space
-                    
-                    if (CurrentCount < _maxSize || IsAutoScaling)
-                    {
-                        //auto scale if needed
-                        if (IsAutoScaling && CurrentCount >= _maxSize)
-                            MaxSize = _maxSize * 2;
+                    Interlocked.Increment(ref _count);
+                    Interlocked.Increment(ref _refCount);
+                    heapItem = Malloc(userData, Context);
+                    Constructor?.Invoke(heapItem, userData);
+                    PopAction?.Invoke(heapItem, userData);
 
-                        //Allocate and return
-                        Interlocked.Increment(ref CurrentCount);
-                        Interlocked.Increment(ref _refCount);
-                        heapItem = Malloc(userData, Context);
-                        Constructor?.Invoke(heapItem, userData);
-                        PopAction?.Invoke(heapItem, userData);
-
-                        return heapItem;
-                    }
-                    else //we have run out of capacity
-                    {
-                        return default;
-                    }
+                    return heapItem;
                 }
                 else //take the item from the heap
                 {
@@ -243,16 +194,16 @@ namespace zero.core.patterns.heap
 #endif
             try
             {
-                //TODO counters
-                //if(_ioFpsCounter != default)
-                //    await _ioFpsCounter.TickAsync().FastPath().ConfigureAwait(Zc);
-                Interlocked.Increment(ref _opsCounter);
-
-                if (!zero && _ioHeapBuf.Count < _maxSize && !Zeroed)
-                    _ioHeapBuf.Add(item, deDup);
-                else
-                    Interlocked.Decrement(ref CurrentCount);
+                if (zero)
+                {
+                    Interlocked.Decrement(ref _refCount);
+                    Interlocked.Decrement(ref _count);
+                    return;
+                }
                 
+                if(_ioHeapBuf.Add(item, deDup) < 0)
+                    Interlocked.Decrement(ref _count);
+
                 Interlocked.Decrement(ref _refCount);
             }
             catch (Exception) when(_zeroed > 0){ }
@@ -268,7 +219,10 @@ namespace zero.core.patterns.heap
         /// </summary>
         public Func<object,TContext,TItem> Malloc;
 
-        public TContext Context;
+        /// <summary>
+        /// Dev context that aids with heap setup when lambda's are involved
+        /// </summary>
+        public TContext Context { get; set; }
 
         /// <summary>
         /// Prepares an item from the stack
@@ -281,21 +235,16 @@ namespace zero.core.patterns.heap
         public Action<TItem, object> PopAction;
 
         /// <summary>
-        /// Tracks performances
-        /// </summary>
-        private long _opsCounter;
-
-        /// <summary>
         /// Returns the amount of space left in the buffer
         /// </summary>
         /// <returns>The number of free slots</returns>
-        public long FreeCapacity() =>_maxSize - Count;
+        public long AvailableCapacity => Capacity - _refCount;
 
         /// <summary>
         /// Cache size.
         /// </summary>
         /// <returns>The number of unused heap items</returns>
-        public long CacheSize() => _ioHeapBuf.Count;
+        public long CacheSize => _ioHeapBuf.Count;
 
         /// <summary>
         /// Clear
@@ -318,7 +267,7 @@ namespace zero.core.patterns.heap
     public class IoHeap<T2> : IoHeap<T2, object> 
         where T2 : class
     {
-        public IoHeap(string description, int maxSize, bool autoScale = false, object context = null) : base(description, maxSize, autoScale, context)
+        public IoHeap(string description, int capacity, bool autoScale = false, object context = null) : base(description, capacity, autoScale, context)
         {
         }
     }
