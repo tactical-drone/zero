@@ -821,7 +821,7 @@ namespace zero.core.patterns.semaphore.core
                 var latch = Volatile.Read(ref _signalAwaiter[latchMod]);
 
                 //latch a chosen head
-                while ( !Zeroed() &&
+                while ( !_zeroRef.Zeroed() &&
                     latchIdx < _head && 
                     _zeroRef.ZeroWaitCount() > 0 && latchIdx < _head &&
                     (latch == ZeroSentinel || latch != null && (worker.Continuation = Interlocked.CompareExchange(ref _signalAwaiter[latchMod], ZeroSentinel, latch)) != latch)

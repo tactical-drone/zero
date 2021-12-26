@@ -150,6 +150,9 @@ namespace zero.core.patterns.queue
 
                 Interlocked.Decrement(ref _tail);
 
+                if (Zeroed)
+                    return -1;
+
                 if (IsAutoScaling)
                 {
                     Scale();
