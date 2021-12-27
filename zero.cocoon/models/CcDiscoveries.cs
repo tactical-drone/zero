@@ -48,8 +48,8 @@ namespace zero.cocoon.models
                 if (!Source.Proxy && ((CcAdjunct)IoZero)!.CcCollective.ZeroDrone)
                 {
                     parm_max_msg_batch_size *= 2;
-                    cc *= 1;
-                    pf *= 1;
+                    cc *= 2;
+                    pf *= 2;
                     //ac *= 1;
                     //_groupByEp = true;
                 }

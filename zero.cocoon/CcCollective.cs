@@ -280,7 +280,7 @@ namespace zero.cocoon
             
             if (!_autoPeeringTask.Wait(TimeSpan.FromSeconds(parm_hub_teardown_timeout_s)))
             {
-                _logger.Warn(_autoPeeringTask.Exception,$"{nameof(CcCollective)}.{nameof(ZeroManagedAsync)}: {nameof(_autoPeeringTask)} exit [FAILED], {autoPeeringDesc}");
+                _logger.Warn(_autoPeeringTask.Exception,$"{nameof(CcCollective)}.{nameof(ZeroManagedAsync)}: {nameof(_autoPeeringTask)} exit slow..., {autoPeeringDesc}");
             }
 
             var id = Hub.Router?.Designation?.IdString();
@@ -1110,7 +1110,7 @@ namespace zero.cocoon
                 if(Zeroed() || Hub?.Router == null)
                     return;
 
-                var foundVector = false;
+                //var foundVector = false;
                 foreach (var vector in Hub.Neighbors.Values.Where(n=>((CcAdjunct)n).Assimilating).OrderBy(n=>((CcAdjunct)n).Priority))
                 {
                     var adjunct = (CcAdjunct)vector;
@@ -1125,14 +1125,14 @@ namespace zero.cocoon
                     }
                     else
                     {
-                        foundVector = true;
+                        //foundVector = true;
                     }
 
                     await Task.Delay(((CcAdjunct)vector).parm_max_network_latency_ms, AsyncTasks.Token).ConfigureAwait(Zc);
                 }
 
-                if(foundVector)
-                    return;
+                //if(foundVector)
+                //    return;
 
                 _logger.Trace($"Bootstrapping {Description} from {BootstrapAddress.Count} bootnodes...");
                 if (BootstrapAddress != null)

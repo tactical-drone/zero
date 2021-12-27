@@ -621,12 +621,15 @@ namespace zero.sync
                 {
                     ZeroAsync(total).AsTask().ContinueWith(_ =>
                     {
-                        Console.WriteLine($"z = {_nodes.Count(n => n.Zeroed())}/{total}");
-                        _nodes.Clear();
-                        _nodes = null;
-                        // ReSharper disable once AccessToModifiedClosure
-                        tasks?.Clear();
-                        tasks = null;
+                        if (_nodes != null)
+                        {
+                            Console.WriteLine($"z = {_nodes.Count(n => n.Zeroed())}/{total}");
+                            _nodes.Clear();
+                            _nodes = null;
+                            // ReSharper disable once AccessToModifiedClosure
+                            tasks?.Clear();
+                            tasks = null;
+                        }
                     }).GetAwaiter().GetResult();
                 }
             };

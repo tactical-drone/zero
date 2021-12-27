@@ -2,12 +2,10 @@
 using System.Diagnostics;
 using System.Net;
 using System.Net.Sockets;
-using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Threading.Tasks;
 using zero.core.patterns.misc;
 using NLog;
-using NLog.Fluent;
 using zero.core.patterns.semaphore;
 
 namespace zero.core.network.ip
@@ -46,14 +44,6 @@ namespace zero.core.network.ip
 #if SAFE_RELEASE
             _logger = null;
 #endif
-        }
-
-        /// <summary>
-        /// zero managed
-        /// </summary>
-        public override ValueTask ZeroManagedAsync()
-        {
-            return base.ZeroManagedAsync();
         }
 
         /// <summary>
@@ -255,14 +245,28 @@ namespace zero.core.network.ip
             catch (ObjectDisposedException) { }
             catch (SocketException e) when (!Zeroed())
             {
-                _logger.Debug($"{nameof(SendAsync)}: {e.Message} - {Description}");
-                await Zero(this, $"{nameof(SendAsync)}: {e.Message}").FastPath().ConfigureAwait(Zc);
+                if (!await ReconnectAsync().FastPath().ConfigureAwait(Zc))
+                {
+                    _logger.Error(e, $"{nameof(SendAsync)}: [FAILED] Closing socket {Description}");
+                    await Zero(this, $"{nameof(SendAsync)}: {e.Message}").FastPath().ConfigureAwait(Zc);
+                }
+                else
+                {
+                    _logger.Warn( $"{nameof(SendAsync)}: Reconnected socket, reason = {e.Message}, {Description}");
+                }
             }
             catch (Exception) when (Zeroed()){}
             catch (Exception e) when(!Zeroed())
             {
-                _logger.Error(e, $"{Description}: {nameof(SendAsync)} failed!");
-                await Zero(this, $"{nameof(SendAsync)}: {e.Message}").FastPath().ConfigureAwait(Zc);
+                if (!await ReconnectAsync().FastPath().ConfigureAwait(Zc))
+                {
+                    _logger.Error(e, $"{nameof(SendAsync)} [FAILED] Closing socket {Description}");
+                    await Zero(this, $"{nameof(SendAsync)}: {e.Message}").FastPath().ConfigureAwait(Zc);
+                }
+                else
+                {
+                    _logger.Warn($"{nameof(SendAsync)}: Reconnected socket, reason = {e.Message}, {Description}");
+                }
             }
 
             return 0;
@@ -337,10 +341,8 @@ namespace zero.core.network.ip
         /// Connection status
         /// </summary>
         /// <returns>True if the connection is up, false otherwise</returns>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public override ValueTask<bool> IsConnected()
         {
-            
             try
             {
                 return new ValueTask<bool>(!Zeroed() && NativeSocket is { IsBound: true, Connected: true });//&& (_expensiveCheck++ % 10000 == 0 && NativeSocket.Send(_sentinelBuf, SocketFlags.None) == 0  || true);
@@ -358,6 +360,5 @@ namespace zero.core.network.ip
             }
             return new ValueTask<bool>(false);
         }
-
     }
 }

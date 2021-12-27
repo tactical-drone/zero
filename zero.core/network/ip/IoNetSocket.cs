@@ -52,7 +52,7 @@ namespace zero.core.network.ip
         /// <summary>
         /// Configure Socket
         /// </summary>
-        protected virtual void ConfigureSocket()
+        protected override void ConfigureSocket()
         {
             if (NativeSocket.IsBound || NativeSocket.Connected)
             {

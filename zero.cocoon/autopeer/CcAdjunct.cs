@@ -2855,7 +2855,6 @@ namespace zero.cocoon.autopeer
                 Interlocked.Exchange(ref _direction, 0);
                 
                 _fusedCount = _fuseCount = _scanCount = 0;
-                //_counterSeductive = 3;
 
                 if (!Zeroed() && Node != null && Direction == Heading.Ingress &&
                     CcCollective.IngressCount < CcCollective.parm_max_inbound)

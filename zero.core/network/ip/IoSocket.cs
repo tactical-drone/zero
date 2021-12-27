@@ -163,24 +163,9 @@ namespace zero.core.network.ip
         /// </summary>
         public override async ValueTask ZeroManagedAsync()
         {
-            try
-            {
-                await base.ZeroManagedAsync().FastPath().ConfigureAwait(Zc);
+            await base.ZeroManagedAsync().FastPath().ConfigureAwait(Zc);
 
-                if (!Proxy && NativeSocket.IsBound && NativeSocket.Connected)
-                {
-                    NativeSocket.Shutdown(SocketShutdown.Both);
-                    NativeSocket.Disconnect(true);
-                }
-            }
-            catch when (Zeroed()) { }
-            catch (Exception e) when (!Zeroed())
-            {
-                _logger.Error(e, $"Socket shutdown returned with errors: {Description}");
-            }
-
-            if (!Proxy)
-                NativeSocket.Close();
+            Close();
 #if DEBUG
             _logger.Trace($"Closed {Description} from {ZeroedFrom}: reason = {ZeroReason}");
 #endif
@@ -309,7 +294,43 @@ namespace zero.core.network.ip
         /// Connection status
         /// </summary>
         /// <returns>True if the connection is up, false otherwise</returns>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public abstract ValueTask<bool> IsConnected();
+
+        /// <summary>
+        /// Closes a socket
+        /// </summary>
+        /// <returns>A task</returns>
+        protected void Close()
+        {
+            try
+            {
+                if (Proxy) return;
+
+                if (NativeSocket.IsBound && NativeSocket.Connected)
+                    NativeSocket.Shutdown(SocketShutdown.Both);
+                
+                NativeSocket.Disconnect(true);
+                NativeSocket.Close();
+            }
+            catch when (Zeroed()) { }
+            catch (Exception e) when (!Zeroed())
+            {
+                _logger.Error(e, $"Socket shutdown returned with errors: {Description}");
+            }
+        }
+
+        protected abstract void ConfigureSocket();
+
+        /// <summary>
+        /// Attempts to reconnect the socket
+        /// </summary>
+        /// <returns></returns>
+        public async ValueTask<bool> ReconnectAsync()
+        {
+            Close();
+            NativeSocket = new Socket(NativeSocket.AddressFamily, NativeSocket.SocketType, NativeSocket.ProtocolType);
+            ConfigureSocket();
+            return await ConnectAsync(RemoteNodeAddress).FastPath().ConfigureAwait(Zc);
+        }
     }
 }
