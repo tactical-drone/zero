@@ -423,7 +423,6 @@ namespace zero.core.patterns.bushings
             _logger.Info($"{Description} Counters: {heading}{str}");
         }
 
-
         /// <summary>
         /// Executes the specified function in the context of the source
         /// </summary>

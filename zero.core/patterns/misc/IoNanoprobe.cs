@@ -69,10 +69,8 @@ namespace zero.core.patterns.misc
             _zeroHive = new IoQueue<IoZeroSub>(string.Empty, 16, _concurrencyLevel, autoScale:true);
             _zeroHiveMind = new IoQueue<IIoNanite>(string.Empty, 16, _concurrencyLevel, autoScale: true);
 #endif
-
-            _zeroRoot = new IoZeroSemaphore(string.Empty, concurrencyLevel, 1, 1);
-            _zeroRoot.ZeroRef(ref _zeroRoot, AsyncTasks);
-
+            ZeroSyncRoot(concurrencyLevel);
+            
             UpTime = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
         }
 
@@ -198,13 +196,25 @@ namespace zero.core.patterns.misc
         /// config await
         /// </summary>
         public bool Zc => ContinueOnCapturedContext;
-        
+
+
+        /// <summary>
+        /// Initialize concurrency level
+        /// </summary>
+        /// <param name="concurrencyLevel"></param>
+        public void ZeroSyncRoot(int concurrencyLevel)
+        {
+            _zeroRoot?.ZeroSem();
+            _zeroRoot = new IoZeroSemaphore(string.Empty, concurrencyLevel, 1);
+            _zeroRoot.ZeroRef(ref _zeroRoot, AsyncTasks);
+        }
+
         /// <summary>
         /// ZeroAsync pattern
         /// </summary>
         public void Dispose()
         {
-            Task.Factory.StartNew(async () =>
+            _ = Task.Factory.StartNew(async () =>
             {
                 await Zero(this, $"{nameof(IDisposable)}").FastPath().ConfigureAwait(false);
             }, TaskCreationOptions.None);
@@ -570,7 +580,6 @@ namespace zero.core.patterns.misc
                         try
                         {
                             return _zeroed == 0 && await ownershipAction(this, userData, disposing).FastPath().ConfigureAwait(Zc);
-
                         }
                         catch when (Zeroed())
                         {

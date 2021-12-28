@@ -1,5 +1,6 @@
 ﻿using System;
 using System.ComponentModel;
+using System.Diagnostics;
 using System.Net;
 using System.Net.Sockets;
 using System.Runtime.CompilerServices;
@@ -371,22 +372,21 @@ namespace zero.core.network.ip
         public override async ValueTask<int> SendAsync(ReadOnlyMemory<byte> buffer, int offset, int length,
             EndPoint endPoint, int timeout = 0)
         {
-            if (endPoint == null)
-                throw new ArgumentNullException(nameof(endPoint));
+            Debug.Assert(endPoint != null);
 
-            if (!await IsConnected().FastPath().ConfigureAwait(Zc))
-                return 0;
+            //#if DEBUG
+            //                if (_sendSync.CurNrOfBlockers >= _sendArgs.Capacity / 2)
+            //                    _logger.Warn(
+            //                        $"{Description}: Send semaphore is running lean {_sendSync.CurNrOfBlockers}/{_sendArgs.Capacity}");
 
-//#if DEBUG
-//                if (_sendSync.CurNrOfBlockers >= _sendArgs.Capacity / 2)
-//                    _logger.Warn(
-//                        $"{Description}: Send semaphore is running lean {_sendSync.CurNrOfBlockers}/{_sendArgs.Capacity}");
-
-//                Debug.Assert(endPoint != null);
-//#endif
+            //                Debug.Assert(endPoint != null);
+            //#endif
             SocketAsyncEventArgs args = default;
             try
             {
+                if (!await IsConnected().FastPath().ConfigureAwait(Zc))
+                    return 0;
+
                 //if (!await _sendSync.WaitAsync().FastPath().ConfigureAwait(Zc))
                 //    return 0;
 
@@ -470,20 +470,17 @@ namespace zero.core.network.ip
         /// <param name="offset">Write start pos</param>
         /// <param name="length">Bytes to read</param>
         /// <param name="remoteEp"></param>
-        /// <param name="blacklist"></param>
         /// <param name="timeout">Timeout after ms</param>
         /// <returns></returns>
         public override async ValueTask<int> ReadAsync(Memory<byte> buffer, int offset, int length, byte[] remoteEp,
-            byte[] blacklist = null, int timeout = 0)
+            int timeout = 0)
         {
-            if (remoteEp == null)
-                throw new ArgumentNullException(nameof(remoteEp));
-
-            if (!await IsConnected().FastPath().ConfigureAwait(Zc))
-                return 0;
-
+            Debug.Assert(remoteEp != null);
             try
             {
+                if (!await IsConnected().FastPath().ConfigureAwait(Zc))
+                    return 0;
+
                 //concurrency
                 //if (!await _rcvSync.WaitAsync().FastPath().ConfigureAwait(Zc))
                 //    return 0;

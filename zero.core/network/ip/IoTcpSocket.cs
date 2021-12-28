@@ -192,7 +192,7 @@ namespace zero.core.network.ip
                     return false;
 
                 LocalNodeAddress = IoNodeAddress.CreateFromEndpoint("tcp", (IPEndPoint)NativeSocket.LocalEndPoint);
-                RemoteNodeAddress = IoNodeAddress.CreateFromEndpoint("tcp", (IPEndPoint)NativeSocket.RemoteEndPoint);
+                RemoteNodeAddress = remoteAddress;
 
                 NativeSocket.Blocking = true;
 
@@ -202,12 +202,12 @@ namespace zero.core.network.ip
             catch (TaskCanceledException){}
             catch (SocketException e)
             {
-                _logger.Trace(e, $"Failed connecting to `{RemoteNodeAddress}': ({Description})");
+                _logger.Trace(e, $"[FAILED] connecting to {RemoteNodeAddress}: ({Description})");
             }
             catch when (Zeroed()) {}
             catch (Exception e) when (!Zeroed())
             {
-                _logger.Error(e, $"Connecting to `{remoteAddress}' failed: {Description}");
+                _logger.Error(e, $"[FAILED ] Connecting to {remoteAddress}: {Description}");
             }
 
             return false;
@@ -226,11 +226,11 @@ namespace zero.core.network.ip
         public override async ValueTask<int> SendAsync(ReadOnlyMemory<byte> buffer, int offset, int length,
             EndPoint endPoint = null, int timeout = 0)
         {
-            if (!await IsConnected().FastPath().ConfigureAwait(Zc))
-                return 0;
-
             try
             {
+                if (!await IsConnected().FastPath().ConfigureAwait(Zc))
+                    return 0;
+
                 if (timeout == 0)
                 {
                     return await NativeSocket
@@ -280,18 +280,17 @@ namespace zero.core.network.ip
         /// <param name="offset">The offset into the buffer</param>
         /// <param name="length">The maximum bytes to read into the buffer</param>
         /// <param name="remoteEp"></param>
-        /// <param name="blacklist"></param>
         /// <param name="timeout">A timeout</param>
         /// <returns>The number of bytes read</returns>
         public override async ValueTask<int> ReadAsync(Memory<byte> buffer, int offset, int length,
             byte[] remoteEp = null,
-            byte[] blacklist = null, int timeout = 0) //TODO can we go back to array buffers?
+            int timeout = 0) //TODO can we go back to array buffers?
         {
-            if (!await IsConnected().FastPath().ConfigureAwait(Zc))
-                return 0;
-
             try
             {
+                if (!await IsConnected().FastPath().ConfigureAwait(Zc))
+                    return 0;
+
                 //fast path: no timeout
                 if (timeout == 0)
                 {

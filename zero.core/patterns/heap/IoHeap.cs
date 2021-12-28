@@ -76,15 +76,11 @@ namespace zero.core.patterns.heap
         /// </summary>
         private IoBag<TItem> _ioHeapBuf;
 
-        private volatile int _count;
         /// <summary>
         /// The current WorkHeap size
         /// </summary>
-        public int Count
-        {
-            get => _count;
-            set => _count = value;
-        }
+        public int Count => _ioHeapBuf.Count;
+        
 
         /// <summary>
         /// The maximum heap size
@@ -132,7 +128,6 @@ namespace zero.core.patterns.heap
             else
                 await _ioHeapBuf.ZeroManagedAsync<object>(zero:true).FastPath().ConfigureAwait(Zc);
 
-            _count = 0;
             _refCount = 0;
         }
 
@@ -149,7 +144,13 @@ namespace zero.core.patterns.heap
                 //If the heap is empty
                 if (!_ioHeapBuf.TryTake(out var heapItem))
                 {
-                    Interlocked.Increment(ref _count);
+                    if (_refCount == _ioHeapBuf.Capacity && !IsAutoScaling)
+                    {
+                        Console.WriteLine($"{_refCount} - {_ioHeapBuf.Capacity}");
+                        throw new OutOfMemoryException($"{nameof(_ioHeapBuf)}: {_ioHeapBuf.Description}");
+                    }
+                        
+                    
                     Interlocked.Increment(ref _refCount);
                     heapItem = Malloc(userData, Context);
                     Constructor?.Invoke(heapItem, userData);
@@ -194,16 +195,8 @@ namespace zero.core.patterns.heap
 #endif
             try
             {
-                if (zero)
-                {
-                    Interlocked.Decrement(ref _refCount);
-                    Interlocked.Decrement(ref _count);
-                    return;
-                }
-                
-                if(_ioHeapBuf.Add(item, deDup) < 0)
-                    Interlocked.Decrement(ref _count);
-
+                if (!zero)
+                    _ioHeapBuf.Add(item, deDup);
                 Interlocked.Decrement(ref _refCount);
             }
             catch (Exception) when(_zeroed > 0){ }

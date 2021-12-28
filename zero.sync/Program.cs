@@ -524,17 +524,17 @@ namespace zero.sync
                                     {
                                         if (!_startAccounting)
                                             break;
-
-                                        if (!await (((CcCollective)t.AsyncState)!).BootAsync(Interlocked.Increment(ref v)).FastPath()
+                                        var ts2 = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+                                        if (!await ((CcCollective)t.AsyncState)!.BootAsync(Interlocked.Increment(ref v)).FastPath()
                                                 .ConfigureAwait(Zc))
                                         {
                                             if (_verboseGossip)
-                                                Console.Write("*");
+                                                Console.WriteLine($"* - {ts2.ElapsedMs()}ms");
                                             continue;
                                         }
 
                                         if (_verboseGossip)
-                                            Console.Write(".");
+                                            Console.WriteLine($". - {ts2.ElapsedMs()}ms");
 
                                         //ramp
                                         if (_rampDelay > _rampTarget)
@@ -542,10 +542,8 @@ namespace zero.sync
                                             Interlocked.Decrement(ref _rampDelay);
                                             //Console.WriteLine($"ramp = {_rampDelay}");
                                         }
-
-                                        var d = _rampDelay;
-                                        d++;
-                                        await Task.Delay(d).ConfigureAwait(false);
+                                        
+                                        await Task.Delay(_rampDelay).ConfigureAwait(false);
 
                                         if (Interlocked.Increment(ref C) % 5000 == 0)
                                         {
@@ -556,7 +554,7 @@ namespace zero.sync
                                     }
                                 }
                                 Console.WriteLine("Stopped gossip...");
-                            }, TaskCreationOptions.DenyChildAttach));
+                            }, TaskCreationOptions.DenyChildAttach | TaskCreationOptions.LongRunning));
                             _startAccounting = true;
                         }
                         Console.WriteLine($"Stopped auto peering...  {tasks.Count}");
@@ -597,7 +595,7 @@ namespace zero.sync
                             var ave = nodes.Average(n => n.EventCount);
                             var err = nodes.Select(n => Math.Abs(n.EventCount - ave)).Average();
                             var r = 0;
-                            while (err > 20 && r++ < 100)
+                            while (err > 50 - (r/100 * 40) && r++ < 100)
                             {
                                 nodes = nodes.Where(n => err < (nmax*0.01) || Math.Abs(n.EventCount - ave) < err).ToList();
                                 ave = nodes.Average(n => n.EventCount);

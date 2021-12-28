@@ -32,6 +32,8 @@ namespace zero.cocoon.autopeer
         {
             CcCollective = ccCollective;
             Designation = ccCollective.CcId;
+
+            ZeroSyncRoot(ccCollective.MaxAdjuncts);
         }
 
         /// <summary>

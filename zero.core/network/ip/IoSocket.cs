@@ -147,8 +147,15 @@ namespace zero.core.network.ip
         {
             base.ZeroUnmanaged();
 
-            if (!Proxy)
-                NativeSocket?.Dispose();
+            try
+            {
+                if (!Proxy)
+                    NativeSocket.Dispose();
+            }
+            catch
+            {
+                // ignored
+            }
 
 #if SAFE_RELEASE
             _logger = null;
@@ -258,7 +265,7 @@ namespace zero.core.network.ip
                 throw new InvalidOperationException("Cannot connect, socket is already bound!");
 
             if (Kind != Connection.Undefined)
-                throw new InvalidOperationException($"This socket was already used to listen at `{LocalNodeAddress}'. Make a new one!");
+                throw new InvalidOperationException($"This socket was already used to listen at `{LocalNodeAddress}'. Make a new one ore reset this one!");
 
             Key = remoteAddress.Key;
 
@@ -285,10 +292,10 @@ namespace zero.core.network.ip
         /// <param name="offset">The offset into the buffer</param>
         /// <param name="length">The maximum bytes to read into the buffer</param>
         /// <param name="remoteEp"></param>
-        /// <param name="blacklist"></param>
         /// <param name="timeout">Sync read with timeout</param>
         /// <returns>The amounts of bytes read</returns>
-        public abstract ValueTask<int> ReadAsync(Memory<byte> buffer, int offset, int length, byte[] remoteEp = null, byte[] blacklist = null, int timeout = 0);
+        public abstract ValueTask<int> ReadAsync(Memory<byte> buffer, int offset, int length, byte[] remoteEp = null,
+            int timeout = 0);
 
         /// <summary>
         /// Connection status
@@ -306,12 +313,23 @@ namespace zero.core.network.ip
             {
                 if (Proxy) return;
 
-                if (NativeSocket.IsBound && NativeSocket.Connected)
-                    NativeSocket.Shutdown(SocketShutdown.Both);
+                if (NativeSocket.IsBound || NativeSocket.Connected)
+                {
+                    try
+                    {
+                        NativeSocket.Shutdown(SocketShutdown.Both);
+                        NativeSocket.Disconnect(true);
+                    }
+                    catch
+                    {
+                        // ignored
+                    }
+                }
                 
-                NativeSocket.Disconnect(true);
                 NativeSocket.Close();
+                NativeSocket.Dispose();
             }
+            catch (ObjectDisposedException){}
             catch when (Zeroed()) { }
             catch (Exception e) when (!Zeroed())
             {
@@ -322,14 +340,23 @@ namespace zero.core.network.ip
         protected abstract void ConfigureSocket();
 
         /// <summary>
+        /// Resets the socket for re-use
+        /// </summary>
+        private void ResetSocket()
+        {
+            Close();
+            NativeSocket = new Socket(NativeSocket.AddressFamily, NativeSocket.SocketType, NativeSocket.ProtocolType);
+            Kind = Connection.Undefined;
+            ConfigureSocket();
+        }
+
+        /// <summary>
         /// Attempts to reconnect the socket
         /// </summary>
         /// <returns></returns>
         public async ValueTask<bool> ReconnectAsync()
         {
-            Close();
-            NativeSocket = new Socket(NativeSocket.AddressFamily, NativeSocket.SocketType, NativeSocket.ProtocolType);
-            ConfigureSocket();
+            ResetSocket();
             return await ConnectAsync(RemoteNodeAddress).FastPath().ConfigureAwait(Zc);
         }
     }

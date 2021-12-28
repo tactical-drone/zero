@@ -10,6 +10,7 @@ using zero.core.patterns.bushings.contracts;
 using zero.core.patterns.heap;
 using zero.core.patterns.misc;
 using zero.core.patterns.queue;
+using zero.core.patterns.semaphore.core;
 
 namespace zero.core.patterns.bushings
 {
@@ -37,6 +38,8 @@ namespace zero.core.patterns.bushings
             ZeroRecoveryEnabled = enableZeroRecovery;
 
             ConfigureAsync(description, source, mallocJob, cascadeOnSource).AsTask().GetAwaiter();
+
+            _zeroSync = new IoManualResetValueTaskSource<bool>();
 
             //What to do when certain parameters change
             //SettingChangedEvent += (sender, pair) =>
@@ -70,13 +73,17 @@ namespace zero.core.patterns.bushings
             
             Source = source ?? throw new ArgumentNullException($"{nameof(source)}");
 
-            JobHeap = new IoHeapIo<IoSink<TJob>>($"{nameof(JobHeap)}: {_description}", Source.PrefetchSize * 2 * (ZeroRecoveryEnabled? 2 : 1)) { Malloc = mallocMessage };
+            var capacity = Source.PrefetchSize + 1;
+            if (ZeroRecoveryEnabled)
+                capacity *= 2;
+
+            JobHeap = new IoHeapIo<IoSink<TJob>>($"{nameof(JobHeap)}: {_description}", capacity) { Malloc = mallocMessage };
 
             if (cascade)
                 await Source.ZeroHiveAsync(this).FastPath().ConfigureAwait(Zc);
 
             //TODO tuning
-            _queue = new IoQueue<IoSink<TJob>>($"zero Q: {_description}", Source.PrefetchSize * 2, Source.PrefetchSize, disablePressure:!Source.DisableZero, enableBackPressure:Source.DisableZero);
+            _queue = new IoQueue<IoSink<TJob>>($"zero Q: {_description}", capacity, capacity, disablePressure:!Source.DisableZero, enableBackPressure:Source.DisableZero);
 
             //TODO tuning
             if (ZeroRecoveryEnabled)
@@ -118,6 +125,12 @@ namespace zero.core.patterns.bushings
         /// The heap where new consumable meta data is allocated from
         /// </summary>
         public IoHeapIo<IoSink<TJob>> JobHeap { get; protected set; }
+
+
+        /// <summary>
+        /// Syncs producer and consumer queues
+        /// </summary>
+        private IoManualResetValueTaskSource<bool> _zeroSync;
 
         /// <summary>
         /// Description backing field
@@ -689,6 +702,12 @@ namespace zero.core.patterns.bushings
 
                         if (j < width)
                             break;
+
+                        var waitForConsumer = new ValueTask<bool>(@this._zeroSync, @this._zeroSync.Version);
+                        if (!await waitForConsumer.FastPath().ConfigureAwait(@this.Zc))
+                            break;
+
+                        @this._zeroSync.Reset();
                     }
                 }
                 catch when(@this.Zeroed()){}
@@ -723,6 +742,8 @@ namespace zero.core.patterns.bushings
 
                     var j = 0;
                     while (await preload[j].FastPath() && ++j < width) { }
+
+                    @this._zeroSync.SetResult(j == width);
 
                     if (j < width)
                         break;

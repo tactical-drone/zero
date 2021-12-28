@@ -8,6 +8,7 @@ using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
 using Google.Protobuf;
+using Grpc.Core;
 using MathNet.Numerics.Distributions;
 using NLog;
 using zero.cocoon.autopeer;
@@ -1109,7 +1110,7 @@ namespace zero.cocoon
             {
                 if(Zeroed() || Hub?.Router == null)
                     return;
-
+                
                 //var foundVector = false;
                 foreach (var vector in Hub.Neighbors.Values.Where(n=>((CcAdjunct)n).Assimilating).OrderBy(n=>((CcAdjunct)n).Priority))
                 {

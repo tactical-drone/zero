@@ -127,7 +127,7 @@ namespace zero.core.patterns.queue
             if(deDup)
             {
                 if (Contains(item))
-                    return -1;
+                    return 0;
             }
 
             try

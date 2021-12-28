@@ -55,14 +55,17 @@ namespace zero.test.core.patterns.heap
             };
 
             var item = h.Take(3);
-
             Assert.Equal(1, h.ReferenceCount);
-            Assert.Equal(1, h.Count);
+            Assert.Equal(0, h.Count);
+
+
             Assert.Equal(0, item.TestVar);
             Assert.Equal(2, item.TestVar2);
             Assert.Equal(3, item.TestVar3);
 
             h.Return(item);
+            Assert.Equal(1, h.Count);
+            Assert.Equal(0, h.ReferenceCount);
         }
 
         [Fact]

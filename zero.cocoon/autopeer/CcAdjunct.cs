@@ -34,6 +34,7 @@ using zero.core.patterns.bushings.contracts;
 using zero.core.patterns.heap;
 using zero.core.patterns.misc;
 using zero.core.patterns.queue;
+using zero.core.patterns.semaphore.core;
 using Zero.Models.Protobuf;
 
 namespace zero.cocoon.autopeer
@@ -56,6 +57,8 @@ namespace zero.cocoon.autopeer
                 true
             )
         {
+            ZeroSyncRoot(CcCollective.parm_max_adjunct);
+
             if (Source.Zeroed())
             {
                 return;
@@ -98,6 +101,8 @@ namespace zero.cocoon.autopeer
 
                 CompareAndEnterState(AdjunctState.Local, AdjunctState.Undefined);
                 _routingTable = new ConcurrentDictionary<string, CcAdjunct>();
+
+                _zeroSync = new IoManualResetValueTaskSource<bool>();
             }
 
 #if DEBUG
@@ -108,6 +113,7 @@ namespace zero.cocoon.autopeer
             string protoHeapDesc = string.Empty;
 #endif
 
+            //TODO tuning:
             _chronitonHeap = new IoHeap<chroniton>(packetHeapDesc, CcCollective.ZeroDrone & !IsProxy? 32: 16, autoScale: true) { Malloc = (_, _) => new chroniton
                 {
                     Header = new z_header { Ip = new net_header() },
@@ -115,8 +121,7 @@ namespace zero.cocoon.autopeer
                 }
             };
 
-            _sendBuf = new IoHeap<Tuple<byte[],byte[]>>(protoHeapDesc, CcCollective.ZeroDrone & !IsProxy ? 32 : 16,
-                autoScale: true)
+            _sendBuf = new IoHeap<Tuple<byte[],byte[]>>(protoHeapDesc, CcCollective.ZeroDrone & !IsProxy ? 32 : 16,autoScale: true)
             {
                 Malloc = (_, _) => Tuple.Create(new byte[1492/2], new byte[1492/2])
             };
@@ -388,6 +393,11 @@ namespace zero.cocoon.autopeer
         private IoConduit<CcProtocBatchJob<chroniton, CcDiscoveryBatch>> _protocolConduit;
 
         /// <summary>
+        /// Syncs producer and consumer queues
+        /// </summary>
+        private IoManualResetValueTaskSource<bool> _zeroSync;
+
+        /// <summary>
         /// Seconds since pat
         /// </summary>
         private long _lastPat = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
@@ -460,7 +470,6 @@ namespace zero.cocoon.autopeer
         /// Enable or disable EP caching while unpacking batches. (if adjuncts move around regularly disable, or always disable)
         /// </summary>
         private bool _enableBatchEpCache = false;
-
 
         private long _lastScan;
         /// <summary>
@@ -1152,6 +1161,12 @@ namespace zero.cocoon.autopeer
 
                                 if (j < width)
                                     break;
+
+                                var waitForConsumer = new ValueTask<bool>(@this._zeroSync, @this._zeroSync.Version);
+                                if(!await waitForConsumer.FastPath().ConfigureAwait(@this.Zc))
+                                    break;
+                                
+                                @this._zeroSync.Reset();
                             }
                         }
                         catch when (@this.Zeroed() || @this.Source.Zeroed() || @this._protocolConduit?.UpstreamSource == null) { }
@@ -1169,6 +1184,7 @@ namespace zero.cocoon.autopeer
                         {
                             var width = @this._protocolConduit.Source.PrefetchSize;
                             var preload = new ValueTask<bool>[width];
+
                             while (!@this.Zeroed() && await @this._protocolConduit.UpstreamSource.IsOperational().FastPath().ConfigureAwait(@this.Zc))
                             {
                                 //consume
@@ -1294,6 +1310,8 @@ namespace zero.cocoon.autopeer
 
                                 var j = 0;
                                 while (await preload[j].FastPath() && ++j < width) { }
+
+                                @this._zeroSync.SetResult(j == width);
 
                                 if (j < width)
                                     break;
@@ -2569,10 +2587,22 @@ namespace zero.cocoon.autopeer
         {
             try
             {
-                if (!Assimilating || !Probed && !CcCollective.ZeroDrone || _scanCount > parm_zombie_max_connection_attempts)
+                if (!Assimilating || !Probed && !CcCollective.ZeroDrone)
                 {
                     _logger.Trace($"{nameof(ScanAsync)}: [ABORTED], {Description}, s = {State}, a = {Assimilating}");
                     return false;
+                }
+
+                if (_scanCount > parm_zombie_max_connection_attempts)
+                {
+                    _logger.Trace($"{nameof(ScanAsync)}: [skipped], no replies {Description}, s = {State}, a = {Assimilating}");
+                    if (!IsDroneAttached)
+                    {
+                        await Zero(this, $"{nameof(ScanAsync)}: Unable to scan adjunct");
+                        return false;
+                    }
+                        
+                    return true;
                 }
 
                 Interlocked.Increment(ref _scanCount);

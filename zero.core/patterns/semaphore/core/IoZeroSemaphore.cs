@@ -508,7 +508,6 @@ namespace zero.core.patterns.semaphore.core
                     if (slot == ZeroSentinel) continue;
 
                     _zeroRef.ZeroPrevHead();
-                    headIdx = (_zeroRef.ZeroNextHead() - 1) % _maxBlockers;
                 }
 
                 if (slot == null)
