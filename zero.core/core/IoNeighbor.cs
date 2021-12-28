@@ -25,8 +25,8 @@ namespace zero.core.core
         /// <param name="enableZeroRecovery"></param>
         /// <param name="cascade"></param>
         public IoNeighbor(IoNode<TJob> node, IoNetClient<TJob> ioNetClient, Func<object, IIoNanite, IoSink<TJob>> mallocJob,
-            bool enableZeroRecovery, bool cascade = true)
-            : base($"neighbor({ioNetClient?.Description})", ioNetClient, mallocJob, enableZeroRecovery, cascade)
+            bool enableZeroRecovery, bool cascade = true, int concurrencyLevel = 1)
+            : base($"neighbor({ioNetClient?.Description})", ioNetClient, mallocJob, enableZeroRecovery, cascade, concurrencyLevel)
         {
             _logger = LogManager.GetCurrentClassLogger();
             Node = node;

@@ -590,17 +590,18 @@ namespace zero.sync
                             
                             var min = nodes.Min(n => n.EventCount);
                             var max = nodes.Max(n => n.EventCount);
-                            var nmax = max;
+                            //var nmax = max;
 
                             var ave = nodes.Average(n => n.EventCount);
                             var err = nodes.Select(n => Math.Abs(n.EventCount - ave)).Average();
                             var r = 0;
-                            while (err > 50 - (r/100 * 40) && r++ < 100)
+                            var target = 0;
+                            while (err > (target = 50 - r/100 * 40) && r++ < 100)
                             {
-                                nodes = nodes.Where(n => err < (nmax*0.01) || Math.Abs(n.EventCount - ave) < err).ToList();
+                                nodes = nodes.Where(n => Math.Abs(n.EventCount - ave) < target).ToList();
                                 ave = nodes.Average(n => n.EventCount);
                                 err = nodes.Select(n => Math.Abs(n.EventCount - ave)).Average();
-                                nmax = nodes.Max(n => n.EventCount);
+                                //nmax = nodes.Max(n => n.EventCount);
                             }
                             
                             Console.WriteLine($"zero liveness at {nodes.Count()/((double)_nodes.Count - 4)*100:0.00}%, {nodes.Count()}/{_nodes.Count-4}, min/max = [{min},{max}], ave = {ave:0.0}, err = {err:0.0}, r = {r}");

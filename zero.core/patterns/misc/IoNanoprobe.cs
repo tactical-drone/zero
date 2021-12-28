@@ -197,15 +197,13 @@ namespace zero.core.patterns.misc
         /// </summary>
         public bool Zc => ContinueOnCapturedContext;
 
-
         /// <summary>
         /// Initialize concurrency level
         /// </summary>
         /// <param name="concurrencyLevel"></param>
-        public void ZeroSyncRoot(int concurrencyLevel)
+        private void ZeroSyncRoot(int concurrencyLevel)
         {
-            _zeroRoot?.ZeroSem();
-            _zeroRoot = new IoZeroSemaphore(string.Empty, concurrencyLevel, 1);
+            _zeroRoot = new IoZeroSemaphore(string.Empty, concurrencyLevel, 1, cancellationTokenSource: AsyncTasks);
             _zeroRoot.ZeroRef(ref _zeroRoot, AsyncTasks);
         }
 

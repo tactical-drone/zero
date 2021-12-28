@@ -46,6 +46,7 @@ namespace zero.core.network.ip
         /// <param name="netSocket">The new socket that comes from the listener</param>
         /// <param name="prefetchSize">The amount of socket reads the upstream is allowed to lead the consumer</param>
         /// <param name="concurrencyLevel">Concurrency level</param>
+        /// <param name="maxAsyncSources"></param>
         /// <param name="proxy">Whether this source is a proxy</param>
         protected IoNetClient(string description, IoNetSocket netSocket, int prefetchSize, int concurrencyLevel, int maxAsyncSources, bool proxy = false) : base(description, proxy, prefetchSize, concurrencyLevel, maxAsyncSources)
         {

@@ -325,15 +325,32 @@ namespace zero.core.network.ip
                         // ignored
                     }
                 }
-                
-                NativeSocket.Close();
-                NativeSocket.Dispose();
+
+                try
+                {
+                    NativeSocket.Close();
+                    NativeSocket.Dispose();
+                    NativeSocket = null;
+                }
+                catch
+                {
+                    // ignored
+                }
             }
-            catch (ObjectDisposedException){}
-            catch when (Zeroed()) { }
+            catch (ObjectDisposedException)
+            {
+            }
+            catch when (Zeroed())
+            {
+            }
             catch (Exception e) when (!Zeroed())
             {
                 _logger.Error(e, $"Socket shutdown returned with errors: {Description}");
+            }
+            finally
+            {
+                if(!Proxy)
+                    NativeSocket?.Dispose();
             }
         }
 

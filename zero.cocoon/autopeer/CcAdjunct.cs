@@ -54,11 +54,9 @@ namespace zero.cocoon.autopeer
                     $"{((CcAdjunct)ioZero).Source.Key}",
                     // ReSharper disable once PossibleInvalidCastException
                     ((CcAdjunct)ioZero).Source, groupByEp: false),
-                true
+                true, concurrencyLevel:node.CcCollective.parm_max_adjunct
             )
         {
-            ZeroSyncRoot(CcCollective.parm_max_adjunct);
-
             if (Source.Zeroed())
             {
                 return;
@@ -2535,7 +2533,8 @@ namespace zero.cocoon.autopeer
 
                     await _probeRequest.RemoveAsync(challenge).FastPath().ConfigureAwait(Zc);
 
-                    _logger.Error($"-/> {nameof(CcProbeMessage)}: [FAILED], {Description}");
+                    if(!Zeroed())
+                        _logger.Error($"-/> {nameof(CcProbeMessage)}: [FAILED], {Description}");
 
                     return false;
                 }
@@ -2565,7 +2564,9 @@ namespace zero.cocoon.autopeer
                     }
 
                     await _probeRequest.RemoveAsync(challenge).FastPath().ConfigureAwait(Zc);
-                    _logger.Error($"-/> {nameof(CcProbeMessage)}:({desc}) [FAILED], {Description}");
+
+                    if(!Zeroed())
+                        _logger.Error($"-/> {nameof(CcProbeMessage)}:({desc}) [FAILED], {Description}");
 
                     return false;
                 }

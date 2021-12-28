@@ -194,11 +194,10 @@ namespace zero.core.network.ip
                 LocalNodeAddress = IoNodeAddress.CreateFromEndpoint("tcp", (IPEndPoint)NativeSocket.LocalEndPoint);
                 RemoteNodeAddress = remoteAddress;
 
-                NativeSocket.Blocking = true;
-
                 _logger.Trace($"Connected to {RemoteNodeAddress}, {Description}");
                 return true;
             }
+            catch (ObjectDisposedException){}
             catch (TaskCanceledException){}
             catch (SocketException e)
             {
