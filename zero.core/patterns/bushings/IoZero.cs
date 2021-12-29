@@ -563,11 +563,10 @@ namespace zero.core.patterns.bushings
                             {
                                 if (jobNode.Value.Id == curJob.Id - 1)
                                 {
-                                    curJob.PreviousJob = jobNode.Value;
+                                    curJob.PreviousJob = jobNode.Value; 
                                     await _previousJobFragment.RemoveAsync(jobNode).FastPath().ConfigureAwait(Zc);
                                 }
-
-                                if (jobNode.Value.Id < curJob.Id - Source.PrefetchSize - 1)
+                                else if (jobNode.Value.Id < curJob.Id - Source.PrefetchSize - 1)
                                 {
                                     await _previousJobFragment.RemoveAsync(jobNode).FastPath().ConfigureAwait(Zc);
                                 }

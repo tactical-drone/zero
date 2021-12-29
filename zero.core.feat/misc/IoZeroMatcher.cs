@@ -193,6 +193,7 @@ namespace zero.core.feat.misc
                     {
                         if (challenge != null && response.Node == null && @this._valHeap != null)
                             @this._valHeap.Return(challenge);
+
                     }
 
                     //return true;
@@ -238,7 +239,7 @@ namespace zero.core.feat.misc
             while (cur != null)
             {
                 //restart on collisions
-                if (@this._lut.Modified && insane-- > 0)
+                if (@this._lut.Modified && insane --> 0)
                 {
                     cur = @this._lut.Head;
                     @this._lut.Reset();
@@ -271,8 +272,8 @@ namespace zero.core.feat.misc
 
                     if (potential.Hash != 0 && potential.Hash == MemoryMarshal.Read<long>(reqHashMemory.Span))
                     {
-                        @this._valHeap.Return(potential);
                         await @this._lut.RemoveAsync(cur).FastPath().ConfigureAwait(@this.Zc);
+                        @this._valHeap.Return(potential);
                         return potential.TimestampMs.ElapsedMs() < @this._ttlMs;
                     }
                 }
@@ -280,8 +281,9 @@ namespace zero.core.feat.misc
                 //drop old ones while we are at it
                 if (cur.Value.TimestampMs.ElapsedMs() > @this._ttlMs)
                 {
-                    @this._valHeap.Return(cur.Value);
+                    var value = cur.Value;
                     await @this._lut.RemoveAsync(cur).FastPath().ConfigureAwait(@this.Zc);
+                    @this._valHeap.Return(value);
                 }
 
                 cur = cur.Next;
@@ -312,14 +314,16 @@ namespace zero.core.feat.misc
         {
             if (_lut.Count > _capacity * 2 / 3)
             {
+                var c = _lut.Capacity * 2;
                 var n = _lut.Head;
-                while (n != null)
+                while (n != null && c --> 0)
                 {
                     var t = n.Next;
                     if (n.Value.TimestampMs.ElapsedMs() > _ttlMs)
                     {
-                        _valHeap.Return(n.Value);
+                        var value = n.Value;
                         await _lut.RemoveAsync(n).FastPath().ConfigureAwait(Zc);
+                        _valHeap.Return(value);
                     }
                     n = t;
                 }
@@ -387,8 +391,9 @@ namespace zero.core.feat.misc
         /// <returns>true on success, false otherwise</returns>
         public async ValueTask<bool> RemoveAsync(IoQueue<IoChallenge>.IoZNode node)
         {
-            _valHeap.Return(node.Value);
+            var value = node.Value;
             await _lut.RemoveAsync(node).FastPath().ConfigureAwait(Zc);
+            _valHeap.Return(value);
 
             return true;
         }
