@@ -131,10 +131,10 @@ namespace zero.sync
                 };
 
 #pragma warning disable VSTHRD110 // Observe result of async calls
-                Task.Factory.StartNew(() => t1.Start(), TaskCreationOptions.DenyChildAttach);
-                Task.Factory.StartNew(() => t2.Start(), TaskCreationOptions.DenyChildAttach);
-                Task.Factory.StartNew(() => t3.Start(), TaskCreationOptions.DenyChildAttach);
-                Task.Factory.StartNew(() => t4.Start(), TaskCreationOptions.DenyChildAttach);
+                _ = Task.Factory.StartNew(() => t1.Start(), TaskCreationOptions.DenyChildAttach);
+                _ = Task.Factory.StartNew(() => t2.Start(), TaskCreationOptions.DenyChildAttach);
+                _ = Task.Factory.StartNew(() => t3.Start(), TaskCreationOptions.DenyChildAttach);
+                _ = Task.Factory.StartNew(() => t4.Start(), TaskCreationOptions.DenyChildAttach);
 #pragma warning restore VSTHRD110 // Observe result of async calls
             }
             else
@@ -180,7 +180,7 @@ namespace zero.sync
                     Console.WriteLine($"Spawned {tasks.Count}/{total}...");
             }
 
-            var task = Task.Factory.StartNew(async () =>
+            _ = Task.Factory.StartNew(async () =>
             {
                 Console.WriteLine($"Starting auto peering...  {tasks.Count}");
                 var c = 1;
@@ -235,7 +235,7 @@ namespace zero.sync
             var inBound = 0;
             var available = 0;
             var logger = LogManager.GetCurrentClassLogger();
-            var reportingTask = Task.Factory.StartNew(() =>
+            _ = Task.Factory.StartNew(() =>
             {
                 var ooutBound = 0;
                 var oinBound = 0;
@@ -625,7 +625,6 @@ namespace zero.sync
                             Console.WriteLine($"z = {_nodes.Count(n => n.Zeroed())}/{total}");
                             _nodes.Clear();
                             _nodes = null;
-                            // ReSharper disable once AccessToModifiedClosure
                             tasks?.Clear();
                             tasks = null;
                         }
@@ -635,14 +634,13 @@ namespace zero.sync
             
 
             _running = false;
-            
-            reportingTask = null;
             tasks?.Clear();
             tasks = null;
             _nodes?.Clear();
             _nodes = null;
 
             var s = host.StopAsync();
+            host = null;
             LogManager.Shutdown();
 
             Console.WriteLine("## - done");

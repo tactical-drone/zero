@@ -53,8 +53,8 @@ namespace zero.cocoon
                 _zeroDrone = true;
                 parm_max_drone = 0;
                 parm_max_adjunct = 64; //TODO tuning:
-                udpPrefetch = 12;
-                udpConcurrencyLevel = 8;
+                udpPrefetch = 8;
+                udpConcurrencyLevel = 4;
                 NeighborTasks = new IoQueue<Task>($"{nameof(NeighborTasks)}", parm_max_adjunct + 1, ZeroConcurrencyLevel());
             }
 
@@ -174,7 +174,6 @@ namespace zero.cocoon
                         @this._logger.Error(e, "Error while scanning DMZ!");
                     }
                 }
-                    
             }, this, TaskCreationOptions.DenyChildAttach).FastPath().ConfigureAwait(Zc);
         }
 

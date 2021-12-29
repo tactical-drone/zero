@@ -136,10 +136,9 @@ namespace zero.core.feat.misc
                 response.Key = key;
                 response.Body = body;
 
-                //await ZeroAtomic(static async (_, state, _) =>
+                await ZeroAtomic(static async (_, state, _) =>
                 {
-                    //var (@this, response) = state;
-                    var @this= this;
+                    var (@this, response) = state;
                     IoChallenge challenge = null;
                     try
                     {
@@ -193,11 +192,10 @@ namespace zero.core.feat.misc
                     {
                         if (challenge != null && response.Node == null && @this._valHeap != null)
                             @this._valHeap.Return(challenge);
-
                     }
 
-                    //return true;
-                }//, (this,response)).FastPath().ConfigureAwait(Zc);
+                    return true;
+                }, (this,response)).FastPath().ConfigureAwait(Zc);
             }
             finally
             {
@@ -224,7 +222,7 @@ namespace zero.core.feat.misc
         /// <param name="state"></param>
         /// <param name="_"></param>
         /// <returns></returns>
-        private async ValueTask<bool> MatchAsync(IIoNanite ioNanite, (IoZeroMatcher, string key, ByteString reqHash) state)
+        private async ValueTask<bool> MatchAsync(IIoNanite ioNanite, (IoZeroMatcher, string key, ByteString reqHash) state, bool _)
         {
             var (@this, key, reqHash) = state;
             var reqHashMemory = reqHash.Memory;
@@ -302,8 +300,7 @@ namespace zero.core.feat.misc
         /// <returns>The response payload</returns>
         public async ValueTask<bool> ResponseAsync(string key, ByteString reqHash)
         {
-            //return reqHash.Length != 0 && await ZeroAtomic(MatchAsync, (this, key, reqHash)).FastPath().ConfigureAwait(Zc);
-            return reqHash.Length != 0 && await MatchAsync(this, (this, key, reqHash)).FastPath().ConfigureAwait(Zc);
+            return reqHash.Length != 0 && await ZeroAtomic(MatchAsync, (this, key, reqHash)).FastPath().ConfigureAwait(Zc);
         }
 
         /// <summary>

@@ -489,6 +489,7 @@ namespace zero.test.core.patterns.queue{
             {
                 var @this = (IoQueueTest)state!;
                 var s = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+
                 var item = await @this._queuePressure.DequeueAsync().FastPath().ConfigureAwait(@this._zc);
                 Assert.InRange(s.ElapsedMs(), 100, 2000);
                 Assert.NotNull(item);
@@ -521,6 +522,7 @@ namespace zero.test.core.patterns.queue{
                 await @this._queuePressure.EnqueueAsync(1).FastPath().ConfigureAwait(@this._zc);
                 var s = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
                 //blocking
+                await @this._queuePressure.EnqueueAsync(1).FastPath().ConfigureAwait(@this._zc);
                 await @this._queuePressure.EnqueueAsync(1).FastPath().ConfigureAwait(@this._zc);
                 Assert.InRange(s.ElapsedMs(), 100, 10000);
                 //Wait for up to 2 seconds for results

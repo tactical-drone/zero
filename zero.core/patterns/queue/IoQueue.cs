@@ -51,17 +51,19 @@ namespace zero.core.patterns.queue
             _syncRoot = new IoZeroSemaphore(desc, maxBlockers: concurrencyLevel, initialCount: 1, asyncWorkerCount: 0);
             _syncRoot.ZeroRef(ref _syncRoot, _asyncTasks);
 
+            var c = Math.Max(prefetch + 1, concurrencyLevel);
+
             if (!disablePressure)
             {
                 _pressure = new IoZeroSemaphore($"qp {description}",
-                    maxBlockers: concurrencyLevel, asyncWorkerCount: 0);
+                    maxBlockers: c, asyncWorkerCount: 0);
                 _pressure.ZeroRef(ref _pressure, _asyncTasks);
             }
             
             if (enableBackPressure)
             {
                 _backPressure = new IoZeroSemaphore($"qbp {description}",
-                    maxBlockers: concurrencyLevel, asyncWorkerCount: 0, initialCount: prefetch);
+                    maxBlockers: c, asyncWorkerCount: 0, initialCount: c);
                 _backPressure.ZeroRef(ref _backPressure, _asyncTasks);
             }
 
