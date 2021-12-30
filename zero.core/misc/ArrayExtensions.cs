@@ -66,6 +66,14 @@ namespace zero.core.misc
             return array.Span.ArrayEqual(cmp.Span);
         }
 
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static bool ArrayEqual<T>(this T[] array, ReadOnlySpan<T> cmp)
+            where T : IEquatable<T>
+        {
+            return ((ReadOnlySpan<T>)array).ArrayEqual(cmp);
+        }
+
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static bool ArrayEqual<T>(this T[] array, ReadOnlyMemory<T> cmp)
             where T : IEquatable<T>
@@ -125,6 +133,7 @@ namespace zero.core.misc
         /// </summary>
         /// <param name="array"></param>
         /// <returns>A weak hash</returns>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static long ZeroHash(this ReadOnlySpan<byte> array)
         {
             var strides = array.Length / sizeof(long);

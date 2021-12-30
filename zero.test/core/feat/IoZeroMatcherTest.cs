@@ -28,7 +28,7 @@ namespace zero.test.core.feat
             var m = new IoZeroMatcher("Test matcher", threads, capacity, autoscale: false);
 
             var oneShotTasks = new List<Task>();
-            for (int i = 0; i < threads; i++)
+            for (var i = 0; i < threads; i++)
             {
                 oneShotTasks.Add(await Task.Factory.StartNew(async payload =>
                 {
@@ -45,7 +45,7 @@ namespace zero.test.core.feat
                         var (k, hash, matcher) = (ValueTuple<string, byte[], IoZeroMatcher>)state;
                         var dud = new byte[hash.Length];
                         hash.CopyTo(dud, 0);
-                        dud[0] = 0;
+                        dud[0] = dud[1];
 
                         Assert.False(await matcher.ResponseAsync(k, UnsafeByteOperations.UnsafeWrap(dud)).FastPath());
                         Assert.True(await matcher.ResponseAsync(k, UnsafeByteOperations.UnsafeWrap(hash)).FastPath());

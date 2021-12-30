@@ -212,10 +212,13 @@ namespace zero.core.patterns.misc
         /// </summary>
         public void Dispose()
         {
-            _ = Task.Factory.StartNew(async () =>
+            Console.WriteLine("Z");
+            _ = Task.Factory.StartNew(static async state =>
             {
-                await Zero(this, $"{nameof(IDisposable)}").FastPath().ConfigureAwait(false);
-            }, TaskCreationOptions.None);
+                var @this = (IoNanoprobe)state;
+
+                await @this.Zero(@this, $"{nameof(IDisposable)}").FastPath().ConfigureAwait(false);
+            },this, TaskCreationOptions.None);
         }
 
         /// <summary>
@@ -535,13 +538,13 @@ namespace zero.core.patterns.misc
         /// </summary>
         public virtual async ValueTask ZeroManagedAsync()
         {
-            _zeroRoot.ZeroSem();
-
             if (_zeroHiveMind != null)
                 await _zeroHiveMind.ZeroManagedAsync<object>(zero:true).FastPath().ConfigureAwait(Zc);
 
             if (_zeroHive != null)
                 await _zeroHive.ZeroManagedAsync<object>(zero: true).FastPath().ConfigureAwait(Zc);
+
+            _zeroRoot.ZeroSem();
 #if DEBUG
             Interlocked.Increment(ref _extracted);
 #endif

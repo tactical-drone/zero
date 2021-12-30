@@ -176,11 +176,20 @@ namespace zero.core.feat.misc
                             
                         }
 
-                        challenge.Payload = response.Body;
-                        challenge.Key = response.Key;
-                        challenge.TimestampMs = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-                        challenge.Hash = 0;
-                        response.Node = await @this._lut.EnqueueAsync(challenge).FastPath().ConfigureAwait(@this.Zc);
+                        if (!Sha256.TryComputeHash(response.Body, challenge.Hash, out var bytesWritten))
+                        {
+                            LogManager.GetCurrentClassLogger()
+                                .Fatal($"{@this._description}: Unable to compute hash");
+                            return false;
+                        }
+
+                        if (bytesWritten > 0)
+                        {
+                            challenge.Key = response.Key;
+                            challenge.TimestampMs = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+                            response.Node = await @this._lut.EnqueueAsync(challenge).FastPath().ConfigureAwait(@this.Zc);
+                            return true;
+                        }
                     }
                     catch when (@this.Zeroed()) { }
                     catch (Exception e) when (!@this.Zeroed())
@@ -194,7 +203,7 @@ namespace zero.core.feat.misc
                             @this._valHeap.Return(challenge);
                     }
 
-                    return true;
+                    return false;
                 }, (this,response)).FastPath().ConfigureAwait(Zc);
             }
             finally
@@ -239,8 +248,8 @@ namespace zero.core.feat.misc
                 //restart on collisions
                 if (@this._lut.Modified && insane --> 0)
                 {
-                    cur = @this._lut.Head;
                     @this._lut.Reset();
+                    cur = @this._lut.Head;
                     continue;
                 }
 
@@ -248,27 +257,7 @@ namespace zero.core.feat.misc
                 {
                     var potential = cur.Value;
 
-                    if (potential.Hash == 0)
-                    {
-                        StacklessAsync(potential, @this);
-                    }
-
-                    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-                    static void StacklessAsync(IoChallenge potential, IoZeroMatcher @this)
-                    {
-                        Span<byte> h = stackalloc byte[32];
-                        
-                        if (!Sha256.TryComputeHash(potential.Payload, h, out var _))
-                        {
-                            LogManager.GetCurrentClassLogger()
-                                .Fatal($"{@this._description}: Unable to compute hash");
-                        }
-
-                        potential.Payload = default;
-                        potential.Hash = MemoryMarshal.Read<long>(h);
-                    }
-
-                    if (potential.Hash != 0 && potential.Hash == MemoryMarshal.Read<long>(reqHashMemory.Span))
+                    if (potential.Hash.ArrayEqual(reqHashMemory.Span))
                     {
                         await @this._lut.RemoveAsync(cur).FastPath().ConfigureAwait(@this.Zc);
                         @this._valHeap.Return(potential);
@@ -359,18 +348,10 @@ namespace zero.core.feat.misc
         {
             try
             {
-                Span<byte> h = stackalloc byte[32];
                 var cur = _lut.Head;
                 while (cur != null)
                 {
-                    if (!Sha256.TryComputeHash(cur.Value.Payload, h, out var _))
-                    {
-                        LogManager.GetCurrentClassLogger().Fatal($"{_description}: Unable to compute hash");
-                    }
-
-                    cur.Value.Payload = default;
-
-                    _logger.Error($"{h.HashSig()}[{cur.Value.Key}], t = {cur.Value.TimestampMs.ElapsedMs()}ms, z = {MemoryMarshal.Read<long>(h)}");
+                    _logger.Error($"{cur.Value.Hash.HashSig()}[{cur.Value.Key}], t = {cur.Value.TimestampMs.ElapsedMs()}ms");
                     cur = cur.Next;
                 }
             }
@@ -440,18 +421,9 @@ namespace zero.core.feat.misc
             public long TimestampMs;
 
             /// <summary>
-            /// The payload
+            /// The hash
             /// </summary>
-            public byte[] Payload;
-
-            private long _hash;
-            /// <summary>
-            /// The computed hash
-            /// </summary>
-            public long Hash {
-                get => Volatile.Read(ref _hash);
-                set => Interlocked.Exchange(ref _hash, value);
-            }
+            public byte[] Hash = new byte[32];
         }
     }
 }

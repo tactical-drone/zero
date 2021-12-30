@@ -311,7 +311,7 @@ namespace zero.core.network.ip
         {
             try
             {
-                if (Proxy) return;
+                if (Proxy || NativeSocket == null) return;
 
                 if (NativeSocket.IsBound || NativeSocket.Connected)
                 {

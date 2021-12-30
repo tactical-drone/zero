@@ -146,8 +146,6 @@ namespace zero.cocoon
         /// <returns></returns>
         private async ValueTask RoboAsync(CcCollective @this)
         {
-            var secondsSinceEnsured = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
-
             await ZeroAsync(static async @this =>
             {
                 while (!@this.Zeroed())
