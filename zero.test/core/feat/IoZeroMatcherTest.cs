@@ -104,10 +104,10 @@ namespace zero.test.core.feat
         [Fact]
         async Task TimeoutAsync()
         {
-            var threads = 2;
+            var threads = 1;
             var count = 100;
             var capacity = threads * count;
-            var m = new IoZeroMatcher("Test matcher", threads, 500,capacity, autoscale: false);
+            var m = new IoZeroMatcher("Test matcher", threads, _delayTime, capacity, autoscale: false);
 
             var oneShotTasks = new List<Task>();
             for (int i = 0; i < threads; i++)
@@ -131,7 +131,7 @@ namespace zero.test.core.feat
                         dud[0] = 0;
 
                         Assert.False(await matcher.ResponseAsync(k, UnsafeByteOperations.UnsafeWrap(dud)));
-                        await Task.Delay(delay + 100);
+                        await Task.Delay(delay);
                         Assert.False(await matcher.ResponseAsync(k, UnsafeByteOperations.UnsafeWrap(hash)));
                     }, (key, reqHash, m, _delayTime), TaskCreationOptions.DenyChildAttach).Unwrap();
 

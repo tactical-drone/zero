@@ -136,9 +136,10 @@ namespace zero.core.feat.misc
                 response.Key = key;
                 response.Body = body;
 
-                await ZeroAtomic(static async (_, state, _) =>
+                //await ZeroAtomic(static async (_, state, _) =>
                 {
-                    var (@this, response) = state;
+                    //var (@this, response) = state;
+                    var @this = this;
                     IoChallenge challenge = null;
                     try
                     {
@@ -180,7 +181,7 @@ namespace zero.core.feat.misc
                         {
                             LogManager.GetCurrentClassLogger()
                                 .Fatal($"{@this._description}: Unable to compute hash");
-                            return false;
+                            //return false;
                         }
 
                         if (bytesWritten > 0)
@@ -188,7 +189,7 @@ namespace zero.core.feat.misc
                             challenge.Key = response.Key;
                             challenge.TimestampMs = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
                             response.Node = await @this._lut.EnqueueAsync(challenge).FastPath().ConfigureAwait(@this.Zc);
-                            return true;
+                            //return true;
                         }
                     }
                     catch when (@this.Zeroed()) { }
@@ -203,8 +204,8 @@ namespace zero.core.feat.misc
                             @this._valHeap.Return(challenge);
                     }
 
-                    return false;
-                }, (this,response)).FastPath().ConfigureAwait(Zc);
+                    //return false;
+                }//, (this,response)).FastPath().ConfigureAwait(Zc);
             }
             finally
             {
@@ -230,7 +231,7 @@ namespace zero.core.feat.misc
         /// <param name="ioNanite"></param>
         /// <param name="state"></param>
         /// <param name="_"></param>
-        /// <returns></returns>
+        /// <returns>True if matched, false otherwise</returns>
         private async ValueTask<bool> MatchAsync(IIoNanite ioNanite, (IoZeroMatcher, string key, ByteString reqHash) state, bool _)
         {
             var (@this, key, reqHash) = state;
@@ -253,7 +254,7 @@ namespace zero.core.feat.misc
                     continue;
                 }
 
-                if (cur.Value.TimestampMs <= timestamp && cur.Value.Key == key)
+                if (DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() - cur.Value.TimestampMs <= _ttlMs && cur.Value.Key == key)
                 {
                     var potential = cur.Value;
 
@@ -261,12 +262,12 @@ namespace zero.core.feat.misc
                     {
                         await @this._lut.RemoveAsync(cur).FastPath().ConfigureAwait(@this.Zc);
                         @this._valHeap.Return(potential);
-                        return potential.TimestampMs.ElapsedMs() < @this._ttlMs;
+                        return true;
                     }
                 }
 
                 //drop old ones while we are at it
-                if (cur.Value.TimestampMs.ElapsedMs() > @this._ttlMs)
+                if (DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() - cur.Value.TimestampMs > @this._ttlMs)
                 {
                     var value = cur.Value;
                     await @this._lut.RemoveAsync(cur).FastPath().ConfigureAwait(@this.Zc);
@@ -289,7 +290,8 @@ namespace zero.core.feat.misc
         /// <returns>The response payload</returns>
         public async ValueTask<bool> ResponseAsync(string key, ByteString reqHash)
         {
-            return reqHash.Length != 0 && await ZeroAtomic(MatchAsync, (this, key, reqHash)).FastPath().ConfigureAwait(Zc);
+            //return reqHash.Length != 0 && await ZeroAtomic(MatchAsync, (this, key, reqHash)).FastPath().ConfigureAwait(Zc);
+            return reqHash.Length != 0 && await MatchAsync( null, (this, key, reqHash), false).FastPath().ConfigureAwait(Zc);
         }
 
         /// <summary>
@@ -413,12 +415,17 @@ namespace zero.core.feat.misc
             /// <summary>
             /// The key
             /// </summary>
-            public string Key;
+            public volatile string Key;
 
+            private long _timeStamp;
             /// <summary>
             /// When the payload was challenged
             /// </summary>
-            public long TimestampMs;
+            public long TimestampMs
+            {
+                get => Volatile.Read(ref _timeStamp);
+                set => Volatile.Write(ref _timeStamp, value);
+            }
 
             /// <summary>
             /// The hash
