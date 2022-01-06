@@ -1,12 +1,6 @@
 ﻿using System;
-using System.Buffers;
 using System.Collections.Generic;
-using System.IO;
-using System.Linq;
-using System.Net;
 using System.Runtime.CompilerServices;
-using System.Runtime.InteropServices;
-using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using Google.Protobuf;
@@ -15,8 +9,6 @@ using zero.cocoon.autopeer;
 using zero.cocoon.identity;
 using zero.cocoon.models.batches;
 using zero.core.conf;
-using zero.core.feat.misc;
-using zero.core.feat.models;
 using zero.core.feat.models.protobuffer;
 using zero.core.feat.models.protobuffer.sources;
 using zero.core.misc;
@@ -42,14 +34,14 @@ namespace zero.cocoon.models
             {
                 IoZero = (IIoZero)localContext;
                 _configured = true;
-                var cc = 2;
-                var pf = 3;
+                var cc = 4;
+                var pf = 6;
                 var ac = 0;
                 if (!Source.Proxy && ((CcAdjunct)IoZero)!.CcCollective.ZeroDrone)
                 {
                     parm_max_msg_batch_size *= 2;
-                    cc *= 4;
-                    pf *= 4;
+                    cc *= 2;
+                    pf *= 2;
                     //ac *= 1;
                     //_groupByEp = true;
                 }
@@ -254,26 +246,18 @@ namespace zero.cocoon.models
                             try
                             {
                                 var unpackOffset = DatumProvisionLengthMax << 2;
-                                Array.Clear(Buffer, unpackOffset, Buffer.Length - unpackOffset - 1);
                                 var packetLen = LZ4Codec.Decode(Buffer, BufferOffset + sizeof(ulong), length, Buffer, unpackOffset, Buffer.Length - unpackOffset - 1);
 
                                 read = length + sizeof(ulong);
                                 Interlocked.Add(ref BufferOffset, read);
 
-                                var zeroIdx = unpackOffset + packetLen + 1;
-                                var c = 4;
-                                while (zeroIdx < Buffer.Length && c --> 0 )
-                                {
-                                    Buffer[zeroIdx++] = 0;
-                                }
-                                
                                 if (packetLen > 0)
-                                    packet = chroniton.Parser.ParseFrom(ReadOnlySequence.Slice(unpackOffset, packetLen));
+                                    packet = chroniton.Parser.ParseFrom(Buffer, unpackOffset, packetLen);
                             }
 #if DEBUG
                             catch (Exception e)
                             {
-
+                                State = IoJobMeta.JobState.BadData;
                                 _logger.Trace(e, $"Parse failed: buf[{BufferOffset}], r = {BytesRead - BytesLeftToProcess }/{BytesRead}/{BytesLeftToProcess }, d = {DatumCount}, {Description}");
                             }
 #else
@@ -401,7 +385,6 @@ namespace zero.cocoon.models
                     State = IoJobMeta.JobState.ConsumeErr;
                     _logger.Error(e, $"{nameof(State)}: re setting state failed!");
                 }
-
             }
 
             ////attempt zero recovery
@@ -412,38 +395,6 @@ namespace zero.cocoon.models
             }
 
             return State;
-        }
-
-        /// <summary>
-        /// Synchronizes the stream
-        /// </summary>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private int ZeroSync()
-        {
-            var read = 0;
-            var buf = (ReadOnlySpan<byte>)Buffer.AsSpan(BufferOffset);
-            try
-            {
-                while (read + sizeof(ulong) < BytesLeftToProcess)
-                {
-                    if (MemoryMarshal.Read<uint>(buf[(sizeof(ulong)>>1 + read)..]) == 0)
-                    {
-                        var p = MemoryMarshal.Read<ulong>(buf[read..]);
-                        if (p != 0 && p < ushort.MaxValue && p <= (ulong)BytesLeftToProcess)
-                        {
-                            return (int)p;
-                        }
-                    }
-
-                    read++;
-                }
-                return read = -1;
-            }
-            finally
-            {
-                if(read != -1 && read > 0)
-                    Interlocked.Add(ref BufferOffset, read);
-            }
         }
 
         /// <summary>

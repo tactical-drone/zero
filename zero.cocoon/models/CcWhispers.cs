@@ -1,16 +1,18 @@
 using System;
-using System.Linq;
 using System.Runtime.InteropServices;
+using System.Security.Cryptography;
 using System.Threading;
 using System.Threading.Tasks;
+using Google.Protobuf;
+using K4os.Compression.LZ4;
 using zero.cocoon.autopeer;
 using zero.cocoon.events.services;
 using zero.cocoon.identity;
 using zero.cocoon.models.batches;
 using zero.core.feat.models.protobuffer;
-using zero.core.network.ip;
 using zero.core.patterns.bushings;
 using zero.core.patterns.bushings.contracts;
+using zero.core.patterns.heap;
 using zero.core.patterns.misc;
 using Zero.Models.Protobuf;
 
@@ -20,8 +22,13 @@ namespace zero.cocoon.models
     {
         public CcWhispers(string sinkDesc, string jobDesc, IoSource<CcProtocMessage<CcWhisperMsg, CcGossipBatch>> source) : base(sinkDesc, jobDesc, source)
         {
-            
+            _m = new CcWhisperMsg() { Data = UnsafeByteOperations.UnsafeWrap(new ReadOnlyMemory<byte>(_vb)) };
+            _sendBuf = new IoHeap<byte[]>($"{nameof(_sendBuf)}: {Description}", 1) { Malloc = (_, _) => new byte[32] };
         }
+
+        private IoHeap<byte[]> _sendBuf;
+        private readonly byte[] _vb = new byte[sizeof(ulong)];
+        private readonly CcWhisperMsg _m;
 
         /// <summary>
         /// Zero managed
@@ -29,6 +36,9 @@ namespace zero.cocoon.models
         /// <returns></returns>
         public override async ValueTask ZeroManagedAsync()
         {
+            await base.ZeroManagedAsync().FastPath().ConfigureAwait(Zc);
+
+            await _sendBuf.ZeroManagedAsync<object>().FastPath().ConfigureAwait(Zc);
             //if (_protocolMsgBatch != null)
             //    _arrayPool.ReturnAsync(_protocolMsgBatch, true);
 
@@ -40,7 +50,7 @@ namespace zero.cocoon.models
             //});
 
             //await _dupHeap.ClearAsync().FastPath().ConfigureAwait(Zc);
-            await base.ZeroManagedAsync().FastPath().ConfigureAwait(Zc);
+
         }
 
         /// <summary>
@@ -51,6 +61,7 @@ namespace zero.cocoon.models
             //_dupHeap = null;
             //_arrayPool = null;
             //_batchMsgHeap = null;
+            _sendBuf = null;
             base.ZeroUnmanaged();
         }
 
@@ -97,14 +108,13 @@ namespace zero.cocoon.models
         /// <summary>
         /// random number generator
         /// </summary>
-        /// <param name="zeroRecovery"></param>
         //readonly Random _random = new Random((int)DateTime.Now.Ticks);
 
         //private IoHeap<ConcurrentBag<string>> _dupHeap;
         //private uint _poolSize = 50;
         //private long _maxReq = int.MinValue;
 
-        public override async ValueTask<IoJobMeta.JobState> ConsumeAsync()
+        /*public override async ValueTask<IoJobMeta.JobState> ConsumeAsync()
         {
             var read = 0;
             try
@@ -123,22 +133,24 @@ namespace zero.cocoon.models
                     //deserialize
                     try
                     {
-                        whispers = CcWhisperMsg.Parser.ParseFrom(ReadOnlySequence.Slice(BufferOffset, BytesLeftToProcess));
-                        read = whispers.CalculateSize();
+                        read = 10;
+                        whispers = CcWhisperMsg.Parser.ParseFrom(ReadOnlySequence.Slice(BufferOffset, 10));
+                        //read = whispers.CalculateSize();
                     }
                     catch when(!Zeroed())
                     {
                         State = IoJobMeta.JobState.ConsumeErr;
+                        continue;
                     }
                     finally
                     {
                         Interlocked.Add(ref BufferOffset, read);
                     }
 
-                    if (read == 0)
-                    {
-                        break;
-                    }
+                    //if (read == 0)
+                    //{
+                    //    break;
+                    //}
 
                     //Sanity check the data
                     if (whispers.Data == null || whispers.Data.Length == 0)
@@ -148,7 +160,7 @@ namespace zero.cocoon.models
                     
                     //read the token
                     var req = MemoryMarshal.Read<long>(whispers.Data.Span);
-
+#if DUPCHECK
                     //dup check memory management
                     try
                     {
@@ -238,9 +250,19 @@ namespace zero.cocoon.models
                         dupEndpoints.Add(endpoint.GetHashCode(), true);
                         continue;
                     }
-
+#endif
+                    //await Task.Delay(1000).ConfigureAwait(Zc);
+                    //Console.WriteLine(".");
                     IoZero.IncEventCounter();
                     CcCollective.IncEventCounter();
+
+                    req++;
+                    MemoryMarshal.Write(Buffer[(BufferOffset - read)..], ref req);
+
+                    if (req % 100000 == 0)
+                    {
+                        _logger.Info($"{Id}");
+                    }
 
                     foreach (var drone in CcCollective.WhisperingDrones)
                     {
@@ -251,9 +273,10 @@ namespace zero.cocoon.models
                             //Don't forward new messages to nodes from which we have received the msg in the mean time.
                             //This trick has the added bonus of using congestion as a governor to catch more of those overlaps, 
                             //which in turn lowers the traffic causing less congestion
+#if DUPCHECK
                             if (source.IoNetSocket.RemoteAddress == endpoint || dupEndpoints != null && dupEndpoints.Contains(source.IoNetSocket.RemoteAddress.GetHashCode()))
                                 continue;
-
+#endif
                             if (await source.IsOperational().FastPath().ConfigureAwait(Zc) && await source.IoNetSocket.SendAsync(Buffer, BufferOffset - read, read).FastPath().ConfigureAwait(Zc) <= 0)
                             {
                                 if(await source.IsOperational().FastPath().ConfigureAwait(Zc))
@@ -294,6 +317,230 @@ namespace zero.cocoon.models
             {
                 if (State == IoJobMeta.JobState.Consuming)
                     State = IoJobMeta.JobState.ConsumeErr;
+            }
+
+            return State;
+        }*/
+        private long _accept;
+        private long _reject;
+        public override async ValueTask<IoJobMeta.JobState> ConsumeAsync()
+        {
+            //are we in recovery mode?
+            var zeroRecovery = State == IoJobMeta.JobState.ZeroRecovery;
+            var pos = BufferOffset;
+
+            try
+            {
+                //fail fast
+                if (BytesRead == 0)
+                    return State = IoJobMeta.JobState.BadData;
+
+                //Ensure that the previous job (which could have been launched out of sync) has completed
+                if (zeroRecovery)
+                {
+                    var recoverPrevJob = ((CcWhispers)PreviousJob).ZeroRecovery;
+                    var recovery = new ValueTask<bool>(recoverPrevJob, recoverPrevJob.Version);
+                    if (await recovery.FastPath().ConfigureAwait(Zc))
+                        AddRecoveryBits();
+                    State = IoJobMeta.JobState.Consuming;
+                }
+
+                while (BytesLeftToProcess > 0)
+                {
+                    CcWhisperMsg packet = null;
+
+                    var read = 0;
+                    //deserialize
+                    try
+                    {
+                        int length;
+                        while ((length = ZeroSync()) > 0)
+                        {
+                            if (length > BytesLeftToProcess)
+                            {
+                                State = IoJobMeta.JobState.Fragmented;
+                                break;
+                            }
+
+                            try
+                            {
+                                var unpackOffset = DatumProvisionLengthMax << 2;
+                                var packetLen = LZ4Codec.Decode(Buffer, BufferOffset + sizeof(ulong), length, Buffer, unpackOffset, Buffer.Length - unpackOffset - 1);
+
+                                read = length + sizeof(ulong);
+                                Interlocked.Add(ref BufferOffset, read);
+
+                                if (packetLen > 0)
+                                    packet = CcWhisperMsg.Parser.ParseFrom(Buffer, unpackOffset, packetLen);
+                                Interlocked.Increment(ref _accept);
+                            }
+#if DEBUG
+                            catch (Exception e)
+                            {
+                                Interlocked.Increment(ref _reject);
+                                State = IoJobMeta.JobState.BadData;
+                                _logger.Trace(e, $"Parse failed: buf[{BufferOffset}], r = {BytesRead - BytesLeftToProcess }/{BytesRead}/{BytesLeftToProcess }, d = {DatumCount}, {Description}");
+                            }
+#else
+                            catch
+                            {
+                                Interlocked.Increment(ref _reject);
+                                State = IoJobMeta.JobState.BadData;
+                                //_logger.Trace(e, $"Parse failed: buf[{BufferOffset}], r = {BytesRead - BytesLeftToProcess }/{BytesRead}/{BytesLeftToProcess }, d = {DatumCount}, syncing = {InRecovery}, {Description}");
+                            }
+#endif
+                        }
+
+                        if (read == 0 && length == -1)
+                        {
+                            State = IoJobMeta.JobState.Fragmented;
+                            break;
+                        }
+                    }
+                    catch (Exception e) when (!Zeroed())
+                    {
+                        State = IoJobMeta.JobState.ConsumeErr;
+                        _logger.Debug(e, $"Parse failed: buf[{BufferOffset}], r = {BytesRead - BytesLeftToProcess }/{BytesRead}/{BytesLeftToProcess }, d = {DatumCount}, {Description}");
+                        break;
+                    }
+
+                    if (State != IoJobMeta.JobState.Consuming)
+                        break;
+
+                    //Sanity check the data
+                    if (packet == null || packet.Data == null || packet.Data.Length == 0)
+                    {
+                        State = IoJobMeta.JobState.BadData;
+                        continue;
+                    }
+
+                    await Task.Delay(1000/64).ConfigureAwait(Zc);
+
+                    IoZero.IncEventCounter();
+                    CcCollective.IncEventCounter();
+
+                    //read the token
+                    var req = MemoryMarshal.Read<long>(packet.Data.Span);
+                    req++;
+
+                    if (req % 100000 == 0)
+                    {
+                        _logger.Info($"[{Id}]: {req}, accept = {_accept}/{_reject}, {_accept/(double)_reject*100.0:0.0}%");
+                    }
+
+                    byte[] socketBuf = null;
+                    try
+                    {
+                        socketBuf = _sendBuf.Take();
+                        MemoryMarshal.Write(_vb.AsSpan(), ref req);
+
+                        var protoBuf = _m.ToByteArray();
+                        var compressed = (ulong)LZ4Codec.Encode(protoBuf, 0, protoBuf.Length, socketBuf, sizeof(ulong), socketBuf.Length - sizeof(ulong));
+                        MemoryMarshal.Write(socketBuf, ref compressed);
+
+                        if (!Zeroed())
+                        {
+                            var c = 0;
+                            foreach (var drone in CcCollective.WhisperingDrones)
+                            {
+                                try
+                                {
+                                    var source = drone.MessageService;
+
+                                    //Don't forward new messages to nodes from which we have received the msg in the mean time.
+                                    //This trick has the added bonus of using congestion as a governor to catch more of those overlaps, 
+                                    //which in turn lowers the traffic causing less congestion
+#if DUPCHECK
+                            if (source.IoNetSocket.RemoteAddress == endpoint || dupEndpoints != null && dupEndpoints.Contains(source.IoNetSocket.RemoteAddress.GetHashCode()))
+                                continue;
+#endif
+                                    if (await source.IoNetSocket.SendAsync(socketBuf, 0, (int)compressed + sizeof(ulong)).FastPath().ConfigureAwait(Zc) <= 0)
+                                    {
+                                        if (await source.IsOperational().FastPath().ConfigureAwait(Zc))
+                                            _logger.Trace($"Failed to forward new msg message to {drone.Description}");
+                                    }
+                                    else
+                                    {
+                                        if (AutoPeeringEventService.Operational)
+                                            await AutoPeeringEventService.AddEventAsync(new AutoPeerEvent
+                                            {
+                                                EventType = AutoPeerEventType.SendProtoMsg,
+                                                Msg = new ProtoMsg
+                                                {
+                                                    CollectiveId = CcCollective.Hub.Router.Designation.IdString(),
+                                                    Id = drone.Adjunct.Designation.IdString(),
+                                                    Type = $"gossip{Id % 6}"
+                                                }
+                                            }).FastPath().ConfigureAwait(Zc);
+                                    }
+                                }
+                                catch when (Zeroed() || CcCollective == null || CcCollective.Zeroed() || CcCollective.DupSyncRoot == null) { }
+                                catch (Exception e) when (!Zeroed())
+                                {
+                                    _logger.Trace(e, Description);
+                                }
+                                c++;
+                            }
+                        }
+                    }
+                    finally
+                    {
+                        _sendBuf.Return(socketBuf);
+                    }
+
+                }
+
+                ////TODO tuning
+                //if (_currentBatch.Count > _batchHeap.Capacity * 3 / 2)
+                //    _logger.Warn($"{nameof(_batchHeap)} running lean {_currentBatch.Count}/{_batchHeap.Capacity}, {_batchHeap}, {_batchHeap.Description}");
+                ////Release a waiter
+                //await ZeroBatchAsync().FastPath().ConfigureAwait(Zc);
+            }
+            catch when (Zeroed()) { State = IoJobMeta.JobState.ConsumeErr; }
+            catch (Exception e) when (!Zeroed())
+            {
+                State = IoJobMeta.JobState.ConsumeErr;
+                _logger.Error(e, $"Unmarshal chroniton failed in {Description}");
+            }
+            finally
+            {
+                try
+                {
+
+                    if (BytesLeftToProcess == 0)
+                        State = IoJobMeta.JobState.Consumed;
+                    else if (BytesLeftToProcess != BytesRead)
+                        State = IoJobMeta.JobState.Fragmented;
+#if DEBUG
+                    else if (State == IoJobMeta.JobState.Fragmented)
+                    {
+                        _logger.Debug($"[{Id}] FRAGGED = {DatumCount}, {BytesRead}/{BytesLeftToProcess }");
+                    }
+                    else
+                    {
+                        _logger.Fatal($"[{Id}] FRAGGED = {DatumCount}, {BytesRead}/{BytesLeftToProcess }");
+                    }
+#else
+                    else if (State == IoJobMeta.JobState.Fragmented && !IoZero.ZeroRecoveryEnabled)
+                    {
+                        State = IoJobMeta.JobState.BadData;
+                    }
+#endif
+                }
+                catch when (Zeroed()) { State = IoJobMeta.JobState.ConsumeErr; }
+                catch (Exception e) when (!Zeroed())
+                {
+                    State = IoJobMeta.JobState.ConsumeErr;
+                    _logger.Error(e, $"{nameof(State)}: re setting state failed!");
+                }
+
+            }
+
+            ////attempt zero recovery
+            if (!zeroRecovery && BytesLeftToProcess > 0 && IoZero.ZeroRecoveryEnabled && PreviousJob != null)
+            {
+                State = IoJobMeta.JobState.ZeroRecovery;
+                await ConsumeAsync().FastPath().ConfigureAwait(Zc);
             }
 
             return State;

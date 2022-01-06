@@ -38,7 +38,7 @@ namespace zero.cocoon
         public CcCollective(CcDesignation ccDesignation, IoNodeAddress gossipAddress, IoNodeAddress peerAddress,
             IoNodeAddress fpcAddress, IoNodeAddress extAddress, List<IoNodeAddress> bootstrap, int udpPrefetch,
             int tcpPrefetch, int udpConcurrencyLevel, int tcpConcurrencyLevel, bool zeroDrone)
-            : base(gossipAddress, static (node, ioNetClient, extraData) => new CcDrone((CcCollective)node, (CcAdjunct)extraData, ioNetClient), tcpPrefetch, udpPrefetch, 16 * 2) //TODO config
+            : base(gossipAddress, static (node, ioNetClient, extraData) => new CcDrone((CcCollective)node, (CcAdjunct)extraData, ioNetClient), tcpPrefetch, tcpConcurrencyLevel, 16 * 2) //TODO config
         {
             _logger = LogManager.GetCurrentClassLogger();
             _gossipAddress = gossipAddress;
@@ -53,7 +53,7 @@ namespace zero.cocoon
                 _zeroDrone = true;
                 parm_max_drone = 0;
                 parm_max_adjunct = 64; //TODO tuning:
-                udpPrefetch = 8;
+                udpPrefetch = 6;
                 udpConcurrencyLevel = 4;
                 NeighborTasks = new IoQueue<Task>($"{nameof(NeighborTasks)}", parm_max_adjunct + 1, ZeroConcurrencyLevel());
             }
@@ -516,14 +516,14 @@ namespace zero.cocoon
             var protocolRaw = responsePacket.ToByteArray();
 
             int sent;
-            if ((sent = await drone.IoSource.IoNetSocket.SendAsync(protocolRaw, 0, protocolRaw.Length, timeout: timeout).FastPath().ConfigureAwait(Zc)) == protocolRaw.Length)
+            if ((sent = await drone.MessageService.IoNetSocket.SendAsync(protocolRaw, 0, protocolRaw.Length, timeout: timeout).FastPath().ConfigureAwait(Zc)) == protocolRaw.Length)
             {
-                _logger.Trace($"~/> {type}({sent}): {drone.IoSource.IoNetSocket.LocalAddress} ~> {drone.IoSource.IoNetSocket.RemoteAddress} ({Enum.GetName(typeof(CcDiscoveries.MessageTypes), responsePacket.Type)})");
+                _logger.Trace($"~/> {type}({sent}): {drone.MessageService.IoNetSocket.LocalAddress} ~> {drone.MessageService.IoNetSocket.RemoteAddress} ({Enum.GetName(typeof(CcDiscoveries.MessageTypes), responsePacket.Type)})");
                 return msg.Length;
             }
             else
             {
-                _logger.Error($"~/> {type}({sent}):  {drone.IoSource.IoNetSocket.LocalAddress} ~> {drone.IoSource.IoNetSocket.RemoteAddress}");
+                _logger.Error($"~/> {type}({sent}):  {drone.MessageService.IoNetSocket.LocalAddress} ~> {drone.MessageService.IoNetSocket.RemoteAddress}");
                 return 0;
             }
         }
@@ -553,10 +553,10 @@ namespace zero.cocoon
             try
             {                
                 var futileBuffer = new byte[_fuseBufSize];
-                var ioNetSocket = drone.IoSource.IoNetSocket;
+                var ioNetSocket = drone.MessageService.IoNetSocket;
 
                 //inbound
-                if (drone.IoSource.IoNetSocket.IsIngress)
+                if (drone.MessageService.IoNetSocket.IsIngress)
                 {
                     var verified = false;
                     
@@ -660,7 +660,7 @@ namespace zero.cocoon
                     }
                 }
                 //-----------------------------------------------------//
-                else if (drone.IoSource.IoNetSocket.IsEgress) //Outbound
+                else if (drone.MessageService.IoNetSocket.IsEgress) //Outbound
                 {
                     var ccFutileRequest = new CcFutileRequest
                     {
@@ -780,7 +780,7 @@ namespace zero.cocoon
             {
                 if (success)
                 {
-                    if (drone.IoSource.IoNetSocket.IsEgress)
+                    if (drone.MessageService.IoNetSocket.IsEgress)
                     {
                         await drone.ZeroSubAsync(static (_,@this) =>
                         {
@@ -788,7 +788,7 @@ namespace zero.cocoon
                             return new ValueTask<bool>(true);
                         }, this).FastPath().ConfigureAwait(Zc);                        
                     }
-                    else if (drone.IoSource.IoNetSocket.IsIngress)
+                    else if (drone.MessageService.IoNetSocket.IsIngress)
                     {
                         await drone.ZeroSubAsync(static (from, @this) =>
                         {

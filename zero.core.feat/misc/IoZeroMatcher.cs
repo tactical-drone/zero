@@ -136,10 +136,10 @@ namespace zero.core.feat.misc
                 response.Key = key;
                 response.Body = body;
 
-                //await ZeroAtomic(static async (_, state, _) =>
+                await ZeroAtomic(static async (_, state, _) =>
                 {
-                    //var (@this, response) = state;
-                    var @this = this;
+                    var (@this, response) = state;
+                    //var @this = this;
                     IoChallenge challenge = null;
                     try
                     {
@@ -181,7 +181,7 @@ namespace zero.core.feat.misc
                         {
                             LogManager.GetCurrentClassLogger()
                                 .Fatal($"{@this._description}: Unable to compute hash");
-                            //return false;
+                            return false;
                         }
 
                         if (bytesWritten > 0)
@@ -189,7 +189,7 @@ namespace zero.core.feat.misc
                             challenge.Key = response.Key;
                             challenge.TimestampMs = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
                             response.Node = await @this._lut.EnqueueAsync(challenge).FastPath().ConfigureAwait(@this.Zc);
-                            //return true;
+                            return true;
                         }
                     }
                     catch when (@this.Zeroed()) { }
@@ -204,8 +204,8 @@ namespace zero.core.feat.misc
                             @this._valHeap.Return(challenge);
                     }
 
-                    //return false;
-                }//, (this,response)).FastPath().ConfigureAwait(Zc);
+                    return false;
+                }, (this,response)).FastPath().ConfigureAwait(Zc);
             }
             finally
             {
@@ -290,8 +290,8 @@ namespace zero.core.feat.misc
         /// <returns>The response payload</returns>
         public async ValueTask<bool> ResponseAsync(string key, ByteString reqHash)
         {
-            //return reqHash.Length != 0 && await ZeroAtomic(MatchAsync, (this, key, reqHash)).FastPath().ConfigureAwait(Zc);
-            return reqHash.Length != 0 && await MatchAsync( null, (this, key, reqHash), false).FastPath().ConfigureAwait(Zc);
+            return reqHash.Length != 0 && await ZeroAtomic(MatchAsync, (this, key, reqHash)).FastPath().ConfigureAwait(Zc);
+            //return reqHash.Length != 0 && await MatchAsync( null, (this, key, reqHash), false).FastPath().ConfigureAwait(Zc);
         }
 
         /// <summary>

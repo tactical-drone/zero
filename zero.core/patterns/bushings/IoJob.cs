@@ -301,52 +301,56 @@ namespace zero.core.patterns.bushings
             }
             set
             {
+                try
+                {
 #if DEBUG
-                //Update the previous state's exit time
-                if (_stateMeta != null)
-                {
-                    _stateMeta.ExitTime = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-
-                    if (_stateMeta.Value == IoJobMeta.JobState.Halted && value != IoJobMeta.JobState.Undefined)
+                    //Update the previous state's exit time
+                    if (_stateMeta != null)
                     {
-                        _stateMeta.Set((int)IoJobMeta.JobState.Race);
-                        PrintStateHistory();
-                        throw new ApplicationException($"{TraceDescription} Cannot transition from `{IoJobMeta.JobState.Halted}' to `{value}'");
+                        _stateMeta.ExitTime = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+
+                        if (_stateMeta.Value == IoJobMeta.JobState.Halted && value != IoJobMeta.JobState.Undefined)
+                        {
+                            _stateMeta.Set((int)IoJobMeta.JobState.Race);
+                            PrintStateHistory();
+                            throw new ApplicationException(
+                                $"{TraceDescription} Cannot transition from `{IoJobMeta.JobState.Halted}' to `{value}'");
+                        }
+
+                        Interlocked.Increment(ref Source.Counters[(int)_stateMeta.Value]);
+
+                        if (_stateMeta.Value == value)
+                            return;
+
+                        Interlocked.Add(ref Source.ServiceTimes[(int)_stateMeta.Value], _stateMeta.Mu);
                     }
-
-                    Interlocked.Increment(ref Source.Counters[(int)_stateMeta.Value]);
-
-                    if (_stateMeta.Value == value)
-                        return;
-                    
-                    Interlocked.Add(ref Source.ServiceTimes[(int)_stateMeta.Value], _stateMeta.Mu);
-                }
-                else
-                {
-                    if (value != IoJobMeta.JobState.Undefined && !Zeroed())
+                    else
                     {
-                        PrintStateHistory();
-                        throw new Exception($"{TraceDescription} First state transition history's first transition should be `{IoJobMeta.JobState.Undefined}', but is `{value}'");                        
+                        if (value != IoJobMeta.JobState.Undefined && !Zeroed())
+                        {
+                            PrintStateHistory();
+                            throw new Exception(
+                                $"{TraceDescription} First state transition history's first transition should be `{IoJobMeta.JobState.Undefined}', but is `{value}'");
+                        }
                     }
-                }
 #endif
 
 #if DEBUG
-                //Allocate memory for a new current state
-                var newState = _stateHeap.Take();
-                if (newState == null)
-                {
-                    if (!Zeroed())
-                        throw new OutOfMemoryException($"{Description}");
+                    //Allocate memory for a new current state
+                    var newState = _stateHeap.Take();
+                    if (newState == null)
+                    {
+                        if (!Zeroed())
+                            throw new OutOfMemoryException($"{Description}");
 
-                    return;
-                }
+                        return;
+                    }
 
-                newState.ConstructorAsync(_stateMeta, (int)value).FastPath().ConfigureAwait(Zc);
+                    newState.ConstructorAsync(_stateMeta, (int)value).FastPath().ConfigureAwait(Zc);
 
-                _stateMeta = newState;
-                StateTransitionHistory.EnqueueAsync(_stateMeta).FastPath().GetAwaiter().GetResult();
-                
+                    _stateMeta = newState;
+                    StateTransitionHistory.EnqueueAsync(_stateMeta).FastPath().GetAwaiter().GetResult();
+
 #else
                 _stateMeta.ExitTime = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
                 if (!Zeroed())
@@ -358,13 +362,19 @@ namespace zero.core.patterns.bushings
                 _stateMeta.EnterTime = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
 #endif
 #if DEBUG
-                //terminate
-                if (value is IoJobMeta.JobState.Accept or IoJobMeta.JobState.Reject)
-                {
-                    FinalState = value;
-                    State = IoJobMeta.JobState.Halted;
-                }                
+                    //terminate
+                    if (value is IoJobMeta.JobState.Accept or IoJobMeta.JobState.Reject)
+                    {
+                        FinalState = value;
+                        State = IoJobMeta.JobState.Halted;
+                    }
 #endif
+                }
+                catch when (Zeroed()) { }
+                catch (Exception e)when (!Zeroed())
+                {
+                    _logger.Error(e, $"{nameof(State)}: Setting state failed for {Description}");
+                }
             }
         }
     }

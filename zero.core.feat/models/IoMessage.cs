@@ -173,12 +173,22 @@ namespace zero.core.feat.models
         /// </summary>
         protected override bool ZeroEnsureRecovery()
         {
-            DatumCount = BytesLeftToProcess / DatumSize;
-            DatumFragmentLength = BytesLeftToProcess;
+            try
+            {
+                DatumCount = BytesLeftToProcess / DatumSize;
+                DatumFragmentLength = BytesLeftToProcess;
 
-            Source.Synced = !(IoZero.ZeroRecoveryEnabled && DatumFragmentLength > 0);
+                Source.Synced = !(IoZero.ZeroRecoveryEnabled && DatumFragmentLength > 0);
 
-            return !Source.Synced;
+                return !Source.Synced;
+            }
+            catch when(Zeroed()){}
+            catch (Exception e) when(!Zeroed())
+            {
+                _logger.Error(e,$"{nameof(ZeroEnsureRecovery)}: Failed! {Description}");
+            }
+
+            return false;
         }
     }
 }

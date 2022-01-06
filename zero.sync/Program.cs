@@ -5,6 +5,7 @@ using System.Diagnostics;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using MathNet.Numerics.Random;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Server.Kestrel.Core;
 using Microsoft.Extensions.Hosting;
@@ -475,8 +476,13 @@ namespace zero.sync
                     catch { }
                 }
 
-                var gossipTasks = new List<Task>();
+                if (line.StartsWith("tcp"))
+                {
+                    var n = _nodes.Where(n => !n.ZeroDrone).ToArray();
+                    n[Random.Shared.Next(0,n.Length - 1)].BootAsync(0).AsTask().GetAwaiter().GetResult();
+                }
 
+                var gossipTasks = new List<Task>();
                 if (line.StartsWith("gossip"))
                 {
                     if (line.Contains("verbose"))
@@ -1198,7 +1204,7 @@ namespace zero.sync
                 IoNodeAddress.Create(fpcAddress),
                 IoNodeAddress.Create(extAddress),
                 bootStrapAddress.Select(IoNodeAddress.Create).Where(a => a.Port.ToString() != peerAddress.Split(":")[2]).ToList(),
-                3, 3, 1, 1, zeroDrone);
+                3, 2, 2, 1, zeroDrone);
 
             _nodes.Add(cocoon);
 

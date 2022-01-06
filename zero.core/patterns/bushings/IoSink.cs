@@ -68,7 +68,6 @@ namespace zero.core.patterns.bushings
         public override async ValueTask<IIoHeapItem> ReuseAsync()
         {
             await base.ReuseAsync();
-            IoZero = null;
             PrevJobQHook = null;
             return this;
         }

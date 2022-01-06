@@ -3,7 +3,9 @@ using System.Buffers;
 using System.Diagnostics;
 using System.IO;
 using System.Net;
+using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
+using System.Security.Cryptography;
 using System.Threading;
 using System.Threading.Tasks;
 using Google.Protobuf;
@@ -111,8 +113,14 @@ namespace zero.core.feat.models.protobuffer
         /// </summary>
         protected byte[] RemoteEndPoint { get; } = new IPEndPoint(IPAddress.Any, 0).AsBytes();
 
-        public override async ValueTask<IoJobMeta.JobState> ProduceAsync<T>(IIoSource.IoZeroCongestion<T> barrier,
-            T ioZero)
+        /// <summary>
+        /// Produce a Message
+        /// </summary>
+        /// <typeparam name="T"></typeparam>
+        /// <param name="barrier">The barrier to check before producing</param>
+        /// <param name="ioZero">The worker</param>
+        /// <returns></returns>
+        public override async ValueTask<IoJobMeta.JobState> ProduceAsync<T>(IIoSource.IoZeroCongestion<T> barrier, T ioZero)
         {
             try
             {
@@ -133,6 +141,7 @@ namespace zero.core.feat.models.protobuffer
                         //Async read the message from the message stream
                         if (await job.MessageService.IsOperational().FastPath().ConfigureAwait(job.Zc) && !job.Zeroed())
                         {
+                            
                             var read = await ((IoNetClient<CcProtocMessage<TModel, TBatch>>)ioSocket).IoNetSocket
                                 .ReadAsync(job.MemoryBuffer, job.BufferOffset, job.BufferSize, job.RemoteEndPoint).FastPath().ConfigureAwait(job.Zc);
 
@@ -189,6 +198,38 @@ namespace zero.core.feat.models.protobuffer
             }
 
             return State;
+        }
+
+        /// <summary>
+        /// Synchronizes the stream
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        protected int ZeroSync()
+        {
+            var read = 0;
+            var buf = (ReadOnlySpan<byte>)Buffer.AsSpan(BufferOffset);
+            try
+            {
+                while (read + sizeof(ulong) < BytesLeftToProcess)
+                {
+                    if (MemoryMarshal.Read<uint>(buf[(sizeof(ulong)>>1 + read)..]) == 0)
+                    {
+                        var p = MemoryMarshal.Read<ulong>(buf[read..]);
+                        if (p != 0 && p < ushort.MaxValue && p <= (ulong)BytesLeftToProcess)
+                        {
+                            return (int)p;
+                        }
+                    }
+
+                    read++;
+                }
+                return read = -1;
+            }
+            finally
+            {
+                if(read != -1 && read > 0)
+                    Interlocked.Add(ref BufferOffset, read);
+            }
         }
     }
 }

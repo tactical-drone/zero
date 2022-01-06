@@ -72,6 +72,15 @@ namespace zero.core.patterns.heap
         }
 
         /// <summary>
+        /// Takes item from the heap
+        /// </summary>
+        /// <returns>A new item</returns>
+        public ValueTask<TItem> TakeAsync()
+        {
+            return TakeAsync<object>();
+        }
+
+        /// <summary>
         /// Return item to the heap
         /// </summary>
         /// <param name="item">The item to return</param>

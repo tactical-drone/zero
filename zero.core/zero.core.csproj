@@ -53,7 +53,8 @@
   <ItemGroup>    
 	  <PackageReference Include="Microsoft.CSharp" Version="4.7.0" />
     <PackageReference Include="NLog" Version="5.0.0-rc1" />
-    <PackageReference Include="System.Runtime.CompilerServices.Unsafe" Version="6.0.0" />        
+    <PackageReference Include="System.Runtime.CompilerServices.Unsafe" Version="6.0.0" />
+    <PackageReference Include="xunit.abstractions" Version="2.0.3" />        
   </ItemGroup>
 
   <ItemGroup>    

@@ -1,13 +1,10 @@
 ﻿//#define LOSS
 using System;
-using System.Collections;
 using System.Collections.Concurrent;
-using System.IO;
 using System.Linq;
 using System.Net;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
-using System.Runtime.Serialization.Formatters.Binary;
 #if DEBUG
 using System.Text;
 #endif
@@ -16,7 +13,6 @@ using System.Threading;
 using System.Threading.Tasks;
 using Google.Protobuf;
 using K4os.Compression.LZ4;
-using K4os.Compression.LZ4.Encoders;
 using MathNet.Numerics.Random;
 using NLog;
 using zero.cocoon.events.services;
@@ -54,7 +50,7 @@ namespace zero.cocoon.autopeer
                     $"{((CcAdjunct)ioZero).Source.Key}",
                     // ReSharper disable once PossibleInvalidCastException
                     ((CcAdjunct)ioZero).Source, groupByEp: false),
-                true, concurrencyLevel:node.CcCollective.parm_max_adjunct
+                true, concurrencyLevel:ioNetClient.ZeroConcurrencyLevel()
             )
         {
             if (Source.Zeroed())

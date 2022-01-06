@@ -2,6 +2,7 @@
 using System.Threading;
 using System.Threading.Tasks;
 using Google.Protobuf;
+using K4os.Compression.LZ4;
 using NLog;
 using zero.cocoon.autopeer;
 using zero.cocoon.events.services;
@@ -12,6 +13,7 @@ using zero.core.core;
 using zero.core.feat.models.protobuffer;
 using zero.core.misc;
 using zero.core.network.ip;
+using zero.core.patterns.heap;
 using zero.core.patterns.misc;
 using Zero.Models.Protobuf;
 using static System.Runtime.InteropServices.MemoryMarshal;
@@ -26,15 +28,16 @@ namespace zero.cocoon
         /// <param name="node">The node this peer belongs to </param>
         /// <param name="adjunct">Optional neighbor association</param>
         /// <param name="ioNetClient">The peer transport carrier</param>
-        /// <param name="concurrencyLevel"></param>
         public CcDrone(IoNode<CcProtocMessage<CcWhisperMsg, CcGossipBatch>> node, CcAdjunct adjunct,
             IoNetClient<CcProtocMessage<CcWhisperMsg, CcGossipBatch>> ioNetClient)
             : base
             (
                 node,
-                ioNetClient, 
+                ioNetClient,
                 static (ioZero, _) =>
-                    new CcWhispers(string.Empty, string.Empty, ((CcDrone)ioZero).IoSource), false
+                {
+                    return new CcWhispers(string.Empty, string.Empty, ((CcDrone)ioZero).MessageService);
+                }, true
             )
         {
             _logger = LogManager.GetCurrentClassLogger();
@@ -64,6 +67,8 @@ namespace zero.cocoon
             },this, TaskCreationOptions.DenyChildAttach);
 
             _m = new CcWhisperMsg() { Data = UnsafeByteOperations.UnsafeWrap(new ReadOnlyMemory<byte>(_vb)) };
+
+            _sendBuf = new IoHeap<byte[]>($"{nameof(_sendBuf)}: {Description}", 1) { Malloc = (_, _) => new byte[32]};
         }
 
         /// <summary>
@@ -88,12 +93,12 @@ namespace zero.cocoon
                 try
                 {
                     if(!Zeroed())
-                        return _description = $"`drone({(!Source.Zeroed()? "Active":"Zombie")} {(_assimulated? "Participant" : "Bystander")} [{Adjunct.Hub.Designation.IdString()}, {Adjunct.Designation.IdString()}], {Adjunct.Direction},{Adjunct.MessageService.IoNetSocket.Key} ~ {((IoTcpClient<CcProtocMessage<CcWhisperMsg, CcGossipBatch>>)IoSource).IoNetSocket.Key}, up = {TimeSpan.FromMilliseconds(UpTime.ElapsedMs())}'";
-                    return _description = $"`drone({(!Source.Zeroed()? "Active" : "Zombie")} {(_assimulated ? "Participant" : "Bystander")}, [{Adjunct?.Hub?.Designation?.IdString()}, {Adjunct?.Designation?.IdString()}], {Adjunct?.MessageService?.IoNetSocket?.Key} ~ {((IoTcpClient<CcProtocMessage<CcWhisperMsg, CcGossipBatch>>)IoSource)?.IoNetSocket?.Key}, up = {TimeSpan.FromMilliseconds(UpTime.ElapsedMs())}'";
+                        return _description = $"`drone({(!Source.Zeroed()? "Active":"Zombie")} {(_assimulated? "Participant" : "Bystander")} [{Adjunct.Hub.Designation.IdString()}, {Adjunct.Designation.IdString()}], {Adjunct.Direction},{MessageService.IoNetSocket.LocalAddress} ~> {MessageService.IoNetSocket.RemoteAddress}, up = {TimeSpan.FromMilliseconds(UpTime.ElapsedMs())}'";
+                    return _description = $"`drone({(!Source.Zeroed()? "Active" : "Zombie")} {(_assimulated ? "Participant" : "Bystander")}, [{Adjunct?.Hub?.Designation?.IdString()}, {Adjunct?.Designation?.IdString()}], {MessageService?.IoNetSocket?.LocalAddress} ~> {MessageService?.IoNetSocket?.RemoteAddress}, up = {TimeSpan.FromMilliseconds(UpTime.ElapsedMs())}'";
                 }
                 catch
                 {
-                    return _description = $"`drone({(!Source?.Zeroed()??false? "Active":"Zombie")} {(_assimulated ? "Participant" : "Bystander")}, [{Adjunct?.Hub?.Designation?.IdString()}, {Adjunct?.Designation?.IdString()}], {Adjunct?.MessageService?.IoNetSocket?.Key} ~ {((IoTcpClient<CcProtocMessage<CcWhisperMsg, CcGossipBatch>>)IoSource)?.IoNetSocket?.Key}, up = {TimeSpan.FromMilliseconds(UpTime.ElapsedMs())}'";
+                    return _description = $"`drone({(!Source?.Zeroed()??false? "Active":"Zombie")} {(_assimulated ? "Participant" : "Bystander")}, [{Adjunct?.Hub?.Designation?.IdString()}, {Adjunct?.Designation?.IdString()}], {MessageService?.IoNetSocket?.LocalAddress} ~> {MessageService?.IoNetSocket?.RemoteAddress}, up = {TimeSpan.FromMilliseconds(UpTime.ElapsedMs())}'";
                 }
             }
         }
@@ -115,11 +120,6 @@ namespace zero.cocoon
         //     }
         // }
 
-        /// <summary>
-        /// The source
-        /// </summary>
-        public new IoNetClient<CcProtocMessage<CcWhisperMsg, CcGossipBatch>> IoSource => (IoNetClient<CcProtocMessage<CcWhisperMsg, CcGossipBatch>>) Source;
-
         private volatile CcAdjunct _adjunct;
         /// <summary>
         /// The attached neighbor
@@ -129,7 +129,7 @@ namespace zero.cocoon
             protected internal set => _adjunct = value;
         }
 
-        protected IoNetClient<CcProtocMessage<CcWhisperMsg, CcGossipBatch>> MessageService => (IoNetClient<CcProtocMessage<CcWhisperMsg, CcGossipBatch>>)Source;
+        public IoNetClient<CcProtocMessage<CcWhisperMsg, CcGossipBatch>> MessageService => (IoNetClient<CcProtocMessage<CcWhisperMsg, CcGossipBatch>>)Source;
 
         private string _key;
         /// <summary>
@@ -183,6 +183,7 @@ namespace zero.cocoon
 #if SAFE_RELEASE
             _logger = null;
             Adjunct = null;
+            _sendBuf = null;
 #endif
         }
 
@@ -191,6 +192,7 @@ namespace zero.cocoon
         /// </summary>
         public override async ValueTask ZeroManagedAsync()
         {
+            await base.ZeroManagedAsync().FastPath().ConfigureAwait(Zc);
             try
             {
                 await DropAdjunctAsync().FastPath().ConfigureAwait(Zc);
@@ -204,16 +206,19 @@ namespace zero.cocoon
             {
                 if ((Adjunct?.Assimilated??false) && UpTime.ElapsedMs() > parm_min_uptime_ms)
                     _logger.Info($"- {Description}, from: {ZeroedFrom?.Description}");
+
+                await _sendBuf.ZeroManagedAsync<object>().FastPath().ConfigureAwait(Zc);
             }
             catch
             {
                 // ignored
             }
-
-
-            await base.ZeroManagedAsync().FastPath().ConfigureAwait(Zc);
         }
 
+        /// <summary>
+        /// Zeroed
+        /// </summary>
+        /// <returns>True if zeroed</returns>
         public override bool Zeroed()
         {
             return base.Zeroed() || Source.Zeroed();
@@ -222,7 +227,6 @@ namespace zero.cocoon
         /// <summary>
         /// Attaches a neighbor to this peer
         /// </summary>
-        /// <param name="adjunct"></param>
         /// <param name="direction"></param>
         public async ValueTask<bool> AttachViaAdjunctAsync(CcAdjunct.Heading direction)
         {
@@ -272,8 +276,9 @@ namespace zero.cocoon
         /// A test mode
         /// </summary>
         /// 
-        private readonly byte[] _vb = new byte[8];
+        private readonly byte[] _vb = new byte[sizeof(ulong)];
         private readonly CcWhisperMsg _m;
+        private IoHeap<byte[]> _sendBuf;
         public async ValueTask EmitTestGossipMsgAsync(long v)
         {
             try
@@ -291,21 +296,27 @@ namespace zero.cocoon
                 //    return;
             
                 //if (Adjunct?.Direction == CcAdjunct.Heading.IsEgress)
+                byte[] socketBuf = null;
+                try
                 {
-                    
+                    socketBuf = _sendBuf.Take();
                     Write(_vb.AsSpan(), ref v);
 
                     //var m = new CcWhisperMsg() {Data = UnsafeByteOperations.UnsafeWrap(new ReadOnlyMemory<byte>(vb))};
 
-                    var buf = _m.ToByteArray();
+                    var protoBuf = _m.ToByteArray();
+                    var compressed = (ulong)LZ4Codec.Encode(protoBuf, 0, protoBuf.Length, socketBuf, sizeof(ulong), socketBuf.Length - sizeof(ulong));
+                    Write(socketBuf, ref compressed);
+
                     if (!Zeroed())
                     {
                         Interlocked.Increment(ref AccountingBit);
                         Adjunct.CcCollective.IncEventCounter();
-                        
+
                         var socket = MessageService.IoNetSocket;
-                        if (await socket.IsConnected().FastPath().ConfigureAwait(Zc) && await socket.SendAsync(buf, 0, buf.Length, timeout: 20).FastPath().ConfigureAwait(Zc) > 0)
-                        {                            
+                        if (await socket.IsConnected().FastPath().ConfigureAwait(Zc) &&
+                            await socket.SendAsync(socketBuf, 0, (int)compressed + sizeof(ulong), timeout: 20).FastPath().ConfigureAwait(Zc) > 0)
+                        {
                             if (AutoPeeringEventService.Operational)
                                 await AutoPeeringEventService.AddEventAsync(new AutoPeerEvent
                                 {
@@ -319,6 +330,10 @@ namespace zero.cocoon
                                 }).FastPath().ConfigureAwait(Zc);
                         }
                     }
+                }
+                finally
+                {
+                    _sendBuf.Return(socketBuf);
                 }
             }
             catch (Exception e)
