@@ -1,7 +1,6 @@
 ﻿using System;
 using System.Buffers;
 using System.IO;
-using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
 using zero.core.patterns.bushings;
@@ -103,7 +102,7 @@ namespace zero.core.feat.models
         /// Message receive buffer size
         /// </summary>        
         public volatile int BufferSize;
-   
+
         /// <summary>
         /// Prepares this item for use after being popped from the heap
         /// </summary>

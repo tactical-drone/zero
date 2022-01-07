@@ -388,7 +388,7 @@ namespace zero.cocoon.models
             }
 
             ////attempt zero recovery
-            if (!zeroRecovery && BytesLeftToProcess > 0 && IoZero.ZeroRecoveryEnabled && PreviousJob != null)
+            if (!Zeroed() && !zeroRecovery && BytesLeftToProcess > 0 && IoZero.ZeroRecoveryEnabled && PreviousJob != null)
             {
                 State = IoJobMeta.JobState.ZeroRecovery;
                 await ConsumeAsync().FastPath().ConfigureAwait(Zc);

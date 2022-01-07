@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Runtime.CompilerServices;
 using System.Threading;
+using NLog;
 
 namespace zero.core.patterns.queue.enumerator
 {
@@ -20,18 +21,28 @@ namespace zero.core.patterns.queue.enumerator
             if (Disposed > 0)
                 return false;
 
-            if (_q.Count == 0 || _iteratorIoZNode == null)
-                return false;
-
-            if (_q.Modified)
+            try
             {
-                _q.Reset();
-                return MoveNext();
+                if (_q.Count == 0 || _iteratorIoZNode == null)
+                    return false;
+
+                if (_q.Modified)
+                {
+                    _q.Reset();
+                    return MoveNext();
+                }
+
+                _iteratorIoZNode = _iteratorIoZNode.Next;
+
+                return _iteratorIoZNode != null && Disposed == 0;
+            }
+            catch when(Zeroed || Disposed > 0) {}
+            catch (Exception e) when (!Zeroed && Disposed == 0)
+            {
+                LogManager.GetCurrentClassLogger().Error(e, $"{nameof(MoveNext)}:");
             }
 
-            _iteratorIoZNode = _iteratorIoZNode.Next;
-
-            return _iteratorIoZNode != null && Disposed == 0;
+            return false;
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
