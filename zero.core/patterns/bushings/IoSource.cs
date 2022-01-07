@@ -59,7 +59,9 @@ namespace zero.core.patterns.bushings
                 if (PressureEnabled)
                 {
                     _pressure = new IoZeroSemaphoreSlim(AsyncTasks, $"{nameof(_pressure)}: {description}",
-                        maxBlockers: PrefetchSize, 0, maxAsyncWork: PrefetchSize - 1);
+                        maxBlockers: PrefetchSize, 
+                        0, 
+                        maxAsyncWork: PrefetchSize - 1);
                 }
 
                 if (BackPressureEnabled)

@@ -75,7 +75,7 @@ namespace zero.core.network.ip
         /// <summary>
         /// The underlying .net socket that is abstracted
         /// </summary>
-        public Socket NativeSocket { get; private set; }
+        public Socket NativeSocket { get; internal set; }
 
         /// <summary>
         /// If this socket is a (udp) proxy

@@ -242,30 +242,12 @@ namespace zero.core.network.ip
                 return sent;
             }
             catch (ObjectDisposedException) { }
-            catch (SocketException e) when (!Zeroed())
-            {
-                if (!await ReconnectAsync().FastPath().ConfigureAwait(Zc))
-                {
-                    _logger.Error(e, $"{nameof(SendAsync)}: [FAILED] Closing socket {Description}");
-                    await Zero(this, $"{nameof(SendAsync)}: {e.Message}").FastPath().ConfigureAwait(Zc);
-                }
-                else
-                {
-                    _logger.Warn( $"{nameof(SendAsync)}: Reconnected socket, reason = {e.Message}, {Description}");
-                }
-            }
             catch (Exception) when (Zeroed()){}
             catch (Exception e) when(!Zeroed())
             {
-                if (!await ReconnectAsync().FastPath().ConfigureAwait(Zc))
-                {
-                    _logger.Error(e, $"{nameof(SendAsync)} [FAILED] Closing socket {Description}");
-                    await Zero(this, $"{nameof(SendAsync)}: {e.Message}").FastPath().ConfigureAwait(Zc);
-                }
-                else
-                {
-                    _logger.Warn($"{nameof(SendAsync)}: Reconnected socket, reason = {e.Message}, {Description}");
-                }
+                var errMsg = $"{nameof(SendAsync)}: [FAILED], {Description}, l = {length}, o = {offset}: {e.Message}";
+                _logger.Error(e, errMsg);
+                await Zero(this, errMsg).FastPath().ConfigureAwait(Zc);
             }
 
             return 0;
@@ -317,7 +299,7 @@ namespace zero.core.network.ip
             catch (ObjectDisposedException) { }
             catch (SocketException e) when (!Zeroed())
             {
-                var errMsg = $"{nameof(ReadAsync)}: {e.Message} -  {Description}";
+                var errMsg = $"{nameof(ReadAsync)}: {e.Message} - {Description}";
                 _logger.Debug(errMsg);
                 await Zero(this, errMsg).FastPath().ConfigureAwait(Zc);
             }

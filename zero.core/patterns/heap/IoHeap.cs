@@ -149,7 +149,6 @@ namespace zero.core.patterns.heap
                         Console.WriteLine($"{_refCount} - {_ioHeapBuf.Capacity}");
                         throw new OutOfMemoryException($"{nameof(_ioHeapBuf)}: {_ioHeapBuf.Description}");
                     }
-                        
                     
                     Interlocked.Increment(ref _refCount);
                     heapItem = Malloc(userData, Context);

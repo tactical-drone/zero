@@ -487,7 +487,6 @@ namespace zero.core.patterns.bushings
         /// <param name="job">The job to return to the heap</param>
         /// <param name="force">If the current and previous job is to be returned</param>
         /// <returns>The job</returns>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private ValueTask ZeroJobAsync(IoSink<TJob> job)
         {
             try
@@ -499,9 +498,9 @@ namespace zero.core.patterns.bushings
                 {
                     job.ZeroRecovery.SetResult(job.ZeroEnsureRecovery());
                     var prevJob = (IoSink<TJob>)job.PreviousJob;
+                    job.PreviousJob = null;
                     JobHeap.Return(prevJob, prevJob.FinalState != IoJobMeta.JobState.Accept);
-                   job.PreviousJob = null;
-                   return default;
+                    return default;
                 }
 
                 JobHeap.Return(job, job.FinalState != IoJobMeta.JobState.Accept);

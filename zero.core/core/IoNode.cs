@@ -192,13 +192,40 @@ namespace zero.core.core
             _netServer = IoNetServer<TJob>.GetKindFromUrl(_address, _preFetch, ZeroConcurrencyLevel());
             await _netServer.ZeroHiveAsync(this).FastPath().ConfigureAwait(Zc);
 
-            _listenerTask = _netServer.ListenAsync(static async (state, ioNetClient) =>
+            _listenerTask = _netServer.ListenAsync(static async (state, newSocket) =>
             {
                 var (@this, nanite, acceptConnection) = state;
-                if (ioNetClient == null)
+                if (newSocket == null)
                     return;
 
-                var newNeighbor = @this.MallocNeighbor(@this, ioNetClient, null);
+                if (@this.Neighbors.Count == @this.NeighborTasks.Capacity)
+                {
+                    await newSocket.Zero(@this, $"{nameof(_netServer.ListenAsync)}: neighbor count maxed out at {@this.Neighbors.Count}").FastPath().ConfigureAwait(@this.Zc);
+                    return;
+                }
+
+                //if (@this.Neighbors.TryGetValue(newSocket.Key, out var currentDrone))
+                //{
+                //    var ioNetSource = (IoNetClient<TJob>)currentDrone.Source;
+                //    var oldSocket = ioNetSource.IoNetSocket.NativeSocket;
+                //    ((IoNetClient<TJob>)currentDrone.Source).IoNetSocket.NativeSocket = newSocket.IoNetSocket.NativeSocket;
+
+                //    try
+                //    {
+                //        if (oldSocket.Connected)
+                //            oldSocket.Close();
+                //    }
+                //    catch
+                //    {
+                //        // ignored
+                //    }
+
+                //    @this._logger.Debug($"{nameof(SpawnListenerAsync)}: Quick reconnect {@this.Description}");
+
+                //    return;
+                //}
+
+                var newNeighbor = @this.MallocNeighbor(@this, newSocket, null);
 
                 //superclass specific mutations
                 Task acceptTask = null;
@@ -215,7 +242,7 @@ namespace zero.core.core
                                 @this._logger.Trace($"Incoming connection from {ioNetClient.Key} rejected.");
                                 await newNeighbor.Zero(@this,$"Incoming connection from {ioNetClient.Key} not accepted").FastPath().ConfigureAwait(@this.Zc);
                             }
-                        }, (@this, newNeighbor, acceptConnection, nanite, ioNetClient), TaskCreationOptions.DenyChildAttach, unwrap:true).AsTask();
+                        }, (@this, newNeighbor, acceptConnection, nanite, ioNetClient: newSocket), TaskCreationOptions.DenyChildAttach, unwrap:true).AsTask();
                     }
                     
                 }
@@ -223,7 +250,7 @@ namespace zero.core.core
                 {
                     await newNeighbor.Zero(@this,$"{nameof(acceptConnection)} Exception: {e.Message}").FastPath().ConfigureAwait(@this.Zc);
 
-                    @this._logger.Error(e, $"Accepting connection {ioNetClient.Key} returned with errors");
+                    @this._logger.Error(e, $"Accepting connection {newSocket.Key} returned with errors");
                     return;
                 }
 
