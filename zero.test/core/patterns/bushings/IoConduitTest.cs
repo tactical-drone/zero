@@ -48,7 +48,7 @@ namespace zero.test.core.patterns.bushings
         {
             var concurrencyLevel = 2;
             var count = 50;
-            var targetTime = count * 100 / concurrencyLevel;
+            
             var s1 = new IoZeroSource("zero source 1", false, concurrencyLevel, concurrencyLevel, 0);
             var c1 = new IoConduit<IoZeroProduct>("conduit smoke test 1", s1, static (ioZero, _) => new IoZeroProduct("test product 1", ((IoConduit<IoZeroProduct>)ioZero).Source, 100));
 
@@ -65,6 +65,8 @@ namespace zero.test.core.patterns.bushings
             }
             await c1.Zero(null, "test done").FastPath().ConfigureAwait(Zc);
             await z1.ConfigureAwait(false);
+
+            var targetTime = count * 100 / concurrencyLevel;
 
             Assert.InRange(ts.ElapsedMs(), targetTime, targetTime * 1.5);
             _output.WriteLine($"{ts.ElapsedMs()}ms ~ {targetTime}");

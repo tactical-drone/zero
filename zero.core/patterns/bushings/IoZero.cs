@@ -73,7 +73,7 @@ namespace zero.core.patterns.bushings
             
             Source = source ?? throw new ArgumentNullException($"{nameof(source)}");
 
-            var capacity = Source.PrefetchSize + source.ZeroConcurrencyLevel() + 2;
+            var capacity = (Source.PrefetchSize + source.ZeroConcurrencyLevel() + 2) * 2;
 
             if (ZeroRecoveryEnabled)
                 capacity *= 2;
@@ -404,7 +404,7 @@ namespace zero.core.patterns.bushings
                                 IsArbitrating = false;
 
                                 // prefetch pressure
-                                nextJob.Source.PrefetchPressure();
+                                Source.PrefetchPressure();
 
                                 //signal back pressure
                                 Source.BackPressureAsync();
@@ -538,7 +538,6 @@ namespace zero.core.patterns.bushings
         {
             try
             {
-                //Source.BackPressureAsync();
                 //Wait for producer pressure
                 if (!await Source.WaitForPressureAsync().FastPath().ConfigureAwait(Zc))
                 {
@@ -650,8 +649,6 @@ namespace zero.core.patterns.bushings
                             }
 
                             await ReturnJobToHeapAsync(curJob, curJob.State == IoJobMeta.JobState.RSync).FastPath().ConfigureAwait(Zc);
-
-                            Source.BackPressureAsync();
                         }
                         catch when (Zeroed())
                         {
@@ -660,6 +657,8 @@ namespace zero.core.patterns.bushings
                         {
                             _logger?.Fatal(e);
                         }
+
+                        Source.BackPressureAsync();
                     }
 
                     return true;
