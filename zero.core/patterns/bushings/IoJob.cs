@@ -347,11 +347,18 @@ namespace zero.core.patterns.bushings
                     }
 
                     newState.ConstructorAsync(_stateMeta, (int)value).FastPath().ConfigureAwait(Zc);
-
                     _stateMeta = newState;
+                    if (value is IoJobMeta.JobState.Accept or IoJobMeta.JobState.Reject)
+                        _stateMeta.FinalState = FinalState = value;
+
                     StateTransitionHistory.EnqueueAsync(_stateMeta).FastPath().GetAwaiter().GetResult();
 
 #else
+                if (value is IoJobMeta.JobState.Accept or IoJobMeta.JobState.Reject)
+                {
+                    _stateMeta.FinalState = FinalState = value;
+                }
+                
                 _stateMeta.ExitTime = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
                 if (!Zeroed())
                 {

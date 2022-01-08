@@ -342,7 +342,7 @@ namespace zero.core.patterns.bushings
                             //sanity check _previousJobFragment
                             if (ZeroRecoveryEnabled && _previousJobFragment.Count >= _previousJobFragment.Capacity * 2 / 3)
                             {
-                                _logger.Warn($"({GetType().Name}<{typeof(TJob).Name}>) {nameof(_previousJobFragment)} id = {nextJob.Id} has grown large, zeroing...");
+                                _logger.Warn($"({GetType().Name}<{typeof(TJob).Name}>) {nameof(_previousJobFragment)} has grown large {_previousJobFragment.Count}/{_previousJobFragment.Capacity} ");
                             }
                             _producerStopwatch.Restart();
 
@@ -488,6 +488,7 @@ namespace zero.core.patterns.bushings
         /// <returns>The job</returns>
         private ValueTask ZeroJobAsync(IoSink<TJob> job)
         {
+            IoSink<TJob> prevJob = null;
             try
             {
                 if (job == null)
@@ -496,7 +497,7 @@ namespace zero.core.patterns.bushings
                 if (job.PreviousJob != null)
                 {
                     job.ZeroRecovery.SetResult(job.ZeroEnsureRecovery());
-                    var prevJob = (IoSink<TJob>)job.PreviousJob;
+                    prevJob = (IoSink<TJob>)job.PreviousJob;
                     job.PreviousJob = null;
                     JobHeap.Return(prevJob, prevJob.FinalState != IoJobMeta.JobState.Accept);
                     return default;
@@ -507,7 +508,7 @@ namespace zero.core.patterns.bushings
             catch when(Zeroed()){}
             catch (Exception e) when(!Zeroed())
             {
-                _logger.Fatal(e,$"h = {JobHeap}, p = {job?.PreviousJob}, s = {job?.FinalState}, zc = {job?.ZeroRecovery}");
+                _logger.Error(e,$"p = {prevJob}, s = {job?.FinalState}");
             }
 
             return default;
@@ -576,7 +577,7 @@ namespace zero.core.patterns.bushings
                                         curJob.PreviousJob = jobNode.Value;
                                         await _previousJobFragment.RemoveAsync(jobNode).FastPath().ConfigureAwait(Zc);
                                     }
-                                    else if (jobNode.Value.Id < curJob.Id - Source.PrefetchSize - 1)
+                                    else if (jobNode.Value.Id < curJob.Id - Source.PrefetchSize)
                                     {
                                         await _previousJobFragment.RemoveAsync(jobNode).FastPath().ConfigureAwait(Zc);
                                     }

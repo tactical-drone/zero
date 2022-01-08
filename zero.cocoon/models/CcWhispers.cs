@@ -440,7 +440,6 @@ namespace zero.cocoon.models
 
                         if (!Zeroed())
                         {
-                            var c = 0;
                             foreach (var drone in CcCollective.WhisperingDrones)
                             {
                                 try
@@ -479,7 +478,6 @@ namespace zero.cocoon.models
                                 {
                                     _logger.Trace(e, Description);
                                 }
-                                c++;
                             }
                         }
                     }
