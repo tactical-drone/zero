@@ -23,7 +23,6 @@
             Halted,
             DeSynced,
             Fragmented,
-            Recovery,
             RSync,
             ProduceErr,
             ConsumeErr,

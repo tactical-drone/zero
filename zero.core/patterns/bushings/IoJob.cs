@@ -1,5 +1,4 @@
 ﻿using System;
-using System.Diagnostics;
 using System.Globalization;
 using System.Threading;
 using System.Threading.Tasks;
@@ -278,10 +277,11 @@ namespace zero.core.patterns.bushings
         private readonly string _jobDesc;
 
 
+
+#if DEBUG 
         /// <summary>
         /// state heap
         /// </summary>
-#if DEBUG
         //TODO
         private IoHeap<IoStateTransition<IoJobMeta.JobState>> _stateHeap;
 #endif

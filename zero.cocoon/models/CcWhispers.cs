@@ -423,9 +423,9 @@ namespace zero.cocoon.models
                     var req = MemoryMarshal.Read<long>(packet.Data.Span);
                     req++;
 
-                    if (req % 100000 == 0)
+                    if (req % 10000 == 0)
                     {
-                        _logger.Info($"[{Id}]: {req}, accept = {_accept}/{_reject}, {_accept/(double)_reject*100.0:0.0}%");
+                        _logger.Info($"[{Id}]: {req}, recover = {Source.Counters[(int)IoJobMeta.JobState.ZeroRecovery]}, frag = {Source.Counters[(int)IoJobMeta.JobState.Fragmented]}, bad = {Source.Counters[(int)IoJobMeta.JobState.BadData]}, total = {Source.Counters[(int)IoJobMeta.JobState.Accept]} + {Source.Counters[(int)IoJobMeta.JobState.Reject]}");
                     }
 
                     byte[] socketBuf = null;

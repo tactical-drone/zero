@@ -241,6 +241,9 @@ namespace zero.core.network.ip
                 var sent = NativeSocket.Send(buffer.Span.Slice(offset,length));                
                 return sent;
             }
+            catch (SocketException e){
+                _logger.Trace(e, $"{nameof(SendAsync)}: err = {e.SocketErrorCode} ");
+            }
             catch (ObjectDisposedException) { }
             catch (Exception) when (Zeroed()){}
             catch (Exception e) when(!Zeroed())

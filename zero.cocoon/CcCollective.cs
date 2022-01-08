@@ -571,15 +571,14 @@ namespace zero.cocoon
                             .ConfigureAwait(Zc);
                     } while (bytesRead < _futileRequestSize && localRead > 0 && !Zeroed());
 
-                    if (bytesRead == 0 || bytesRead < _futileRequestSize)
+                    if ((bytesRead == 0 || bytesRead < _futileRequestSize) && await ioNetSocket.IsConnected().FastPath().ConfigureAwait(Zc))
                     {
                         _logger.Error($"Failed to read futile ingress request, waited = {_sw.ElapsedMilliseconds}ms, wanted ={parm_futile_timeout_ms}ms, socket = {ioNetSocket.Description}");
                         return false;
                     }
                     else
                     {
-                        _logger.Trace(
-                            $"{nameof(CcFutileRequest)}: size = {bytesRead}, socket = {ioNetSocket.Description}");
+                        _logger.Trace($"{nameof(CcFutileRequest)}: size = {bytesRead}, socket = {ioNetSocket.Description}");
                     }
                     
                     //parse a packet

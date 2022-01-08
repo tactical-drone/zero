@@ -485,7 +485,6 @@ namespace zero.core.patterns.bushings
         /// should be completely processed at this stage. 
         /// </summary>
         /// <param name="job">The job to return to the heap</param>
-        /// <param name="force">If the current and previous job is to be returned</param>
         /// <returns>The job</returns>
         private ValueTask ZeroJobAsync(IoSink<TJob> job)
         {
@@ -508,7 +507,7 @@ namespace zero.core.patterns.bushings
             catch when(Zeroed()){}
             catch (Exception e) when(!Zeroed())
             {
-                _logger.Fatal(e,Description);
+                _logger.Fatal(e,$"h = {JobHeap}, p = {job?.PreviousJob}, s = {job?.FinalState}, zc = {job?.ZeroRecovery}");
             }
 
             return default;
@@ -570,17 +569,25 @@ namespace zero.core.patterns.bushings
                                     continue;
                                 }
 
-                                if (jobNode.Value.Id == curJob.Id - 1)
+                                try
                                 {
-                                    curJob.PreviousJob = jobNode.Value;
-                                    await _previousJobFragment.RemoveAsync(jobNode).FastPath().ConfigureAwait(Zc);
-                                }
-                                else if (jobNode.Value.Id < curJob.Id - Source.PrefetchSize - 1)
-                                {
-                                    await _previousJobFragment.RemoveAsync(jobNode).FastPath().ConfigureAwait(Zc);
-                                }
+                                    if (jobNode.Value.Id == curJob.Id - 1)
+                                    {
+                                        curJob.PreviousJob = jobNode.Value;
+                                        await _previousJobFragment.RemoveAsync(jobNode).FastPath().ConfigureAwait(Zc);
+                                    }
+                                    else if (jobNode.Value.Id < curJob.Id - Source.PrefetchSize - 1)
+                                    {
+                                        await _previousJobFragment.RemoveAsync(jobNode).FastPath().ConfigureAwait(Zc);
+                                    }
 
-                                jobNode = jobNode.Next;
+                                    jobNode = jobNode.Next;
+                                }
+                                catch
+                                {
+                                    _previousJobFragment.Reset();
+                                    jobNode = _previousJobFragment.Head;
+                                }
                             }
                         }
 

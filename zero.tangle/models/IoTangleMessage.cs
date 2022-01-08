@@ -279,7 +279,7 @@ namespace zero.tangle.models
             }
             finally
             {
-                if (State != IoJobMeta.JobState.Consumed && State != IoJobMeta.JobState.Recovery)
+                if (State != IoJobMeta.JobState.Consumed && State != IoJobMeta.JobState.ZeroRecovery)
                     State = IoJobMeta.JobState.ConsumeErr;
                 t.Stop();
                 _logger.Trace($"{TraceDescription} Deserializing `{DatumCount}' messages took `{t.ElapsedMilliseconds}ms', `{DatumCount*1000/(t.ElapsedMilliseconds+1)} m/s'");
@@ -331,7 +331,7 @@ namespace zero.tangle.models
             {                
                 
                 _logger.Debug($"{TraceDescription} Synchronizing `{Source.Description}'...");
-                State = IoJobMeta.JobState.Recovery;
+                State = IoJobMeta.JobState.ZeroRecovery;
 
                 for (var i = 0; i < DatumCount; i++)
                 {                    

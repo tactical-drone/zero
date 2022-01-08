@@ -55,7 +55,6 @@ namespace zero.core.patterns.semaphore.core
             _curSignalCount = initialCount;
             _zeroRef = null;
             _asyncTasks = cancellationTokenSource;
-            _asyncTokenReg = default;
 #if DEBUG
             _useMemoryBarrier = enableFairQ;
             _enableAutoScale = enableAutoScale;
@@ -174,12 +173,7 @@ namespace zero.core.patterns.semaphore.core
         /// The cancellation token
         /// </summary>
         private CancellationTokenSource _asyncTasks;
-        
-        /// <summary>
-        /// The cancellation token registration
-        /// </summary>
-        private CancellationTokenRegistration _asyncTokenReg;
-        
+
         /// <summary>
         /// A queue of waiting continuations. The queue has strong order guarantees, FIFO
         /// </summary>
@@ -260,16 +254,6 @@ namespace zero.core.patterns.semaphore.core
         {
             _zeroRef = @ref;
             _asyncTasks = asyncTokenSource;
-
-            _asyncTokenReg = asyncTokenSource.Token.Register(s =>
-            {
-                var (z, _, r) = (ValueTuple<IIoZeroSemaphore,CancellationTokenSource,CancellationTokenRegistration>)s;
-                z.ZeroSem();
-#if NET6_0
-                r.Unregister();
-#endif
-                r.Dispose();
-            }, ValueTuple.Create(_zeroRef,_asyncTasks, _asyncTokenReg));
         }
 
         /// <summary>
@@ -282,11 +266,12 @@ namespace zero.core.patterns.semaphore.core
             
             try
             {
-                if(_asyncTasks.Token.CanBeCanceled)
-                    _asyncTasks.Cancel();
 #if NET6_0
                 _asyncTokenReg.Unregister();
 #endif
+
+                if (_asyncTasks.Token.CanBeCanceled)
+                    _asyncTasks.Cancel();
             }
             catch
             {
@@ -321,15 +306,6 @@ namespace zero.core.patterns.semaphore.core
             Array.Clear(_signalAwaiterState, 0, _maxBlockers);
             Array.Clear(_signalExecutionState, 0, _maxBlockers);
             Array.Clear(_signalCapturedContext, 0, _maxBlockers);
-
-            try
-            {
-                _asyncTokenReg.Dispose();
-            }
-            catch
-            {
-                // ignored
-            }
 
 #if SAFE_RELEASE
             _signalAwaiter = null;

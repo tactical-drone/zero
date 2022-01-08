@@ -254,27 +254,35 @@ namespace zero.core.feat.misc
                     continue;
                 }
 
-                if (DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() - cur.Value.TimestampMs <= _ttlMs && cur.Value.Key == key)
+                try
                 {
-                    var potential = cur.Value;
-
-                    if (potential.Hash.ArrayEqual(reqHashMemory.Span))
+                    if (DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() - cur.Value.TimestampMs <= _ttlMs && cur.Value.Key == key)
                     {
-                        await @this._lut.RemoveAsync(cur).FastPath().ConfigureAwait(@this.Zc);
-                        @this._valHeap.Return(potential);
-                        return true;
+                        var potential = cur.Value;
+
+                        if (potential.Hash.ArrayEqual(reqHashMemory.Span))
+                        {
+                            await @this._lut.RemoveAsync(cur).FastPath().ConfigureAwait(@this.Zc);
+                            @this._valHeap.Return(potential);
+                            return true;
+                        }
                     }
-                }
 
-                //drop old ones while we are at it
-                if (DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() - cur.Value.TimestampMs > @this._ttlMs)
+                    //drop old ones while we are at it
+                    if (DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() - cur.Value.TimestampMs > @this._ttlMs)
+                    {
+                        var value = cur.Value;
+                        await @this._lut.RemoveAsync(cur).FastPath().ConfigureAwait(@this.Zc);
+                        @this._valHeap.Return(value);
+                    }
+
+                    cur = cur.Next;
+                }
+                catch 
                 {
-                    var value = cur.Value;
-                    await @this._lut.RemoveAsync(cur).FastPath().ConfigureAwait(@this.Zc);
-                    @this._valHeap.Return(value);
+                    @this._lut.Reset();
+                    cur = @this._lut.Head;
                 }
-
-                cur = cur.Next;
             }
 
             if(insane <= 0)
