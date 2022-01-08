@@ -246,7 +246,7 @@ namespace zero.core.network.ip
             catch (Exception e) when(!Zeroed())
             {
                 var errMsg = $"{nameof(SendAsync)}: [FAILED], {Description}, l = {length}, o = {offset}: {e.Message}";
-                _logger.Error(e, errMsg);
+                _logger.Trace(e, errMsg);
                 await Zero(this, errMsg).FastPath().ConfigureAwait(Zc);
             }
 

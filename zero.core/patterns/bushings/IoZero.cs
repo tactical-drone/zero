@@ -560,25 +560,27 @@ namespace zero.core.patterns.bushings
                         //Sync previous fragments into this job
                         if (ZeroRecoveryEnabled)
                         {
-
-                            foreach (var jobNode in _previousJobFragment)
+                            var jobNode = _previousJobFragment.Head;
+                            while (jobNode != null)
                             {
-                                try
-                                {
-                                    if (jobNode.Value.Id == curJob.Id - 1)
-                                    {
-                                        curJob.PreviousJob = jobNode.Value; 
-                                        await _previousJobFragment.RemoveAsync(jobNode).FastPath().ConfigureAwait(Zc);
-                                    }
-                                    else if (jobNode.Value.Id < curJob.Id - Source.PrefetchSize - 1)
-                                    {
-                                        await _previousJobFragment.RemoveAsync(jobNode).FastPath().ConfigureAwait(Zc);
-                                    }
-                                }
-                                catch 
+                                if (_previousJobFragment.Modified)
                                 {
                                     _previousJobFragment.Reset();
+                                    jobNode = _previousJobFragment.Head;
+                                    continue;
                                 }
+
+                                if (jobNode.Value.Id == curJob.Id - 1)
+                                {
+                                    curJob.PreviousJob = jobNode.Value;
+                                    await _previousJobFragment.RemoveAsync(jobNode).FastPath().ConfigureAwait(Zc);
+                                }
+                                else if (jobNode.Value.Id < curJob.Id - Source.PrefetchSize - 1)
+                                {
+                                    await _previousJobFragment.RemoveAsync(jobNode).FastPath().ConfigureAwait(Zc);
+                                }
+
+                                jobNode = jobNode.Next;
                             }
                         }
 
