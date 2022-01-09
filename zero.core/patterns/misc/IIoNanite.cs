@@ -15,7 +15,7 @@ namespace zero.core.patterns.misc
         /// </summary>
         /// <param name="localContext"></param>
         /// <returns>True if success, false otherwise</returns>
-        ValueTask<bool> ConstructAsync(object localContext);
+        ValueTask<bool> ReuseAsync(object localContext);
 
         /// <summary>
         /// returns an identity
@@ -30,7 +30,7 @@ namespace zero.core.patterns.misc
         /// <summary>
         /// ZeroAsync pattern
         /// </summary>
-        ValueTask Zero(IIoNanite @from, string reason);
+        ValueTask Zero(IIoNanite @from, string reason, [CallerFilePath] string filePath = null, [CallerMemberName] string methodName = null, [CallerLineNumber] int lineNumber = default);
         
         /// <summary>
         /// A description of this object

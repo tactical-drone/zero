@@ -226,7 +226,7 @@ namespace zero.core.core
                 //}
 
                 var newNeighbor = @this.MallocNeighbor(@this, newSocket, null);
-
+                
                 //superclass specific mutations
                 Task acceptTask = null;
                 try

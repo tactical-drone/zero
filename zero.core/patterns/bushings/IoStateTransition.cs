@@ -71,8 +71,8 @@ namespace zero.core.patterns.bushings
         /// <summary>
         /// The absolute time this job took so far
         /// </summary>
-        public long Delta => Prev == null ? Mu : Prev.Delta + Mu;
-
+        //public long Delta => Prev?.Delta + Mu?? Mu;
+        
         /// <summary>
         /// Prepares this item for use after popped from the heap
         /// </summary>

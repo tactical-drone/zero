@@ -79,7 +79,7 @@ namespace zero.sync
 
             var random = new Random((int)DateTime.Now.Ticks);
             //Tangle("tcp://192.168.1.2:15600");
-            var total = 350;
+            var total = 352;
             var maxDrones = 3;
             var maxAdjuncts = 16;
             var boot = true;
@@ -210,11 +210,11 @@ namespace zero.sync
                             Console.WriteLine($"Queen brought up {queen.Description}");
                         }
 
-                    }, TaskCreationOptions.DenyChildAttach | TaskCreationOptions.LongRunning).Unwrap();
+                    }, TaskCreationOptions.DenyChildAttach).Unwrap();
 
                     if (c % injectionCount == 0)
                     {
-                        await Task.Delay(rateLimit += 10);
+                        await Task.Delay(rateLimit += 10).ConfigureAwait(false);
 
                         Console.WriteLine($"Provisioned {c}/{total}...");
                         Console.WriteLine($"Provisioned {c}/{total}...");
@@ -225,7 +225,7 @@ namespace zero.sync
                         if(injectionCount > 40)
                             injectionCount--;
                     }
-                    await Task.Delay(rampDelay);
+                    await Task.Delay(rampDelay).ConfigureAwait(false);
                     if(rampDelay -1 > 0)
                         rampDelay -= 1;
                 }

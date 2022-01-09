@@ -5,7 +5,6 @@ using System.IO;
 using System.Net;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
-using System.Security.Cryptography;
 using System.Threading;
 using System.Threading.Tasks;
 using Google.Protobuf;
@@ -25,11 +24,11 @@ namespace zero.core.feat.models.protobuffer
             : base(sinkDesc, jobDesc, source)
         {
             Debug.Assert(parm_datums_per_buffer >=4);
-
-            DatumSize = 4096 / parm_datums_per_buffer;
+            var blockSize = 2048;
+            DatumSize = blockSize / parm_datums_per_buffer;
             DatumProvisionLengthMax = DatumSize;
             //Init buffers
-            BufferSize = DatumSize * parm_datums_per_buffer;//SET to MTU x2 for decompression
+            BufferSize = DatumSize * parm_datums_per_buffer; //SET to MTU x2 for decompression
             //MemoryOwner = MemoryPool<byte>.Shared.Rent(BufferSize + DatumProvisionLengthMax);
 
             //if (MemoryMarshal.TryGetArray((ReadOnlyMemory<byte>)MemoryOwner.Memory, out var malloc))
@@ -38,7 +37,7 @@ namespace zero.core.feat.models.protobuffer
                 {
                     throw new InternalBufferOverflowException($"Invalid buffer size of {BufferSize} < {Buffer.Length}");
                 }
-                ArraySegment = new ArraySegment<byte>(new byte[4096 * 2]);
+                ArraySegment = new ArraySegment<byte>(new byte[blockSize * 2]);
 
                 Buffer = ArraySegment.Array;
                 
@@ -48,11 +47,10 @@ namespace zero.core.feat.models.protobuffer
             }
         }
 
-
         /// <summary>
         /// Message batch broadcast channel
         /// </summary>
-        protected IoConduit<CcProtocBatchJob<TModel, TBatch>> ProtocolConduit;
+        protected volatile IoConduit<CcProtocBatchJob<TModel, TBatch>> ProtocolConduit;
 
         /// <summary>
         /// Base source
@@ -100,15 +98,6 @@ namespace zero.core.feat.models.protobuffer
         }
 
         /// <summary>
-        /// zero managed
-        /// </summary>
-        public override async ValueTask ZeroManagedAsync()
-        {
-            await base.ZeroManagedAsync().FastPath().ConfigureAwait(Zc);
-            ArrayPool<byte>.Shared.Return(Buffer);
-        }
-
-        /// <summary>
         /// User data in the source
         /// </summary>
         protected byte[] RemoteEndPoint { get; } = new IPEndPoint(IPAddress.Any, 0).AsBytes();
@@ -141,7 +130,8 @@ namespace zero.core.feat.models.protobuffer
                         //Async read the message from the message stream
                         if (await job.MessageService.IsOperational().FastPath().ConfigureAwait(job.Zc) && !job.Zeroed())
                         {
-                            
+
+                            job.GenerateJobId();
                             var read = await ((IoNetClient<CcProtocMessage<TModel, TBatch>>)ioSocket).IoNetSocket
                                 .ReadAsync(job.MemoryBuffer, job.BufferOffset, job.BufferSize, job.RemoteEndPoint).FastPath().ConfigureAwait(job.Zc);
 

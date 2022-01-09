@@ -251,18 +251,18 @@ namespace zero.core.patterns.bushings
             //}
             //else
             //{
-                _logger.Error("Production:{0} `{1}',{2} ({3}) ~> {4} ({5}) ~> {6} ({7})",
-                    DateTimeOffset.FromUnixTimeMilliseconds(stateMeta.EnterTime),
-                    Description,
-                    
-                    stateMeta.Prev == null ? stateMeta.DefaultPadded : stateMeta.Prev.PaddedStr(),
-                    (stateMeta.Lambda.ToString(CultureInfo.InvariantCulture) + " ms ").PadLeft(parm_id_pad_size),
-                    
-                    stateMeta.PaddedStr(),
-                    (stateMeta.Mu.ToString(CultureInfo.InvariantCulture) + " ms ").PadLeft(parm_id_pad_size),
-                    
-                    stateMeta.Next == null ? stateMeta.DefaultPadded : stateMeta.Next.PaddedStr(),
-                    (stateMeta.Delta.ToString(CultureInfo.InvariantCulture) + " ms ").PadLeft(parm_id_pad_size));
+            _logger.Error("Production:{0} `{1}',{2} ({3}) ~> {4} ({5}) ~> {6} ({7})",
+                DateTimeOffset.FromUnixTimeMilliseconds(stateMeta.EnterTime),
+                Description,
+
+                stateMeta.Prev == null ? stateMeta.DefaultPadded : stateMeta.Prev.PaddedStr(),
+                (stateMeta.Lambda.ToString(CultureInfo.InvariantCulture) + " ms ").PadLeft(parm_id_pad_size),
+
+                stateMeta.PaddedStr(),
+                (stateMeta.Mu.ToString(CultureInfo.InvariantCulture) + " ms ").PadLeft(parm_id_pad_size));
+
+            //stateMeta.Next == null ? stateMeta.DefaultPadded : stateMeta.Next.PaddedStr(),
+            //(stateMeta.Delta.ToString(CultureInfo.InvariantCulture) + " ms ").PadLeft(parm_id_pad_size));
             //}
         }
 
@@ -348,32 +348,33 @@ namespace zero.core.patterns.bushings
 
                     newState.ConstructorAsync(_stateMeta, (int)value).FastPath().ConfigureAwait(Zc);
                     _stateMeta = newState;
-                    if (value is IoJobMeta.JobState.Accept or IoJobMeta.JobState.Reject)
-                        _stateMeta.FinalState = FinalState = value;
 
                     StateTransitionHistory.EnqueueAsync(_stateMeta).FastPath().GetAwaiter().GetResult();
 
 #else
-                if (value is IoJobMeta.JobState.Accept or IoJobMeta.JobState.Reject)
-                {
-                    _stateMeta.FinalState = FinalState = value;
-                }
-                
-                _stateMeta.ExitTime = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-                if (!Zeroed())
-                {
-                    Interlocked.Increment(ref Source.Counters[(int)_stateMeta.Value]);
-                    Interlocked.Add(ref Source.ServiceTimes[(int)_stateMeta.Value], _stateMeta.Mu);
-                }
-                _stateMeta.Set((int)value);
-                _stateMeta.EnterTime = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+                    
+
+                    _stateMeta.ExitTime = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+                    if (!Zeroed())
+                    {
+                        Interlocked.Increment(ref Source.Counters[(int)_stateMeta.Value]);
+                        Interlocked.Add(ref Source.ServiceTimes[(int)_stateMeta.Value], _stateMeta.Mu);
+                    }
+                    _stateMeta.Set((int)value);
+                    _stateMeta.EnterTime = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+
+                    if (value is IoJobMeta.JobState.Accept or IoJobMeta.JobState.Reject)
+                    {
+                        FinalState = value;
+                    }
+                        
 #endif
 #if DEBUG
                     //terminate
                     if (value is IoJobMeta.JobState.Accept or IoJobMeta.JobState.Reject)
                     {
                         FinalState = value;
-                        State = IoJobMeta.JobState.Halted;
+                        //State = IoJobMeta.JobState.Halted;
                     }
 #endif
                 }

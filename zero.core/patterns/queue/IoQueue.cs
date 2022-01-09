@@ -56,14 +56,14 @@ namespace zero.core.patterns.queue
             if (!disablePressure)
             {
                 _pressure = new IoZeroSemaphore($"qp {description}",
-                    maxBlockers: c, asyncWorkerCount: 0);
+                    maxBlockers: c, asyncWorkerCount: c);
                 _pressure.ZeroRef(ref _pressure, _asyncTasks);
             }
             
             if (enableBackPressure)
             {
                 _backPressure = new IoZeroSemaphore($"qbp {description}",
-                    maxBlockers: c, asyncWorkerCount: 0, initialCount: c);
+                    maxBlockers: c, asyncWorkerCount: c, initialCount: c);
                 _backPressure.ZeroRef(ref _backPressure, _asyncTasks);
             }
 
@@ -255,13 +255,17 @@ namespace zero.core.patterns.queue
                         {
                             if (onAtomicAdd != null)
                                 await onAtomicAdd.Invoke(context).FastPath().ConfigureAwait(Zc);
-
-                            _syncRoot.Release();
                         }
-                        catch when (Zeroed) { }
+                        catch when (Zeroed)
+                        {
+                        }
                         catch (Exception e) when (!Zeroed)
                         {
                             LogManager.GetCurrentClassLogger().Error(e, $"{nameof(EnqueueAsync)}");
+                        }
+                        finally
+                        {
+                            _syncRoot.Release();
                         }
                     }
 
@@ -424,10 +428,13 @@ namespace zero.core.patterns.queue
             Debug.Assert(_backPressure == null);
             Debug.Assert(node != null);
 
+            if (_count == 0)
+                return false;
+
             var deDup = true;
             try
             {
-                if (!await _syncRoot.WaitAsync().FastPath().ConfigureAwait(Zc) || _count == 0)
+                if (!await _syncRoot.WaitAsync().FastPath().ConfigureAwait(Zc))
                 {
                     return false;
                 }
@@ -442,8 +449,11 @@ namespace zero.core.patterns.queue
 
                     if (next != null)
                         next.Prev = node.Prev;
-                    else 
+                    else
+                    {
                         _tail = node.Prev;
+                        _tail.Next = null;
+                    }
                 }
                 else
                 {
@@ -455,17 +465,16 @@ namespace zero.core.patterns.queue
                 }
 
                 Interlocked.Decrement(ref _count);
+                return true;
             }
             finally
             {
+                node.Next = null;
                 _syncRoot.Release();
                 node.Prev = null;
-                node.Next = null;
                 node.Value = default;
                 _nodeHeap.Return(node, deDup);
             }
-
-            return true;
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]

@@ -1,8 +1,10 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Threading.Tasks.Sources;
 using Google.Protobuf;
 using K4os.Compression.LZ4;
 using zero.cocoon.autopeer;
@@ -27,58 +29,58 @@ namespace zero.cocoon.models
             _groupByEp = groupByEp;
         }
 
-        public override async ValueTask<bool> ConstructAsync(object localContext = null)
+        public override async ValueTask<bool> ReuseAsync(object localContext = null)
         {
+            if (ProtocolConduit != null)
+                return true;
+            
+            IoZero = (IoZero<CcProtocMessage<chroniton, CcDiscoveryBatch>>)localContext;
 
-            if (!_configured)
+            var cc = 4;
+            var pf = 6;
+            var ac = 0;
+
+            if (!Source.Proxy && Adjunct.CcCollective.ZeroDrone)
             {
-                IoZero = (IIoZero)localContext;
-                _configured = true;
-                var cc = 4;
-                var pf = 6;
-                var ac = 0;
-                if (!Source.Proxy && ((CcAdjunct)IoZero)!.CcCollective.ZeroDrone)
-                {
-                    parm_max_msg_batch_size *= 2;
-                    cc *= 2;
-                    pf *= 2;
-                    //ac *= 1;
-                    //_groupByEp = true;
-                }
+                parm_max_msg_batch_size *= 2;
+                cc *= 2;
+                pf *= 2;
+                //ac *= 1;
+                //_groupByEp = true;
+            }
 
 #if DEBUG
-                string bashDesc = $"{nameof(_batchHeap)}: {Description}";
+            string bashDesc = $"{nameof(_batchHeap)}: {Description}";
 #else
-                string bashDesc = string.Empty;
+            string bashDesc = string.Empty;
 #endif
 
-                _batchHeap ??= new IoHeap<CcDiscoveryBatch, CcDiscoveries>(bashDesc, parm_max_msg_batch_size)
-                {
-                    Malloc = static (_, @this) => new CcDiscoveryBatch(@this._batchHeap, @this.parm_max_msg_batch_size, groupByEp:@this._groupByEp),
-                    Context = this
-                };
+            _batchHeap ??= new IoHeap<CcDiscoveryBatch, CcDiscoveries>(bashDesc, parm_max_msg_batch_size)
+            {
+                Malloc = static (_, @this) => new CcDiscoveryBatch(@this._batchHeap, @this.parm_max_msg_batch_size, groupByEp:@this._groupByEp),
+                Context = this
+            };
 
-                _currentBatch ??= _batchHeap.Take();
-                if (_currentBatch == null)
-                    throw new OutOfMemoryException($"{Description}: {nameof(CcDiscoveries)}.{nameof(_currentBatch)}");
+            _currentBatch ??= _batchHeap.Take();
+            if (_currentBatch == null)
+                throw new OutOfMemoryException($"{Description}: {nameof(CcDiscoveries)}.{nameof(_currentBatch)}");
 
-                const string conduitId = nameof(CcAdjunct);
+            const string conduitId = nameof(CcAdjunct);
 
-                ProtocolConduit = await MessageService.CreateConduitOnceAsync<CcProtocBatchJob<chroniton, CcDiscoveryBatch>>(conduitId).FastPath().ConfigureAwait(Zc);
+            ProtocolConduit = await MessageService.CreateConduitOnceAsync<CcProtocBatchJob<chroniton, CcDiscoveryBatch>>(conduitId).FastPath().ConfigureAwait(Zc);
 
-                if (ProtocolConduit == null)
-                {
-                    //TODO tuning
-                    var channelSource = new CcProtocBatchSource<chroniton, CcDiscoveryBatch>(Description, MessageService, parm_max_msg_batch_size, pf, cc, ac, true);
-                    ProtocolConduit = await MessageService.CreateConduitOnceAsync(
-                        conduitId,
-                        channelSource,
-                        static (ioZero, _) => new CcProtocBatchJob<chroniton, CcDiscoveryBatch>(
-                            (IoSource<CcProtocBatchJob<chroniton, CcDiscoveryBatch>>)((IIoConduit)ioZero).UpstreamSource, ((IIoConduit)ioZero).ZeroConcurrencyLevel()), cc).FastPath().ConfigureAwait(Zc);
-                }
+            if (ProtocolConduit == null)
+            {
+                //TODO tuning
+                var channelSource = new CcProtocBatchSource<chroniton, CcDiscoveryBatch>(Description, MessageService, parm_max_msg_batch_size, pf, cc, ac, true);
+                ProtocolConduit = await MessageService.CreateConduitOnceAsync(
+                    conduitId,
+                    channelSource,
+                    static (ioZero, _) => new CcProtocBatchJob<chroniton, CcDiscoveryBatch>(
+                        (IoSource<CcProtocBatchJob<chroniton, CcDiscoveryBatch>>)((IIoConduit)ioZero).UpstreamSource, ((IIoConduit)ioZero).ZeroConcurrencyLevel()), cc).FastPath().ConfigureAwait(Zc);
             }
             
-            return await base.ConstructAsync().FastPath().ConfigureAwait(Zc) && ProtocolConduit != null;
+            return ProtocolConduit != null;
         }
 
         /// <summary>
@@ -155,11 +157,6 @@ namespace zero.cocoon.models
         }
 
         /// <summary>
-        /// Whether configuration has been applied
-        /// </summary>
-        private bool _configured;
-
-        /// <summary>
         /// A description
         /// </summary>
         public override string Description => $"{base.Description}: {Source?.Description}";
@@ -179,10 +176,10 @@ namespace zero.cocoon.models
         /// </summary>
         protected CcCollective CcCollective => ((CcAdjunct)IoZero)?.CcCollective;
 
-        ///// <summary>
-        ///// Cc Identity
-        ///// </summary>
-        public CcDesignation CcId => CcCollective.CcId;
+        /// <summary>
+        /// The adjunct this job belongs to
+        /// </summary>
+        public CcAdjunct Adjunct => (CcAdjunct)IoZero;
 
         /// <summary>
         /// Maximum number of datums this buffer can hold
@@ -206,23 +203,31 @@ namespace zero.cocoon.models
             var zeroRecovery = State == IoJobMeta.JobState.ZeroRecovery;
             var pos = BufferOffset;
 
+            bool fastPath = false;
             try
             {
                 //fail fast
                 if (BytesRead == 0)
                     return State = IoJobMeta.JobState.BadData;
-                
+
                 var verified = false;
-                
+
                 //Ensure that the previous job (which could have been launched out of sync) has completed
-                if (zeroRecovery)
+                var prevJob = ((CcDiscoveries)PreviousJob)?.ZeroRecovery;
+                fastPath = IoZero.ZeroRecoveryEnabled && prevJob?.GetStatus(prevJob.Version) == ValueTaskSourceStatus.Succeeded && prevJob.GetResult(prevJob.Version);
+                fastPath = false;
+                if (zeroRecovery || fastPath)
                 {
-                    var recoverPrevJob = ((CcDiscoveries)PreviousJob).ZeroRecovery;
-                    
-                    var recovery = new ValueTask<bool>(recoverPrevJob, recoverPrevJob.Version);
-                    if (await recovery.FastPath().ConfigureAwait(Zc))
+                    if (fastPath)
+                    {
                         AddRecoveryBits();
-                    
+                    }
+                    else 
+                    {
+                        var prevJobTask = new ValueTask<bool>(prevJob, prevJob!.Version);
+                        if (await prevJobTask.FastPath().ConfigureAwait(Zc))
+                            AddRecoveryBits();
+                    }
                     State = IoJobMeta.JobState.Consuming;
                 }
 
@@ -253,6 +258,7 @@ namespace zero.cocoon.models
 
                                 if (packetLen > 0)
                                     packet = chroniton.Parser.ParseFrom(Buffer, unpackOffset, packetLen);
+                                break;
                             }
 #if DEBUG
                             catch (Exception e)
@@ -359,18 +365,19 @@ namespace zero.cocoon.models
                 try
                 {
                     
-                    if (BytesLeftToProcess == 0)
+                    if (BytesLeftToProcess == 0 && State == IoJobMeta.JobState.Consuming)
                         State = IoJobMeta.JobState.Consumed;
                     else if(BytesLeftToProcess != BytesRead)
                         State = IoJobMeta.JobState.Fragmented;
 #if DEBUG
-                    else if (State == IoJobMeta.JobState.Fragmented)
+                    else switch (zeroRecovery)
                     {
-                        _logger.Debug($"[{Id}] FRAGGED = {DatumCount}, {BytesRead}/{BytesLeftToProcess }");
-                    }
-                    else
-                    {
-                        _logger.Fatal($"[{Id}] FRAGGED = {DatumCount}, {BytesRead}/{BytesLeftToProcess }");
+                        case false when !fastPath && State == IoJobMeta.JobState.Fragmented:
+                            _logger.Debug($"[{Id}] FRAGGED = {DatumCount}, {BytesRead}/{BytesLeftToProcess }");
+                            break;
+                        case false when !fastPath:
+                            _logger.Fatal($"[{Id}] FRAGGED = {DatumCount}, {BytesRead}/{BytesLeftToProcess }");
+                            break;
                     }
 #else
                     else if (State == IoJobMeta.JobState.Fragmented && !IoZero.ZeroRecoveryEnabled)
@@ -388,10 +395,10 @@ namespace zero.cocoon.models
             }
 
             ////attempt zero recovery
-            if (!Zeroed() && !zeroRecovery && BytesLeftToProcess > 0 && IoZero.ZeroRecoveryEnabled && PreviousJob != null)
+            if (IoZero.ZeroRecoveryEnabled && !Zeroed() && !fastPath && !zeroRecovery && BytesLeftToProcess > 0 && PreviousJob != null)
             {
                 State = IoJobMeta.JobState.ZeroRecovery;
-                await ConsumeAsync().FastPath().ConfigureAwait(Zc);
+                return await ConsumeAsync().FastPath().ConfigureAwait(Zc);
             }
 
             return State;

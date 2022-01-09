@@ -26,6 +26,7 @@ namespace zero.core.patterns.bushings
             int maxAsyncSources = 0, bool disableZero = false) : base(description, concurrencyLevel)
         {
             _logger = LogManager.GetCurrentClassLogger();
+
             
             //if (prefetchSize > concurrencyLevel * 2)
             //    throw new ArgumentOutOfRangeException($"{description}: invalid {nameof(prefetchSize)} = {prefetchSize}, must be at least {nameof(concurrencyLevel)} = {concurrencyLevel*2}");
@@ -35,7 +36,7 @@ namespace zero.core.patterns.bushings
 
             //if (maxAsyncSources > concurrencyLevel)
             //    throw new ArgumentOutOfRangeException($"{description}: invalid {nameof(concurrencyLevel)} = {concurrencyLevel}, must be at least {nameof(maxAsyncSources)} = {maxAsyncSources}");
-
+            
             if (disableZero)
             {
                 DisableZero = true;
@@ -196,7 +197,7 @@ namespace zero.core.patterns.bushings
         /// <summary>
         /// If async workers are enabled
         /// </summary>
-        public bool AsyncEnabled { get; protected set; }
+        public bool AsyncEnabled { get; set; }
 
         public bool Proxy { get; }
 
@@ -223,7 +224,7 @@ namespace zero.core.patterns.bushings
         /// </value>
         public bool Synced { get; set; }
 
-            /// <summary>
+        /// <summary>
         /// <see cref="PrintCounters"/> only prints events that took longer that this value in microseconds
         /// </summary>
         [IoParameter]
@@ -482,7 +483,7 @@ namespace zero.core.patterns.bushings
         /// <param name="releaseCount">Number of waiters to unblock</param>
         /// <exception cref="NotImplementedException"></exception>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public int BackPressureAsync(int releaseCount = 1)
+        public int BackPressure(int releaseCount = 1)
         {
             if (BackPressureEnabled && _backPressure != null)
                 return BackPressureEnabled ? _backPressure.Release(releaseCount) : releaseCount;

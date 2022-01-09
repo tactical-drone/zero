@@ -190,7 +190,7 @@ namespace zero.core.patterns.misc
         /// A secondary constructor for async stuff
         /// </summary>
         /// <param name="localContext"></param>
-        public virtual ValueTask<bool> ConstructAsync(object localContext = null) {return new ValueTask<bool>(true);}
+        public virtual ValueTask<bool> ReuseAsync(object localContext = null) {return new ValueTask<bool>(true);}
         
         /// <summary>
         /// config await
@@ -234,7 +234,7 @@ namespace zero.core.patterns.misc
         /// <summary>
         /// ZeroAsync
         /// </summary>
-        public async ValueTask Zero(IIoNanite @from, string reason)
+        public async ValueTask Zero(IIoNanite @from, string reason, [CallerFilePath] string filePath = null, [CallerMemberName] string methodName = null, [CallerLineNumber] int lineNumber = default)
         {
             // Only once
             if (_zeroed > 0 || Interlocked.CompareExchange(ref _zeroed, 1, 0) != 0)
@@ -249,7 +249,7 @@ namespace zero.core.patterns.misc
                 //prime garbage
                 await @this.ZeroPrimeAsync().FastPath().ConfigureAwait(false);
                 await @this.ZeroAsync(true).FastPath().ConfigureAwait(false);
-            }, this, default,TaskCreationOptions.DenyChildAttach).FastPath().ConfigureAwait(Zc);
+            }, this, default,TaskCreationOptions.DenyChildAttach, filePath:filePath, methodName:methodName, lineNumber:lineNumber).FastPath().ConfigureAwait(Zc);
 #pragma warning restore CS4014
 
             if (Interlocked.Increment(ref _zCount) % 100000 == 0)
@@ -536,18 +536,13 @@ namespace zero.core.patterns.misc
         /// <summary>
         /// Manages managed objects
         /// </summary>
-        public virtual async ValueTask ZeroManagedAsync()
+        public virtual ValueTask ZeroManagedAsync()
         {
-            if (_zeroHiveMind != null)
-                await _zeroHiveMind.ZeroManagedAsync<object>(zero:true).FastPath().ConfigureAwait(Zc);
-
-            if (_zeroHive != null)
-                await _zeroHive.ZeroManagedAsync<object>(zero: true).FastPath().ConfigureAwait(Zc);
-
             _zeroRoot.ZeroSem();
 #if DEBUG
             Interlocked.Increment(ref _extracted);
 #endif
+            return default;
         }
 
         /// <summary>
@@ -705,7 +700,7 @@ namespace zero.core.patterns.misc
         /// <param name="methodName"></param>
         /// <param name="lineNumber"></param>
         /// <returns>A ValueTask</returns>
-        protected async ValueTask ZeroAsync<T>(Func<T, ValueTask> continuation, T state, CancellationToken asyncToken, TaskCreationOptions options, TaskScheduler scheduler = null, bool unwrap = false, [CallerFilePath] string filePath = null, [CallerMemberName] string methodName = null, [CallerLineNumber] int lineNumber = default)
+        protected async ValueTask ZeroAsync<T>(Func<T, ValueTask> continuation, T state, CancellationToken asyncToken, TaskCreationOptions options, TaskScheduler scheduler = null, bool unwrap = false, string filePath = null, string methodName = null, int lineNumber = default)
         {
             var nanite = state as IoNanoprobe ?? this;
             try

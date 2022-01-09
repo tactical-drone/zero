@@ -39,15 +39,11 @@ namespace zero.core.patterns.heap
             try
             {
                 //Take from heap
-                if ((next = Take(userData)) != null && !await next.ConstructAsync(userData))
-                    return null;
-                
-                //fail
-                if (next == null)
+                if ((next = Take(userData)) != null && !await next.ReuseAsync(userData))
                     return null;
 
                 //init for use
-                next = (TItem) await next.ReuseAsync().FastPath().ConfigureAwait(Zc);
+                next = (TItem) await next!.ReuseAsync().FastPath().ConfigureAwait(Zc);
 
                 //Custom constructor
                 localReuse?.Invoke(next, userData);

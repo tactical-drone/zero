@@ -49,7 +49,7 @@ namespace zero.tangle.models
             ArraySegment = new ArraySegment<byte>(Buffer);
         }
 
-        public override async ValueTask<bool> ConstructAsync(object localContext)
+        public override async ValueTask<bool> ReuseAsync(object localContext)
         {
             //forward to node services
             if (!Source.ObjectStorage.ContainsKey(nameof(_nodeServicesProxy)))
@@ -80,7 +80,7 @@ namespace zero.tangle.models
             NeighborServicesArbiter.parm_consumer_wait_for_producer_timeout = -1; //We block and never report slow production
             NeighborServicesArbiter.parm_producer_start_retry_time = 0;
 
-            return await base.ConstructAsync().ConfigureAwait(false);
+            return await ((IoNanoprobe)this).ReuseAsync().ConfigureAwait(false);
         }
 
         

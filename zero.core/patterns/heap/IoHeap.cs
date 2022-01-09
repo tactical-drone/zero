@@ -146,7 +146,6 @@ namespace zero.core.patterns.heap
                 {
                     if (_refCount == _ioHeapBuf.Capacity && !IsAutoScaling)
                     {
-                        Console.WriteLine($"{_refCount} - {_ioHeapBuf.Capacity}");
                         throw new OutOfMemoryException($"{nameof(_ioHeapBuf)}: {_ioHeapBuf.Description}");
                     }
                     
@@ -164,8 +163,8 @@ namespace zero.core.patterns.heap
                     return heapItem;
                 }
             }
-            catch when (_zeroed > 0) {}
-            catch (Exception) when (_ioHeapBuf.Zeroed) { }
+            catch when (_zeroed > 0) { Console.WriteLine("1"); }
+            catch (Exception) when (_ioHeapBuf.Zeroed) { Console.WriteLine("2"); }
             catch (Exception e) when(!Zeroed)
             {
                 _logger.Error(e, $"{GetType().Name}: Failed to new up {typeof(TItem)}");

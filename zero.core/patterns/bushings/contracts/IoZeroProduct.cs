@@ -41,6 +41,8 @@ namespace zero.core.patterns.bushings.contracts
                     //mock production delay
                     if (job._constructionDelay > 0)
                         await Task.Delay(job._constructionDelay);
+
+                    job.GenerateJobId();
                     
                     return job._produced = ((IoZeroSource)Source).Produce();
                 }, this, barrier, ioZero).FastPath().ConfigureAwait(Zc))

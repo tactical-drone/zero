@@ -54,7 +54,7 @@ namespace zero.core.patterns.bushings
         /// <summary>
         /// ZeroAsync handle
         /// </summary>
-        public IIoZero IoZero { get; protected internal set; }
+        public IoZero<TJob> IoZero { get; protected internal set; }
 
         /// <summary>
         /// Q handler
@@ -75,7 +75,6 @@ namespace zero.core.patterns.bushings
         /// <summary>
         /// Consumes the job
         /// </summary>
-        /// <param name="zeroRecovery"></param>
         /// <returns>The state of the consumption</returns>
         public abstract ValueTask<IoJobMeta.JobState> ConsumeAsync();
 

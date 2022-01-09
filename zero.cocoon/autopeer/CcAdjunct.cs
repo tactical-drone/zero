@@ -2122,8 +2122,8 @@ namespace zero.cocoon.autopeer
                 //}
 
                 //SEND SYN-ACK
-                if (await SendMessageAsync(response.ToByteArray(), CcDiscoveries.MessageTypes.Probed, toAddress)
-                        .FastPath().ConfigureAwait(Zc) > 0)
+                if ((sent = await SendMessageAsync(response.ToByteArray(), CcDiscoveries.MessageTypes.Probed, toAddress)
+                        .FastPath().ConfigureAwait(Zc)) > 0)
                 {
 #if DEBUG
                     _logger.Trace($"-/> {nameof(CcProbeResponse)}({sent})[{response.ToByteArray().PayloadSig()} ~ {response.ReqHash.Memory.HashSig()}]: Sent [[SYN-ACK]], [{MessageService.IoNetSocket.LocalAddress} ~> {toAddress}]");
@@ -2284,7 +2284,7 @@ namespace zero.cocoon.autopeer
             if (!matchRequest)
             {
 #if DEBUG
-                if (IsProxy)
+                if (IsProxy && _probeRequest.Count > 0)
                 {
                     _logger.Error($"<\\- {nameof(CcProbeResponse)} {packet.Data.Memory.PayloadSig()}: SEC! age = {response.Timestamp.ElapsedMs()}ms, matcher = ({_probeRequest.Count}, {Router._probeRequest.Count}) ,{response.ReqHash.Memory.HashSig()}, d = {_probeRequest.Count}, pats = {TotalPats},  " +
                                   $"PK={Designation.IdString()} != {CcDesignation.MakeKey(packet.PublicKey)} (proxy = {IsProxy}),  ssp = {SecondsSincePat}, d = {(AttachTimestamp > 0 ? (AttachTimestamp - LastPat).ToString() : "N/A")}, v = {Verified}, s = {src}, nat = {NatAddress}, dmz = {packet.Header.Ip.Src.GetEndpoint()}");
