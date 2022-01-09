@@ -243,6 +243,8 @@ namespace zero.core.network.ip
             }
             catch (SocketException e){
                 _logger.Trace(e, $"{nameof(SendAsync)}: err = {e.SocketErrorCode} ");
+                if (e.SocketErrorCode == SocketError.ConnectionReset)
+                    await Zero(this, e.Message).FastPath().ConfigureAwait(Zc);
             }
             catch (ObjectDisposedException) { }
             catch (Exception) when (Zeroed()){}

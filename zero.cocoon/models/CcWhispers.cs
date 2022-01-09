@@ -350,7 +350,9 @@ namespace zero.cocoon.models
                         if (await prevJobTask.FastPath().ConfigureAwait(Zc))
                             AddRecoveryBits();
                     }
-                    State = IoJobMeta.JobState.Consuming;
+
+                    if(zeroRecovery)
+                        State = IoJobMeta.JobState.Consuming;
                 }
 
                 while (BytesLeftToProcess > 0)
@@ -420,7 +422,7 @@ namespace zero.cocoon.models
                         continue;
                     }
 
-                    await Task.Delay(1000/5).ConfigureAwait(Zc);
+                    await Task.Delay(1000/3).ConfigureAwait(Zc);
 
                     IoZero.IncEventCounter();
                     CcCollective.IncEventCounter();

@@ -56,14 +56,14 @@ namespace zero.core.patterns.queue
             if (!disablePressure)
             {
                 _pressure = new IoZeroSemaphore($"qp {description}",
-                    maxBlockers: c, asyncWorkerCount: c);
+                    maxBlockers: c, asyncWorkerCount: 0);
                 _pressure.ZeroRef(ref _pressure, _asyncTasks);
             }
             
             if (enableBackPressure)
             {
                 _backPressure = new IoZeroSemaphore($"qbp {description}",
-                    maxBlockers: c, asyncWorkerCount: c, initialCount: c);
+                    maxBlockers: c, asyncWorkerCount: 0, initialCount: concurrencyLevel);
                 _backPressure.ZeroRef(ref _backPressure, _asyncTasks);
             }
 

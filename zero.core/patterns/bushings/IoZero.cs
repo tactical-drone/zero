@@ -752,7 +752,7 @@ namespace zero.core.patterns.bushings
                 {
                     @this._logger.Error(e, $"Production failed! {@this.Description}");
                 }
-            },this, TaskCreationOptions.AttachedToParent); //TODO tuning
+            },this, TaskCreationOptions.DenyChildAttach); //TODO tuning
 
             //Consumer
             _consumerTask = ZeroOptionAsync(static async @this =>
