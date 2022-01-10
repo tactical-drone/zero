@@ -322,6 +322,8 @@ namespace zero.cocoon.models
 
             return State;
         }*/
+
+        private long _maxReq;
         public override async ValueTask<IoJobMeta.JobState> ConsumeAsync()
         {
             //are we in recovery mode?
@@ -337,7 +339,7 @@ namespace zero.cocoon.models
                 //Ensure that the previous job (which could have been launched out of sync) has completed
                 var prevJob = ((CcWhispers)PreviousJob)?.ZeroRecovery;
                 fastPath = IoZero.ZeroRecoveryEnabled && prevJob?.GetStatus(prevJob.Version) == ValueTaskSourceStatus.Succeeded && prevJob.GetResult(prevJob.Version);
-
+                
                 if (zeroRecovery || fastPath)
                 {
                     if (fastPath)
@@ -422,23 +424,24 @@ namespace zero.cocoon.models
                         continue;
                     }
 
-                    await Task.Delay(1000/3).ConfigureAwait(Zc);
+                    await Task.Delay(1000/20).ConfigureAwait(Zc);
 
                     IoZero.IncEventCounter();
                     CcCollective.IncEventCounter();
 
-                    
                     //read the token
                     var req = MemoryMarshal.Read<long>(packet.Data.Span);
                     req++;
 
-                    if (req % 10000 == 0)
+                    if (req % 100000 == 0)
                     {
                         _logger.Info($"[{Id}]: {req}, recover = {Source.Counters[(int)IoJobMeta.JobState.ZeroRecovery]}, frag = {Source.Counters[(int)IoJobMeta.JobState.Fragmented]}, bad = {Source.Counters[(int)IoJobMeta.JobState.BadData]}, total = {Source.Counters[(int)IoJobMeta.JobState.Accept]} + {Source.Counters[(int)IoJobMeta.JobState.Reject]}");
                     }
 
-                    if(req > UInt32.MaxValue)
+                    if(req is > uint.MaxValue or < 0 || req < _maxReq)
                         continue;
+
+                    _maxReq = req + 1;
 
                     //Console.WriteLine($"{req}");
 
@@ -523,20 +526,32 @@ namespace zero.cocoon.models
                     else if (BytesLeftToProcess != BytesRead)
                         State = IoJobMeta.JobState.Fragmented;
 #if DEBUG
-                    else if (State == IoJobMeta.JobState.Fragmented)
+                    //else if (State == IoJobMeta.JobState.Fragmented)
+                    //{
+                    //    _logger.Debug($"[{Id}] FRAGGED = {DatumCount}, {BytesRead}/{BytesLeftToProcess }");
+                    //}
+                    ////attempt zero recovery
+                    if (IoZero.ZeroRecoveryEnabled && !Zeroed() && !zeroRecovery && !fastPath && BytesLeftToProcess > 0 && PreviousJob != null)
                     {
-                        _logger.Debug($"[{Id}] FRAGGED = {DatumCount}, {BytesRead}/{BytesLeftToProcess }");
+                        State = IoJobMeta.JobState.ZeroRecovery;
+                        State = await ConsumeAsync().FastPath().ConfigureAwait(Zc);
                     }
-                    else
-                    {
-                        _logger.Fatal($"[{Id}] FRAGGED = {DatumCount}, {BytesRead}/{BytesLeftToProcess }");
-                    }
+
+                    //else
+                    //{
+                    //    _logger.Fatal($"[{Id}] FRAGGED = {DatumCount}, {BytesRead}/{BytesLeftToProcess }");
+                    //}
 #else
                     else if (State == IoJobMeta.JobState.Fragmented && !IoZero.ZeroRecoveryEnabled)
                     {
                         State = IoJobMeta.JobState.BadData;
                     }
 #endif
+                    if (IoZero.ZeroRecoveryEnabled && !Zeroed() && !zeroRecovery && !fastPath && BytesLeftToProcess > 0 && PreviousJob != null)
+                    {
+                        State = IoJobMeta.JobState.ZeroRecovery;
+                        State = await ConsumeAsync().FastPath().ConfigureAwait(Zc);
+                    }
                 }
                 catch when (Zeroed()) { State = IoJobMeta.JobState.ConsumeErr; }
                 catch (Exception e) when (!Zeroed())
@@ -546,12 +561,12 @@ namespace zero.cocoon.models
                 }
             }
 
-            ////attempt zero recovery
-            if (IoZero.ZeroRecoveryEnabled && !Zeroed() && !zeroRecovery && !fastPath && BytesLeftToProcess > 0 && PreviousJob != null)
-            {
-                State = IoJobMeta.JobState.ZeroRecovery;
-                return await ConsumeAsync().FastPath().ConfigureAwait(Zc);
-            }
+            //////attempt zero recovery
+            //if (IoZero.ZeroRecoveryEnabled && !Zeroed() && !zeroRecovery && !fastPath && BytesLeftToProcess > 0 && PreviousJob != null)
+            //{
+            //    State = IoJobMeta.JobState.ZeroRecovery;
+            //    return await ConsumeAsync().FastPath().ConfigureAwait(Zc);
+            //}
 
             return State;
         }

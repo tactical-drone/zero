@@ -72,10 +72,10 @@ namespace zero.core.network.ip
             NativeSocket.NoDelay = true;
 
             // Set the receive buffer size to 64k
-            NativeSocket.ReceiveBufferSize = 8192 * 8;
+            NativeSocket.ReceiveBufferSize = 4096;
 
             // Set the send buffer size to 64k.
-            NativeSocket.SendBufferSize = 8192 * 8;
+            NativeSocket.SendBufferSize = 4096;
 
             // Set the timeout for synchronous receive methods to
             // 1 second (1000 milliseconds.)

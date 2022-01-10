@@ -216,6 +216,7 @@ namespace zero.cocoon.models
                 var prevJob = ((CcDiscoveries)PreviousJob)?.ZeroRecovery;
                 fastPath = IoZero.ZeroRecoveryEnabled && prevJob?.GetStatus(prevJob.Version) == ValueTaskSourceStatus.Succeeded && prevJob.GetResult(prevJob.Version);
                 fastPath = false;
+
                 if (zeroRecovery || fastPath)
                 {
                     if (fastPath)
@@ -228,7 +229,8 @@ namespace zero.cocoon.models
                         if (await prevJobTask.FastPath().ConfigureAwait(Zc))
                             AddRecoveryBits();
                     }
-                    State = IoJobMeta.JobState.Consuming;
+                    if (zeroRecovery)
+                        State = IoJobMeta.JobState.Consuming;
                 }
 
                 while (BytesLeftToProcess > 0)

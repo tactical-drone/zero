@@ -110,7 +110,7 @@ namespace zero.test.core.patterns.bushings
         {
             var count = 200;
             var totalTimeMs = count * 100;
-            var concurrencyLevel = 2;
+            var concurrencyLevel = 8;
             var s1 = new IoZeroSource("zero source 1", false, concurrencyLevel, concurrencyLevel, concurrencyLevel, true);
             var c1 = new IoConduit<IoZeroProduct>("conduit smoke test 1", s1, static (ioZero, _) => new IoZeroProduct("test product 1", ((IoConduit<IoZeroProduct>)ioZero).Source, 100), concurrencyLevel);
 

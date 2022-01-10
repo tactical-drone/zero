@@ -242,8 +242,8 @@ namespace zero.core.network.ip
                 return sent;
             }
             catch (SocketException e){
-                _logger.Trace(e, $"{nameof(SendAsync)}: err = {e.SocketErrorCode} ");
-                if (e.SocketErrorCode == SocketError.ConnectionReset)
+                _logger.Trace( $"{nameof(SendAsync)}: err = {e.SocketErrorCode}, {Description}");
+                if (e.SocketErrorCode != SocketError.TimedOut)
                     await Zero(this, e.Message).FastPath().ConfigureAwait(Zc);
             }
             catch (ObjectDisposedException) { }

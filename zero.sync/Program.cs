@@ -602,7 +602,7 @@ namespace zero.sync
                             var err = nodes.Select(n => Math.Abs(n.EventCount - ave)).Average();
                             var r = 0;
                             var target = 0;
-                            while (err > (target = 50 - r/100 * 40) && r++ < 100)
+                            while (err > (target = 50 - r/100 * 40) && r++ < 100 && nodes.Count > 0)
                             {
                                 nodes = nodes.Where(n => Math.Abs(n.EventCount - ave) < target).ToList();
                                 ave = nodes.Average(n => n.EventCount);
@@ -841,11 +841,11 @@ namespace zero.sync
 
             var releaseCount = 2;
             var waiters = 3;
-            var releasers = 3;
+            var releasers = 2;
             var targetSleep = (long)0;
             var logSpam = 40000;//at least 1
 
-            var targetSleepMult = waiters>1 ? 2 : 1;
+            var targetSleepMult = waiters > 1 ? 2 : 1;
             var sw = new Stopwatch();
             var sw2 = new Stopwatch();
             var c = 0;
@@ -1204,7 +1204,7 @@ namespace zero.sync
                 IoNodeAddress.Create(fpcAddress),
                 IoNodeAddress.Create(extAddress),
                 bootStrapAddress.Select(IoNodeAddress.Create).Where(a => a.Port.ToString() != peerAddress.Split(":")[2]).ToList(),
-                3, 2, 2, 1, zeroDrone);
+                3, 3, 2, 1, zeroDrone);
 
             _nodes.Add(cocoon);
 

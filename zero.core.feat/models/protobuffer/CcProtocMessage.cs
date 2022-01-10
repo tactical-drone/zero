@@ -24,7 +24,7 @@ namespace zero.core.feat.models.protobuffer
             : base(sinkDesc, jobDesc, source)
         {
             Debug.Assert(parm_datums_per_buffer >=4);
-            var blockSize = 2048;
+            var blockSize = 8192;
             DatumSize = blockSize / parm_datums_per_buffer;
             DatumProvisionLengthMax = DatumSize;
             //Init buffers
