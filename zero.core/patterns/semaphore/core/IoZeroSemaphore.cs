@@ -108,7 +108,7 @@ namespace zero.core.patterns.semaphore.core
         /// <summary>
         /// A semaphore description
         /// </summary>
-        private string Description => $"{nameof(IoZeroSemaphore)}[{_description}]:  ready = {_zeroRef.ZeroCount()}, wait = {_zeroRef.ZeroWaitCount()}/{_maxBlockers}, async = {_zeroRef.ZeroAsyncCount()}/{_maxAsyncWorkers}";
+        private string Description => $"{nameof(IoZeroSemaphore)}[{_description}]:  ready = {_curSignalCount}, wait = {_curWaitCount}/{_maxBlockers}, async = {_curAsyncWorkerCount}/{_maxAsyncWorkers}";
 
         /// <summary>
         /// The maximum threads that can be blocked by this semaphore. This blocking takes storage
@@ -145,12 +145,12 @@ namespace zero.core.patterns.semaphore.core
         /// <summary>
         /// The number of threads that can enter the semaphore without blocking 
         /// </summary>
-        public int ReadyCount => _zeroRef.ZeroCount();
+        public int ReadyCount => _curSignalCount;
 
         /// <summary>
         /// Nr of threads currently waiting on this semaphore
         /// </summary>
-        public int CurNrOfBlockers => _zeroRef.ZeroWaitCount();
+        public int CurNrOfBlockers => _curWaitCount;
 
         /// <summary>
         /// Maximum allowed concurrent "not inline" continuations before
@@ -374,8 +374,8 @@ namespace zero.core.patterns.semaphore.core
 #endif
             try
             {
-                _zeroRef.ZeroThrow();
-                return !(_zeroRef == null || _zeroRef.Zeroed());
+                ZeroThrow();
+                return !Zeroed();
             }
             catch
             {
@@ -397,7 +397,7 @@ namespace zero.core.patterns.semaphore.core
 #endif
             try
             {
-                if (_zeroRef == null || _zeroRef.Zeroed())
+                if (Zeroed())
                     return ValueTaskSourceStatus.Canceled;
             }
             catch
@@ -449,7 +449,7 @@ namespace zero.core.patterns.semaphore.core
             try
             {
                 //fast path, RACES with SetResult through _zeroRef. 
-                if (_zeroRef.ZeroDecCount() == 0)
+                if (Interlocked.Decrement(ref _curSignalCount) == 0)
                 {
                     TaskScheduler cc = null;
                     if (TaskScheduler.Current != TaskScheduler.Default)
@@ -459,13 +459,13 @@ namespace zero.core.patterns.semaphore.core
                     return;
                 }
 
-                _zeroRef.ZeroIncCount();
+                Interlocked.Increment(ref _curSignalCount);
 #if DEBUG
                 ZeroLock();
 #endif
 
                 //choose a head index for blocking state
-                var headInx = _zeroRef.ZeroNextHead() - 1;
+                var headInx = Interlocked.Increment(ref _head) - 1;
                 var headMod = headInx % _maxBlockers;
                 Action<object> slot;
 
@@ -477,10 +477,10 @@ namespace zero.core.patterns.semaphore.core
 
                     if (slot == ZeroSentinel)
                         continue;
-                    
-                    _zeroRef.ZeroPrevHead();
 
-                    headInx = _zeroRef.ZeroNextHead() - 1;
+                    Interlocked.Decrement(ref _head);
+
+                    headInx = Interlocked.Increment(ref _head) - 1;
                     headMod = headInx % _maxBlockers;
                 }
 
@@ -595,7 +595,7 @@ namespace zero.core.patterns.semaphore.core
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private void InvokeContinuation(Action<object> callback, object state, object capturedContext, bool forceAsync)
         {
-            _zeroRef.ZeroDecWait();
+            Interlocked.Decrement(ref _curWaitCount);
             switch (capturedContext)
             {
                 case null:
@@ -606,7 +606,7 @@ namespace zero.core.patterns.semaphore.core
                             Task.Factory.StartNew(callback, state, CancellationToken.None,
                                 TaskCreationOptions.DenyChildAttach, TaskScheduler.Default);
                         }
-                        else if (_zeroRef.ZeroIncAsyncCount() - 1 < _maxAsyncWorkers)
+                        else if (Interlocked.Increment(ref _curAsyncWorkerCount) - 1 < _maxAsyncWorkers)
                         {
                             Task.Factory.StartNew(callback, state, CancellationToken.None, 
                                 TaskCreationOptions.DenyChildAttach, TaskScheduler.Default)
@@ -754,27 +754,27 @@ namespace zero.core.patterns.semaphore.core
         public int Release(int releaseCount = 1, bool bestEffort = false)
         {
             //fail fast on cancellation token
-            if (_zeroRef == null || _zeroRef.Zeroed())
+            if (Zeroed())
                 return -1;
             
             //preconditions
-            if (!bestEffort && (releaseCount < 1 || releaseCount + _zeroRef.ZeroCount() > _maxBlockers))
+            if (!bestEffort && (releaseCount < 1 || releaseCount + _curSignalCount > _maxBlockers))
             {
-                throw new SemaphoreFullException($"{Description}: Invalid {nameof(releaseCount)} = {releaseCount} < 0 or  {nameof(_curSignalCount)}({releaseCount + _zeroRef.ZeroCount()}) > {nameof(_maxBlockers)} = {_maxBlockers}");
+                throw new SemaphoreFullException($"{Description}: Invalid {nameof(releaseCount)} = {releaseCount} < 0 or  {nameof(_curSignalCount)}({releaseCount + _curSignalCount}) > {nameof(_maxBlockers)} = {_maxBlockers}");
             }
             
             //lock in return value
             var released = 0;
 
             //awaiter entries
-            while (released < releaseCount && _zeroRef.ZeroWaitCount() > 0)
+            while (released < releaseCount && _curWaitCount > 0)
             {
                 IoZeroWorker worker = default;
                 //Lock
 #if DEBUG
                 ZeroLock();
 #endif
-                var latchIdx = _zeroRef.ZeroNextTail() - 1;
+                var latchIdx = Interlocked.Increment(ref _tail) - 1;
                 //var latchIdx = Interlocked.Increment(ref _tail) - 1;
                 var latchMod = latchIdx % _maxBlockers;
                 var latch = _signalAwaiter[latchMod];
@@ -784,20 +784,20 @@ namespace zero.core.patterns.semaphore.core
                     if (Zeroed())
                         break;
 
-                    _zeroRef.ZeroPrevTail();
+                    Interlocked.Decrement(ref _tail);
                     continue;
                 }
 
                 //latch a chosen head
-                while (_zeroRef.ZeroWaitCount() > 0 && (worker.Continuation = Interlocked.CompareExchange(ref _signalAwaiter[latchMod], ZeroSentinel, latch)) != latch)
+                while (_curWaitCount > 0 && (worker.Continuation = Interlocked.CompareExchange(ref _signalAwaiter[latchMod], ZeroSentinel, latch)) != latch)
                 {
                     if (Zeroed())
                         break;
 
                     if (latch != ZeroSentinel)
                     {
-                        _zeroRef.ZeroPrevTail();
-                        latchIdx = _zeroRef.ZeroNextTail() - 1;
+                        Interlocked.Decrement(ref _tail);
+                        latchIdx = Interlocked.Increment(ref _tail) - 1;
                         latchMod = latchIdx % _maxBlockers;
                     }
                     latch = _signalAwaiter[latchMod];
@@ -808,7 +808,7 @@ namespace zero.core.patterns.semaphore.core
                     if (Zeroed())
                         break;
 
-                    _zeroRef.ZeroPrevTail();
+                    Interlocked.Decrement(ref _tail);
                     continue;
                 }
 
@@ -827,11 +827,11 @@ namespace zero.core.patterns.semaphore.core
                 ZeroUnlock();
 #endif
 
-                if (!ZeroComply(worker.Continuation, worker.State, worker.ExecutionContext, worker.CapturedContext, Zeroed() || _zeroRef.Zeroed() || worker.State is IIoNanite nanite && nanite.Zeroed(),bestEffort))
+                if (!ZeroComply(worker.Continuation, worker.State, worker.ExecutionContext, worker.CapturedContext, Zeroed() || Zeroed() || worker.State is IIoNanite nanite && nanite.Zeroed(),bestEffort))
                 {
                     if (!bestEffort)
-                        _zeroRef.ZeroAddCount(releaseCount - released);
-                    
+                        Interlocked.Add(ref _curSignalCount, releaseCount - released);
+
                     return -1;
                 }
 
@@ -843,8 +843,8 @@ namespace zero.core.patterns.semaphore.core
             }
 
             if (!bestEffort)
-                _zeroRef.ZeroAddCount(releaseCount - released);
-            
+                Interlocked.Add(ref _curSignalCount, releaseCount - released);
+
             //return the number of waiters released
             return released;
         }
@@ -856,16 +856,16 @@ namespace zero.core.patterns.semaphore.core
         public ValueTask<bool> WaitAsync()
         {
             //insane checks
-            if (_zeroRef == null || _zeroRef.Zeroed())
+            if (Zeroed())
                 return new ValueTask<bool>(false);
             
             //fast path
-            if (_zeroRef.ZeroDecCount() >= 0)
+            if (Interlocked.Decrement(ref _curSignalCount) >= 0)
                 return new ValueTask<bool>(true);
-            _zeroRef.ZeroIncCount();
+            Interlocked.Increment(ref _curSignalCount);
 
             //block or fail
-            return _zeroRef.ZeroIncWait() > _maxBlockers ? new ValueTask<bool>(false) : new ValueTask<bool>(_zeroRef, 23);
+            return Interlocked.Increment(ref _curWaitCount) > _maxBlockers ? new ValueTask<bool>(false) : new ValueTask<bool>(_zeroRef, 23);
         }
 
         /// <summary>Completes with an error.</summary>
@@ -876,56 +876,56 @@ namespace zero.core.patterns.semaphore.core
             Release();
         }
 
-        /// <summary>
-        /// returns the next tail
-        /// </summary>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        long IIoZeroSemaphore.ZeroNextTail()
-        {
-            return Interlocked.Increment(ref _tail);
-        }
+        //        /// <summary>
+        //        /// returns the next tail
+        //        /// </summary>
+        //        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        //        long IIoZeroSemaphore.ZeroNextTail()
+        //        {
+        //            return Interlocked.Increment(ref _tail);
+        //        }
 
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        long IIoZeroSemaphore.ZeroNextHead()
-        {
-            return Interlocked.Increment(ref _head);
-        }
+        //        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        //        long IIoZeroSemaphore.ZeroNextHead()
+        //        {
+        //            return Interlocked.Increment(ref _head);
+        //        }
 
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        long IIoZeroSemaphore.ZeroPrevTail()
-        {
-            return Interlocked.Decrement(ref _tail);
-        }
+        //        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        //        long IIoZeroSemaphore.ZeroPrevTail()
+        //        {
+        //            return Interlocked.Decrement(ref _tail);
+        //        }
 
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        long IIoZeroSemaphore.ZeroPrevHead()
-        {
-            return Interlocked.Decrement(ref _head);
-        }
+        //        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        //        long IIoZeroSemaphore.ZeroPrevHead()
+        //        {
+        //            return Interlocked.Decrement(ref _head);
+        //        }
 
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        int IIoZeroSemaphore.ZeroIncWait()
-        {
-            return Interlocked.Increment(ref _curWaitCount);
-        }
+        //        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        //        int IIoZeroSemaphore.ZeroIncWait()
+        //        {
+        //            return Interlocked.Increment(ref _curWaitCount);
+        //        }
 
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        int IIoZeroSemaphore.ZeroDecWait()
-        {
-            return Interlocked.Decrement(ref _curWaitCount);
-        }
+        //        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        //        int IIoZeroSemaphore.ZeroDecWait()
+        //        {
+        //            return Interlocked.Decrement(ref _curWaitCount);
+        //        }
 
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        int IIoZeroSemaphore.ZeroWaitCount()
-        {
-            return _curWaitCount;
-        }
+        //        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        //        int IIoZeroSemaphore.ZeroWaitCount()
+        //        {
+        //            return _curWaitCount;
+        //        }
 
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        int IIoZeroSemaphore.ZeroIncAsyncCount()
-        {
-            return Interlocked.Increment(ref _curAsyncWorkerCount);
-        }
+        //        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        //        int IIoZeroSemaphore.ZeroIncAsyncCount()
+        //        {
+        //            return Interlocked.Increment(ref _curAsyncWorkerCount);
+        //        }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         int IIoZeroSemaphore.ZeroDecAsyncCount()
@@ -933,79 +933,79 @@ namespace zero.core.patterns.semaphore.core
             return Interlocked.Decrement(ref _curAsyncWorkerCount);
         }
 
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        int IIoZeroSemaphore.ZeroAsyncCount()
-        {
-            return _curAsyncWorkerCount;
-        }
+        //        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        //        int IIoZeroSemaphore.ZeroAsyncCount()
+        //        {
+        //            return _curAsyncWorkerCount;
+        //        }
 
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        int IIoZeroSemaphore.ZeroCount()
-        {
-            return _curSignalCount;
-        }
+        //        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        //        int IIoZeroSemaphore.ZeroCount()
+        //        {
+        //            return _curSignalCount;
+        //        }
 
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        int IIoZeroSemaphore.ZeroIncCount()
-        {
-            return Interlocked.Increment(ref _curSignalCount);
-        }
+        //        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        //        int IIoZeroSemaphore.ZeroIncCount()
+        //        {
+        //            return Interlocked.Increment(ref _curSignalCount);
+        //        }
 
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        int IIoZeroSemaphore.ZeroDecCount()
-        {
-            return Interlocked.Decrement(ref _curSignalCount);
-        }
+        //        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        //        int IIoZeroSemaphore.ZeroDecCount()
+        //        {
+        //            return Interlocked.Decrement(ref _curSignalCount);
+        //        }
 
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        int IIoZeroSemaphore.ZeroEnter()
-        {
-            var slot = -1;
-            var latch = _curSignalCount;
+        //        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        //        int IIoZeroSemaphore.ZeroEnter()
+        //        {
+        //            var slot = -1;
+        //            var latch = _curSignalCount;
 
-            while (latch > 0 && (slot = Interlocked.CompareExchange(ref _curSignalCount, latch - 1, latch)) != latch)
-            {
-                if (slot == 0)
-                    return -1;
+        //            while (latch > 0 && (slot = Interlocked.CompareExchange(ref _curSignalCount, latch - 1, latch)) != latch)
+        //            {
+        //                if (slot == 0)
+        //                    return -1;
 
-                latch = _curSignalCount;
-            }
+        //                latch = _curSignalCount;
+        //            }
 
-            if (slot > 0 && slot == latch)
-                return latch;
-            
-            return -1;
-        }
+        //            if (slot > 0 && slot == latch)
+        //                return latch;
 
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        int IIoZeroSemaphore.ZeroAddCount(int value)
-        {
-            return Interlocked.Add(ref _curSignalCount, value);
-        }
+        //            return -1;
+        //        }
 
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        long IIoZeroSemaphore.ZeroHead()
-        {
-            return _head;
-        }
+        //        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        //        int IIoZeroSemaphore.ZeroAddCount(int value)
+        //        {
+        //            return Interlocked.Add(ref _curSignalCount, value);
+        //        }
 
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        long IIoZeroSemaphore.ZeroTail()
-        {
-            return _tail;
-        }
+        //        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        //        long IIoZeroSemaphore.ZeroHead()
+        //        {
+        //            return _head;
+        //        }
+
+        //        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        //        long IIoZeroSemaphore.ZeroTail()
+        //        {
+        //            return _tail;
+        //        }
 
 
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        short IIoZeroSemaphore.ZeroToken()
-        {
-#if TOKEN
-            return (short)(_token % ushort.MaxValue);
-#else
-            return default;
-#endif
-        }
-        
+        //        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        //        short IIoZeroSemaphore.ZeroToken()
+        //        {
+        //#if TOKEN
+        //            return (short)(_token % ushort.MaxValue);
+        //#else
+        //            return default;
+        //#endif
+        //        }
+
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         short IIoZeroSemaphore.ZeroTokenBump()
         {

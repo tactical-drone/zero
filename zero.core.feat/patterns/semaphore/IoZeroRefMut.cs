@@ -69,95 +69,95 @@ namespace zero.core.feat.patterns.semaphore
         public int Capacity => 1;
         public bool RunContinuationsAsynchronously { get; }
 
-        int IIoZeroSemaphore.ZeroEnter()
-        {
-            throw new NotImplementedException();
-        }
+        //int IIoZeroSemaphore.ZeroEnter()
+        //{
+        //    throw new NotImplementedException();
+        //}
 
-        int IIoZeroSemaphore.ZeroCount()
-        {
-            throw new NotImplementedException();
-        }
+        //int IIoZeroSemaphore.ZeroCount()
+        //{
+        //    throw new NotImplementedException();
+        //}
 
-        int IIoZeroSemaphore.ZeroIncCount()
-        {
-            throw new NotImplementedException();
-        }
+        //int IIoZeroSemaphore.ZeroIncCount()
+        //{
+        //    throw new NotImplementedException();
+        //}
 
-        int IIoZeroSemaphore.ZeroDecCount()
-        {
-            throw new NotImplementedException();
-        }
+        //int IIoZeroSemaphore.ZeroDecCount()
+        //{
+        //    throw new NotImplementedException();
+        //}
 
-        int IIoZeroSemaphore.ZeroAddCount(int value)
-        {
-            throw new NotImplementedException();
-        }
+        //int IIoZeroSemaphore.ZeroAddCount(int value)
+        //{
+        //    throw new NotImplementedException();
+        //}
 
-        long IIoZeroSemaphore.ZeroHead()
-        {
-            throw new NotImplementedException();
-        }
+        //long IIoZeroSemaphore.ZeroHead()
+        //{
+        //    throw new NotImplementedException();
+        //}
 
-        long IIoZeroSemaphore.ZeroTail()
-        {
-            throw new NotImplementedException();
-        }
+        //long IIoZeroSemaphore.ZeroTail()
+        //{
+        //    throw new NotImplementedException();
+        //}
 
-        long IIoZeroSemaphore.ZeroNextTail()
-        {
-            throw new NotImplementedException();
-        }
+        //long IIoZeroSemaphore.ZeroNextTail()
+        //{
+        //    throw new NotImplementedException();
+        //}
 
-        long IIoZeroSemaphore.ZeroNextHead()
-        {
-            throw new NotImplementedException();
-        }
+        //long IIoZeroSemaphore.ZeroNextHead()
+        //{
+        //    throw new NotImplementedException();
+        //}
 
-        long IIoZeroSemaphore.ZeroPrevTail()
-        {
-            throw new NotImplementedException();
-        }
+        //long IIoZeroSemaphore.ZeroPrevTail()
+        //{
+        //    throw new NotImplementedException();
+        //}
 
-        long IIoZeroSemaphore.ZeroPrevHead()
-        {
-            throw new NotImplementedException();
-        }
+        //long IIoZeroSemaphore.ZeroPrevHead()
+        //{
+        //    throw new NotImplementedException();
+        //}
 
-        int IIoZeroSemaphore.ZeroIncWait()
-        {
-            throw new NotImplementedException();
-        }
+        //int IIoZeroSemaphore.ZeroIncWait()
+        //{
+        //    throw new NotImplementedException();
+        //}
 
-        int IIoZeroSemaphore.ZeroDecWait()
-        {
-            throw new NotImplementedException();
-        }
+        //int IIoZeroSemaphore.ZeroDecWait()
+        //{
+        //    throw new NotImplementedException();
+        //}
 
-        int IIoZeroSemaphore.ZeroWaitCount()
-        {
-            throw new NotImplementedException();
-        }
+        //int IIoZeroSemaphore.ZeroWaitCount()
+        //{
+        //    throw new NotImplementedException();
+        //}
 
-        int IIoZeroSemaphore.ZeroIncAsyncCount()
-        {
-            throw new NotImplementedException();
-        }
+        //int IIoZeroSemaphore.ZeroIncAsyncCount()
+        //{
+        //    throw new NotImplementedException();
+        //}
 
         int IIoZeroSemaphore.ZeroDecAsyncCount()
         {
             throw new NotImplementedException();
         }
 
-        int IIoZeroSemaphore.ZeroAsyncCount()
-        {
-            throw new NotImplementedException();
-        }
+        //int IIoZeroSemaphore.ZeroAsyncCount()
+        //{
+        //    throw new NotImplementedException();
+        //}
 
-        short IIoZeroSemaphore.ZeroToken()
-        {
-            throw new NotImplementedException();
-        }
+        //short IIoZeroSemaphore.ZeroToken()
+        //{
+        //    throw new NotImplementedException();
+        //}
 
         short IIoZeroSemaphore.ZeroTokenBump()
         {
