@@ -65,9 +65,9 @@ namespace zero.cocoon.autopeer
             //TODO tuning
             var capMult = CcCollective.ZeroDrone ? 100 : 1;
 
-            _probeRequest = new IoZeroMatcher(nameof(_probeRequest), Source.PrefetchSize, parm_max_network_latency_ms * 3, (int)(CcCollective.MaxAdjuncts * parm_max_swept_drones * 2 * capMult));
-            _fuseRequest = new IoZeroMatcher(nameof(_fuseRequest), Source.PrefetchSize, parm_max_network_latency_ms * 3, (int)(CcCollective.MaxAdjuncts* parm_max_swept_drones * 2 * capMult));
-            _scanRequest = new IoZeroMatcher(nameof(_scanRequest), (int)(CcCollective.MaxAdjuncts * parm_max_swept_drones + 1), parm_max_network_latency_ms * 3, (int)(CcCollective.MaxAdjuncts * parm_max_swept_drones * 2));
+            _probeRequest = new IoZeroMatcher(nameof(_probeRequest), Source.PrefetchSize, parm_max_network_latency_ms * 5, (int)(CcCollective.MaxAdjuncts * parm_max_swept_drones * 2 * capMult));
+            _fuseRequest = new IoZeroMatcher(nameof(_fuseRequest), Source.PrefetchSize, parm_max_network_latency_ms * 5, (int)(CcCollective.MaxAdjuncts* parm_max_swept_drones * 2 * capMult));
+            _scanRequest = new IoZeroMatcher(nameof(_scanRequest), (int)(CcCollective.MaxAdjuncts * parm_max_swept_drones + 1), parm_max_network_latency_ms * 5, (int)(CcCollective.MaxAdjuncts * parm_max_swept_drones * 2));
 
             if (extraData != null)
             {
@@ -1128,7 +1128,7 @@ namespace zero.cocoon.autopeer
 
                 do{
 //The producer
-                    ValueTask consumer = default;
+                    ValueTask consumer;
                     var producer = ZeroOptionAsync(static async @this =>
                     {
                         try
@@ -1904,7 +1904,7 @@ namespace zero.cocoon.autopeer
 
                 if (!verified)
                 {
-                    await Task.Delay(parm_max_network_latency_ms / 2 + RandomNumberGenerator.GetInt32(0, parm_max_network_latency_ms), AsyncTasks.Token).ConfigureAwait(Zc);
+                    //await Task.Delay(parm_max_network_latency_ms / 2 + RandomNumberGenerator.GetInt32(0, parm_max_network_latency_ms), AsyncTasks.Token).ConfigureAwait(Zc);
                     
                     if (!await newAdjunct.ProbeAsync("SYN-VCK").FastPath().ConfigureAwait(Zc))
                     {
@@ -2485,7 +2485,7 @@ namespace zero.cocoon.autopeer
                 // Is this a routed request?
                 if (IsProxy)
                 {
-                    if (ZeroProbes > parm_zombie_max_connection_attempts)
+                    if (ZeroProbes > parm_zombie_max_connection_attempts * 2)
                     {
 #if DEBUG
                         await Zero(this, $"drone left, T = {TimeSpan.FromMilliseconds(UpTime.ElapsedMs()).TotalMinutes:0.0}min ~ {_sibling?.UpTime.ElapsedMsToSec()/60.0:0.0}min, {_sibling?.Description}").FastPath().ConfigureAwait(Zc);

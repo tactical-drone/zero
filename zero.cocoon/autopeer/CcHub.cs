@@ -84,17 +84,17 @@ namespace zero.cocoon.autopeer
         /// </summary>
         /// <typeparam name="T"></typeparam>
         /// <param name="acceptConnection"></param>
-        /// <param name="nanite"></param>
+        /// <param name="context"></param>
         /// <param name="bootstrapAsync"></param>
         /// <returns></returns>
-        protected override ValueTask SpawnListenerAsync<T>(Func<IoNeighbor<CcProtocMessage<chroniton, CcDiscoveryBatch>>, T,ValueTask<bool>> acceptConnection = null, T nanite = default, Func<ValueTask> bootstrapAsync = null)
+        protected override ValueTask SpawnListenerAsync<T>(Func<IoNeighbor<CcProtocMessage<chroniton, CcDiscoveryBatch>>, T,ValueTask<bool>> acceptConnection = null, T context = default, Func<ValueTask> bootstrapAsync = null)
         {
             return base.SpawnListenerAsync(static async (router, state) =>
             {
                 var (@this,nanite, acceptConnection) = state;
                 @this.Router ??= (CcAdjunct)router;
                 return acceptConnection == null || await acceptConnection(router,nanite).FastPath().ConfigureAwait(@this.Zc);
-            }, ValueTuple.Create(this, nanite, acceptConnection), bootstrapAsync);
+            }, ValueTuple.Create(this, context, acceptConnection), bootstrapAsync);
         }
     }
 }

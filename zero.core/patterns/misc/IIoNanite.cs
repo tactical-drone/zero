@@ -49,7 +49,8 @@ namespace zero.core.patterns.misc
         /// </summary>
         /// <param name="target">The object to be zeroed out</param>
         /// <param name="twoWay">If the zeroing is both ways</param>
-        ValueTask<(TBase target, bool success)> ZeroHiveAsync<TBase>(TBase target, bool twoWay = false) where TBase : IIoNanite;
+        ValueTask<(TBase target, bool success, IoQueue<IIoNanite>.IoZNode sub)> ZeroHiveAsync<TBase>(TBase target,
+            bool twoWay = false) where TBase : IIoNanite;
 
         /// <summary>
         /// Subscribe to zeroed event
@@ -107,6 +108,12 @@ namespace zero.core.patterns.misc
         /// </summary>
         /// <returns>The hive</returns>
         IoQueue<IIoNanite> ZeroHiveMind();
+
+        /// <summary>
+        /// Return the hive mind
+        /// </summary>
+        /// <returns>The hive</returns>
+        IoQueue<IoZeroSub> ZeroHive();
 
         /// <summary>
         /// Maintain zero context

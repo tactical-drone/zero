@@ -8,8 +8,6 @@ using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
 using Google.Protobuf;
-using Grpc.Core;
-using MathNet.Numerics.Distributions;
 using NLog;
 using zero.cocoon.autopeer;
 using zero.cocoon.events.services;
@@ -116,7 +114,7 @@ namespace zero.cocoon
                 throw new ApplicationException($"{nameof(_fuseBufSize)} > {parm_max_handshake_bytes}");
 
             _dupPoolFpsTarget = 1000 * 2;  
-            DupHeap = new IoHeap<IoHashCodes, CcCollective>($"{nameof(DupHeap)}: {Description}", _dupPoolFpsTarget)
+            DupHeap = new IoHeap<IoHashCodes, CcCollective>($"{nameof(DupHeap)}: {_description}", _dupPoolFpsTarget)
             {
                 Malloc = static (_, @this) => new IoHashCodes(null, @this.MaxDrones * 2, true),
                 PopAction = (popped, endpoint) =>
@@ -275,7 +273,6 @@ namespace zero.cocoon
         public ConcurrentDictionary<long, IoHashCodes> DupChecker { get; private set; } = new();
         public IoHeap<IoHashCodes, CcCollective> DupHeap { get; protected set; }
         private volatile int _dupPoolFpsTarget;
-        public int DupPoolFPSTarget => _dupPoolFpsTarget;
 
         private long _eventCounter;
         public long EventCount => Interlocked.Read(ref _eventCounter);
@@ -434,9 +431,10 @@ namespace zero.cocoon
         /// Spawn the node listeners
         /// </summary>
         /// <param name="acceptConnection"></param>
+        /// <param name="context"></param>
         /// <param name="bootstrapAsync"></param>
         /// <returns></returns>
-        protected override async ValueTask SpawnListenerAsync<T>(Func<IoNeighbor<CcProtocMessage<CcWhisperMsg, CcGossipBatch>>, T,ValueTask<bool>> acceptConnection = null, T nanite = default, Func<ValueTask> bootstrapAsync = null)
+        protected override async ValueTask SpawnListenerAsync<T>(Func<IoNeighbor<CcProtocMessage<CcWhisperMsg, CcGossipBatch>>, T,ValueTask<bool>> acceptConnection = null, T context = default, Func<ValueTask> bootstrapAsync = null)
         {
             //Start the hub
             await ZeroAsync(static async @this =>
@@ -496,13 +494,11 @@ namespace zero.cocoon
         /// Sends a message to a peer
         /// </summary>
         /// <param name="drone">The destination</param>
-        /// <param name="ipEndPoint"></param>
         /// <param name="msg">The message</param>
         /// <param name="type"></param>
         /// <param name="timeout"></param>
         /// <returns>The number of bytes sent</returns>
-        private async ValueTask<int> SendMessageAsync(CcDrone drone, ByteString msg, string type,
-            int timeout = 0)
+        private async ValueTask<int> SendMessageAsync(CcDrone drone, ByteString msg, string type, int timeout = 0)
         {
             var responsePacket = new chroniton
             {
@@ -789,7 +785,7 @@ namespace zero.cocoon
                     }
                     else if (drone.MessageService.IoNetSocket.IsIngress)
                     {
-                        await drone.ZeroSubAsync(static (from, @this) =>
+                        await drone.ZeroSubAsync(static (_, @this) =>
                         {
                             Interlocked.Decrement(ref @this.IngressCount);
                             return new ValueTask<bool>(true);
@@ -842,7 +838,7 @@ namespace zero.cocoon
             {
                 var attached = await drone.AttachViaAdjunctAsync(direction).FastPath().ConfigureAwait(Zc);
 
-                var capped = attached && !await ZeroAtomic(static (n, o, d) =>
+                var capped = attached && !await ZeroAtomic(static (_, o, _) =>
                 {
                     var (@this, direction) = o;
                                                             
@@ -901,7 +897,7 @@ namespace zero.cocoon
                     EgressCount < parm_max_outbound &&
                     //TODO add distance calc
                     //adjunct.Services.CcRecord.Endpoints.ContainsKey(CcService.Keys.gossip) &&
-                    _currentOutboundConnectionAttempts < _maxAsyncConnectionAttempts
+                    _currentOutboundConnectionAttempts < MaxAsyncConnectionAttempts
                 )
             {
                 try
@@ -979,7 +975,7 @@ namespace zero.cocoon
         }
 
         //private static readonly double _lambda = 20;
-        private const int _maxAsyncConnectionAttempts = 16;
+        private const int MaxAsyncConnectionAttempts = 16;
 
         private int _currentOutboundConnectionAttempts;
 

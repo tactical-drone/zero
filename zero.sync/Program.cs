@@ -132,10 +132,10 @@ namespace zero.sync
                 };
 
 #pragma warning disable VSTHRD110 // Observe result of async calls
-                _ = Task.Factory.StartNew(() => t1.Start(), TaskCreationOptions.DenyChildAttach);
-                _ = Task.Factory.StartNew(() => t2.Start(), TaskCreationOptions.DenyChildAttach);
-                _ = Task.Factory.StartNew(() => t3.Start(), TaskCreationOptions.DenyChildAttach);
-                _ = Task.Factory.StartNew(() => t4.Start(), TaskCreationOptions.DenyChildAttach);
+                Task.Factory.StartNew(() => t1.Start(), TaskCreationOptions.DenyChildAttach).GetAwaiter().GetResult();
+                Task.Factory.StartNew(() => t2.Start(), TaskCreationOptions.DenyChildAttach).GetAwaiter().GetResult();
+                Task.Factory.StartNew(() => t3.Start(), TaskCreationOptions.DenyChildAttach).GetAwaiter().GetResult();
+                Task.Factory.StartNew(() => t4.Start(), TaskCreationOptions.DenyChildAttach).GetAwaiter().GetResult();
 #pragma warning restore VSTHRD110 // Observe result of async calls
             }
             else
@@ -406,7 +406,7 @@ namespace zero.sync
                 ZeroAsync(total).AsTask().GetAwaiter();
             };
 
-            while ((line = Console.ReadLine())!= null && !line.StartsWith("quit"))
+            while ((line = Console.ReadLine()) != null && !line.StartsWith("quit"))
             {
                 if (line == "gc")
                 {
@@ -1204,7 +1204,7 @@ namespace zero.sync
                 IoNodeAddress.Create(fpcAddress),
                 IoNodeAddress.Create(extAddress),
                 bootStrapAddress.Select(IoNodeAddress.Create).Where(a => a.Port.ToString() != peerAddress.Split(":")[2]).ToList(),
-                3, 3, 2, 1, zeroDrone);
+                3, 2, 2, 1, zeroDrone);
 
             _nodes.Add(cocoon);
 

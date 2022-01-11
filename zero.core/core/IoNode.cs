@@ -2,6 +2,7 @@
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using NLog;
 using zero.core.conf;
@@ -52,7 +53,7 @@ namespace zero.core.core
         public Func<IoNode<TJob>, IoNetClient<TJob>, object, IoNeighbor<TJob>> MallocNeighbor { get; protected set; }
 
         /// <summary>
-        /// The wrapper for <see cref="IoNetServer"/>
+        /// The wrapper for <see cref="IoNetServer{TJob}"/>
         /// </summary>
         private IoNetServer<TJob> _netServer;
 
@@ -175,7 +176,7 @@ namespace zero.core.core
         /// <summary>
         /// Starts the node's listener
         /// </summary>
-        protected virtual async ValueTask SpawnListenerAsync<T>(Func<IoNeighbor<TJob>, T, ValueTask<bool>> acceptConnection = null, T nanite = default, Func<ValueTask> bootstrapAsync = null)
+        protected virtual async ValueTask SpawnListenerAsync<T>(Func<IoNeighbor<TJob>, T, ValueTask<bool>> acceptConnection = null, T context = default, Func<ValueTask> bootstrapAsync = null)
         {
             //clear previous attempts
             if (_netServer != null)
@@ -271,7 +272,7 @@ namespace zero.core.core
                                         var (@this, newNeighbor) = state;
                                         try
                                         {
-                                            var success = false;
+                                            bool success;
                                             // Does this neighbor already exist?
                                             while (!(success = @this.Neighbors.TryAdd(newNeighbor.Key, newNeighbor)))
                                             {
@@ -337,7 +338,7 @@ namespace zero.core.core
                         }
                     }, (@this, newNeighbor)).ConfigureAwait(@this.Zc);
                 }
-            }, ValueTuple.Create(this, nanite, acceptConnection), bootstrapAsync);
+            }, ValueTuple.Create(this, context, acceptConnection), bootstrapAsync);
 
             await _listenerTask.FastPath().ConfigureAwait(Zc);
         }
@@ -351,26 +352,25 @@ namespace zero.core.core
             try
             {
                 //Start replication
-                IoQueue<Task>.IoZNode node = default;
-                    
-                node = await NeighborTasks.EnqueueAsync(ZeroOptionAsync(static async state =>
+
+                var node = await NeighborTasks.EnqueueAsync(ZeroOptionAsync(static async state =>
+                {
+                    var (@this, newNeighbor, cfgAwait) = state;
+
+                    try
                     {
-                        var (@this, newNeighbor, cfgAwait) = state;
+                        while(!newNeighbor.Zeroed())
+                            await newNeighbor.BlockOnReplicateAsync().FastPath().ConfigureAwait(cfgAwait);
+                    }
+                    catch when(!@this.Zeroed() || newNeighbor.Zeroed()){}
+                    catch (Exception e) when (!@this.Zeroed() && !newNeighbor.Zeroed())
+                    {
+                        @this._logger.Error(e, $"{nameof(newNeighbor.BlockOnReplicateAsync)}: [FAILED]... restarting...");
+                    }
 
-                        try
-                        {
-                            while(!newNeighbor.Zeroed())
-                                await newNeighbor.BlockOnReplicateAsync().FastPath().ConfigureAwait(cfgAwait);
-                        }
-                        catch when(!@this.Zeroed() || newNeighbor.Zeroed()){}
-                        catch (Exception e) when (!@this.Zeroed() && !newNeighbor.Zeroed())
-                        {
-                            @this._logger.Error(e, $"{nameof(newNeighbor.BlockOnReplicateAsync)}: [FAILED]... restarting...");
-                        }
-
-                        if(!@this.Zeroed() && !newNeighbor.Zeroed())
-                            @this._logger.Warn($"{nameof(newNeighbor.BlockOnReplicateAsync)}: [FAILED]... restarting...");
-                    }, ValueTuple.Create(this, newNeighbor, Zc), TaskCreationOptions.DenyChildAttach).AsTask()).FastPath().ConfigureAwait(Zc);
+                    if(!@this.Zeroed() && !newNeighbor.Zeroed())
+                        @this._logger.Warn($"{nameof(newNeighbor.BlockOnReplicateAsync)}: [FAILED]... restarting...");
+                }, ValueTuple.Create(this, newNeighbor, Zc), TaskCreationOptions.DenyChildAttach).AsTask()).FastPath().ConfigureAwait(Zc);
 
                 await node.Value.ContinueWith(static async (_, state) =>
                 {
@@ -478,11 +478,15 @@ namespace zero.core.core
             return null;
         }
 
+        private int _activated;
         /// <summary>
         /// Start the node
         /// </summary>
         public async ValueTask StartAsync(Func<ValueTask> bootstrapFunc = null)
         {
+            if(Interlocked.CompareExchange(ref _activated, 1, 0) != 0)
+                return;
+            
             _logger.Trace($"Unimatrix ZeroAsync: {Description}");
             try
             {
@@ -506,6 +510,8 @@ namespace zero.core.core
             {
                 _logger.Error(e, $"Unimatrix Failed ~> {Description}");
             }
+
+            _activated = 0;
         }
 
         public bool WhiteList(IoNodeAddress address)

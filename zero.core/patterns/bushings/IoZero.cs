@@ -569,13 +569,14 @@ namespace zero.core.patterns.bushings
                         //Sync previous fragments into this job
                         if (ZeroRecoveryEnabled)
                         {
+                            _previousJobFragment.Modified = false;
                             var cur = _previousJobFragment.Head;
                             var c = _previousJobFragment.Count * 2;
                             while (cur != null && c-- > 0)
                             {
                                 if (_previousJobFragment.Modified)
                                 {
-                                    _previousJobFragment.Reset();
+                                    _previousJobFragment.Modified = false;
                                     cur = _previousJobFragment.Head;
                                     continue;
                                 }
@@ -600,7 +601,7 @@ namespace zero.core.patterns.bushings
                                 }
                                 catch
                                 {
-                                    _previousJobFragment.Reset();
+                                    _previousJobFragment.Modified = false;
                                     cur = _previousJobFragment.Head;
                                 }
                             }
@@ -752,7 +753,7 @@ namespace zero.core.patterns.bushings
                 {
                     @this._logger.Error(e, $"Production failed! {@this.Description}");
                 }
-            },this, TaskCreationOptions.AttachedToParent); //TODO tuning
+            },this, TaskCreationOptions.DenyChildAttach); //TODO tuning
 
             //Consumer
             _consumerTask = ZeroOptionAsync(static async @this =>

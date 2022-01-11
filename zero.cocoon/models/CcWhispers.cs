@@ -323,7 +323,7 @@ namespace zero.cocoon.models
             return State;
         }*/
 
-        private long _maxReq;
+        private long _maxReq = -1;
         public override async ValueTask<IoJobMeta.JobState> ConsumeAsync()
         {
             //are we in recovery mode?
@@ -424,13 +424,20 @@ namespace zero.cocoon.models
                         continue;
                     }
 
-                    await Task.Delay(1000/20).ConfigureAwait(Zc);
+                    await Task.Delay(1000/64).ConfigureAwait(Zc);
 
                     IoZero.IncEventCounter();
                     CcCollective.IncEventCounter();
 
                     //read the token
                     var req = MemoryMarshal.Read<long>(packet.Data.Span);
+
+                    if (_maxReq > 5 && req < 5)
+                    {
+                        //Console.WriteLine($"RESET[{req}] {_maxReq} -> {IoZero.Description}");
+                        _maxReq = 0;
+                    }
+
                     req++;
 
                     if (req % 100000 == 0)
@@ -438,10 +445,12 @@ namespace zero.cocoon.models
                         _logger.Info($"[{Id}]: {req}, recover = {Source.Counters[(int)IoJobMeta.JobState.ZeroRecovery]}, frag = {Source.Counters[(int)IoJobMeta.JobState.Fragmented]}, bad = {Source.Counters[(int)IoJobMeta.JobState.BadData]}, total = {Source.Counters[(int)IoJobMeta.JobState.Accept]} + {Source.Counters[(int)IoJobMeta.JobState.Reject]}");
                     }
 
-                    if(req is > uint.MaxValue or < 0 || req < _maxReq)
+
+                    if(req is > uint.MaxValue or < 0  || req < _maxReq)
                         continue;
 
-                    _maxReq = req + 1;
+                    //if(req < _maxReq)
+                        _maxReq = req + 1;
 
                     //Console.WriteLine($"{req}");
 
@@ -470,7 +479,7 @@ namespace zero.cocoon.models
                             if (source.IoNetSocket.RemoteAddress == endpoint || dupEndpoints != null && dupEndpoints.Contains(source.IoNetSocket.RemoteAddress.GetHashCode()))
                                 continue;
 #endif
-                                    if (await source.IoNetSocket.SendAsync(socketBuf, 0, (int)compressed + sizeof(ulong)).FastPath().ConfigureAwait(Zc) <= 0)
+                                    if (await source.IoNetSocket.SendAsync(socketBuf, 0, (int)compressed + sizeof(ulong), timeout:20).FastPath().ConfigureAwait(Zc) <= 0)
                                     {
                                         if (await source.IsOperational().FastPath().ConfigureAwait(Zc))
                                             _logger.Trace($"Failed to forward new msg message to {drone.Description}");

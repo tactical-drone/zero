@@ -7,7 +7,7 @@ namespace zero.core.patterns.queue.enumerator
 {
     public class IoQueueEnumerator<T> : IoEnumBase<IoQueue<T>.IoZNode>
     {
-        private IoQueue<T> _q => (IoQueue<T>)Collection;
+        private IoQueue<T> Q => (IoQueue<T>)Collection;
         private volatile IoQueue<T>.IoZNode _iteratorIoZNode;
 
         public IoQueueEnumerator(IoQueue<T> queue):base(queue)
@@ -23,12 +23,12 @@ namespace zero.core.patterns.queue.enumerator
 
             try
             {
-                if (_q.Count == 0 || _iteratorIoZNode == null)
+                if (Q.Count == 0 || _iteratorIoZNode == null)
                     return false;
 
-                if (_q.Modified)
+                if (Q.Modified)
                 {
-                    _q.Reset();
+                    Q.Reset();
                     return MoveNext();
                 }
 
@@ -48,7 +48,7 @@ namespace zero.core.patterns.queue.enumerator
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public sealed override void Reset()
         {
-            _iteratorIoZNode = new IoQueue<T>.IoZNode { Next = _q.Head };
+            _iteratorIoZNode = new IoQueue<T>.IoZNode { Next = Q.Head };
         }
 
         public override IoQueue<T>.IoZNode Current => _iteratorIoZNode;

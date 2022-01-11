@@ -95,7 +95,11 @@ namespace zero.core.patterns.queue
 
         private IoQueueEnumerator<T> _curEnumerator;
 
-        public bool Modified => _curEnumerator.Modified;
+        public bool Modified
+        {
+            get => _curEnumerator.Modified;
+            set => _curEnumerator.Modified = value;
+        }
 
         public bool Zeroed => _zeroed > 0 || _pressure != null && _pressure.Zeroed() || _backPressure != null && _backPressure.Zeroed();
 
@@ -104,6 +108,10 @@ namespace zero.core.patterns.queue
         {
             if (zero && Interlocked.CompareExchange(ref _zeroed, 1, 0) != 0)
                 return true;
+
+            //Prime zero
+            if (zero && !_asyncTasks.IsCancellationRequested)
+                _asyncTasks.Cancel();
 
             try
             {
@@ -155,11 +163,10 @@ namespace zero.core.patterns.queue
                     await ClearAsync().FastPath().ConfigureAwait(Zc); //TODO perf: can these two steps be combined?
                     await _nodeHeap.ZeroManagedAsync<object>().FastPath().ConfigureAwait(Zc);
 
-                    if (!_asyncTasks.IsCancellationRequested)
-                        _asyncTasks.Cancel();
-
                     _nodeHeap = null;
                     _count = 0;
+                    _head = null;
+                    _tail = null;
 
                     _asyncTasks.Cancel();
                     _asyncTasks.Dispose();
@@ -377,7 +384,8 @@ namespace zero.core.patterns.queue
 
                 dq = _head;
                 _head = _head.Next;
-
+                dq.Next = null;
+                dq.Prev = null;
                 if (_head != null)
                     _head.Prev = null;
                 else
@@ -401,8 +409,6 @@ namespace zero.core.patterns.queue
                 if (dq != null)
                 {
                     var retVal = dq.Value;
-                    dq.Next = null;
-                    dq.Prev = null;
                     dq.Value = default;
                     _nodeHeap.Return(dq);
                     _backPressure?.Release();
@@ -457,7 +463,9 @@ namespace zero.core.patterns.queue
                 }
                 else
                 {
+                    Debug.Assert(_head == node);
                     _head = _head.Next;
+                    node.Next = null;
                     if (_head != null)
                         _head.Prev = null;
                     else
@@ -469,9 +477,7 @@ namespace zero.core.patterns.queue
             }
             finally
             {
-                node.Next = null;
                 _syncRoot.Release();
-                node.Prev = null;
                 node.Value = default;
                 _nodeHeap.Return(node, deDup);
             }
@@ -556,5 +562,6 @@ namespace zero.core.patterns.queue
             _curEnumerator = new IoQueueEnumerator<T>(this);
             _curEnumerator.Modified = false;
         }
+
     }
 }

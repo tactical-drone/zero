@@ -297,7 +297,7 @@ namespace zero.cocoon
             
                 //if (Adjunct?.Direction == CcAdjunct.Heading.IsEgress)
                 byte[] socketBuf = null;
-                v = EventCount + 100;
+
                 try
                 {
                     socketBuf = _sendBuf.Take();

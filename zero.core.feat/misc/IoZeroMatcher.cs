@@ -18,7 +18,7 @@ namespace zero.core.feat.misc
     /// </summary>
     public class IoZeroMatcher : IoNanoprobe
     {
-        public IoZeroMatcher(string description, int concurrencyLevel, long ttlMs = 2000, int capacity = 10, bool autoscale = true) : base($"{nameof(IoZeroMatcher)}", concurrencyLevel)
+        public IoZeroMatcher(string description, int concurrencyLevel, long ttlMs = 2000, int capacity = 10, bool autoscale = true) : base($"{nameof(IoZeroMatcher)}", concurrencyLevel * 2)
         {
             _capacity = capacity * 2;
             _description = description??$"{GetType()}";
@@ -31,7 +31,7 @@ namespace zero.core.feat.misc
                 Malloc = static (_,_) => new IoChallenge()
             };
 
-            _carHeap = new IoHeap<ChallengeAsyncResponse>($"{nameof(_valHeap)}: {description}", _capacity, autoScale: autoscale)
+            _carHeap = new IoHeap<ChallengeAsyncResponse>($"{nameof(_carHeap)}: {description}", Math.Max(concurrencyLevel * 2, _capacity), autoScale: autoscale)
             {
                 Malloc = static (_, _) => new ChallengeAsyncResponse()
             };
@@ -106,9 +106,9 @@ namespace zero.core.feat.misc
         internal class ChallengeAsyncResponse
         {
             //public IoZeroMatcher This;
-            public string Key;
+            public volatile string Key;
             public byte[] Body;
-            public IoQueue<IoChallenge>.IoZNode Node;
+            public volatile IoQueue<IoChallenge>.IoZNode Node;
         }
 
 
@@ -235,58 +235,50 @@ namespace zero.core.feat.misc
         private async ValueTask<bool> MatchAsync(IIoNanite ioNanite, (IoZeroMatcher, string key, ByteString reqHash) state, bool _)
         {
             var (@this, key, reqHash) = state;
-            var reqHashMemory = reqHash.Memory;
-            var timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
 
+            @this._lut.Modified = false;
             var cur = @this._lut.Head;
-            @this._lut.Reset();
-
-            //TODO params:
-            var insane = 20;
-
+            
             while (cur != null)
             {
                 //restart on collisions
-                if (@this._lut.Modified && insane --> 0)
+                if (@this._lut.Modified)
                 {
-                    @this._lut.Reset();
+                    @this._lut.Modified = false;
                     cur = @this._lut.Head;
                     continue;
                 }
 
                 try
                 {
-                    if (DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() - cur.Value.TimestampMs <= _ttlMs && cur.Value.Key == key)
+                    if (cur.Value.TimestampMs.ElapsedMs() <= _ttlMs && cur.Value.Key == key &&
+                        cur.Value.Hash.ArrayEqual(reqHash.Span))
                     {
-                        var potential = cur.Value;
-
-                        if (potential.Hash.ArrayEqual(reqHashMemory.Span))
-                        {
-                            await @this._lut.RemoveAsync(cur).FastPath().ConfigureAwait(@this.Zc);
-                            @this._valHeap.Return(potential);
-                            return true;
-                        }
+                        var tmp = Volatile.Read(ref cur.Value);
+                        await @this._lut.RemoveAsync(cur).FastPath().ConfigureAwait(@this.Zc);
+                        @this._valHeap.Return(tmp);
+                        return true;
                     }
 
-                    //drop old ones while we are at it
-                    if (DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() - cur.Value.TimestampMs > @this._ttlMs)
+                    if (cur.Value.TimestampMs.ElapsedMs() > _ttlMs)
                     {
-                        var value = cur.Value;
+                        var value = Volatile.Read(ref cur.Value);
                         await @this._lut.RemoveAsync(cur).FastPath().ConfigureAwait(@this.Zc);
+                        cur = @this._lut.Head;
+                        @this._lut.Modified = false;
                         @this._valHeap.Return(value);
+                        continue;
                     }
 
                     cur = cur.Next;
                 }
-                catch 
+                catch
                 {
-                    @this._lut.Reset();
+                    @this._lut.Modified = false;
                     cur = @this._lut.Head;
                 }
             }
 
-            if(insane <= 0)
-                _logger.Trace($"{nameof(MatchAsync)}: Failed insane check, too many collisions... [OK]");
             return false;
         }
 

@@ -499,7 +499,7 @@ namespace zero.core.patterns.semaphore.core
                 }
 
 #if DEBUG
-                _zeroRef.ZeroPrevHead();
+                Interlocked.Decrement(ref _head);
                 if (_enableAutoScale) //EXPERIMENTAL: double concurrent capacity
                 {
                     //release lock
@@ -516,7 +516,7 @@ namespace zero.core.patterns.semaphore.core
                     else
                     {
                         throw new ZeroSemaphoreFullException(
-                            $"{_description}: FATAL!, {nameof(_curWaitCount)} = {_zeroRef.ZeroWaitCount()}/{_maxBlockers}, {nameof(_curAsyncWorkerCount)} = {_zeroRef.ZeroAsyncCount()}/{_maxAsyncWorkers}");
+                            $"{_description}: FATAL!, {nameof(_curWaitCount)} = {_curWaitCount}/{_maxBlockers}, {nameof(_curAsyncWorkerCount)} = {_curAsyncWorkerCount}/{_maxAsyncWorkers}");
                     }
 
                 }
@@ -701,7 +701,7 @@ namespace zero.core.patterns.semaphore.core
 
                 var j = 0;
                 //special zero case
-                if (_zeroRef.ZeroTail() % _maxBlockers != _zeroRef.ZeroHead() % _maxBlockers || prevZeroState[_zeroRef.ZeroTail() % _maxBlockers] != null && prevZeroQ.Length == 1)
+                if (_tail % _maxBlockers != _head % _maxBlockers || prevZeroState[_tail % _maxBlockers] != null && prevZeroQ.Length == 1)
                 {
                     _signalAwaiter[0] = prevZeroQ[0];
                     _signalAwaiterState[0] = prevZeroState[0];
@@ -711,7 +711,7 @@ namespace zero.core.patterns.semaphore.core
                 }
                 else
                 {
-                    for (var i = _zeroRef.ZeroTail() % _maxBlockers; i != _zeroRef.ZeroHead() % _maxBlockers || prevZeroState[i] != null && j < _maxBlockers; i = (i + 1) % prevZeroQ.Length)
+                    for (var i = _tail % _maxBlockers; i != _head % _maxBlockers || prevZeroState[i] != null && j < _maxBlockers; i = (i + 1) % prevZeroQ.Length)
                     {
                         _signalAwaiter[j] = prevZeroQ[i];
                         _signalAwaiterState[j] = prevZeroState[i];
@@ -781,15 +781,16 @@ namespace zero.core.patterns.semaphore.core
 
                 if (latch == null || latch == ZeroSentinel)
                 {
-                    if (Zeroed())
+                    Interlocked.Decrement(ref _tail);
+
+                    if (Zeroed() || latch == null)
                         break;
 
-                    Interlocked.Decrement(ref _tail);
                     continue;
                 }
 
                 //latch a chosen head
-                while (_curWaitCount > 0 && (worker.Continuation = Interlocked.CompareExchange(ref _signalAwaiter[latchMod], ZeroSentinel, latch)) != latch)
+                while (latch == ZeroSentinel || _curWaitCount > 0 && (worker.Continuation = Interlocked.CompareExchange(ref _signalAwaiter[latchMod], ZeroSentinel, latch)) != latch)
                 {
                     if (Zeroed())
                         break;

@@ -123,9 +123,9 @@ namespace zero.cocoon.events.services
         {
             Interlocked.Exchange(ref _operational, 0);
             var q = QueuedEvents;
-            QueuedEvents = null;
             if (QueuedEvents == null)
                 return;
+            QueuedEvents = null;
             await q[0].ZeroManagedAsync<object>(zero:true).FastPath().ConfigureAwait(Zc);
             await q[1].ZeroManagedAsync<object>(zero:true).FastPath().ConfigureAwait(Zc);
         }

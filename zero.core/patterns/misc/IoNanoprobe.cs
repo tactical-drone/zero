@@ -105,7 +105,7 @@ namespace zero.core.patterns.misc
         /// <summary>
         /// Continue On Captured Context
         /// </summary>
-        public static bool ContinueOnCapturedContext => false;
+        public static bool ContinueOnCapturedContext => true;
 
         /// <summary>
         /// Used for equality compares
@@ -173,13 +173,13 @@ namespace zero.core.patterns.misc
         /// All subscriptions
         /// </summary>
         //private IoQueue<IoZeroSub> _zeroHive;
-        private volatile IoQueue<IoZeroSub> _zeroHive;
+        private IoQueue<IoZeroSub> _zeroHive;
 
         /// <summary>
         /// All subscriptions
         /// </summary>
         //private IoQueue<IIoNanite> _zeroHiveMind;
-        private volatile IoQueue<IIoNanite> _zeroHiveMind;
+        private IoQueue<IIoNanite> _zeroHiveMind;
 
         /// <summary>
         /// Max number of blockers
@@ -203,7 +203,7 @@ namespace zero.core.patterns.misc
         /// <param name="concurrencyLevel"></param>
         private void ZeroSyncRoot(int concurrencyLevel)
         {
-            _zeroRoot = new IoZeroSemaphore(string.Empty, concurrencyLevel, 1, cancellationTokenSource: AsyncTasks);
+            _zeroRoot = new IoZeroSemaphore(string.Empty, concurrencyLevel * 5, 1);
             _zeroRoot.ZeroRef(ref _zeroRoot, AsyncTasks);
         }
 
@@ -360,10 +360,11 @@ namespace zero.core.patterns.misc
         /// </summary>
         /// <param name="target">The object to be zeroed out</param>
         /// <param name="twoWay">Enforces mutual zero</param>
-        public async ValueTask<(T target, bool success)> ZeroHiveAsync<T>(T target, bool twoWay = false) where T : IIoNanite
+        public async ValueTask<(T target, bool success, IoQueue<IIoNanite>.IoZNode sub)> ZeroHiveAsync<T>(T target,
+            bool twoWay = false) where T : IIoNanite
         {
             if (_zeroed > 0)
-                return (default, false);
+                return (default, false, null);
 
             var zNode = await _zeroHiveMind.EnqueueAsync(target).FastPath().ConfigureAwait(Zc);
 
@@ -371,21 +372,22 @@ namespace zero.core.patterns.misc
             {
                 if(_zeroed > 0)
                     throw new ApplicationException($"{nameof(ZeroHiveAsync)}: {nameof(_zeroHiveMind.EnqueueAsync)} failed!, cap =? {_zeroHiveMind.Count}/{_zeroHiveMind.Capacity}");
-                return (default, false);
+                return (default, false, null);
             }
-            
+
             if (twoWay) //zero
-                await target.ZeroHiveAsync(this).FastPath().ConfigureAwait(Zc);
-            else
             {
-                await ZeroSubAsync((_, @this) =>
+                var sub = (await target.ZeroHiveAsync(this).FastPath().ConfigureAwait(Zc)).sub;
+
+                await ZeroSubAsync(static (_, state) =>
                 {
-                    @this._zeroHiveMind.RemoveAsync(zNode).FastPath().ConfigureAwait(Zc);
+                    var (@this, target, sub) = state;
+                    target.ZeroHiveMind().RemoveAsync(sub).FastPath().ConfigureAwait(@this.Zc);
                     return new ValueTask<bool>(true);
-                }, this).FastPath().ConfigureAwait(Zc);
+                }, (this, target,sub)).FastPath().ConfigureAwait(Zc);
             }
-            
-            return (target, true);
+
+            return (target, true, zNode);
         }
 
         /// <summary>
@@ -415,8 +417,8 @@ namespace zero.core.patterns.misc
                             _logger.Error($"{zeroSub.From} - zero sub {((IIoNanite)zeroSub.Target)?.Description} on {Description} returned with errors!");
                     }
 
-                    await _zeroHive.ZeroManagedAsync<object>(zero:true).FastPath().ConfigureAwait(Zc);
-                    _zeroHive = null;
+                    //await _zeroHive.ZeroManagedAsync<object>(zero:true).FastPath().ConfigureAwait(Zc);
+                    //_zeroHive = null;
                 }
 
                 if (_zeroHiveMind != null)
@@ -432,8 +434,8 @@ namespace zero.core.patterns.misc
                         //await Task.Yield();
                     }
 
-                    await _zeroHiveMind.ZeroManagedAsync<object>(zero: true).FastPath().ConfigureAwait(Zc);
-                    _zeroHiveMind = null;
+                    //await _zeroHiveMind.ZeroManagedAsync<object>(zero: true).FastPath().ConfigureAwait(Zc);
+                    //_zeroHiveMind = null;
                 }
                 
                 CascadeTime = CascadeTime.ElapsedMs();
@@ -538,6 +540,8 @@ namespace zero.core.patterns.misc
         /// </summary>
         public virtual ValueTask ZeroManagedAsync()
         {
+            _zeroHive.ZeroManagedAsync<object>(zero:true).FastPath().ConfigureAwait(Zc);
+            _zeroHiveMind.ZeroManagedAsync<object>(zero: true).FastPath().ConfigureAwait(Zc);
             _zeroRoot.ZeroSem();
 #if DEBUG
             Interlocked.Increment(ref _extracted);
@@ -715,11 +719,11 @@ namespace zero.core.patterns.misc
                         await action(state).FastPath().ConfigureAwait(@this.Zc);
                     }
 #if DEBUG
-                        catch (TaskCanceledException e) when ( nanoprobe != null && !nanoprobe.Zeroed() ||
-                                                   nanoprobe == null && @this._zeroed == 0)
-                        {
-                            _logger.Trace(e,$"{Path.GetFileName(fileName)}:{methodName}() line {lineNumber} - [{@this.Description}]: {nameof(Zero)}");
-                        }
+                    catch (TaskCanceledException e) when ( nanoprobe != null && !nanoprobe.Zeroed() ||
+                                               nanoprobe == null && @this._zeroed == 0)
+                    {
+                        _logger.Trace(e,$"{Path.GetFileName(fileName)}:{methodName}() line {lineNumber} - [{@this.Description}]: {nameof(Zero)}");
+                    }
 #else
                     catch (TaskCanceledException) { }
 #endif
@@ -862,6 +866,17 @@ namespace zero.core.patterns.misc
                 
                 return new ZeroException($"{Path.GetFileName(filePath)}:{methodName}() {lineNumber} - [{description}]: {message}", exception);
             }
+        }
+
+
+        /// <summary>
+        /// Returns the hive mind
+        /// </summary>
+        /// <returns>The hive</returns>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public IoQueue<IoZeroSub> ZeroHive()
+        {
+            return _zeroHive;
         }
 
         /// <summary>
