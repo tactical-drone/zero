@@ -413,12 +413,11 @@ namespace zero.core.patterns.misc
                     IoZeroSub zeroSub;
                     while((zeroSub = await _zeroHive.DequeueAsync().FastPath().ConfigureAwait(Zc)) != null)
                     {
-                        if (!zeroSub.Executed && !await zeroSub.ExecuteAsync(this).FastPath().ConfigureAwait(Zc))
-                            _logger.Error($"{zeroSub.From} - zero sub {((IIoNanite)zeroSub.Target)?.Description} on {Description} returned with errors!");
+                        if(zeroSub.Executed) continue;
+                        
+                        if (!await zeroSub.ExecuteAsync(this).FastPath().ConfigureAwait(Zc))
+                            _logger.Trace($"{zeroSub.From} - zero sub {((IIoNanite)zeroSub.Target)?.Description} on {Description} returned with errors!");
                     }
-
-                    //await _zeroHive.ZeroManagedAsync<object>(zero:true).FastPath().ConfigureAwait(Zc);
-                    //_zeroHive = null;
                 }
 
                 if (_zeroHiveMind != null)
@@ -427,15 +426,8 @@ namespace zero.core.patterns.misc
                     while ((zeroSub = await _zeroHiveMind.DequeueAsync().FastPath().ConfigureAwait(Zc)) != null)
                     {
                         if (zeroSub.Zeroed()) continue;
-
-                        await zeroSub.Zero(this, $"[ZERO CASCADE] teardown from {desc}").FastPath().ConfigureAwait(Zc);
-
-                        //throttle teardown so it floods in breadth
-                        //await Task.Yield();
+                        await zeroSub.Zero(this, $"[ZERO CASCADE] from {desc}").FastPath().ConfigureAwait(Zc);
                     }
-
-                    //await _zeroHiveMind.ZeroManagedAsync<object>(zero: true).FastPath().ConfigureAwait(Zc);
-                    //_zeroHiveMind = null;
                 }
                 
                 CascadeTime = CascadeTime.ElapsedMs();
