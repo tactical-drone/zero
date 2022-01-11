@@ -343,12 +343,10 @@ namespace zero.core.patterns.queue
             }
             finally
             {
-                var success = retVal != default;
-
                 if (entered)
                     _syncRoot.Release();
 
-                if(success)
+                if (retVal != default)
                     _pressure?.Release();
                 else
                     _backPressure?.Release();

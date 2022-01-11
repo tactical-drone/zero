@@ -193,7 +193,7 @@ namespace zero.core.patterns.queue
 
             var latchIdx = Interlocked.Increment(ref _head) - 1;
             var latchMod = latchIdx % _capacity;
-            var latch = Volatile.Read(ref _storage[latchMod]);
+            var latch = _storage[latchMod];
             while (!Zeroed && latchIdx < _tail && _count > 0 && (result = Interlocked.CompareExchange(ref _storage[latchMod], default, latch)) != latch)
             {
                 //skip over empty slots
@@ -204,7 +204,7 @@ namespace zero.core.patterns.queue
 
                 latchIdx = Interlocked.Increment(ref _head) - 1;
                 latchMod = latchIdx % _capacity;
-                latch = Volatile.Read(ref _storage[latchMod]);
+                latch = _storage[latchMod];
             }
 
             if (result != latch || result == default)
@@ -212,8 +212,7 @@ namespace zero.core.patterns.queue
                 Interlocked.Decrement(ref _head);
                 return false;
             }
-
-            Volatile.Write(ref _storage[latchMod], default);
+            _storage[latchMod] = default;
 
             Interlocked.Decrement(ref _count);
 

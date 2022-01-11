@@ -749,8 +749,8 @@ namespace zero.core.patterns.semaphore.core
         /// </summary>
         /// <param name="releaseCount">The number of waiters to enter</param>
         /// <param name="bestEffort">Whether this originates from <see cref="OnCompleted"/></param>
-        /// <returns>The number of signals sent, before this one, -1 on failure</returns>
-        /// <exception cref="ZeroValidationException">Fails on preconditions</exception>
+        /// <returns>The number of waiters released, -1 on failure</returns>
+        /// <exception cref="SemaphoreFullException">Fails when maximum waiters reached</exception>
         public int Release(int releaseCount = 1, bool bestEffort = false)
         {
             //fail fast on cancellation token
@@ -775,7 +775,6 @@ namespace zero.core.patterns.semaphore.core
                 ZeroLock();
 #endif
                 var latchIdx = Interlocked.Increment(ref _tail) - 1;
-                //var latchIdx = Interlocked.Increment(ref _tail) - 1;
                 var latchMod = latchIdx % _maxBlockers;
                 var latch = _signalAwaiter[latchMod];
 
