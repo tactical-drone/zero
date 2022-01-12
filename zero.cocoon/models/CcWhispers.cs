@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using System.Runtime.InteropServices;
 using System.Security.Cryptography;
 using System.Threading;
@@ -466,7 +467,7 @@ namespace zero.cocoon.models
 
                         if (!Zeroed())
                         {
-                            foreach (var drone in CcCollective.WhisperingDrones)
+                            foreach (var drone in CcCollective.Neighbors.Values.Cast<CcDrone>())
                             {
                                 try
                                 {

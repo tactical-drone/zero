@@ -395,14 +395,15 @@ namespace zero.core.network.ip
                     throw new OutOfMemoryException(nameof(_sendArgs));
 
                 var buf = Unsafe.As<ReadOnlyMemory<byte>, Memory<byte>>(ref buffer).Slice(offset, length);
-                var send = new IoZeroResetValueTaskSource<bool>(true);
+                var taskCore = new IoManualResetValueTaskSource<bool>(true);
 
-                args.UserToken = send;
+                args.UserToken = taskCore;
                 args.SetBuffer(buf);
                 args.RemoteEndPoint = endPoint;
 
+                var sent = new ValueTask<bool>(taskCore, taskCore.Version);
                 //receive
-                if (NativeSocket.SendToAsync(args) && !await send.WaitAsync().FastPath().ConfigureAwait(Zc))
+                if (NativeSocket.SendToAsync(args) && !await sent.FastPath().ConfigureAwait(Zc))
                     return 0;
 
                 return args.SocketError == SocketError.Success ? args.BytesTransferred : 0;

@@ -7,6 +7,7 @@ using System.Threading.Tasks;
 using zero.core.patterns.misc;
 using NLog;
 using zero.core.patterns.semaphore;
+using zero.core.patterns.semaphore.core;
 
 namespace zero.core.network.ip
 {
@@ -92,7 +93,37 @@ namespace zero.core.network.ip
                 try
                 {
                     //ZERO control passed to connection handler
-                    var newSocket = new IoTcpSocket(await NativeSocket.AcceptAsync().ConfigureAwait(Zc));
+                    var taskCore = new IoManualResetValueTaskSource<Socket>(true);
+                    NativeSocket.BeginAccept(static result =>
+                    {
+                        var (socket, connected) = (ValueTuple<Socket, IoManualResetValueTaskSource<Socket>>)result.AsyncState;
+                        try
+                        {
+                            connected.SetResult(socket.EndAccept(result));
+                        }
+                        catch (Exception e)
+                        {
+                            LogManager.GetCurrentClassLogger().Trace(e, $"{nameof(NativeSocket.BeginConnect)}");
+                            connected.SetResult(null);
+                        }
+                    }, (NativeSocket, taskCore));
+
+
+                    Socket socket;
+                    IoTcpSocket newSocket;
+                    var connected = new ValueTask<Socket>(taskCore, taskCore.Version);
+                    if ((socket = await connected.FastPath().ConfigureAwait(Zc)) != null && socket.Connected)
+                    {
+                        newSocket = new IoTcpSocket(socket);
+                    }
+                    else
+                    {
+                        _logger.Error($"Incoming connection failed: {socket}, {Description}");
+                        continue;
+                    }
+
+
+                    //var newSocket = new IoTcpSocket(await NativeSocket.AcceptAsync().ConfigureAwait(Zc));
                     //newSocket.ClosedEvent((sender, args) => Close());
 
                     //Do some pointless sanity checking
@@ -150,20 +181,21 @@ namespace zero.core.network.ip
             _sw.Restart();
             try
             {
-                var connected = new IoZeroResetValueTaskSource<bool>();
+                var taskCore = new IoManualResetValueTaskSource<bool>(true);
                 NativeSocket.BeginConnect(remoteAddress.IpEndPoint, static result =>
                 {
+                    var (socket, taskCore) = (ValueTuple<Socket, IoManualResetValueTaskSource<bool>>)result.AsyncState;
                     try
                     {
-                        var (socket, connected) = (ValueTuple<Socket, IoZeroResetValueTaskSource<bool>>)result.AsyncState;
                         socket.EndConnect(result);
-                        connected.SetResult(socket.Connected);
+                        taskCore.SetResult(socket.Connected);
                     }
                     catch (Exception e)
                     {
                         LogManager.GetCurrentClassLogger().Trace(e, $"{nameof(NativeSocket.BeginConnect)}");
+                        taskCore.SetResult(false);
                     }
-                }, (NativeSocket,connected));
+                }, (NativeSocket, taskCore));
 
                 if (timeout > 0)
                 {
@@ -187,8 +219,8 @@ namespace zero.core.network.ip
                         }
                     }, ValueTuple.Create(this, timeout), TaskCreationOptions.DenyChildAttach);
                 }
-
-                if (!await connected.WaitAsync().FastPath().ConfigureAwait(Zc))
+                var connected = new ValueTask<bool>(taskCore, taskCore.Version);
+                if (!await connected.FastPath().ConfigureAwait(Zc))
                     return false;
 
                 LocalNodeAddress = IoNodeAddress.CreateFromEndpoint("tcp", (IPEndPoint)NativeSocket.LocalEndPoint);

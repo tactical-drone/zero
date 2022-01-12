@@ -18,7 +18,7 @@ namespace zero.core.patterns.semaphore
                 _pressure.SetResult(true);
         }
 
-        private IoZeroResetValueTaskSource<bool> _pressure = new();
+        private readonly IoZeroResetValueTaskSource<bool> _pressure = new();
 
         public int CurNrOfBlockers => _pressure.GetStatus(_pressure.Version) == ValueTaskSourceStatus.Pending ? 1 : 0;
 
