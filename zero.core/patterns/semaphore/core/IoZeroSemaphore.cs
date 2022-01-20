@@ -1,5 +1,6 @@
 ﻿//#define TOKEN //TODO this primitive does not work this way
 using System;
+using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using System.Runtime.ExceptionServices;
 using System.Threading;
@@ -67,8 +68,8 @@ namespace zero.core.patterns.semaphore.core
             _signalExecutionState = new ExecutionContext[_maxBlockers];
             _signalCapturedContext = new object[_maxBlockers];
 
-            _head = 0;
             _tail = 0;
+            _head = 0;
             ZeroSentinel = CompletionSentinel;
         }
 
@@ -197,12 +198,15 @@ namespace zero.core.patterns.semaphore.core
         /// <summary>
         /// A pointer to the head of the Q
         /// </summary>
-        private long _head;
+        private long _tail;
 
         /// <summary>
         /// A pointer to the tail of the Q
         /// </summary>
-        private long _tail;
+        private long _head;
+
+        public long Head => Interlocked.Read(ref _head);
+        public long Tail => Interlocked.Read(ref _tail);
 
         /// <summary>
         /// Whether this semaphore has been cleared out
@@ -408,7 +412,35 @@ namespace zero.core.patterns.semaphore.core
             return ValueTaskSourceStatus.Pending;
         }
 
-        
+        /// <summary>
+        /// Extract execution context
+        /// </summary>
+        /// <param name="ec">Execution context</param>
+        /// <param name="cc">Captured context</param>
+        /// <param name="flags">Completion flags</param>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        void ExtractContext(out ExecutionContext ec, out object cc, ValueTaskSourceOnCompletedFlags flags)
+        {
+            ec = null;
+            cc = null;
+            if ((flags & ValueTaskSourceOnCompletedFlags.FlowExecutionContext) != 0)
+                ec = ExecutionContext.Capture();
+
+            if ((flags & ValueTaskSourceOnCompletedFlags.UseSchedulingContext) == 0) return;
+
+            var sc = SynchronizationContext.Current;
+            if (sc != null && sc.GetType() != typeof(SynchronizationContext))
+            {
+                cc = sc;
+            }
+            else
+            {
+                var ts = TaskScheduler.Current;
+                if (ts != TaskScheduler.Default)
+                    cc = ts;
+            }
+        }
+
         /// <summary>
         /// Set signal handler
         /// </summary>
@@ -423,83 +455,57 @@ namespace zero.core.patterns.semaphore.core
             if (_zeroRef.ZeroToken() != token)
                 throw new ZeroValidationException($"{Description}: Invalid token: wants = {token}, has = {_zeroRef.ZeroToken()}");
 #endif
-            [MethodImpl(MethodImplOptions.AggressiveInlining)]
-            void ExtractStack(out ExecutionContext ec, out object cc)
-            {
-                ec = null;
-                cc = null;
-                if ((flags & ValueTaskSourceOnCompletedFlags.FlowExecutionContext) != 0)
-                    ec = ExecutionContext.Capture();
-
-                if ((flags & ValueTaskSourceOnCompletedFlags.UseSchedulingContext) == 0) return;
-
-                var sc  = SynchronizationContext.Current;
-                if (sc != null && sc.GetType() != typeof(SynchronizationContext))
-                {
-                    cc = sc;
-                }
-                else
-                {
-                    var ts = TaskScheduler.Current;
-                    if (ts != TaskScheduler.Default)
-                        cc = ts;
-                }
-            }
-
             try
             {
-                //fast path, RACES with SetResult through _zeroRef. 
-                if (Interlocked.Decrement(ref _curSignalCount) == 0)
+                //fast path, RACES with SetResult 
+                if (_curSignalCount == 1 && _curWaitCount == 1)
                 {
-                    TaskScheduler cc = null;
-                    if (TaskScheduler.Current != TaskScheduler.Default)
-                        cc = TaskScheduler.Current;
+                    if (Interlocked.Decrement(ref _curSignalCount) == 0)
+                    {
+                        TaskScheduler cc = null;
+                        if (TaskScheduler.Current != TaskScheduler.Default)
+                            cc = TaskScheduler.Current;
 
-                    InvokeContinuation(continuation, state, cc, true);
-                    return;
+                        InvokeContinuation(continuation, state, cc, false);
+                        return;
+                    }
+
+                    Interlocked.Increment(ref _curSignalCount);
                 }
-
-                Interlocked.Increment(ref _curSignalCount);
 #if DEBUG
                 ZeroLock();
 #endif
-
+                
                 //choose a head index for blocking state
-                var headInx = Interlocked.Increment(ref _head) - 1;
-                var headMod = headInx % _maxBlockers;
-                Action<object> slot;
+                //var tailIdx = Interlocked.Increment(ref _tail) - 1;
+                //var headMod = tailIdx % _maxBlockers;
 
                 //Did we win?
-                while ((slot = Interlocked.CompareExchange(ref _signalAwaiter[headMod], ZeroSentinel, null)) != null)
+
+                long headMod;
+                while (Interlocked.CompareExchange(ref _signalAwaiter[headMod = (Interlocked.Increment(ref _tail) - 1) % _maxBlockers], ZeroSentinel, null) != null)
                 {
+                    Interlocked.Decrement(ref _tail);
                     if (Zeroed())
                         break;
-
-                    if (slot == ZeroSentinel)
-                        continue;
-
-                    Interlocked.Decrement(ref _head);
-
-                    headInx = Interlocked.Increment(ref _head) - 1;
-                    headMod = headInx % _maxBlockers;
                 }
-
 #if DEBUG
-                if (slot == null)
+                //if (slot == null)
 #endif
                 {
                     _signalAwaiterState[headMod] = state;
-                    ExtractStack(out _signalExecutionState[headMod], out _signalCapturedContext[headMod]);
+                    ExtractContext(out _signalExecutionState[headMod], out _signalCapturedContext[headMod], flags);
                     Thread.MemoryBarrier();
                     _signalAwaiter[headMod] = continuation;
-#if DEBUG
-                    ZeroUnlock();
                     return;
-#endif
                 }
-
 #if DEBUG
-                Interlocked.Decrement(ref _head);
+                ZeroUnlock();
+                
+#endif
+                
+#if DEBUG
+                Interlocked.Decrement(ref _tail);
                 if (_enableAutoScale) //EXPERIMENTAL: double concurrent capacity
                 {
                     //release lock
@@ -520,6 +526,8 @@ namespace zero.core.patterns.semaphore.core
                     }
 
                 }
+
+                throw new ZeroValidationException($"{nameof(OnCompleted)}: Invalid state! Concurrency bug. Too many blockers...");
 #endif
             }
             catch when (Zeroed()) { }
@@ -701,7 +709,7 @@ namespace zero.core.patterns.semaphore.core
 
                 var j = 0;
                 //special zero case
-                if (_tail % _maxBlockers != _head % _maxBlockers || prevZeroState[_tail % _maxBlockers] != null && prevZeroQ.Length == 1)
+                if (_head % _maxBlockers != _tail % _maxBlockers || prevZeroState[_head % _maxBlockers] != null && prevZeroQ.Length == 1)
                 {
                     _signalAwaiter[0] = prevZeroQ[0];
                     _signalAwaiterState[0] = prevZeroState[0];
@@ -711,7 +719,7 @@ namespace zero.core.patterns.semaphore.core
                 }
                 else
                 {
-                    for (var i = _tail % _maxBlockers; i != _head % _maxBlockers || prevZeroState[i] != null && j < _maxBlockers; i = (i + 1) % prevZeroQ.Length)
+                    for (var i = _head % _maxBlockers; i != _tail % _maxBlockers || prevZeroState[i] != null && j < _maxBlockers; i = (i + 1) % prevZeroQ.Length)
                     {
                         _signalAwaiter[j] = prevZeroQ[i];
                         _signalAwaiterState[j] = prevZeroState[i];
@@ -722,8 +730,8 @@ namespace zero.core.patterns.semaphore.core
                 }
 
                 //reset queue pointers
-                _tail = 0;
-                _head = j;
+                _head = 0;
+                _tail = j;
             }
             finally
             {
@@ -774,41 +782,30 @@ namespace zero.core.patterns.semaphore.core
 #if DEBUG
                 ZeroLock();
 #endif
-                var latchIdx = Interlocked.Increment(ref _tail) - 1;
-                var latchMod = latchIdx % _maxBlockers;
+                var headIdx = Interlocked.Increment(ref _head) - 1;
+                var latchMod = headIdx % _maxBlockers;
                 var latch = _signalAwaiter[latchMod];
 
-                if (latch == null || latch == ZeroSentinel)
-                {
-                    Interlocked.Decrement(ref _tail);
-
-                    if (Zeroed() || latch == null)
-                        break;
-
-                    continue;
-                }
-
                 //latch a chosen head
-                while (latch == ZeroSentinel || _curWaitCount > 0 && (worker.Continuation = Interlocked.CompareExchange(ref _signalAwaiter[latchMod], ZeroSentinel, latch)) != latch)
+                while (_curWaitCount > 0 && (headIdx > _tail || latch == null || latch == ZeroSentinel || (worker.Continuation = Interlocked.CompareExchange(ref _signalAwaiter[latchMod], ZeroSentinel, latch)) != latch))
                 {
+                    Interlocked.Decrement(ref _head);
+
                     if (Zeroed())
                         break;
 
-                    if (latch != ZeroSentinel)
-                    {
-                        Interlocked.Decrement(ref _tail);
-                        latchIdx = Interlocked.Increment(ref _tail) - 1;
-                        latchMod = latchIdx % _maxBlockers;
-                    }
+                    headIdx = Interlocked.Increment(ref _head) - 1;
+                    latchMod = headIdx % _maxBlockers;
+
                     latch = _signalAwaiter[latchMod];
                 }
 
-                if (worker.Continuation == null || worker.Continuation == ZeroSentinel)
+                if (worker.Continuation != latch || latch == ZeroSentinel || latch == null)
                 {
                     if (Zeroed())
                         break;
 
-                    Interlocked.Decrement(ref _tail);
+                    Interlocked.Decrement(ref _head);
                     continue;
                 }
 
@@ -821,12 +818,10 @@ namespace zero.core.patterns.semaphore.core
                 _signalCapturedContext[latchMod] = null;
                 Thread.MemoryBarrier();
                 _signalAwaiter[latchMod] = null;
-
 #if DEBUG
                 //unlock
                 ZeroUnlock();
 #endif
-
                 if (!ZeroComply(worker.Continuation, worker.State, worker.ExecutionContext, worker.CapturedContext, Zeroed() || Zeroed() || worker.State is IIoNanite nanite && nanite.Zeroed(),bestEffort))
                 {
                     if (!bestEffort)
@@ -858,14 +853,21 @@ namespace zero.core.patterns.semaphore.core
             //insane checks
             if (Zeroed())
                 return new ValueTask<bool>(false);
-            
-            //fast path
-            if (Interlocked.Decrement(ref _curSignalCount) >= 0)
-                return new ValueTask<bool>(true);
-            Interlocked.Increment(ref _curSignalCount);
 
-            //block or fail
-            return Interlocked.Increment(ref _curWaitCount) > _maxBlockers ? new ValueTask<bool>(false) : new ValueTask<bool>(_zeroRef, 23);
+            //fast path
+            if (_curSignalCount > 0 && _curWaitCount == 0)
+            {
+                if (Interlocked.Decrement(ref _curSignalCount) >= 0)
+                    return new ValueTask<bool>(true);
+
+                Interlocked.Increment(ref _curSignalCount);
+            }
+
+            if (_curWaitCount < _maxBlockers && Interlocked.Increment(ref _curWaitCount) <= _maxBlockers)
+                return new ValueTask<bool>(_zeroRef, 23);
+
+            Interlocked.Decrement(ref _curWaitCount);
+            return new ValueTask<bool>(false);
         }
 
         /// <summary>Completes with an error.</summary>
@@ -882,25 +884,25 @@ namespace zero.core.patterns.semaphore.core
         //        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         //        long IIoZeroSemaphore.ZeroNextTail()
         //        {
-        //            return Interlocked.Increment(ref _tail);
+        //            return Interlocked.Increment(ref _head);
         //        }
 
         //        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         //        long IIoZeroSemaphore.ZeroNextHead()
         //        {
-        //            return Interlocked.Increment(ref _head);
+        //            return Interlocked.Increment(ref _tail);
         //        }
 
         //        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         //        long IIoZeroSemaphore.ZeroPrevTail()
         //        {
-        //            return Interlocked.Decrement(ref _tail);
+        //            return Interlocked.Decrement(ref _head);
         //        }
 
         //        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         //        long IIoZeroSemaphore.ZeroPrevHead()
         //        {
-        //            return Interlocked.Decrement(ref _head);
+        //            return Interlocked.Decrement(ref _tail);
         //        }
 
         //        [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -986,13 +988,13 @@ namespace zero.core.patterns.semaphore.core
         //        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         //        long IIoZeroSemaphore.ZeroHead()
         //        {
-        //            return _head;
+        //            return _tail;
         //        }
 
         //        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         //        long IIoZeroSemaphore.ZeroTail()
         //        {
-        //            return _tail;
+        //            return _head;
         //        }
 
 

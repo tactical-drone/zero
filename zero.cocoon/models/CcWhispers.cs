@@ -430,7 +430,7 @@ namespace zero.cocoon.models
                     }
 
                     //if(Id % 5 != 0)
-                        await Task.Delay(1000/16).ConfigureAwait(Zc);
+                        await Task.Delay(1000/64).ConfigureAwait(Zc);
                     //await Task.Delay(10).ConfigureAwait(Zc);
                     //await Task.Delay(1000).ConfigureAwait(Zc);
 

@@ -199,15 +199,12 @@ namespace zero.core.network.ip
         public override async ValueTask ZeroPrimeAsync()
         {
             await base.ZeroPrimeAsync().FastPath().ConfigureAwait(Zc);
-            if (!Proxy && NativeSocket.IsBound && NativeSocket.Connected)
+            if (!Proxy)
             {
                 try
                 {
-                    if (!Proxy && NativeSocket.IsBound && NativeSocket.Connected)
-                    {
-                        NativeSocket.Shutdown(SocketShutdown.Both);
-                        NativeSocket.Disconnect(true);
-                    }
+                    NativeSocket.Shutdown(SocketShutdown.Both);
+                    NativeSocket.Disconnect(true);
                 }
                 catch when (Zeroed()) { }
                 catch (Exception e) when (!Zeroed())

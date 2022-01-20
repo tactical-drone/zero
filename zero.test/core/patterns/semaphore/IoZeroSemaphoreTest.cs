@@ -94,8 +94,8 @@ namespace zero.test.core.patterns.semaphore
         [Fact]
         async Task ReleaseAsync()
         {
-            var m = new IoZeroSemaphoreSlim(new CancellationTokenSource(), "test mutex", maxBlockers: 10, initialCount: 3);
-
+            var m = new IoZeroSemaphoreSlim(new CancellationTokenSource(), "test mutex", maxBlockers: 10, initialCount: 3, maxAsyncWork: 0);
+            
             await Task.Factory.StartNew(async () =>
             {
                 m.Release(2);
@@ -104,13 +104,16 @@ namespace zero.test.core.patterns.semaphore
             });
 
             var ts = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+            
             await m.WaitAsync().FastPath().ConfigureAwait(Zc);
             await m.WaitAsync().FastPath().ConfigureAwait(Zc);
             await m.WaitAsync().FastPath().ConfigureAwait(Zc);
             await m.WaitAsync().FastPath().ConfigureAwait(Zc);
             await m.WaitAsync().FastPath().ConfigureAwait(Zc);
+
             Assert.InRange(ts.ElapsedMs(), 0, 50);
             await m.WaitAsync().FastPath().ConfigureAwait(Zc);
+            _output.WriteLine($"6 {m.Tail} -> {m.Head}");
             Assert.InRange(ts.ElapsedMs(), 400, 2000);
         }
 

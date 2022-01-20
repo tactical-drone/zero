@@ -68,7 +68,7 @@ namespace zero.sync
             //QueueTestAsync();
 
             ThreadPool.GetMinThreads(out var wt, out var cp);
-            ThreadPool.SetMinThreads(wt * 2, cp * 2);
+            ThreadPool.SetMinThreads(wt * 2, cp);
 
             LogManager.LoadConfiguration("nlog.config");
             var portOffset = 7051;
@@ -850,9 +850,9 @@ namespace zero.sync
             var mutex = new IoZeroSemaphoreSlim(asyncTasks, "zero slim", maxBlockers: capacity, initialCount: 0, maxAsyncWork: 0, enableAutoScale: false, enableFairQ: false, enableDeadlockDetection: true);
             //var mutex = new IoZeroRefMut(asyncTasks.Token);
 
-            var releaseCount = 2;
+            var releaseCount = 1;
             var waiters = 3;
-            var releasers = 2;
+            var releasers = 3;
             var targetSleep = (long)0;
             var logSpam = 40000;//at least 1
 

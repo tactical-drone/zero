@@ -96,7 +96,7 @@ namespace zero.core.patterns.misc
         public static async ValueTask BlockOnNotCanceledAsync(this CancellationToken token)
         {
             while (token.CanBeCanceled && !token.IsCancellationRequested)
-                await Task.Delay(10000, token);
+                await Task.Delay(120000, token);
         }        
     }    
 }

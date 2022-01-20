@@ -84,6 +84,8 @@ namespace zero.core.patterns.semaphore
         public int Capacity => _semaphore.Capacity;
         public bool RunContinuationsAsynchronously => _semaphore.RunContinuationsAsynchronously;
 
+        public long Tail => ((IoZeroSemaphore)_semaphore).Tail;
+        public long Head => ((IoZeroSemaphore)_semaphore).Head;
         //int IIoZeroSemaphore.ZeroEnter()
         //{
         //    throw new NotImplementedException();
