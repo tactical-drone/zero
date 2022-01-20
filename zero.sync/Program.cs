@@ -67,6 +67,9 @@ namespace zero.sync
             //SemTest();
             //QueueTestAsync();
 
+            ThreadPool.GetMinThreads(out var wt, out var cp);
+            ThreadPool.SetMinThreads(wt * 2, cp * 2);
+
             LogManager.LoadConfiguration("nlog.config");
             var portOffset = 7051;
             
@@ -480,6 +483,14 @@ namespace zero.sync
                 {
                     var n = _nodes.Where(n => !n.ZeroDrone).ToArray();
                     n[Random.Shared.Next(0,n.Length - 1)].BootAsync(0).AsTask().GetAwaiter().GetResult();
+                }
+
+                if (line.StartsWith("gr"))
+                {
+                    foreach (var ccCollective in _nodes)
+                    {
+                        ccCollective.Drones.ForEach(d=>d.ToggleAccountingBit());
+                    }
                 }
 
                 var gossipTasks = new List<Task>();

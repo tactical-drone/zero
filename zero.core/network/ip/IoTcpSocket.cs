@@ -2,11 +2,12 @@
 using System.Diagnostics;
 using System.Net;
 using System.Net.Sockets;
-using System.Runtime.InteropServices;
+using System.Threading;
 using System.Threading.Tasks;
+using System.Threading.Tasks.Sources;
 using zero.core.patterns.misc;
 using NLog;
-using zero.core.patterns.semaphore;
+using zero.core.conf;
 using zero.core.patterns.semaphore.core;
 
 namespace zero.core.network.ip
@@ -52,6 +53,10 @@ namespace zero.core.network.ip
         /// </summary>
         private Logger _logger;
 
+        [IoParameter]
+        // ReSharper disable once InconsistentNaming
+        public int parm_socket_poll_wait_ms = 50;
+
         /// <summary>
         /// Starts a TCP listener
         /// </summary>
@@ -96,44 +101,37 @@ namespace zero.core.network.ip
                     var taskCore = new IoManualResetValueTaskSource<Socket>(true);
                     NativeSocket.BeginAccept(static result =>
                     {
-                        var (socket, connected) = (ValueTuple<Socket, IoManualResetValueTaskSource<Socket>>)result.AsyncState;
+                        var (socket, taskCore) = (ValueTuple<Socket, IoManualResetValueTaskSource<Socket>>)result.AsyncState;
                         try
                         {
-                            connected.SetResult(socket.EndAccept(result));
+                            taskCore.SetResult(socket.EndAccept(result));
                         }
                         catch (Exception e)
                         {
                             LogManager.GetCurrentClassLogger().Trace(e, $"{nameof(NativeSocket.BeginConnect)}");
-                            connected.SetResult(null);
+                            taskCore.SetResult(null);
                         }
                     }, (NativeSocket, taskCore));
 
 
                     Socket socket;
-                    IoTcpSocket newSocket;
+                    IoTcpSocket newSocket = null;
                     var connected = new ValueTask<Socket>(taskCore, taskCore.Version);
-                    if ((socket = await connected.FastPath().ConfigureAwait(Zc)) != null && socket.Connected)
+
+                    if ((socket = await connected.FastPath().ConfigureAwait(Zc)) != null)
                     {
-                        newSocket = new IoTcpSocket(socket);
+                        if(socket.Connected && socket.IsBound)
+                            newSocket = new IoTcpSocket(socket);
+                        else
+                        {
+                            socket.Dispose();
+                        }
                     }
-                    else
+                    else if(!Zeroed())
                     {
-                        _logger.Error($"Incoming connection failed: {socket}, {Description}");
+                        _logger.Error($"Incoming connection failed: connected = {socket?.Connected??false}, {Description}");
                         continue;
                     }
-
-
-                    //var newSocket = new IoTcpSocket(await NativeSocket.AcceptAsync().ConfigureAwait(Zc));
-                    //newSocket.ClosedEvent((sender, args) => Close());
-
-                    //Do some pointless sanity checking
-                    //if (newSocket.LocalAddress != LocalNodeAddress.Ip || newSocket.LocalPort != LocalNodeAddress.Port)
-                    //{
-                    //    _logger.Fatal($"New connection to `tcp://{newSocket.LocalIpAndPort}' should have been to `tcp://{LocalNodeAddress.IpPort}'! Possible hackery! Investigate immediately!");
-                    //    newSocket.Close();
-                    //    break;
-                    //}
-
                     _logger.Trace($"Connection Received: from = `{newSocket.RemoteNodeAddress}', ({Description})");
 
                     try
@@ -162,10 +160,18 @@ namespace zero.core.network.ip
 
         private readonly Stopwatch _sw = Stopwatch.StartNew();
 
-        
+
 #if NET6_0
         private int WSAEWOULDBLOCK = 10035;
 #endif
+
+    
+        protected override void ConfigureSocket()
+        {
+            base.ConfigureSocket();
+
+            NativeSocket.Blocking = true;
+        }
 
         /// <summary>
         /// Connect to a remote endpoint
@@ -179,49 +185,71 @@ namespace zero.core.network.ip
                 return false;
 
             _sw.Restart();
+
             try
             {
+                //NativeSocket.Blocking = false;
                 var taskCore = new IoManualResetValueTaskSource<bool>(true);
-                NativeSocket.BeginConnect(remoteAddress.IpEndPoint, static result =>
+                var connectAsync = NativeSocket.BeginConnect(remoteAddress.IpEndPoint, static result =>
                 {
                     var (socket, taskCore) = (ValueTuple<Socket, IoManualResetValueTaskSource<bool>>)result.AsyncState;
                     try
                     {
                         socket.EndConnect(result);
-                        taskCore.SetResult(socket.Connected);
+                        taskCore.SetResult(socket.Connected && socket.IsBound);
                     }
                     catch (Exception e)
                     {
                         LogManager.GetCurrentClassLogger().Trace(e, $"{nameof(NativeSocket.BeginConnect)}");
-                        taskCore.SetResult(false);
+                        if (taskCore.GetStatus(taskCore.Version) == ValueTaskSourceStatus.Pending)
+                            taskCore.SetResult(false);
                     }
                 }, (NativeSocket, taskCore));
 
+                NativeSocket.SendTimeout = timeout;
+                NativeSocket.ReceiveTimeout = timeout;
                 if (timeout > 0)
                 {
                     await ZeroAsync(static async state =>
                     {
-                        var (@this, timeout) = state;
+                        var (@this, taskCore, connectAsync, timeout) = state;
 
                         try
                         {
-                            await Task.Delay(timeout + 15, @this.AsyncTasks.Token).ConfigureAwait(@this.Zc);
+                            await Task.Delay(timeout, @this.AsyncTasks.Token).ConfigureAwait(@this.Zc);
                         }
                         catch
                         {
                             // ignored
                         }
 
-                        if (!await @this.IsConnected().FastPath().ConfigureAwait(@this.Zc))
+                        try
                         {
-                            await @this.Zero(@this, $"Connecting timed out, waited {timeout}ms").FastPath().ConfigureAwait(@this.Zc);
-                            @this.NativeSocket.Close();
+                            @this.NativeSocket.EndConnect(connectAsync);
+                            taskCore.SetResult(@this.NativeSocket.Connected && @this.NativeSocket.IsBound);
                         }
-                    }, ValueTuple.Create(this, timeout), TaskCreationOptions.DenyChildAttach);
+                        catch
+                        {
+                            // ignored
+                        }
+                    }, ValueTuple.Create(this, taskCore, connectAsync, timeout), TaskCreationOptions.DenyChildAttach);
                 }
+
                 var connected = new ValueTask<bool>(taskCore, taskCore.Version);
                 if (!await connected.FastPath().ConfigureAwait(Zc))
+                {
+                    try
+                    {
+                        NativeSocket.Close();
+                    }
+                    catch
+                    {
+                        // ignored
+                    }
+
                     return false;
+                }
+
 
                 LocalNodeAddress = IoNodeAddress.CreateFromEndpoint("tcp", (IPEndPoint)NativeSocket.LocalEndPoint);
                 RemoteNodeAddress = remoteAddress;
@@ -229,13 +257,19 @@ namespace zero.core.network.ip
                 _logger.Trace($"Connected to {RemoteNodeAddress}, {Description}");
                 return true;
             }
-            catch (ObjectDisposedException){}
-            catch (TaskCanceledException){}
+            catch (ObjectDisposedException)
+            {
+            }
+            catch (TaskCanceledException)
+            {
+            }
             catch (SocketException e)
             {
                 _logger.Trace(e, $"[FAILED] connecting to {RemoteNodeAddress}: ({Description})");
             }
-            catch when (Zeroed()) {}
+            catch when (Zeroed())
+            {
+            }
             catch (Exception e) when (!Zeroed())
             {
                 _logger.Error(e, $"[FAILED ] Connecting to {remoteAddress}: {Description}");
@@ -259,28 +293,27 @@ namespace zero.core.network.ip
         {
             try
             {
-                if (!await IsConnected().FastPath().ConfigureAwait(Zc))
+                if (!NativeSocket.Poll(parm_socket_poll_wait_ms, SelectMode.SelectWrite))
                     return 0;
 
-                if (timeout == 0)
-                {
-                    return await NativeSocket
-                        .SendAsync(buffer.Slice(offset, length), SocketFlags.None, AsyncTasks.Token).FastPath()
-                        .ConfigureAwait(Zc);
-                }
-
-                NativeSocket.SendTimeout = timeout;
-                var sent = NativeSocket.Send(buffer.Span.Slice(offset,length));                
-                return sent;
+                return await NativeSocket
+                    .SendAsync(buffer.Slice(offset, length), SocketFlags.None, timeout >0? new CancellationTokenSource(timeout).Token: AsyncTasks.Token).FastPath()
+                    .ConfigureAwait(Zc);
             }
-            catch (SocketException e){
-                _logger.Trace( $"{nameof(SendAsync)}: err = {e.SocketErrorCode}, {Description}");
+            catch (SocketException e)
+            {
+                _logger.Trace($"{nameof(SendAsync)}: err = {e.SocketErrorCode}, {Description}");
                 if (e.SocketErrorCode != SocketError.TimedOut)
                     await Zero(this, e.Message).FastPath().ConfigureAwait(Zc);
             }
-            catch (ObjectDisposedException) { }
-            catch (Exception) when (Zeroed()){}
-            catch (Exception e) when(!Zeroed())
+            catch (OperationCanceledException) { }
+            catch (ObjectDisposedException)
+            {
+            }
+            catch (Exception) when (Zeroed())
+            {
+            }
+            catch (Exception e) when (!Zeroed())
             {
                 var errMsg = $"{nameof(SendAsync)}: [FAILED], {Description}, l = {length}, o = {offset}: {e.Message}";
                 _logger.Trace(e, errMsg);
@@ -302,38 +335,16 @@ namespace zero.core.network.ip
         /// <returns>The number of bytes read</returns>
         public override async ValueTask<int> ReadAsync(Memory<byte> buffer, int offset, int length,
             byte[] remoteEp = null,
-            int timeout = 0) //TODO can we go back to array buffers?
+            int timeout = 0)
         {
             try
             {
-                if (!await IsConnected().FastPath().ConfigureAwait(Zc))
-                    return 0;
-
-                //fast path: no timeout
-                if (timeout == 0)
-                {
-                    return await NativeSocket
-                        .ReceiveAsync(buffer.Slice(offset, length), SocketFlags.None, AsyncTasks.Token).FastPath()
+                return await NativeSocket
+                        .ReceiveAsync(buffer.Slice(offset, length), SocketFlags.None, timeout > 0? new CancellationTokenSource(timeout).Token: AsyncTasks.Token).FastPath()
                         .ConfigureAwait(Zc);
-                }
-
-                //slow path: timeout
-                if (MemoryMarshal.TryGetArray((ReadOnlyMemory<byte>)buffer, out var buf))
-                {
-                    NativeSocket.ReceiveTimeout = timeout;
-                    var sw = Stopwatch.StartNew();
-                    var read = 0;
-                    while ((read += NativeSocket.Receive(buf.Array!, offset, length, SocketFlags.None)) == 0 && sw.ElapsedMilliseconds < timeout)
-                    {
-                        await Task.Delay(timeout / 10).ConfigureAwait(Zc);
-                    }
-                    NativeSocket.ReceiveTimeout = 0;
-                    if(sw.ElapsedMilliseconds < timeout && read == 0)
-                        _logger.Fatal($"{nameof(ReadAsync)}: timeout [FAILED], slept {sw.ElapsedMilliseconds}ms, wanted = {timeout}ms");
-                    return read;
-                }
             }
             catch (ObjectDisposedException) { }
+            catch (OperationCanceledException) { }
             catch (SocketException e) when (!Zeroed())
             {
                 var errMsg = $"{nameof(ReadAsync)}: {e.Message} - {Description}";
@@ -350,19 +361,16 @@ namespace zero.core.network.ip
             return 0;
         }
 
-        //private readonly byte[] _sentinelBuf = Array.Empty<byte>();
-        //private uint _expensiveCheck = 0;
-
         /// <inheritdoc />
         /// <summary>
         /// Connection status
         /// </summary>
         /// <returns>True if the connection is up, false otherwise</returns>
-        public override ValueTask<bool> IsConnected()
+        public override bool IsConnected()
         {
             try
             {
-                return new ValueTask<bool>(!Zeroed() && NativeSocket is { IsBound: true, Connected: true });//&& (_expensiveCheck++ % 10000 == 0 && NativeSocket.Send(_sentinelBuf, SocketFlags.None) == 0  || true);
+                return !Zeroed() && NativeSocket is { IsBound: true, Connected: true };//&& (_expensiveCheck++ % 10000 == 0 && NativeSocket.Send(_sentinelBuf, SocketFlags.None) == 0  || true);
 
                 //||
                 // IoNetSocket.NativeSocket.Poll(-1, SelectMode.SelectError) ||
@@ -375,7 +383,7 @@ namespace zero.core.network.ip
             {                
                 _logger.Error(e, Description);
             }
-            return new ValueTask<bool>(false);
+            return false;
         }
     }
 }

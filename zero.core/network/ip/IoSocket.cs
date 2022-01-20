@@ -70,7 +70,21 @@ namespace zero.core.network.ip
 
 
         //Socket description 
-        public override string Description => $"{(Proxy?"[proxy]":"")}{Kind} socket({LocalNodeAddress}({NativeSocket?.LocalEndPoint}), {(Kind <= Connection.Listener ? "N/A" : RemoteNodeAddress?.ToString())}({NativeSocket?.RemoteEndPoint}), bound = {NativeSocket?.IsBound}";
+        public override string Description
+        {
+            get
+            {
+                try
+                {
+                    return
+                        $"{(Proxy ? "[proxy]" : "")}{Kind} socket({LocalNodeAddress}({NativeSocket?.LocalEndPoint}), {(Kind <= Connection.Listener ? "N/A" : RemoteNodeAddress?.ToString())}({NativeSocket?.RemoteEndPoint}), bound = {NativeSocket?.IsBound}";
+                }
+                catch (Exception e)
+                {
+                    return $"{(Proxy ? "[proxy]" : "")}{Kind} socket({LocalNodeAddress}, ({e.Message}), {(Kind <= Connection.Listener ? "N/A" : RemoteNodeAddress?.ToString())}, bound = {NativeSocket?.IsBound}";
+                }
+            }
+        }
 
         /// <summary>
         /// The underlying .net socket that is abstracted
@@ -301,7 +315,7 @@ namespace zero.core.network.ip
         /// Connection status
         /// </summary>
         /// <returns>True if the connection is up, false otherwise</returns>
-        public abstract ValueTask<bool> IsConnected();
+        public abstract bool IsConnected();
 
         /// <summary>
         /// Closes a socket

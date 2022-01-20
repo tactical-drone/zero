@@ -732,8 +732,7 @@ namespace zero.cocoon.autopeer
         /// <summary>
         /// Ensure robotic diagnostics
         /// </summary>
-        public async ValueTask 
-            EnsureRoboticsAsync()
+        public async ValueTask EnsureRoboticsAsync()
         {
             try
             {
@@ -805,7 +804,7 @@ namespace zero.cocoon.autopeer
                 }
                 else
                 {
-                    await ZeroAsync(RoboAsync, this, TaskCreationOptions.DenyChildAttach).FastPath().ConfigureAwait(Zc);
+                    await ZeroAsync(RoboAsync, this, TaskCreationOptions.DenyChildAttach | TaskCreationOptions.PreferFairness).FastPath().ConfigureAwait(Zc);
                     await AsyncTasks.Token.BlockOnNotCanceledAsync().FastPath().ConfigureAwait(Zc);
                 }
             }
@@ -834,7 +833,7 @@ namespace zero.cocoon.autopeer
 
                 if (CcCollective.Neighbors.TryGetValue(Key, out var existingNeighbor))
                 {
-                    if (await existingNeighbor.Source.IsOperational().FastPath().ConfigureAwait(Zc))
+                    if (existingNeighbor.Source.IsOperational())
                     {
                         _logger.Trace($"Drone already operational, dropping {existingNeighbor.Description}");
                         return false;
@@ -860,6 +859,7 @@ namespace zero.cocoon.autopeer
                         //Attempt the connection, race to win
                         if (!await @this.CcCollective.ConnectToDroneAsync(@this).FastPath().ConfigureAwait(@this.Zc))
                         {
+                            @this.CompareAndEnterState(AdjunctState.Verified, AdjunctState.Connecting);
                             @this._logger.Trace($"{@this.Description}: Leashing adjunct failed!");
                         }
                         else //Track some connection perf stats
@@ -1135,9 +1135,9 @@ namespace zero.cocoon.autopeer
                         {
                             var width = @this._protocolConduit.Source.PrefetchSize;
                             var preload = new ValueTask<bool>[width];
-                            while (!@this.Zeroed() && await @this._protocolConduit.UpstreamSource.IsOperational().FastPath().ConfigureAwait(@this.Zc))
+                            while (!@this.Zeroed() && @this._protocolConduit.UpstreamSource.IsOperational())
                             {
-                                for (var i = 0; i < width && await @this._protocolConduit.UpstreamSource.IsOperational().FastPath().ConfigureAwait(@this.Zc); i++)
+                                for (var i = 0; i < width && @this._protocolConduit.UpstreamSource.IsOperational(); i++)
                                 {
                                     try
                                     {
@@ -1169,7 +1169,7 @@ namespace zero.cocoon.autopeer
                             @this._logger?.Error(e, $"{@this.Description}");
                         }
                     
-                    },this, TaskCreationOptions.DenyChildAttach);
+                    },this, TaskCreationOptions.DenyChildAttach | TaskCreationOptions.PreferFairness);
 
                     consumer = ZeroOptionAsync(static async @this  =>
                     {
@@ -1179,10 +1179,10 @@ namespace zero.cocoon.autopeer
                             var width = @this._protocolConduit.Source.PrefetchSize;
                             var preload = new ValueTask<bool>[width];
 
-                            while (!@this.Zeroed() && await @this._protocolConduit.UpstreamSource.IsOperational().FastPath().ConfigureAwait(@this.Zc))
+                            while (!@this.Zeroed() && @this._protocolConduit.UpstreamSource.IsOperational())
                             {
                                 //consume
-                                for (var i = 0; i < width && await @this._protocolConduit.UpstreamSource.IsOperational().FastPath().ConfigureAwait(@this.Zc); i++)
+                                for (var i = 0; i < width && @this._protocolConduit.UpstreamSource.IsOperational(); i++)
                                 {
                                     
                                     preload[i] = @this._protocolConduit.ConsumeAsync(ProcessMessages(), @this);
@@ -2485,12 +2485,12 @@ namespace zero.cocoon.autopeer
                 // Is this a routed request?
                 if (IsProxy)
                 {
-                    if (ZeroProbes > parm_zombie_max_connection_attempts * 2)
+                    if (ZeroProbes > parm_zombie_max_connection_attempts)
                     {
 #if DEBUG
                         await Zero(this, $"drone left, T = {TimeSpan.FromMilliseconds(UpTime.ElapsedMs()).TotalMinutes:0.0}min ~ {_sibling?.UpTime.ElapsedMsToSec()/60.0:0.0}min, {_sibling?.Description}").FastPath().ConfigureAwait(Zc);
 #else
-                        await Zero(this, $"drone left, T = {TimeSpan.FromMilliseconds(UpTime.ElapsedMs()).TotalMinutes:0.0}min").FastPath().ConfigureAwait(Zc);
+                        await Zero(this, $"timeout {SecondsSincePat}s ago, T = {TimeSpan.FromMilliseconds(UpTime.ElapsedMs()).TotalMinutes:0.0}min").FastPath().ConfigureAwait(Zc);
 #endif
 
                         return false;

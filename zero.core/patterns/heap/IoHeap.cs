@@ -163,11 +163,11 @@ namespace zero.core.patterns.heap
                     return heapItem;
                 }
             }
-            catch when (_zeroed > 0) { Console.WriteLine("1"); }
-            catch (Exception) when (_ioHeapBuf.Zeroed) { Console.WriteLine("2"); }
+            catch when (_zeroed > 0) { }
+            catch (Exception) when (_ioHeapBuf.Zeroed) { }
             catch (Exception e) when(!Zeroed)
             {
-                _logger.Error(e, $"{GetType().Name}: Failed to new up {typeof(TItem)}");
+                _logger.Error(e, $"{GetType().Name}: Failed to malloc {typeof(TItem)}");
             }
             
             return default;
@@ -201,7 +201,7 @@ namespace zero.core.patterns.heap
             catch (Exception) when(_ioHeapBuf.Zeroed){ }
             catch (Exception e) when (!Zeroed)
             {
-                _logger.Error(e, $"{GetType().Name}: Failed to new up {typeof(TItem)}");
+                _logger.Error(e, $"{GetType().Name}: Failed malloc {typeof(TItem)}");
             }
         }
 

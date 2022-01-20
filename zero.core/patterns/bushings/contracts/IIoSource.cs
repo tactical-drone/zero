@@ -108,7 +108,7 @@ namespace zero.core.patterns.bushings.contracts
         /// <value>
         ///   <c>true</c> if this instance is operational; otherwise, <c>false</c>.
         /// </value>
-        ValueTask<bool> IsOperational();
+        bool IsOperational();
 
         /// <summary>
         /// Gets a value indicating whether this source is originating or terminating

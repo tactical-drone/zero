@@ -41,7 +41,7 @@ namespace zero.core.network.ip
         {
             try
             {
-                NativeSocket.Blocking = false;
+                NativeSocket.Blocking = true;
             }
             catch
             {
@@ -62,7 +62,7 @@ namespace zero.core.network.ip
         {
             try
             {
-                NativeSocket.Blocking = false;
+                NativeSocket.Blocking = true;
             }
             catch
             {
@@ -83,7 +83,7 @@ namespace zero.core.network.ip
             _logger = LogManager.GetCurrentClassLogger();
             //TODO tuning
 
-            NativeSocket.Blocking = false;
+            //NativeSocket.Blocking = false;
             //_sendSync = new IoZeroSemaphore("udp send lock", concurrencyLevel, 1, 0);
             //_sendSync.ZeroRef(ref _sendSync, AsyncTasks);
 
@@ -384,7 +384,7 @@ namespace zero.core.network.ip
             SocketAsyncEventArgs args = default;
             try
             {
-                if (!await IsConnected().FastPath().ConfigureAwait(Zc))
+                if (!IsConnected())
                     return 0;
 
                 //if (!await _sendSync.WaitAsync().FastPath().ConfigureAwait(Zc))
@@ -479,7 +479,7 @@ namespace zero.core.network.ip
             Debug.Assert(remoteEp != null);
             try
             {
-                if (!await IsConnected().FastPath().ConfigureAwait(Zc))
+                if (!IsConnected())
                     return 0;
 
                 //concurrency
@@ -603,7 +603,7 @@ namespace zero.core.network.ip
         /// </summary>
         /// <returns>True if the connection is up, false otherwise</returns>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public override async ValueTask<bool> IsConnected()
+        public override bool IsConnected()
         {
             try
             {
@@ -613,7 +613,7 @@ namespace zero.core.network.ip
             }
             catch (ObjectDisposedException d)
             {
-                await Zero(this, $"{nameof(IsConnected)}: {d.Message}").FastPath().ConfigureAwait(Zc);
+                _ = Zero(this, $"{nameof(IsConnected)}: {d.Message}");
             }
             catch when(Zeroed()){}
             catch (Exception e) when(!Zeroed())

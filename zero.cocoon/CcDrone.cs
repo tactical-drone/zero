@@ -34,10 +34,7 @@ namespace zero.cocoon
             (
                 node,
                 ioNetClient,
-                static (ioZero, _) =>
-                {
-                    return new CcWhispers(string.Empty, string.Empty, ((CcDrone)ioZero).MessageService);
-                }, true
+                static (ioZero, _) => new CcWhispers(string.Empty, string.Empty, ((CcDrone)ioZero).MessageService), true
             )
         {
             _logger = LogManager.GetCurrentClassLogger();
@@ -150,7 +147,7 @@ namespace zero.cocoon
         /// <summary>
         /// Used for testing
         /// </summary>
-        public long AccountingBit = 0;
+        public volatile bool AccountingBit = true;
 
 
         /// <summary>
@@ -273,6 +270,14 @@ namespace zero.cocoon
         }
 
         /// <summary>
+        /// Toggle accounting bit
+        /// </summary>
+        public void ToggleAccountingBit()
+        {
+            AccountingBit = !AccountingBit;
+        }
+
+        /// <summary>
         /// A test mode
         /// </summary>
         /// 
@@ -286,7 +291,7 @@ namespace zero.cocoon
                 if (Interlocked.Read(ref ((CcCollective) Node).Testing) == 0)
                     return;
 
-                if(!await Source.IsOperational().FastPath().ConfigureAwait(Zc) || Adjunct.CcCollective.TotalConnections < 1)
+                if(!Source.IsOperational() || Adjunct.CcCollective.TotalConnections < 1)
                     return;
 
                 //if (Interlocked.Read(ref _isTesting) > 0)
@@ -311,12 +316,11 @@ namespace zero.cocoon
 
                     if (!Zeroed())
                     {
-                        Interlocked.Increment(ref AccountingBit);
+                        //Interlocked.Increment(ref AccountingBit);
                         Adjunct.CcCollective.IncEventCounter();
 
                         var socket = MessageService.IoNetSocket;
-                        if (await socket.IsConnected().FastPath().ConfigureAwait(Zc) &&
-                            await socket.SendAsync(socketBuf, 0, (int)compressed + sizeof(ulong), timeout: 20).FastPath().ConfigureAwait(Zc) > 0)
+                        if (await socket.SendAsync(socketBuf, 0, (int)compressed + sizeof(ulong), timeout: 20).FastPath().ConfigureAwait(Zc) > 0)
                         {
                             if (AutoPeeringEventService.Operational)
                                 await AutoPeeringEventService.AddEventAsync(new AutoPeerEvent

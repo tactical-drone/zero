@@ -14,9 +14,9 @@ namespace zero.core.patterns.bushings.contracts
         private readonly ILogger _logger;
 
         public override string Key { get; }
-        public override ValueTask<bool> IsOperational()
+        public override bool IsOperational()
         {
-            return new ValueTask<bool>(true);
+            return true;
         }
 
         public bool Produce()

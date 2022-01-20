@@ -21,6 +21,7 @@
             Accept,
             Reject,
             Halted,
+            Synced,
             DeSynced,
             Fragmented,
             RSync,

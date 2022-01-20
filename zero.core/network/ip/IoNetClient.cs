@@ -166,7 +166,7 @@ namespace zero.core.network.ip
         /// Detects socket drops
         /// </summary>
         /// <returns>True it the connection is up, false otherwise</returns>
-        public override async ValueTask<bool> IsOperational()
+        public override bool IsOperational()
         {
             try
             {
@@ -183,7 +183,7 @@ namespace zero.core.network.ip
 
                     _lastSocketHealthCheck = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
                     //TODO more checks?
-                    if (!await IoNetSocket.IsConnected().FastPath().ConfigureAwait(Zc))
+                    if (!IoNetSocket.IsConnected())
                     {
                         if (UpTime.ElapsedMsToSec() > 5)
                             _logger.Error(
@@ -197,7 +197,7 @@ namespace zero.core.network.ip
                 }
 
                 //Check UDP
-                return await IoNetSocket.IsConnected().FastPath().ConfigureAwait(Zc);
+                return IoNetSocket.IsConnected();
             }
             catch when (Zeroed())
             {

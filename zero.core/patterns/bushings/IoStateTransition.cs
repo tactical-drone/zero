@@ -66,7 +66,7 @@ namespace zero.core.patterns.bushings
         /// <summary>
         /// The time it took between entering this state and exiting it
         /// </summary>
-        public long Mu => ExitTime - EnterTime;
+        public long Mu => Volatile.Read(ref ExitTime) - Volatile.Read(ref EnterTime);
 
         /// <summary>
         /// The absolute time this job took so far

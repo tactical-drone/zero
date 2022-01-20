@@ -90,7 +90,7 @@ namespace zero.tangle
                         return new ValueTask<bool>(true);
                     }, newNeighbor).FastPath().ConfigureAwait(false);
 
-                    if (await newNeighbor.Source.IsOperational().FastPath().ConfigureAwait(Zc))
+                    if (newNeighbor.Source.IsOperational())
                         await newNeighbor.Source.ProduceAsync<object>((client,_, _, _) =>
                         {
                             //TODO

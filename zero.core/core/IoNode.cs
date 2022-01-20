@@ -281,7 +281,7 @@ namespace zero.core.core
                                                 {
                                                     try
                                                     {
-                                                        if (!await existingNeighbor.Source.IsOperational().FastPath().ConfigureAwait(@this.Zc) && existingNeighbor.UpTime.ElapsedMsToSec() > @this.parm_zombie_connect_time_threshold_s)
+                                                        if (!existingNeighbor.Source.IsOperational() && existingNeighbor.UpTime.ElapsedMsToSec() > @this.parm_zombie_connect_time_threshold_s)
                                                         {
                                                             var errMsg = $"{nameof(SpawnListenerAsync)}: Connection {newNeighbor.Key} [REPLACED], existing {existingNeighbor.Key} with uptime {existingNeighbor.UpTime.ElapsedMs()}ms [DC]";
                                                             @this._logger.Warn(errMsg);
@@ -370,7 +370,7 @@ namespace zero.core.core
 
                     if(!@this.Zeroed() && !newNeighbor.Zeroed())
                         @this._logger.Warn($"{nameof(newNeighbor.BlockOnReplicateAsync)}: [FAILED]... restarting...");
-                }, ValueTuple.Create(this, newNeighbor, Zc), TaskCreationOptions.DenyChildAttach).AsTask()).FastPath().ConfigureAwait(Zc);
+                }, ValueTuple.Create(this, newNeighbor, Zc), TaskCreationOptions.DenyChildAttach | TaskCreationOptions.PreferFairness).AsTask()).FastPath().ConfigureAwait(Zc);
 
                 await node.Value.ContinueWith(static async (_, state) =>
                 {
@@ -430,7 +430,7 @@ namespace zero.core.core
                                 //Existing and not broken neighbor?
                                 if (@this.Neighbors.TryGetValue(newNeighbor.Key, out var existingNeighbor) &&
                                     existingNeighbor.UpTime.ElapsedMsToSec() > @this.parm_zombie_connect_time_threshold_s &&
-                                    (await existingNeighbor.Source.IsOperational().FastPath().ConfigureAwait(@this.Zc)))
+                                    existingNeighbor.Source.IsOperational())
                                 {
                                     @this._logger.Warn($"{nameof(ConnectAsync)}: Connection {newNeighbor.Key} [DROPPED], existing {existingNeighbor.Key} [OK]");
                                     return false;

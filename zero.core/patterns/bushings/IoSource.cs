@@ -171,9 +171,9 @@ namespace zero.core.patterns.bushings
         /// <value>
         ///   <c>true</c> if this instance is operational; otherwise, <c>false</c>.
         /// </value>
-        public virtual ValueTask<bool> IsOperational()
+        public virtual bool IsOperational()
         {
-            return new ValueTask<bool>(false);
+            return !Zeroed();
         }
 
         /// <summary>
@@ -409,7 +409,6 @@ namespace zero.core.patterns.bushings
 
             for (var i = 0; i < IoJob<TJob>.StateMapSize; i++)
             {
-
                 var count = Interlocked.Read(ref Counters[i]);
                 if (count < 1)
                     continue;

@@ -65,7 +65,7 @@ namespace zero.core.feat.models.protobuffer.sources
         /// <value>
         /// <c>true</c> if this instance is operational; otherwise, <c>false</c>.
         /// </value>
-        public override ValueTask<bool> IsOperational() => new(!Zeroed());
+        public override bool IsOperational() => !Zeroed();
 
         /// <summary>
         /// zero unmanaged

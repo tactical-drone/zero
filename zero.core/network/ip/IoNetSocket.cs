@@ -59,6 +59,8 @@ namespace zero.core.network.ip
                 return;
             }
 
+            NativeSocket.DontFragment = true;
+
             NativeSocket.Blocking = true;
 
             // Don't allow another socket to bind to this port.

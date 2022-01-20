@@ -137,7 +137,7 @@ namespace zero.tangle
                     }
                 });
 
-                if (!await transactionArbiter.UpstreamSource.IsOperational().FastPath().ConfigureAwait(Zc))
+                if (!transactionArbiter.UpstreamSource.IsOperational())
                     break;
             }
 

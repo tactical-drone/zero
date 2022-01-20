@@ -136,7 +136,7 @@ namespace zero.core.network.ip
             try
             {
                 connected = await ioNetClient!.ConnectAsync(remoteAddress, timeout).FastPath().ConfigureAwait(Zc);
-                if (connected && await ioNetClient.IsOperational().FastPath().ConfigureAwait(Zc))
+                if (connected && ioNetClient.IsOperational())
                 {
                     //Check things
 

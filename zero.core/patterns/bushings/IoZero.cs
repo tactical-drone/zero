@@ -235,7 +235,7 @@ namespace zero.core.patterns.bushings
         /// </summary>
         [IoParameter]
         // ReSharper disable once InconsistentNaming
-        public int parm_min_failed_production_time = 1000;
+        public int parm_min_failed_production_time = 250;
 
         /// <summary>
         /// The time a source will wait for a consumer to release it before aborting in ms
@@ -629,6 +629,7 @@ namespace zero.core.patterns.bushings
                             IncEventCounter();
                         }
                         else if (curJob.State != IoJobMeta.JobState.RSync &&
+                                 curJob.State != IoJobMeta.JobState.ZeroRecovery && 
                                  curJob.State != IoJobMeta.JobState.Fragmented &&
                                  curJob.State != IoJobMeta.JobState.BadData && !Zeroed() && !curJob.Zeroed())
                         {
@@ -753,7 +754,7 @@ namespace zero.core.patterns.bushings
                 {
                     @this._logger.Error(e, $"Production failed! {@this.Description}");
                 }
-            },this, TaskCreationOptions.DenyChildAttach); //TODO tuning
+            },this, TaskCreationOptions.DenyChildAttach | TaskCreationOptions.PreferFairness); //TODO tuning
 
             //Consumer
             _consumerTask = ZeroOptionAsync(static async @this =>

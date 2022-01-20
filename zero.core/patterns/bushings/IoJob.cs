@@ -307,8 +307,6 @@ namespace zero.core.patterns.bushings
                     //Update the previous state's exit time
                     if (_stateMeta != null)
                     {
-                        _stateMeta.ExitTime = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-
                         if (_stateMeta.Value == IoJobMeta.JobState.Halted && value != IoJobMeta.JobState.Undefined)
                         {
                             _stateMeta.Set((int)IoJobMeta.JobState.Race);
@@ -317,11 +315,11 @@ namespace zero.core.patterns.bushings
                                 $"{TraceDescription} Cannot transition from `{IoJobMeta.JobState.Halted}' to `{value}'");
                         }
 
-                        Interlocked.Increment(ref Source.Counters[(int)_stateMeta.Value]);
-
                         if (_stateMeta.Value == value)
                             return;
 
+                        _stateMeta.ExitTime = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+                        Interlocked.Increment(ref Source.Counters[(int)_stateMeta.Value]);
                         Interlocked.Add(ref Source.ServiceTimes[(int)_stateMeta.Value], _stateMeta.Mu);
                     }
                     else
@@ -346,10 +344,10 @@ namespace zero.core.patterns.bushings
                         return;
                     }
 
-                    newState.ConstructorAsync(_stateMeta, (int)value).FastPath().ConfigureAwait(Zc);
+                    newState.ConstructorAsync(_stateMeta, (int)value).GetAwaiter().GetResult();
                     _stateMeta = newState;
 
-                    StateTransitionHistory.EnqueueAsync(_stateMeta).FastPath().GetAwaiter().GetResult();
+                    StateTransitionHistory.EnqueueAsync(_stateMeta).GetAwaiter().GetResult();
 
 #else
                     

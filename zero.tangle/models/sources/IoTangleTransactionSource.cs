@@ -54,7 +54,7 @@ namespace zero.tangle.models.sources
         /// <value>
         /// <c>true</c> if this instance is operational; otherwise, <c>false</c>.
         /// </value>
-        public override ValueTask<bool> IsOperational() => new(false);
+        public override bool IsOperational() => false;
 
         /// <inheritdoc />        
         //public override IoConduit<TFJob> EnsureChannel<TFJob>(string id, IoSource<TFJob> channelSource = null,

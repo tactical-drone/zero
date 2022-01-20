@@ -133,7 +133,7 @@ namespace zero.cocoon
         public override async ValueTask BlockOnAssimilateAsync(IoNeighbor<CcProtocMessage<CcWhisperMsg, CcGossipBatch>> newNeighbor)
         {
             if (!ZeroDrone)
-                await ZeroAsync(RoboAsync, this, TaskCreationOptions.DenyChildAttach).FastPath().ConfigureAwait(Zc);
+                await ZeroAsync(RoboAsync, this, TaskCreationOptions.DenyChildAttach | TaskCreationOptions.PreferFairness).FastPath().ConfigureAwait(Zc);
             await base.BlockOnAssimilateAsync(newNeighbor).FastPath().ConfigureAwait(Zc);
         }
 
@@ -303,7 +303,7 @@ namespace zero.cocoon
         /// Timeout for futile messages
         /// </summary>
         [IoParameter]
-        public int parm_futile_timeout_ms = 1000;
+        public int parm_futile_timeout_ms = 2000;
         
         /// <summary>
         /// The discovery service
@@ -546,6 +546,7 @@ namespace zero.cocoon
 
             if (Zeroed()) return false;
 
+            long ts = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
             try
             {                
                 var futileBuffer = new byte[_fuseBufSize];
@@ -563,13 +564,13 @@ namespace zero.cocoon
                     {
                         
                         bytesRead += localRead = await ioNetSocket
-                            .ReadAsync(futileBuffer, bytesRead, _futileRequestSize - bytesRead, timeout: parm_futile_timeout_ms).FastPath()
+                            .ReadAsync(futileBuffer, bytesRead, _futileRequestSize - bytesRead, timeout: parm_futile_timeout_ms * 2).FastPath()
                             .ConfigureAwait(Zc);
                     } while (bytesRead < _futileRequestSize && localRead > 0 && !Zeroed());
 
-                    if ((bytesRead == 0 || bytesRead < _futileRequestSize) && await ioNetSocket.IsConnected().FastPath().ConfigureAwait(Zc))
+                    if ((bytesRead == 0 || bytesRead < _futileRequestSize) && ioNetSocket.IsConnected())
                     {
-                        _logger.Error($"Failed to read futile ingress request, waited = {_sw.ElapsedMilliseconds}ms, wanted ={parm_futile_timeout_ms}ms, socket = {ioNetSocket.Description}");
+                        _logger.Error($"Failed to read futile ingress request, waited = {_sw.ElapsedMilliseconds}ms, wanted ={parm_futile_timeout_ms * 2}ms, socket = {ioNetSocket.Description}");
                         return false;
                     }
                     else
@@ -602,9 +603,9 @@ namespace zero.cocoon
                         if (ccFutileRequest != null)
                         {
                             //reject old futile requests
-                            if (ccFutileRequest.Timestamp.ElapsedMs() > parm_futile_timeout_ms * 2)
+                            if (ccFutileRequest.Timestamp.ElapsedMs() > parm_futile_timeout_ms * 4)
                             {
-                                _logger.Error($"Rejected old futile request from {ioNetSocket.Key} - d = {ccFutileRequest.Timestamp.ElapsedMs()}ms, > {parm_futile_timeout_ms * 2}");
+                                _logger.Error($"Rejected old futile request from {ioNetSocket.Key} - d = {ccFutileRequest.Timestamp.ElapsedMs()}ms, > {parm_futile_timeout_ms * 4}");
                                 return false;
                             }
 
@@ -650,7 +651,7 @@ namespace zero.cocoon
                         //return await ConnectForTheWinAsync(CcNeighbor.Kind.Inbound, peer, packet,
                         //        (IPEndPoint)ioNetSocket.NativeSocket.RemoteEndPoint)
                         //    .FastPath().ConfigureAwait(ZC);
-                        success = !Zeroed() && drone.Adjunct != null && !drone.Adjunct.Zeroed() && won && drone.Adjunct.Direction == CcAdjunct.Heading.Ingress && await drone.Source.IsOperational().FastPath().ConfigureAwait(Zc);
+                        success = !Zeroed() && drone.Adjunct != null && !drone.Adjunct.Zeroed() && won && drone.Adjunct.Direction == CcAdjunct.Heading.Ingress && drone.Source.IsOperational();
                         return success;
                     }
                 }
@@ -683,6 +684,7 @@ namespace zero.cocoon
                     int localRead;
                     var expectedChunk = _futileRejectSize;
                     var chunkSize = expectedChunk;
+                    ts = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
                     do
                     {
                         bytesRead += localRead = await ioNetSocket
@@ -734,7 +736,7 @@ namespace zero.cocoon
 
                         //race for connection
                         var won = await ConnectForTheWinAsync(CcAdjunct.Heading.Egress, drone, packet,
-                                (IPEndPoint)ioNetSocket.NativeSocket.RemoteEndPoint)
+                                drone.Adjunct.RemoteAddress.IpEndPoint)
                             .FastPath().ConfigureAwait(Zc);
 
                         if(!won)
@@ -761,12 +763,12 @@ namespace zero.cocoon
                             }
                         }
                     
-                        success = !Zeroed() && drone.Adjunct != null && !drone.Adjunct.Zeroed() && drone.Adjunct?.Direction == CcAdjunct.Heading.Egress && await drone.Source.IsOperational().FastPath().ConfigureAwait(Zc);
+                        success = !Zeroed() && drone.Adjunct != null && !drone.Adjunct.Zeroed() && drone.Adjunct?.Direction == CcAdjunct.Heading.Egress && drone.Source.IsOperational();
                         return success;
                     }
                 }
             }            
-            catch (Exception) when (Zeroed() || drone.Zeroed()) { }
+            catch (Exception) when (Zeroed() || drone.Zeroed() || ts.ElapsedMs() >= parm_futile_timeout_ms) { }
             catch (Exception e) when(!Zeroed() && !drone.Zeroed())
             {
                 _logger.Error(e, $"Futile request (size = {bytesRead}/{_futileRequestSize}/{_futileResponseSize}/{_futileRejectSize}) for {Description} failed with:");
@@ -841,7 +843,7 @@ namespace zero.cocoon
                 var capped = attached && !await ZeroAtomic(static (_, o, _) =>
                 {
                     var (@this, direction) = o;
-                                                            
+                                                        
                     if (direction == CcAdjunct.Heading.Ingress)
                     {
                         if(Interlocked.Increment(ref @this.IngressCount) - 1 < @this.parm_max_inbound)
@@ -877,6 +879,7 @@ namespace zero.cocoon
             }
             else
             {
+                adjunct.CompareAndEnterState(CcAdjunct.AdjunctState.Verified, CcAdjunct.AdjunctState.Connecting);
                 _logger.Trace($"{direction} futile request [LOST] {CcDesignation.FromPubKey(packet.PublicKey.Memory.AsArray())} - {remoteEp}: s = {drone.Adjunct.State}, a = {drone.Adjunct.Assimilating}, p = {drone.Adjunct.IsDroneConnected}, pa = {drone.Adjunct.IsDroneAttached}, ut = {drone.Adjunct.UpTime.ElapsedMs()}");
                 return false;
             }
@@ -904,7 +907,7 @@ namespace zero.cocoon
                 {
                     Interlocked.Increment(ref _currentOutboundConnectionAttempts);
 
-                    var drone = await ConnectAsync(IoNodeAddress.CreateFromEndpoint("tcp", adjunct.RemoteAddress.IpEndPoint) , adjunct, timeout:adjunct.parm_max_network_latency_ms * 2).FastPath().ConfigureAwait(Zc);
+                    var drone = await ConnectAsync(IoNodeAddress.CreateFromEndpoint("tcp", adjunct.RemoteAddress.IpEndPoint) , adjunct, timeout:adjunct.parm_max_network_latency_ms * 4).FastPath().ConfigureAwait(Zc);
                     if (Zeroed() || drone == null || ((CcDrone)drone).Adjunct.Zeroed())
                     {
                         if (drone != null) await drone.Zero(this, $"{nameof(ConnectAsync)} was not successful [OK]").FastPath().ConfigureAwait(Zc);

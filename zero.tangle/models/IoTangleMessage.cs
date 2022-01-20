@@ -446,7 +446,7 @@ namespace zero.tangle.models
                         return false;
 
                     //Async read the message from the message stream
-                    if (await Source.IsOperational().FastPath().ConfigureAwait(Zc))
+                    if (Source.IsOperational())
                     {                                                
                         await ((IoSocket)ioSocket).ReadAsync(ArraySegment, (int)BufferOffset, (int)BufferSize).AsTask().ContinueWith(async rx =>
                         {                                                                    

@@ -330,7 +330,7 @@ namespace zero.cocoon.models
             //are we in recovery mode?
             var zeroRecovery = State == IoJobMeta.JobState.ZeroRecovery;
             
-            bool fastPath = false;
+            var fastPath = false;
             try
             {
                 //fail fast
@@ -345,6 +345,7 @@ namespace zero.cocoon.models
                 {
                     if (fastPath)
                     {
+                        State = IoJobMeta.JobState.ZeroRecovery;
                         AddRecoveryBits();
                     }
                     else
@@ -353,9 +354,6 @@ namespace zero.cocoon.models
                         if (await prevJobTask.FastPath().ConfigureAwait(Zc))
                             AddRecoveryBits();
                     }
-
-                    if(zeroRecovery)
-                        State = IoJobMeta.JobState.Consuming;
                 }
 
                 while (BytesLeftToProcess > 0)
@@ -385,6 +383,12 @@ namespace zero.cocoon.models
 
                                 if (packetLen > 0)
                                     packet = CcWhisperMsg.Parser.ParseFrom(Buffer, unpackOffset, packetLen);
+
+                                if (State == IoJobMeta.JobState.ZeroRecovery)
+                                {
+                                    State = IoJobMeta.JobState.Synced;
+                                    State = IoJobMeta.JobState.Consuming;
+                                }
                                 break;
                             }
 #if DEBUG
@@ -419,13 +423,16 @@ namespace zero.cocoon.models
                         break;
 
                     //Sanity check the data
-                    if (packet == null || packet.Data == null || packet.Data.Length == 0)
+                    if (packet == null || packet.Data == null || packet.Data.Length == 0 || !CcDrone.AccountingBit)
                     {
                         State = IoJobMeta.JobState.BadData;
                         continue;
                     }
 
-                    await Task.Delay(1000/64).ConfigureAwait(Zc);
+                    //if(Id % 5 != 0)
+                        await Task.Delay(1000/16).ConfigureAwait(Zc);
+                    //await Task.Delay(10).ConfigureAwait(Zc);
+                    //await Task.Delay(1000).ConfigureAwait(Zc);
 
                     IoZero.IncEventCounter();
                     CcCollective.IncEventCounter();
@@ -436,22 +443,22 @@ namespace zero.cocoon.models
                     if (_maxReq > 5 && req < 5)
                     {
                         //Console.WriteLine($"RESET[{req}] {_maxReq} -> {IoZero.Description}");
-                        _maxReq = 0;
+                        _maxReq = -1;
                     }
-
-                    req++;
 
                     if (req % 100000 == 0)
                     {
-                        _logger.Info($"[{Id}]: {req}, recover = {Source.Counters[(int)IoJobMeta.JobState.ZeroRecovery]}, frag = {Source.Counters[(int)IoJobMeta.JobState.Fragmented]}, bad = {Source.Counters[(int)IoJobMeta.JobState.BadData]}, total = {Source.Counters[(int)IoJobMeta.JobState.Accept]} + {Source.Counters[(int)IoJobMeta.JobState.Reject]}");
+                        _logger.Info($"[{Id}]: {req}, recover = {Source.Counters[(int)IoJobMeta.JobState.Synced]}/{Source.Counters[(int)IoJobMeta.JobState.ZeroRecovery]} ({Source.Counters[(int)IoJobMeta.JobState.Synced]/(double)Source.Counters[(int)IoJobMeta.JobState.ZeroRecovery]*100:0.0}%), frag = {Source.Counters[(int)IoJobMeta.JobState.Fragmented]}, bad = {Source.Counters[(int)IoJobMeta.JobState.BadData]}, success = {Source.Counters[(int)IoJobMeta.JobState.Consumed]}, fail = {Source.Counters[(int)IoJobMeta.JobState.Consumed] - Source.Counters[(int)IoJobMeta.JobState.Queued]}");
                     }
+                    req++;
 
-
-                    if(req is > uint.MaxValue or < 0  || req < _maxReq)
+                    if (req is > uint.MaxValue or < 0 || req <= Volatile.Read(ref _maxReq))
+                    {
+                        //Console.Write($". r = {req}, mr = {Volatile.Read(ref _maxReq)}");
                         continue;
-
-                    //if(req < _maxReq)
-                        _maxReq = req + 1;
+                    }
+                    
+                    Volatile.Write(ref _maxReq, req);
 
                     //Console.WriteLine($"{req}");
 
@@ -480,12 +487,7 @@ namespace zero.cocoon.models
                             if (source.IoNetSocket.RemoteAddress == endpoint || dupEndpoints != null && dupEndpoints.Contains(source.IoNetSocket.RemoteAddress.GetHashCode()))
                                 continue;
 #endif
-                                    if (await source.IoNetSocket.SendAsync(socketBuf, 0, (int)compressed + sizeof(ulong), timeout:20).FastPath().ConfigureAwait(Zc) <= 0)
-                                    {
-                                        if (await source.IsOperational().FastPath().ConfigureAwait(Zc))
-                                            _logger.Trace($"Failed to forward new msg message to {drone.Description}");
-                                    }
-                                    else
+                                    if (source == null || await source.IoNetSocket.SendAsync(socketBuf, 0, (int)compressed + sizeof(ulong)).FastPath().ConfigureAwait(Zc) <= 0) continue;
                                     {
                                         if (AutoPeeringEventService.Operational)
                                             await AutoPeeringEventService.AddEventAsync(new AutoPeerEvent

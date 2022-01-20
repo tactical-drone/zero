@@ -128,7 +128,7 @@ namespace zero.core.feat.models.protobuffer
                             return false;
 
                         //Async read the message from the message stream
-                        if (await job.MessageService.IsOperational().FastPath().ConfigureAwait(job.Zc) && !job.Zeroed())
+                        if (job.MessageService.IsOperational() && !job.Zeroed())
                         {
 
                             job.GenerateJobId();
