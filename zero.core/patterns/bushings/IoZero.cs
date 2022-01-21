@@ -334,6 +334,7 @@ namespace zero.core.patterns.bushings
 
                         if (!Zeroed())
                         {
+#if DEBUG
                             //sanity check _previousJobFragment
                             if (ZeroRecoveryEnabled &&
                                 _previousJobFragment.Count >= _previousJobFragment.Capacity * 2 / 3)
@@ -341,10 +342,9 @@ namespace zero.core.patterns.bushings
                                 _logger.Warn(
                                     $"({GetType().Name}<{typeof(TJob).Name}>) {nameof(_previousJobFragment)} has grown large {_previousJobFragment.Count}/{_previousJobFragment.Capacity} ");
                             }
+#endif
 
                             var ts = Environment.TickCount;
-
-
                             //Produce job input
                             if (await nextJob.ProduceAsync(static async (job, @this) =>
                                 {
@@ -359,7 +359,6 @@ namespace zero.core.patterns.bushings
                                     return true;
                                 }, this).FastPath().ConfigureAwait(Zc) == IoJobMeta.JobState.Produced && !Zeroed())
                             {
-                                ts = ts.ElapsedMs();
 
 #if DEBUG
                                 if (_queue.Count > 1 && _queue.Count > _queue.Capacity * 2 / 3)
@@ -420,11 +419,8 @@ namespace zero.core.patterns.bushings
                                     return false;
 
                                 //Is the producer spinning? Slow it down
-                                if (ts < parm_min_failed_production_time)
-                                    await Task.Delay(parm_min_failed_production_time, AsyncTasks.Token)
-                                        .ConfigureAwait(Zc);
-
-                                await Task.Delay(parm_min_failed_production_time).ConfigureAwait(Zc);
+                                await Task.Delay(parm_min_failed_production_time - ts, AsyncTasks.Token).ConfigureAwait(Zc);
+                                
                                 return true; //maybe we retry
                             }
                         }
@@ -529,7 +525,6 @@ namespace zero.core.patterns.bushings
             return default;
         }
 
-        private long _lastStat = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
         private ValueTask _producerTask;
         private ValueTask _consumerTask;
         
@@ -649,12 +644,11 @@ namespace zero.core.patterns.bushings
 
                         try
                         {
-                            if (curJob.Id % parm_stats_mod_count == 0 && _lastStat.Elapsed() > 10)
+                            if (curJob.Id % parm_stats_mod_count == 0 && curJob.Id >= 10000)
                             {
                                 await ZeroAtomic(static (_, state, _) =>
                                 {
                                     var (@this, curJob) = state;
-                                    @this._lastStat = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
                                     @this._logger?.Info(
                                         $"{@this.Description} {@this.EventCount / (double)@this.UpTime.ElapsedMsToSec():0.0} j/s, [{@this.JobHeap.ReferenceCount} / {@this.JobHeap.CacheSize} / {@this.JobHeap.ReferenceCount + @this.JobHeap.CacheSize} / {@this.JobHeap.AvailableCapacity} / {@this.JobHeap.Capacity}]");
                                     curJob.Source.PrintCounters();

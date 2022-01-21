@@ -318,7 +318,7 @@ namespace zero.core.patterns.bushings
                         if (_stateMeta.Value == value)
                             return;
 
-                        _stateMeta.ExitTime = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+                        _stateMeta.ExitTime = Environment.TickCount;
                         Interlocked.Increment(ref Source.Counters[(int)_stateMeta.Value]);
                         Interlocked.Add(ref Source.ServiceTimes[(int)_stateMeta.Value], _stateMeta.Mu);
                     }
@@ -350,14 +350,9 @@ namespace zero.core.patterns.bushings
                     StateTransitionHistory.EnqueueAsync(_stateMeta).GetAwaiter().GetResult();
 
 #else
-                    
-
                     _stateMeta.ExitTime = Environment.TickCount;
-                    if (!Zeroed())
-                    {
-                        Interlocked.Increment(ref Source.Counters[(int)_stateMeta.Value]);
-                        Interlocked.Add(ref Source.ServiceTimes[(int)_stateMeta.Value], _stateMeta.Mu);
-                    }
+                    Interlocked.Increment(ref Source.Counters[(int)_stateMeta.Value]);
+                    Interlocked.Add(ref Source.ServiceTimes[(int)_stateMeta.Value], _stateMeta.Mu);
                     _stateMeta.Set((int)value);
                     _stateMeta.EnterTime = Environment.TickCount;
 

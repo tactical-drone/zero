@@ -129,7 +129,6 @@ namespace zero.core.patterns.queue
                 var cur = _head;
                 while (cur != null)
                 {
-                    _curEnumerator.Modified = true;
                     try
                     {
                         if (op != null)
@@ -378,8 +377,6 @@ namespace zero.core.patterns.queue
                 if (_count == 0)
                     return default;
 
-                _curEnumerator.Modified = true;
-
                 dq = _head;
                 _head = _head.Next;
                 dq.Next = null;
@@ -389,6 +386,7 @@ namespace zero.core.patterns.queue
                 else
                     _tail = null;
 
+                _curEnumerator.Modified = true;
                 Interlocked.Decrement(ref _count);
             }
             catch when (_zeroed > 0) { }
@@ -444,7 +442,6 @@ namespace zero.core.patterns.queue
                 }
                 
                 deDup = false;
-                _curEnumerator.Modified = true;
 
                 if (node.Prev != null)
                 {
@@ -470,6 +467,7 @@ namespace zero.core.patterns.queue
                         _tail = null;
                 }
 
+                _curEnumerator.Modified = true;
                 Interlocked.Decrement(ref _count);
                 return true;
             }
@@ -489,12 +487,20 @@ namespace zero.core.patterns.queue
             return _curEnumerator;
         }
 
+        /// <summary>
+        /// Get a fresh enumerator
+        /// </summary>
+        /// <returns></returns>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         IEnumerator IEnumerable.GetEnumerator()
         {
             return GetEnumerator();
         }
 
+        /// <summary>
+        /// Clear the Queue
+        /// </summary>
+        /// <returns>A valuetask</returns>
         public async ValueTask ClearAsync()
         {
             try
@@ -554,10 +560,13 @@ namespace zero.core.patterns.queue
             }
         }
 
+        /// <summary>
+        /// Reset current enumerator
+        /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Reset()
         {
-            _curEnumerator = new IoQueueEnumerator<T>(this);
+            _curEnumerator.Reset();
             _curEnumerator.Modified = false;
         }
 
