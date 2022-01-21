@@ -41,12 +41,12 @@ namespace zero.core.patterns.bushings
         /// <summary>
         /// Timestamped when this state was entered
         /// </summary>
-        public long EnterTime;
+        public volatile int EnterTime;
 
         /// <summary>
         /// Timestamped when this state was exited
         /// </summary>
-        public long ExitTime;
+        public volatile int ExitTime;
         #endregion
 
         public new IoStateTransition<TState> Next => (IoStateTransition<TState>)base.Next;
@@ -66,7 +66,7 @@ namespace zero.core.patterns.bushings
         /// <summary>
         /// The time it took between entering this state and exiting it
         /// </summary>
-        public long Mu => Volatile.Read(ref ExitTime) - Volatile.Read(ref EnterTime);
+        public long Mu => ExitTime - EnterTime;
 
         /// <summary>
         /// The absolute time this job took so far
@@ -79,7 +79,7 @@ namespace zero.core.patterns.bushings
         /// <returns>The instance</returns>
         public ValueTask<IIoHeapItem> ConstructorAsync(IoStateTransition<TState> prev, int initState = default)
         {
-            ExitTime = EnterTime = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+            ExitTime = EnterTime = Environment.TickCount;
             base.Next = null;
             base.Prev = prev;
             if(base.Prev != null)
@@ -94,7 +94,7 @@ namespace zero.core.patterns.bushings
         /// <returns></returns>
         public ValueTask<IIoHeapItem> ReuseAsync()
         {
-            ExitTime = EnterTime = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+            ExitTime = EnterTime = Environment.TickCount;
             base.Next = null;
             base.Prev = null;
             base.Value = default;
@@ -107,7 +107,7 @@ namespace zero.core.patterns.bushings
         /// <returns></returns>
         public ValueTask<IIoHeapItem> ConstructorAsync(int initState)
         {
-            ExitTime = EnterTime = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+            ExitTime = EnterTime = Environment.TickCount;
             base.Next = null;
             base.Prev = null;
             base.Value = initState;
@@ -170,7 +170,7 @@ namespace zero.core.patterns.bushings
             if (Value.Equals(FinalState))
                 throw new ApplicationException($"Cannot transition from `{FinalState}' to `{nextState}'");
 
-            ExitTime = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+            ExitTime = Environment.TickCount;
             base.Next = nextState;
             if(nextState != null)
                 nextState.Prev = this;

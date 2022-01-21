@@ -252,11 +252,6 @@ namespace zero.core.patterns.bushings
         public int parm_producer_start_retry_time = 1000;
 
         /// <summary>
-        /// Used to detect spamming non performing producers
-        /// </summary>
-        private readonly Stopwatch _producerStopwatch = new Stopwatch();
-
-        /// <summary>
         /// If we are zeroed or not
         /// </summary>
         /// <returns>true if zeroed, false otherwise</returns>
@@ -347,7 +342,7 @@ namespace zero.core.patterns.bushings
                                     $"({GetType().Name}<{typeof(TJob).Name}>) {nameof(_previousJobFragment)} has grown large {_previousJobFragment.Count}/{_previousJobFragment.Capacity} ");
                             }
 
-                            _producerStopwatch.Restart();
+                            var ts = Environment.TickCount;
 
 
                             //Produce job input
@@ -364,7 +359,7 @@ namespace zero.core.patterns.bushings
                                     return true;
                                 }, this).FastPath().ConfigureAwait(Zc) == IoJobMeta.JobState.Produced && !Zeroed())
                             {
-                                _producerStopwatch.Stop();
+                                ts = ts.ElapsedMs();
 
 #if DEBUG
                                 if (_queue.Count > 1 && _queue.Count > _queue.Capacity * 2 / 3)
@@ -408,7 +403,7 @@ namespace zero.core.patterns.bushings
                             else //produce job returned with errors or nothing...
                             {
                                 //how long did this failure take?
-                                _producerStopwatch.Stop();
+                                ts = ts.ElapsedMs();
                                 IsArbitrating = false;
 
                                 await ZeroJobAsync(nextJob, true).FastPath().ConfigureAwait(Zc);
@@ -425,7 +420,7 @@ namespace zero.core.patterns.bushings
                                     return false;
 
                                 //Is the producer spinning? Slow it down
-                                if (_producerStopwatch.ElapsedMilliseconds < parm_min_failed_production_time)
+                                if (ts < parm_min_failed_production_time)
                                     await Task.Delay(parm_min_failed_production_time, AsyncTasks.Token)
                                         .ConfigureAwait(Zc);
 

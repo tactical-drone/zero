@@ -546,7 +546,7 @@ namespace zero.cocoon
 
             if (Zeroed()) return false;
 
-            long ts = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+            int ts = Environment.TickCount;
             try
             {                
                 var futileBuffer = new byte[_fuseBufSize];
@@ -684,7 +684,7 @@ namespace zero.cocoon
                     int localRead;
                     var expectedChunk = _futileRejectSize;
                     var chunkSize = expectedChunk;
-                    ts = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+                    ts = Environment.TickCount;
                     do
                     {
                         bytesRead += localRead = await ioNetSocket

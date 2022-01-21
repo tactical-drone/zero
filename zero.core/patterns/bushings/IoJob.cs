@@ -352,14 +352,14 @@ namespace zero.core.patterns.bushings
 #else
                     
 
-                    _stateMeta.ExitTime = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+                    _stateMeta.ExitTime = Environment.TickCount;
                     if (!Zeroed())
                     {
                         Interlocked.Increment(ref Source.Counters[(int)_stateMeta.Value]);
                         Interlocked.Add(ref Source.ServiceTimes[(int)_stateMeta.Value], _stateMeta.Mu);
                     }
                     _stateMeta.Set((int)value);
-                    _stateMeta.EnterTime = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+                    _stateMeta.EnterTime = Environment.TickCount;
 
                     if (value is IoJobMeta.JobState.Accept or IoJobMeta.JobState.Reject)
                     {

@@ -135,12 +135,12 @@ namespace zero.core.patterns.misc
         /// <summary>
         /// Measures how long teardown takes
         /// </summary>
-        public long TearDownTime;
+        public int TearDownTime;
 
         /// <summary>
         /// Measures how long cascading takes
         /// </summary>
-        public long CascadeTime;
+        public int CascadeTime;
 
         /// <summary>
         /// UpTime
@@ -402,7 +402,7 @@ namespace zero.core.patterns.misc
             if (_zeroedSec > 0 || Interlocked.CompareExchange(ref _zeroedSec, 1, 0) != 0)
                 return;
 
-            CascadeTime = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+            CascadeTime = Environment.TickCount;
 
             var desc = Description;
 #if DEBUG
@@ -434,7 +434,7 @@ namespace zero.core.patterns.misc
                 }
                 
                 CascadeTime = CascadeTime.ElapsedMs();
-                TearDownTime = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+                TearDownTime = Environment.TickCount;
 
                 try
                 {

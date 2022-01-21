@@ -187,7 +187,7 @@ namespace zero.core.feat.misc
                         if (bytesWritten > 0)
                         {
                             challenge.Key = response.Key;
-                            challenge.TimestampMs = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+                            challenge.TimestampMs = Environment.TickCount;
                             response.Node = await @this._lut.EnqueueAsync(challenge).FastPath().ConfigureAwait(@this.Zc);
                             return true;
                         }
@@ -417,15 +417,10 @@ namespace zero.core.feat.misc
             /// </summary>
             public volatile string Key;
 
-            private long _timeStamp;
             /// <summary>
             /// When the payload was challenged
             /// </summary>
-            public long TimestampMs
-            {
-                get => Volatile.Read(ref _timeStamp);
-                set => Volatile.Write(ref _timeStamp, value);
-            }
+            public volatile int TimestampMs;
 
             /// <summary>
             /// The hash

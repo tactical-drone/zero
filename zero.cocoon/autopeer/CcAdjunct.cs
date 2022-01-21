@@ -698,7 +698,7 @@ namespace zero.cocoon.autopeer
                     if (@this.CcCollective.TotalConnections == 0)
                         targetDelay /= 4;
 
-                    var ts = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+                    var ts = Environment.TickCount;
                     await Task.Delay(targetDelay, @this.AsyncTasks.Token).ConfigureAwait(@this.Zc);
 
                     if (@this.Zeroed())
@@ -848,7 +848,7 @@ namespace zero.cocoon.autopeer
                         await Task.Delay(@this._random.Next(@this.parm_max_network_latency_ms / 5 + 1), @this.AsyncTasks.Token).ConfigureAwait(@this.Zc);
                         //await Task.Yield();
 
-                        var ts = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+                        var ts = Environment.TickCount;
                         AdjunctState oldState;
                         if ((oldState = @this.CompareAndEnterState(AdjunctState.Connecting, AdjunctState.Fusing)) != AdjunctState.Fusing)
                         {

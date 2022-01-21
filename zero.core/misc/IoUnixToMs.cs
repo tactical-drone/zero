@@ -68,6 +68,19 @@ namespace zero.core.misc
             return delta;
         }
 
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static int ElapsedMs(this int timestamp)
+        {
+            return unchecked(Environment.TickCount - timestamp);
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static int ElapsedMsToSec(this int timestamp)
+        {
+            return (unchecked(Environment.TickCount - timestamp)) / 1000;
+        }
+
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static long Elapsed(this long timestamp)
         {
