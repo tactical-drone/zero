@@ -475,36 +475,28 @@ namespace zero.core.patterns.semaphore.core
 #if DEBUG
                 ZeroLock();
 #endif
-                
-                //choose a head index for blocking state
-                //var tailIdx = Interlocked.Increment(ref _tail) - 1;
-                //var headMod = tailIdx % _maxBlockers;
-
-                //Did we win?
-
-                long headMod;
-                while (Interlocked.CompareExchange(ref _signalAwaiter[headMod = (Interlocked.Increment(ref _tail) - 1) % _maxBlockers], ZeroSentinel, null) != null)
-                {
-                    Interlocked.Decrement(ref _tail);
-                    if (Zeroed())
-                        break;
-                }
+                var headMod = (Interlocked.Increment(ref _tail) - 1) % _maxBlockers;
 #if DEBUG
-                //if (slot == null)
+                Action<object> slot;
+                while ((slot = Interlocked.CompareExchange(ref _signalAwaiter[headMod], ZeroSentinel, null)) != null && _zeroed == 0)
+#else
+                while (Interlocked.CompareExchange(ref _signalAwaiter[headMod], ZeroSentinel, null) != null && _zeroed == 0)
+#endif
+                { }
+#if DEBUG
+                if (slot == null)
 #endif
                 {
                     _signalAwaiterState[headMod] = state;
                     ExtractContext(out _signalExecutionState[headMod], out _signalCapturedContext[headMod], flags);
                     Thread.MemoryBarrier();
                     _signalAwaiter[headMod] = continuation;
+#if DEBUG
                     return;
+#endif
                 }
 #if DEBUG
                 ZeroUnlock();
-                
-#endif
-                
-#if DEBUG
                 Interlocked.Decrement(ref _tail);
                 if (_enableAutoScale) //EXPERIMENTAL: double concurrent capacity
                 {
@@ -802,19 +794,19 @@ namespace zero.core.patterns.semaphore.core
 
                 if (worker.Continuation != latch || latch == ZeroSentinel || latch == null)
                 {
+                    Interlocked.Decrement(ref _head);
+
                     if (Zeroed())
                         break;
 
-                    Interlocked.Decrement(ref _head);
                     continue;
                 }
 
                 worker.State = _signalAwaiterState[latchMod];
-                worker.ExecutionContext = _signalExecutionState[latchMod];
-                worker.CapturedContext = _signalCapturedContext[latchMod];
-
                 _signalAwaiterState[latchMod] = null;
+                worker.ExecutionContext = _signalExecutionState[latchMod];
                 _signalExecutionState[latchMod] = null;
+                worker.CapturedContext = _signalCapturedContext[latchMod];
                 _signalCapturedContext[latchMod] = null;
                 Thread.MemoryBarrier();
                 _signalAwaiter[latchMod] = null;
@@ -832,9 +824,6 @@ namespace zero.core.patterns.semaphore.core
 
                 //count the number of waiters released
                 released++;
-
-                if (Zeroed())
-                    break;
             }
 
             if (!bestEffort)
