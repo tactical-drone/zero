@@ -106,6 +106,7 @@ namespace zero.core.patterns.bushings
         /// <summary>
         /// Updates buffer meta data
         /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         protected internal abstract bool ZeroEnsureRecovery();
 
         /// <summary>

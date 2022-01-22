@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Buffers;
 using System.IO;
+using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
 using zero.core.patterns.bushings;
@@ -170,6 +171,7 @@ namespace zero.core.feat.models
         /// <summary>
         /// If there are still <see cref="BytesLeftToProcess"/>, set status to syncing
         /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         protected override bool ZeroEnsureRecovery()
         {
             try

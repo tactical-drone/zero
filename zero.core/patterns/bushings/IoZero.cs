@@ -488,8 +488,14 @@ namespace zero.core.patterns.bushings
                     JobHeap.Return(job, job.FinalState > 0 && job.FinalState != IoJobMeta.JobState.Accept);
                 else
                 {
-                    if(job.ZeroRecovery.GetStatus(job.ZeroRecovery.Version) == ValueTaskSourceStatus.Pending)
+                    try
+                    {
                         job.ZeroRecovery.SetResult(job.ZeroEnsureRecovery());
+                    }
+                    catch
+                    {
+                        // ignored
+                    }
 
                     if (job.PreviousJob != null)
                     {
@@ -727,7 +733,7 @@ namespace zero.core.patterns.bushings
                 {
                     @this._logger.Error(e, $"Production failed! {@this.Description}");
                 }
-            },this, TaskCreationOptions.DenyChildAttach | TaskCreationOptions.PreferFairness); //TODO tuning
+            },this, TaskCreationOptions.DenyChildAttach); //TODO tuning
 
             //Consumer
             _consumerTask = ZeroOptionAsync(static async @this =>

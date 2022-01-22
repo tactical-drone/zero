@@ -75,7 +75,6 @@ namespace zero.core.feat.models.protobuffer
         protected override bool ZeroEnsureRecovery()
         {
             throw new NotImplementedException();
-            
         }
 
         /// <summary>
