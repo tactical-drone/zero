@@ -603,26 +603,28 @@ namespace zero.core.patterns.semaphore.core
                     {
                         if (forceAsync)
                         {
-                            Task.Factory.StartNew(callback, state, CancellationToken.None,
+                            _ = Task.Factory.StartNew(callback, state, CancellationToken.None,
                                 TaskCreationOptions.DenyChildAttach, TaskScheduler.Default);
+                            break;
                         }
-                        else if (Interlocked.Increment(ref _curAsyncWorkerCount) - 1 < _maxAsyncWorkers)
+
+                        if (Interlocked.Increment(ref _curAsyncWorkerCount) <= _maxAsyncWorkers)
                         {
-                            Task.Factory.StartNew(callback, state, CancellationToken.None, 
+                            _ = Task.Factory.StartNew(callback, state, CancellationToken.None, 
                                 TaskCreationOptions.DenyChildAttach, TaskScheduler.Default)
-                                .ContinueWith((_, zeroRef) => { ((IIoZeroSemaphore)zeroRef).ZeroDecAsyncCount(); }, _zeroRef);
+                                .ContinueWith(static (_, zeroRef) => { ((IIoZeroSemaphore)zeroRef).ZeroDecAsyncCount(); }, _zeroRef);
+                            break;
                         }
-                        else
+
+                        Interlocked.Decrement(ref _curAsyncWorkerCount);
+                        //race condition
+                        try
                         {
-                            //race condition
-                            try
-                            {
-                                callback(state);
-                            }
-                            catch (Exception e)
-                            {
-                                LogManager.GetCurrentClassLogger().Error(e, $"InvokeContinuation.callback(): ");
-                            }
+                            callback(state);
+                        }
+                        catch (Exception e)
+                        {
+                            LogManager.GetCurrentClassLogger().Error(e, $"InvokeContinuation.callback(): ");
                         }
                     }
                     else
@@ -653,7 +655,7 @@ namespace zero.core.patterns.semaphore.core
                     break;
 
                 case TaskScheduler ts:
-                    Task.Factory.StartNew(callback, state, CancellationToken.None, TaskCreationOptions.DenyChildAttach, ts);
+                    _ = Task.Factory.StartNew(callback, state, CancellationToken.None, TaskCreationOptions.DenyChildAttach, ts);
                     break;
             }
         }
