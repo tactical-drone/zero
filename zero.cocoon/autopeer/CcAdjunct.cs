@@ -629,7 +629,7 @@ namespace zero.cocoon.autopeer
                 await _sendBuf.ZeroManagedAsync<object>().FastPath().ConfigureAwait(Zc);
 
                 var from = ZeroedFrom == this? "self" : ZeroedFrom?.Description??"null";
-                if (Assimilated && WasAttached && UpTime.ElapsedMs() > parm_min_uptime_ms)
+                if (Assimilated && WasAttached && UpTime.ElapsedMs() > parm_min_uptime_ms && EventCount > 10)
                     _logger.Info($"- `{(Assimilated ? "apex" : "sub")} {Direction}: {Description}, {from}: r ={ZeroReason}");
 
                 await DetachDroneAsync().FastPath().ConfigureAwait(Zc);
@@ -2919,15 +2919,10 @@ namespace zero.cocoon.autopeer
             }
             finally
             {
+                ResetState(AdjunctState.Verified);
                 await severedDrone.Zero(this, $"detached from adjunct, was attached = {WasAttached}").FastPath().ConfigureAwait(Zc);
                 if(WasAttached)
                     await DeFuseAsync().FastPath().ConfigureAwait(Zc);
-
-                AdjunctState oldState;
-                if ((oldState = CompareAndEnterState(AdjunctState.Verified, AdjunctState.Connected)) != AdjunctState.Connected)
-                {
-                    _logger.Trace($"{nameof(ConnectAsync)} - {Description}: Invalid state, {oldState}. Wanted {nameof(AdjunctState.Connected)}");
-                }
             }
         }
 

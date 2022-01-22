@@ -393,8 +393,7 @@ namespace zero.core.core
         /// <param name="retry">Retry on failure</param>
         /// <param name="timeout">Retry timeout in ms</param>
         /// <returns>The async task</returns>
-        public async ValueTask<IoNeighbor<TJob>> ConnectAsync(IoNodeAddress remoteAddress, object extraData = null,
-            bool retry = false, int timeout = 0)
+        public async ValueTask<IoNeighbor<TJob>> ConnectAsync(IoNodeAddress remoteAddress, object extraData = null, bool retry = false, int timeout = 0)
         {
             IoNetClient<TJob> newClient = null;
             IoNeighbor<TJob> newNeighbor = null;

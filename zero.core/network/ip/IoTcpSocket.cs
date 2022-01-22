@@ -188,7 +188,9 @@ namespace zero.core.network.ip
 
             try
             {
-                //NativeSocket.Blocking = false;
+                NativeSocket.Blocking = false;
+                NativeSocket.SendTimeout = timeout;
+                NativeSocket.ReceiveTimeout = timeout;
                 var taskCore = new IoManualResetValueTaskSource<bool>(true);
                 var connectAsync = NativeSocket.BeginConnect(remoteAddress.IpEndPoint, static result =>
                 {
@@ -206,8 +208,6 @@ namespace zero.core.network.ip
                     }
                 }, (NativeSocket, taskCore));
 
-                NativeSocket.SendTimeout = timeout;
-                NativeSocket.ReceiveTimeout = timeout;
                 if (timeout > 0)
                 {
                     await ZeroAsync(static async state =>
@@ -273,6 +273,10 @@ namespace zero.core.network.ip
             catch (Exception e) when (!Zeroed())
             {
                 _logger.Error(e, $"[FAILED ] Connecting to {remoteAddress}: {Description}");
+            }
+            finally
+            {
+                NativeSocket.Blocking = true;
             }
 
             return false;

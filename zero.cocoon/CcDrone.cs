@@ -57,8 +57,7 @@ namespace zero.cocoon
                         }
                         await @this.Zero(@this, $"Invalid state after {@this.parm_insane_checks_delay_s}: s = {@this.Adjunct?.State}, wants = {CcAdjunct.AdjunctState.Connected}), {@this.Adjunct?.MetaDesc}").FastPath().ConfigureAwait(@this.Zc);
                     }
-
-                    if (@this.Adjunct != null) 
+                    else if (@this.Adjunct != null && @this.MessageService.IsOperational()) 
                         @this.Adjunct.WasAttached = true;
                 }
             },this, TaskCreationOptions.DenyChildAttach);

@@ -564,13 +564,13 @@ namespace zero.cocoon
                     {
                         
                         bytesRead += localRead = await ioNetSocket
-                            .ReadAsync(futileBuffer, bytesRead, _futileRequestSize - bytesRead, timeout: parm_futile_timeout_ms * 2).FastPath()
+                            .ReadAsync(futileBuffer, bytesRead, _futileRequestSize - bytesRead, timeout: parm_futile_timeout_ms).FastPath()
                             .ConfigureAwait(Zc);
                     } while (bytesRead < _futileRequestSize && localRead > 0 && !Zeroed());
 
                     if ((bytesRead == 0 || bytesRead < _futileRequestSize) && ioNetSocket.IsConnected())
                     {
-                        _logger.Error($"Failed to read futile ingress request, waited = {_sw.ElapsedMilliseconds}ms, wanted ={parm_futile_timeout_ms * 2}ms, socket = {ioNetSocket.Description}");
+                        _logger.Error($"Failed to read futile ingress request, waited = {_sw.ElapsedMilliseconds}ms, wanted ={parm_futile_timeout_ms}ms, socket = {ioNetSocket.Description}");
                         return false;
                     }
                     else
@@ -603,9 +603,9 @@ namespace zero.cocoon
                         if (ccFutileRequest != null)
                         {
                             //reject old futile requests
-                            if (ccFutileRequest.Timestamp.ElapsedMs() > parm_futile_timeout_ms * 4)
+                            if (ccFutileRequest.Timestamp.ElapsedMs() > parm_futile_timeout_ms)
                             {
-                                _logger.Error($"Rejected old futile request from {ioNetSocket.Key} - d = {ccFutileRequest.Timestamp.ElapsedMs()}ms, > {parm_futile_timeout_ms * 4}");
+                                _logger.Error($"Rejected old futile request from {ioNetSocket.Key} - d = {ccFutileRequest.Timestamp.ElapsedMs()}ms, > {parm_futile_timeout_ms}");
                                 return false;
                             }
 
@@ -688,7 +688,7 @@ namespace zero.cocoon
                     do
                     {
                         bytesRead += localRead = await ioNetSocket
-                            .ReadAsync(futileBuffer, bytesRead, chunkSize, timeout: parm_futile_timeout_ms * 2).FastPath()
+                            .ReadAsync(futileBuffer, bytesRead, chunkSize, timeout: parm_futile_timeout_ms).FastPath()
                             .ConfigureAwait(Zc);
                         if (chunkSize == _futileRejectSize)
                         {
@@ -907,7 +907,7 @@ namespace zero.cocoon
                 {
                     Interlocked.Increment(ref _currentOutboundConnectionAttempts);
 
-                    var drone = await ConnectAsync(IoNodeAddress.CreateFromEndpoint("tcp", adjunct.RemoteAddress.IpEndPoint) , adjunct, timeout:adjunct.parm_max_network_latency_ms * 4).FastPath().ConfigureAwait(Zc);
+                    var drone = await ConnectAsync(IoNodeAddress.CreateFromEndpoint("tcp", adjunct.RemoteAddress.IpEndPoint) , adjunct, timeout:parm_futile_timeout_ms).FastPath().ConfigureAwait(Zc);
                     if (Zeroed() || drone == null || ((CcDrone)drone).Adjunct.Zeroed())
                     {
                         if (drone != null) await drone.Zero(this, $"{nameof(ConnectAsync)} was not successful [OK]").FastPath().ConfigureAwait(Zc);
