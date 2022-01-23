@@ -458,7 +458,12 @@ namespace zero.core.patterns.queue
                 }
                 else
                 {
-                    Debug.Assert(_head == node);
+                    if( _head != node)
+                    {
+                        node.Prev = null;
+                        return false;
+                    }
+                        
                     _head = _head.Next;
                     node.Next = null;
                     if (_head != null)

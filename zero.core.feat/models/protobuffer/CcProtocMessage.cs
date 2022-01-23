@@ -200,7 +200,7 @@ namespace zero.core.feat.models.protobuffer
         ///
         /// This function should not run if byte streams contain verbatim data. 
         /// </summary>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        //[MethodImpl(MethodImplOptions.AggressiveInlining)]
         protected int ZeroSync()
         {
             var read = 0;
@@ -211,7 +211,12 @@ namespace zero.core.feat.models.protobuffer
                 {
                     var sizeIdx = frameStart - sizeof(uint);
                     byte lower;
-                    if (read == 0 && (lower = Buffer[sizeIdx]) != 0 || Buffer[frameStart + 0] == 0 && Buffer[frameStart + 1] == 0 && Buffer[frameStart + 2] == 0 && Buffer[frameStart + 3] == 0 && (lower = Buffer[sizeIdx]) != 0)
+                    if (read == 0 && (lower = Buffer[sizeIdx]) != 0 || 
+                        Buffer[frameStart + 0] == 0 &&
+                        Buffer[frameStart + 1] == 0 && 
+                        Buffer[frameStart + 2] == 0 && 
+                        Buffer[frameStart + 3] == 0 &&
+                        (lower = Buffer[sizeIdx]) != 0)
                     {
                         var p = lower | Buffer[sizeIdx + 1] << 8;
                         if (p <= BytesLeftToProcess)
@@ -223,11 +228,18 @@ namespace zero.core.feat.models.protobuffer
                 }
                 return read = -1;
             }
+            catch when(Zeroed()){}
+            catch (Exception e)when (!Zeroed())
+            {
+                _logger.Error(e,$"${nameof(ZeroSync)}:");
+            }
             finally
             {
                 if(read != -1 && read > 0)
                     Interlocked.Add(ref BufferOffset, read);
             }
+
+            return -1;
         }
     }
 }
