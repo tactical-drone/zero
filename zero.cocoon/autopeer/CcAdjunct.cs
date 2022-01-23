@@ -833,12 +833,22 @@ namespace zero.cocoon.autopeer
 
                 if (CcCollective.Neighbors.TryGetValue(Key, out var existingNeighbor))
                 {
-                    if (existingNeighbor.Source.IsOperational())
+                    try
                     {
-                        _logger.Trace($"Drone already operational, dropping {existingNeighbor.Description}");
-                        return false;
+                        if (existingNeighbor.Source.IsOperational())
+                        {
+                            _logger.Trace($"Drone already operational, dropping {existingNeighbor.Description}");
+                            return false;
+                        }
+
+                        await existingNeighbor.Zero(this, $"Dropped because stale from {existingNeighbor.Description}")
+                            .FastPath().ConfigureAwait(Zc);
                     }
-                    await existingNeighbor.Zero(this, $"Dropped because stale from {existingNeighbor.Description}").FastPath().ConfigureAwait(Zc);
+                    catch when (existingNeighbor?.Source?.Zeroed()?? true) {}
+                    catch (Exception e)when(!existingNeighbor.Source.Zeroed())
+                    {
+                        _logger.Error(e,$"{nameof(ConnectAsync)}:");
+                    }
                 }
 
                 await ZeroAsync(static async @this =>
@@ -2923,6 +2933,18 @@ namespace zero.cocoon.autopeer
                 await severedDrone.Zero(this, $"detached from adjunct, was attached = {WasAttached}").FastPath().ConfigureAwait(Zc);
                 if(WasAttached)
                     await DeFuseAsync().FastPath().ConfigureAwait(Zc);
+            }
+
+            if (CcCollective.TotalConnections < CcCollective.MaxDrones)
+            {
+                //load hot backup
+                await ZeroAsync(async @this =>
+                {
+                    await CcCollective.Adjuncts.Where(a => a.State == AdjunctState.Verified).ToList().ForEachAsync<CcAdjunct, IIoNanite>(static async (@this, _) =>
+                    {
+                        await @this.ProbeAsync("SYN-HOT").FastPath().ConfigureAwait(@this.Zc);
+                    });
+                }, this, TaskCreationOptions.DenyChildAttach);
             }
         }
 
