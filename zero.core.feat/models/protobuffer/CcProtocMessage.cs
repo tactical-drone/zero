@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Buffers;
+using System.Data;
 using System.Diagnostics;
 using System.IO;
 using System.Net;
@@ -191,26 +192,33 @@ namespace zero.core.feat.models.protobuffer
         }
 
         /// <summary>
-        /// Synchronizes the stream
+        /// Synchronizes the byte stream, expects a frame = [ uint64 size, byte[] compressed_or_encrypted_payload ].
+        ///
+        /// Sync scans for the inefficiencies in uint64 to find the frame start. It is assumed
+        /// such an inefficiency wont exist in compressed/encrypted payloads. If it does, syncing
+        /// might be sub optimal.
+        ///
+        /// This function should not run if byte streams contain verbatim data. 
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         protected int ZeroSync()
         {
             var read = 0;
-            var buf = (ReadOnlySpan<byte>)Buffer.AsSpan(BufferOffset);
+            var frameStart = BufferOffset + sizeof(uint);
             try
             {
                 while (read + sizeof(ulong) < BytesLeftToProcess)
                 {
-                    if (MemoryMarshal.Read<uint>(buf[(sizeof(ulong)>>1 + read)..]) == 0)
+                    var sizeIdx = frameStart - sizeof(uint);
+                    byte lower;
+                    if (read == 0 && (lower = Buffer[sizeIdx]) != 0 || Buffer[frameStart + 0] == 0 && Buffer[frameStart + 1] == 0 && Buffer[frameStart + 2] == 0 && Buffer[frameStart + 3] == 0 && (lower = Buffer[sizeIdx]) != 0)
                     {
-                        var p = MemoryMarshal.Read<ulong>(buf[read..]);
-                        if (p != 0 && p < ushort.MaxValue && p <= (ulong)BytesLeftToProcess)
-                        {
-                            return (int)p;
-                        }
+                        var p = lower | Buffer[sizeIdx + 1] << 8;
+                        if (p <= BytesLeftToProcess)
+                            return p;
                     }
 
+                    frameStart++;
                     read++;
                 }
                 return read = -1;

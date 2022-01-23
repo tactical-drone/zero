@@ -430,9 +430,11 @@ namespace zero.cocoon.models
                     }
 
                     //if(Id % 5 != 0)
-                        await Task.Delay(1000/64).ConfigureAwait(Zc);
+                    //await Task.Delay(1000/64).ConfigureAwait(Zc);
                     //await Task.Delay(10).ConfigureAwait(Zc);
+                    //await Task.Delay(1).ConfigureAwait(Zc);
                     //await Task.Delay(1000).ConfigureAwait(Zc);
+                    await Task.Yield();
 
                     IoZero.IncEventCounter();
                     CcCollective.IncEventCounter();
@@ -448,7 +450,7 @@ namespace zero.cocoon.models
 
                     if (req % 100000 == 0)
                     {
-                        _logger.Info($"[{Id}]: {req}, recover = {Source.Counters[(int)IoJobMeta.JobState.Synced]}/{Source.Counters[(int)IoJobMeta.JobState.ZeroRecovery]} ({Source.Counters[(int)IoJobMeta.JobState.Synced]/(double)Source.Counters[(int)IoJobMeta.JobState.ZeroRecovery]*100:0.0}%), frag = {Source.Counters[(int)IoJobMeta.JobState.Fragmented]}, bad = {Source.Counters[(int)IoJobMeta.JobState.BadData]}, success = {Source.Counters[(int)IoJobMeta.JobState.Consumed]}, fail = {Source.Counters[(int)IoJobMeta.JobState.Consumed] - Source.Counters[(int)IoJobMeta.JobState.Queued]}");
+                        _logger.Info($"[{Id}]: {req}, recover = {Source.Counters[(int)IoJobMeta.JobState.Synced]}/{Source.Counters[(int)IoJobMeta.JobState.ZeroRecovery]} ({Source.Counters[(int)IoJobMeta.JobState.Synced]/(double)Source.Counters[(int)IoJobMeta.JobState.ZeroRecovery]*100:0.0}%), frag = {Source.Counters[(int)IoJobMeta.JobState.Fragmented]}, bad = {Source.Counters[(int)IoJobMeta.JobState.BadData]}, success = {Source.Counters[(int)IoJobMeta.JobState.Consumed]}, fail = {Source.Counters[(int)IoJobMeta.JobState.Queued - Source.Counters[(int)IoJobMeta.JobState.Consumed] - Source.Counters[(int)IoJobMeta.JobState.Fragmented]]}");
                     }
                     req++;
 
