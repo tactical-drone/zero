@@ -92,11 +92,11 @@ namespace zero.core.patterns.bushings
                 await Source.ZeroHiveAsync(this).FastPath().ConfigureAwait(Zc);
 
             //TODO tuning
-            _queue = new IoQueue<IoSink<TJob>>($"zero Q: {_description}", capacity * 2, Source.PrefetchSize, disablePressure:!Source.DisableZero, enableBackPressure:Source.DisableZero);
+            _queue = new IoQueue<IoSink<TJob>>($"zero Q: {_description}", capacity, Source.PrefetchSize, disablePressure:!Source.DisableZero, enableBackPressure:Source.DisableZero);
 
             //TODO tuning
             if (ZeroRecoveryEnabled)
-                _previousJobFragment = new IoQueue<IoSink<TJob>>($"{description}", capacity * 2, ZeroConcurrencyLevel());
+                _previousJobFragment = new IoQueue<IoSink<TJob>>($"{description}", capacity, ZeroConcurrencyLevel());
         }
 
         /// <summary>

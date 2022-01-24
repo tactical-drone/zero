@@ -846,7 +846,7 @@ namespace zero.cocoon
                                                         
                     if (direction == CcAdjunct.Heading.Ingress)
                     {
-                        if(Interlocked.Increment(ref @this.IngressCount) - 1 < @this.parm_max_inbound)
+                        if(Interlocked.Increment(ref @this.IngressCount) <= @this.parm_max_inbound)
                         {
                             return new ValueTask<bool>(true);
                         }
@@ -858,7 +858,7 @@ namespace zero.cocoon
                     }
                     else
                     {
-                        if (Interlocked.Increment(ref @this.EgressCount) - 1 < @this.parm_max_outbound)
+                        if (Interlocked.Increment(ref @this.EgressCount) <= @this.parm_max_outbound)
                         {
                             return new ValueTask<bool>(true);
                         }
@@ -1039,8 +1039,8 @@ namespace zero.cocoon
                 if(Zeroed() || Hub?.Router == null)
                     return;
                 
-                //var foundVector = false;
-                foreach (var vector in Hub.Neighbors.Values.Where(n=>((CcAdjunct)n).Assimilating).OrderBy(n=>((CcAdjunct)n).Priority))
+                var foundVector = false;
+                foreach (var vector in Hub.Neighbors.Values.Where(n=>((CcAdjunct)n).State >= CcAdjunct.AdjunctState.Verified).OrderBy(n=>((CcAdjunct)n).Priority))
                 {
                     var adjunct = (CcAdjunct)vector;
 
@@ -1054,14 +1054,14 @@ namespace zero.cocoon
                     }
                     else
                     {
-                        //foundVector = true;
+                        foundVector = true;
                     }
 
-                    await Task.Delay(((CcAdjunct)vector).parm_max_network_latency_ms, AsyncTasks.Token).ConfigureAwait(Zc);
+                    await Task.Delay(((CcAdjunct)vector).parm_max_network_latency_ms/4, AsyncTasks.Token).ConfigureAwait(Zc);
                 }
 
-                //if(foundVector)
-                //    return;
+                if(foundVector)
+                    return;
 
                 _logger.Trace($"Bootstrapping {Description} from {BootstrapAddress.Count} bootnodes...");
                 if (BootstrapAddress != null)

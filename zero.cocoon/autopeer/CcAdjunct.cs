@@ -2612,8 +2612,6 @@ namespace zero.cocoon.autopeer
                     return true;
                 }
 
-                Interlocked.Increment(ref _scanCount);
-
                 if (cooldown == -1)
                     cooldown = CcCollective.parm_mean_pat_delay_s * 1000 / 5;
 
@@ -2638,6 +2636,7 @@ namespace zero.cocoon.autopeer
                 var sent = await SendMessageAsync(sweepMsgBuf,CcDiscoveries.MessageTypes.Scan, RemoteAddress).FastPath().ConfigureAwait(Zc);
                 if (sent > 0)
                 {
+                    Interlocked.Increment(ref _scanCount);
                     _logger.Trace($"-/> {nameof(CcScanRequest)}({sent}){sweepMsgBuf.PayloadSig()}: Sent, {Description}");
 
                     //Emit message event

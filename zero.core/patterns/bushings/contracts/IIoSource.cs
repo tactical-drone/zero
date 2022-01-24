@@ -35,7 +35,7 @@ namespace zero.core.patterns.bushings.contracts
         public ValueTask<bool> WaitForPressureAsync();
         
         /// <summary>
-        /// Apply sink pressure
+        /// Apply sink "back" pressure
         /// </summary>
         public int BackPressure(int releaseCount = 1);
 

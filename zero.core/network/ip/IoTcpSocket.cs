@@ -129,7 +129,6 @@ namespace zero.core.network.ip
                     }
                     else if(!Zeroed())
                     {
-                        _logger.Error($"Incoming connection failed: connected = {socket?.Connected??false}, {Description}");
                         continue;
                     }
                     _logger.Trace($"Connection Received: from = `{newSocket.RemoteNodeAddress}', ({Description})");
