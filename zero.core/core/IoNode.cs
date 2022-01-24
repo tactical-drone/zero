@@ -462,7 +462,8 @@ namespace zero.core.core
                     }
                 }
             }
-            catch (Exception e)
+            catch when (Zeroed()){}
+            catch (Exception e) when (!Zeroed())
             {
                 _logger.Error(e,$"{nameof(ConnectAsync)}:");
             }

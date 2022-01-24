@@ -319,10 +319,11 @@ namespace zero.core.patterns.queue
                 node.Value = item;
 
                 // ReSharper disable once ConditionIsAlwaysTrueOrFalse
+                
                 if (!await _syncRoot.WaitAsync().FastPath().ConfigureAwait(Zc) || !(entered = true) || _zeroed > 0)
                 {
                     _nodeHeap.Return(node);
-                    LogManager.GetCurrentClassLogger().Fatal($"{nameof(DequeueAsync)}: _syncRoot failure ~> {_syncRoot}");
+                    LogManager.GetCurrentClassLogger().Fatal($"{nameof(PushBackAsync)}: _syncRoot failure ~> {_syncRoot}");
                     return null;
                 }
 

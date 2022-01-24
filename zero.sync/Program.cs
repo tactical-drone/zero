@@ -781,7 +781,7 @@ namespace zero.sync
             var _concurrentTasks = new List<Task>();
 
             var start = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-            var rounds = 32;
+            var rounds = 45;
             var mult = 1000000;
             for (var i = 0; i < rounds; i++)
             {

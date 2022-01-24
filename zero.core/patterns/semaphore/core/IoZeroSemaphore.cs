@@ -854,7 +854,7 @@ namespace zero.core.patterns.semaphore.core
                 Interlocked.Increment(ref _curSignalCount);
             }
 
-            if (_curWaitCount < _maxBlockers && Interlocked.Increment(ref _curWaitCount) <= _maxBlockers)
+            if (Interlocked.Increment(ref _curWaitCount) <= _maxBlockers)
                 return new ValueTask<bool>(_zeroRef, 23);
 
             Interlocked.Decrement(ref _curWaitCount);
