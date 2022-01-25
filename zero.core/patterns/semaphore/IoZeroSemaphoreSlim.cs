@@ -18,8 +18,8 @@ namespace zero.core.patterns.semaphore
             int maxAsyncWork = 0,
             bool enableAutoScale = false, bool enableFairQ = false, bool enableDeadlockDetection = false) : base($"{nameof(IoZeroSemaphoreSlim)}: {description}", maxBlockers)
         {
-            _semaphore = new IoZeroSemaphore(description, maxBlockers, initialCount, maxAsyncWork, enableAutoScale: enableAutoScale, enableFairQ: enableFairQ, enableDeadlockDetection: enableDeadlockDetection);
-            _semaphore.ZeroRef(ref _semaphore, asyncTasks);
+            _semaphore = new IoZeroSemaphore(description, maxBlockers, initialCount, maxAsyncWork, enableAutoScale: enableAutoScale, enableFairQ: enableFairQ, enableDeadlockDetection: enableDeadlockDetection, cancellationTokenSource: asyncTasks);
+            _semaphore.ZeroRef(ref _semaphore);
         }
 
         private IIoZeroSemaphore _semaphore;
@@ -53,10 +53,10 @@ namespace zero.core.patterns.semaphore
         {
             _semaphore.OnCompleted(continuation, state, token, flags);
         }
-        
-        public void ZeroRef(ref IIoZeroSemaphore @ref, CancellationTokenSource asyncToken)
+
+        public void ZeroRef(ref IIoZeroSemaphore @ref)
         {
-            _semaphore.ZeroRef(ref @ref, asyncToken);
+            //_semaphore.ZeroRef(ref @ref);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]

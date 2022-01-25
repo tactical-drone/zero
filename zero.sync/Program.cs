@@ -22,7 +22,7 @@ using zero.core.network.ip;
 using zero.core.patterns.misc;
 using zero.core.patterns.queue;
 using zero.core.patterns.semaphore;
-
+using zero.core.runtime.scheduler;
 using LogLevel = Microsoft.Extensions.Logging.LogLevel;
 
 namespace zero.sync
@@ -66,7 +66,6 @@ namespace zero.sync
             Console.WriteLine($"zero ({Environment.OSVersion}: {Environment.MachineName} - dotnet v{Environment.Version}, CPUs = {Environment.ProcessorCount})");
             //SemTest();
             //QueueTestAsync();
-
             //Tune dotnet for large tests
             ThreadPool.GetMinThreads(out var wt, out var cp);
             ThreadPool.SetMinThreads(wt * 3, cp * 2);
@@ -83,7 +82,7 @@ namespace zero.sync
 
             var random = new Random((int)DateTime.Now.Ticks);
             //Tangle("tcp://192.168.1.2:15600");
-            var total = 348;
+            var total = 349;
             var maxDrones = 3;
             var maxAdjuncts = 16;
             var boot = true;
@@ -201,7 +200,7 @@ namespace zero.sync
                             if (c == 1)
                                 await Task.Delay(5000);
                             Console.WriteLine($"added {c++}/{tasks.Count}");
-                            task.Start(TaskScheduler.Default);
+                            task.Start(IoZeroScheduler.ZeroDefault);
                         }
                         else
                         {

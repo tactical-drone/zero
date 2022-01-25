@@ -12,6 +12,7 @@ using zero.core.patterns.heap;
 using zero.core.patterns.misc;
 using zero.core.patterns.queue;
 using zero.core.patterns.semaphore.core;
+using zero.core.runtime.scheduler;
 
 namespace zero.core.patterns.bushings
 {
@@ -628,9 +629,17 @@ namespace zero.core.patterns.bushings
                     finally
                     {
                         //Consume success?
-                        curJob.State = curJob.State is IoJobMeta.JobState.Consumed or IoJobMeta.JobState.Fragmented
-                            ? IoJobMeta.JobState.Accept
-                            : IoJobMeta.JobState.Reject;
+                        try
+                        {
+                            curJob.State = curJob.State is IoJobMeta.JobState.Consumed or IoJobMeta.JobState.Fragmented
+                                ? IoJobMeta.JobState.Accept
+                                : IoJobMeta.JobState.Reject;
+                        }
+                        catch (Exception e)
+                        {
+                            Console.WriteLine(e);
+                            throw;
+                        }
 
                         try
                         {
@@ -733,7 +742,7 @@ namespace zero.core.patterns.bushings
                 {
                     @this._logger.Error(e, $"Production failed! {@this.Description}");
                 }
-            },this, TaskCreationOptions.DenyChildAttach); //TODO tuning
+            },this, TaskCreationOptions.LongRunning, IoZeroScheduler.ZeroDefault); //TODO tuning
 
             //Consumer
             _consumerTask = ZeroOptionAsync(static async @this =>
@@ -765,7 +774,7 @@ namespace zero.core.patterns.bushings
                     if (j < width)
                         break;
                 }
-            }, this, TaskCreationOptions.DenyChildAttach | TaskCreationOptions.PreferFairness); //TODO tuning
+            }, this, TaskCreationOptions.LongRunning | TaskCreationOptions.PreferFairness, IoZeroScheduler.ZeroDefault); //TODO tuning
 
             //Wait for tear down                
             await Task.WhenAll(_producerTask.AsTask(), _consumerTask.AsTask()).ConfigureAwait(Zc);

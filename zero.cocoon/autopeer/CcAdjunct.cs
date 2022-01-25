@@ -31,6 +31,7 @@ using zero.core.patterns.heap;
 using zero.core.patterns.misc;
 using zero.core.patterns.queue;
 using zero.core.patterns.semaphore.core;
+using zero.core.runtime.scheduler;
 using Zero.Models.Protobuf;
 
 namespace zero.cocoon.autopeer
@@ -957,7 +958,7 @@ namespace zero.cocoon.autopeer
                     }
                     
                 }
-                else //Default and safe mode
+                else //ZeroDefault and safe mode
                 {
                     byte[] cachedEp = null;
                     ByteString cachedPk = null;
@@ -1179,7 +1180,7 @@ namespace zero.cocoon.autopeer
                             @this._logger?.Error(e, $"{@this.Description}");
                         }
                     
-                    },this, TaskCreationOptions.DenyChildAttach | TaskCreationOptions.PreferFairness);
+                    },this, TaskCreationOptions.LongRunning | TaskCreationOptions.PreferFairness, IoZeroScheduler.ZeroDefault);
 
                     consumer = ZeroOptionAsync(static async @this  =>
                     {
@@ -1326,7 +1327,7 @@ namespace zero.cocoon.autopeer
                         {
                             @this._logger?.Error(e, $"{@this.Description}");
                         }
-                    }, this, TaskCreationOptions.DenyChildAttach | TaskCreationOptions.PreferFairness );
+                    }, this, TaskCreationOptions.LongRunning | TaskCreationOptions.PreferFairness, IoZeroScheduler.ZeroDefault);
                     await Task.WhenAll(producer.AsTask(), consumer.AsTask()).ConfigureAwait(Zc);
                 }
                 while (!Zeroed());
@@ -2514,7 +2515,7 @@ namespace zero.cocoon.autopeer
 #if DEBUG
                         try
                         {
-                            _logger.Trace($"-/> {nameof(CcProbeMessage)}({sent})[{probeMsgBuf.PayloadSig()}, hash = {challenge.Value.Hash}]: sent [[{desc}]] {Description}");
+                            _logger.Trace($"-/> {nameof(CcProbeMessage)}({sent})[{probeMsgBuf.PayloadSig()}, hash = {challenge.Value.Hash.HashSig()}]: sent [[{desc}]] {Description}");
                         }
                         catch when (Zeroed()){}
                         catch (Exception e)when(!Zeroed())

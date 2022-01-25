@@ -339,23 +339,25 @@ namespace zero.cocoon.models
 
                 //Ensure that the previous job (which could have been launched out of sync) has completed
                 var prevJob = ((CcWhispers)PreviousJob)?.ZeroRecovery;
-                fastPath = IoZero.ZeroRecoveryEnabled && prevJob?.GetStatus(prevJob.Version) == ValueTaskSourceStatus.Succeeded && prevJob.GetResult(prevJob.Version);
-                
-                if (zeroRecovery || fastPath)
+                if (prevJob.HasValue)
                 {
-                    if (fastPath)
+                    fastPath = IoZero.ZeroRecoveryEnabled && prevJob?.GetStatus(prevJob.Value.Version) == ValueTaskSourceStatus.Succeeded && prevJob.Value.GetResult(prevJob.Value.Version);
+                    if (zeroRecovery || fastPath)
                     {
-                        State = IoJobMeta.JobState.ZeroRecovery;
-                        AddRecoveryBits();
-                    }
-                    else
-                    {
-                        var prevJobTask = new ValueTask<bool>(prevJob, prevJob!.Version);
-                        if (await prevJobTask.FastPath().ConfigureAwait(Zc))
+                        if (fastPath)
+                        {
+                            State = IoJobMeta.JobState.ZeroRecovery;
                             AddRecoveryBits();
+                        }
+                        else
+                        {
+                            var prevJobTask = new ValueTask<bool>(prevJob, prevJob.Value.Version);
+                            if (await prevJobTask.FastPath().ConfigureAwait(Zc))
+                                AddRecoveryBits();
+                        }
                     }
                 }
-
+                
                 while (BytesLeftToProcess > 0)
                 {
                     CcWhisperMsg packet = null;
@@ -454,7 +456,7 @@ namespace zero.cocoon.models
                     }
                     req++;
 
-                    if (req is > uint.MaxValue or < 0 || req <= Volatile.Read(ref _maxReq))
+                    if (req is > uint.MaxValue or < 0 || req <= Volatile.Read(ref _maxReq) || (_maxReq > 0 && req > _maxReq * 2))
                     {
                         //Console.Write($". r = {req}, mr = {Volatile.Read(ref _maxReq)}");
                         continue;

@@ -48,23 +48,23 @@ namespace zero.core.patterns.queue
                 }
             };
 
-            _syncRoot = new IoZeroSemaphore(desc, maxBlockers: concurrencyLevel, initialCount: 1, asyncWorkerCount: 0);
-            _syncRoot.ZeroRef(ref _syncRoot, _asyncTasks);
+            _syncRoot = new IoZeroSemaphore(desc, maxBlockers: concurrencyLevel, initialCount: 1, asyncWorkerCount: 0, cancellationTokenSource:_asyncTasks);
+            _syncRoot.ZeroRef(ref _syncRoot);
 
             var c = Math.Max(prefetch + 1, concurrencyLevel);
 
             if (!disablePressure)
             {
                 _pressure = new IoZeroSemaphore($"qp {description}",
-                    maxBlockers: c, asyncWorkerCount: 0);
-                _pressure.ZeroRef(ref _pressure, _asyncTasks);
+                    maxBlockers: c, asyncWorkerCount: 0, cancellationTokenSource:_asyncTasks);
+                _pressure.ZeroRef(ref _pressure);
             }
             
             if (enableBackPressure)
             {
                 _backPressure = new IoZeroSemaphore($"qbp {description}",
-                    maxBlockers: c, asyncWorkerCount: 0, initialCount: concurrencyLevel);
-                _backPressure.ZeroRef(ref _backPressure, _asyncTasks);
+                    maxBlockers: c, asyncWorkerCount: 0, initialCount: concurrencyLevel, cancellationTokenSource:_asyncTasks);
+                _backPressure.ZeroRef(ref _backPressure);
             }
 
             _curEnumerator = new IoQueueEnumerator<T>(this);
@@ -191,6 +191,7 @@ namespace zero.core.patterns.queue
         /// </summary>
         /// <param name="item">The item to enqueue</param>
         /// <returns>The queued item's linked list node</returns>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public ValueTask<IoZNode> EnqueueAsync(T item)
         {
             return EnqueueAsync<object>(item);
@@ -203,6 +204,7 @@ namespace zero.core.patterns.queue
         /// <param name="onAtomicAdd">Additional actions to perform in the critical area</param>
         /// <param name="context">atomic context</param>
         /// <returns>The queued item's linked list node</returns>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public async ValueTask<IoZNode> EnqueueAsync<TC>(T item, Func<TC,ValueTask> onAtomicAdd = null, TC context = default)
         {
             var entered = false;

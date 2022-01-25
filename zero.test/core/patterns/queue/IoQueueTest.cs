@@ -179,7 +179,7 @@ namespace zero.test.core.patterns.queue{
             var rounds = 2;
             var mult = 10000;
 #else
-            var rounds = 10;
+            var rounds = 16;
             var mult = 10000;
 #endif
             
@@ -227,7 +227,7 @@ namespace zero.test.core.patterns.queue{
                             @this._output.WriteLine(e.ToString());
                         }
                     }
-                    @this._output.WriteLine($"({@this.context.Q.Count})");
+                    //@this._output.WriteLine($"({@this.context.Q.Count})");
                 },this, TaskCreationOptions.DenyChildAttach).Unwrap());
             }
             await Task.WhenAll(concurrentTasks).WaitAsync(TimeSpan.FromSeconds(10)).ConfigureAwait(false);

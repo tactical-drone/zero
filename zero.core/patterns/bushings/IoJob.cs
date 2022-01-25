@@ -42,6 +42,8 @@ namespace zero.core.patterns.bushings
                 Malloc = static (_, _) => new IoStateTransition<IoJobMeta.JobState>() { FinalState = IoJobMeta.JobState.Halted }
             };
 #endif
+
+            ZeroRecovery = new IoManualResetValueTaskSource<bool>(true);
         }
 
         /// <summary>
@@ -104,7 +106,7 @@ namespace zero.core.patterns.bushings
         /// <summary>
         /// Enables async jobs to synchronize at certain parts of the pipeline, effectively chaining them into a unique processing order, ordered by <see cref="Id"/>
         /// </summary>
-        protected internal volatile IoManualResetValueTaskSource<bool> ZeroRecovery = new(true);
+        protected internal IoManualResetValueTaskSource<bool> ZeroRecovery;
 
         /// <summary>
         /// Uses <see cref="Source"/> to produce a job

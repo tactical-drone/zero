@@ -5,10 +5,10 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using NLog;
-using NLog.Filters;
 using zero.core.misc;
 using zero.core.patterns.queue;
 using zero.core.patterns.semaphore.core;
+using zero.core.runtime.scheduler;
 
 namespace zero.core.patterns.misc
 {
@@ -105,7 +105,7 @@ namespace zero.core.patterns.misc
         /// <summary>
         /// Continue On Captured Context
         /// </summary>
-        public static bool ContinueOnCapturedContext => true;
+        public static bool ContinueOnCapturedContext => false;
 
         /// <summary>
         /// Used for equality compares
@@ -203,8 +203,8 @@ namespace zero.core.patterns.misc
         /// <param name="concurrencyLevel"></param>
         private void ZeroSyncRoot(int concurrencyLevel)
         {
-            _zeroRoot = new IoZeroSemaphore(string.Empty, concurrencyLevel * 5, 1);
-            _zeroRoot.ZeroRef(ref _zeroRoot, AsyncTasks);
+            _zeroRoot = new IoZeroSemaphore(string.Empty, concurrencyLevel * 5, 1, cancellationTokenSource:AsyncTasks);
+            _zeroRoot.ZeroRef(ref _zeroRoot);
         }
 
         /// <summary>
@@ -667,7 +667,7 @@ namespace zero.core.patterns.misc
                     }
 
                     return default;
-                }, ValueTuple.Create(this, continuation, state, filePath, methodName, lineNumber), asyncToken, options, TaskScheduler.Default);
+                }, ValueTuple.Create(this, continuation, state, filePath, methodName, lineNumber), asyncToken, options, IoZeroScheduler.ZeroDefault);
 
                 return await zeroAsyncTask.Result;
                 
@@ -732,7 +732,7 @@ namespace zero.core.patterns.misc
                     }
 
 
-                }, ValueTuple.Create(this, continuation, state, filePath, methodName, lineNumber), asyncToken, options, TaskScheduler.Default);
+                }, ValueTuple.Create(this, continuation, state, filePath, methodName, lineNumber), asyncToken, options, IoZeroScheduler.ZeroDefault);
 
                 if (unwrap)
                     await zeroAsyncTask.Unwrap();
@@ -764,7 +764,7 @@ namespace zero.core.patterns.misc
         /// <returns>A ValueTask</returns>
         protected ValueTask<TResult> ZeroAsync<T,TResult>(Func<T, ValueTask<TResult>> continuation, T state, TaskCreationOptions options, TaskScheduler scheduler = null,  [CallerFilePath] string filePath = null, [CallerMemberName] string methodName = null, [CallerLineNumber] int lineNumber = default )
         {
-            return ZeroAsync(continuation, state, AsyncTasks.Token, options, scheduler??TaskScheduler.Default, filePath, methodName: methodName, lineNumber);
+            return ZeroAsync(continuation, state, AsyncTasks.Token, options, scheduler?? IoZeroScheduler.ZeroDefault, filePath, methodName: methodName, lineNumber);
         }
 
         /// <summary>
@@ -781,7 +781,7 @@ namespace zero.core.patterns.misc
         protected ValueTask ZeroAsync<T>(Func<T, ValueTask> continuation, T state, TaskCreationOptions options, TaskScheduler scheduler = null, bool unwrap = false, [CallerFilePath] string filePath = null, [CallerMemberName] string methodName = null, [CallerLineNumber] int lineNumber = default)
         {
             
-            return ZeroAsync<T>(continuation, state, AsyncTasks.Token, options, scheduler ?? TaskScheduler.Default, unwrap, filePath, methodName: methodName, lineNumber);
+            return ZeroAsync<T>(continuation, state, AsyncTasks.Token, options, scheduler ?? IoZeroScheduler.ZeroDefault, unwrap, filePath, methodName: methodName, lineNumber);
         }
 
         /// <summary>
@@ -800,7 +800,7 @@ namespace zero.core.patterns.misc
         {
             try
             {
-                return ZeroAsync(continuation, state, AsyncTasks.Token, options, scheduler ?? TaskScheduler.Default,
+                return ZeroAsync(continuation, state, AsyncTasks.Token, options, scheduler ?? IoZeroScheduler.ZeroDefault,
                     unwrap, filePath, methodName, lineNumber);
             }
             catch (Exception) when(Zeroed()){}

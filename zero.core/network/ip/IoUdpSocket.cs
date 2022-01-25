@@ -6,6 +6,7 @@ using System.Net.Sockets;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Threading.Tasks;
+using System.Threading.Tasks.Sources;
 using NLog;
 using zero.core.misc;
 using zero.core.patterns.heap;
@@ -496,8 +497,16 @@ namespace zero.core.network.ip
                         if (args == null)
                             throw new OutOfMemoryException(nameof(_recvArgs));
                         var recvSource = new IoManualResetValueTaskSource<bool>(true);
-                        var receiveAsync = new ValueTask<bool>(recvSource, 0);
-                        args.UserToken = recvSource;
+                        
+                        var receiveAsync = new ValueTask<bool>(recvSource, recvSource.Version);
+                        IValueTaskSource<bool> recvSourceRef = recvSource;
+
+                        static void SetRef(ref IValueTaskSource<bool> s, SocketAsyncEventArgs a)
+                        {
+                            a.UserToken = s;
+                        }
+                        //args.UserToken = recvSource;
+                        SetRef(ref recvSourceRef, args);
                         args.SetBuffer(buffer.Slice(offset, length));
 
                         if (NativeSocket.ReceiveFromAsync(args) && !await receiveAsync.FastPath().ConfigureAwait(Zc))

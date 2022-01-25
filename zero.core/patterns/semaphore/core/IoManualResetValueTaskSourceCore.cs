@@ -11,7 +11,7 @@ namespace zero.core.patterns.semaphore.core
     /// <summary>Provides the core logic for implementing a manual-reset <see cref="IValueTaskSource"/> or <see cref="IValueTaskSource{TResult}"/>.</summary>
     /// <typeparam name="TResult"></typeparam>
     [StructLayout(LayoutKind.Auto)]
-    public struct IoManualResetValueTaskSourceCore<TResult>
+    public struct IoManualResetValueTaskSourceCore<TResult>: IIoManualResetValueTaskSourceCore<TResult>
     {
         /// <summary>
         /// The callback to invoke when the operation completes if <see cref="OnCompleted"/> was called before the operation completed,

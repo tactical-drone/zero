@@ -38,7 +38,7 @@ namespace zero.core.feat.patterns.semaphore
             throw new NotImplementedException();
         }
 
-        public void ZeroRef(ref IIoZeroSemaphore @ref, CancellationTokenSource asyncToken)
+        public void ZeroRef(ref IIoZeroSemaphore @ref)
         {
             throw new NotImplementedException();
         }

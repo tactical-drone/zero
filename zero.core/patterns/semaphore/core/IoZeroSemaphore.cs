@@ -168,10 +168,10 @@ namespace zero.core.patterns.semaphore.core
         /// <summary>
         /// Allows for zero alloc <see cref="ValueTask"/> to be emitted. 
         /// </summary>
-        private IIoZeroSemaphore _zeroRef;
+        private volatile IIoZeroSemaphore _zeroRef;
 
         /// <summary>
-        /// The cancellation token
+        /// The cancellation token  
         /// </summary>
         private CancellationTokenSource _asyncTasks;
 
@@ -245,19 +245,17 @@ namespace zero.core.patterns.semaphore.core
             {
             }
         }
-        
+
         /// <summary>
         /// Set ref to this (struct address) and register cancellation.
-        ///
+        /// 
         /// One would have liked to do this in the constructor, but C# currently does not support this.
         /// This means that the user needs to call this function manually or the semaphore will error out.
         /// </summary>
         /// <param name="ref">The ref to this</param>
-        /// <param name="asyncTokenSource">The cancellation token</param>
-        public void ZeroRef(ref IIoZeroSemaphore @ref, CancellationTokenSource asyncTokenSource)
+        public void ZeroRef(ref IIoZeroSemaphore @ref)
         {
             _zeroRef = @ref;
-            _asyncTasks = asyncTokenSource;
         }
 
         /// <summary>
