@@ -396,7 +396,7 @@ namespace zero.core.network.ip
                     throw new OutOfMemoryException(nameof(_sendArgs));
 
                 var buf = Unsafe.As<ReadOnlyMemory<byte>, Memory<byte>>(ref buffer).Slice(offset, length);
-                var taskCore = new IoManualResetValueTaskSource<bool>(true);
+                var taskCore = new IoManualResetValueTaskSource<bool>();
 
                 args.UserToken = taskCore;
                 args.SetBuffer(buf);
@@ -496,7 +496,7 @@ namespace zero.core.network.ip
 
                         if (args == null)
                             throw new OutOfMemoryException(nameof(_recvArgs));
-                        var recvSource = new IoManualResetValueTaskSource<bool>(true);
+                        var recvSource = new IoManualResetValueTaskSource<bool>();
                         
                         var receiveAsync = new ValueTask<bool>(recvSource, recvSource.Version);
                         IValueTaskSource<bool> recvSourceRef = recvSource;

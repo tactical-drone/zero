@@ -98,7 +98,7 @@ namespace zero.core.network.ip
                 try
                 {
                     //ZERO control passed to connection handler
-                    var taskCore = new IoManualResetValueTaskSource<Socket>(true);
+                    var taskCore = new IoManualResetValueTaskSource<Socket>();
                     NativeSocket.BeginAccept(static result =>
                     {
                         var (socket, taskCore) = (ValueTuple<Socket, IoManualResetValueTaskSource<Socket>>)result.AsyncState;
@@ -190,7 +190,7 @@ namespace zero.core.network.ip
                 NativeSocket.Blocking = false;
                 NativeSocket.SendTimeout = timeout;
                 NativeSocket.ReceiveTimeout = timeout;
-                var taskCore = new IoManualResetValueTaskSource<bool>(true);
+                var taskCore = new IoManualResetValueTaskSource<bool>();
                 var connectAsync = NativeSocket.BeginConnect(remoteAddress.IpEndPoint, static result =>
                 {
                     var (socket, taskCore) = (ValueTuple<Socket, IoManualResetValueTaskSource<bool>>)result.AsyncState;

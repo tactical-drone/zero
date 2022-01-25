@@ -42,7 +42,7 @@ namespace zero.core.patterns.bushings
 
             ConfigureAsync(description, source, mallocJob, cascadeOnSource).AsTask().GetAwaiter();
 
-            _zeroSync = new IoManualResetValueTaskSource<bool>(true);
+            _zeroSync = new IoManualResetValueTaskSource<bool>();
 
             //What to do when certain parameters change
             //SettingChangedEvent += (sender, pair) =>

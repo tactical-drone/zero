@@ -5,7 +5,6 @@ namespace zero.core.patterns.semaphore.core
 {
     public interface IIoManualResetValueTaskSourceCore<T>: IValueTaskSource<T>
     {
-
         bool RunContinuationsAsynchronously { get; set; }
         short Version { get; }
         void Reset();
