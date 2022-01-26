@@ -84,7 +84,7 @@ namespace zero.test.core.patterns.bushings
 
             var targetTime = count * 100 / concurrencyLevel;
 
-            Assert.InRange(ts.ElapsedMs(), targetTime, targetTime * 1.5);
+            Assert.InRange(ts.ElapsedMs(), targetTime, targetTime * 2);
             _output.WriteLine($"{ts.ElapsedMs()}ms ~ {targetTime}");
 
             await Task.Delay(100).ConfigureAwait(false);

@@ -72,8 +72,6 @@ namespace zero.core.network.ip
             //base
             await base.BlockOnListenAsync(listeningAddress, acceptConnectionHandler, context, bootstrapAsync).FastPath().ConfigureAwait(Zc);
             
-            //Configure the socket
-
             //Put the socket in listen mode
             try
             {

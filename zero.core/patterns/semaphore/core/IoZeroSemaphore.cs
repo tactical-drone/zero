@@ -42,6 +42,11 @@ namespace zero.core.patterns.semaphore.core
             _description = string.Empty;
 #endif
 
+#if TOKEN
+            throw new InvalidOperationException(
+                $"This implementation of {nameof(IValueTaskSource)} is highly specialized and cannot be retrofitted with the TOKEN checks because this primitive does not work that way. I inserted this #define TOKEN stuff to preemptively manage expectations of would be lurkers. You can for example also await this valuetask multiple times etc. Tokens prevent that");
+#endif
+
             //validation
             if (maxBlockers < 1)
                 throw new ZeroValidationException($"{_description}: invalid {nameof(maxBlockers)} = {maxBlockers} specified, value must be larger than 0");
@@ -247,10 +252,11 @@ namespace zero.core.patterns.semaphore.core
         }
 
         /// <summary>
-        /// Set ref to this (struct address) and register cancellation.
+        /// Set ref to this (struct address).
+        ///
+        /// A struct cannot create a ref pointer to itself in the constructor, because of copy logic. 
         /// 
-        /// One would have liked to do this in the constructor, but C# currently does not support this.
-        /// This means that the user needs to call this function manually or the semaphore will error out.
+        /// This means that the user needs to call this function manually from externally when the ref is available or the semaphore will error out.
         /// </summary>
         /// <param name="ref">The ref to this</param>
         public void ZeroRef(ref IIoZeroSemaphore @ref)

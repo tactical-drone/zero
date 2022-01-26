@@ -25,7 +25,7 @@ namespace zero.test.core.feat
             var threads = 2;
             var count = 100;
             var capacity = threads * count;
-            var m = new IoZeroMatcher("Test matcher", threads, capacity, autoscale: false);
+            var m = new IoZeroMatcher("Test matcher", threads, capacity, 10000, autoscale: false);
 
             var oneShotTasks = new List<Task>();
             for (var i = 0; i < threads; i++)
