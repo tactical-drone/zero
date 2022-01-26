@@ -93,8 +93,9 @@ namespace zero.core.network.ip
             // Accept incoming connections
             while (!Zeroed())
             {
-                //_logger.Trace($"Waiting for a new connection to `{LocalNodeAddress}...'");
-
+#if DEBUG
+                _logger.Trace($"Waiting for a new connection to `{LocalNodeAddress}...'");
+#endif
                 try
                 {
                     //ZERO control passed to connection handler
@@ -115,7 +116,7 @@ namespace zero.core.network.ip
 
 
                     Socket socket;
-                    IoTcpSocket newSocket = null;
+                    IoTcpSocket newSocket;
                     var connected = new ValueTask<Socket>(taskCore, taskCore.Version);
 
                     if ((socket = await connected.FastPath().ConfigureAwait(Zc)) != null)
@@ -125,12 +126,14 @@ namespace zero.core.network.ip
                         else
                         {
                             socket.Dispose();
+                            continue;
                         }
                     }
-                    else if(!Zeroed())
+                    else
                     {
                         continue;
                     }
+
                     _logger.Trace($"Connection Received: from = `{newSocket.RemoteNodeAddress}', ({Description})");
 
                     try
@@ -146,10 +149,10 @@ namespace zero.core.network.ip
                 }
                 catch (ObjectDisposedException e) { _logger.Trace(e, description);}
                 catch (OperationCanceledException e) { _logger.Trace(e, description); }
-                catch (Exception e)
+                catch when(Zeroed()){}
+                catch (Exception e) when(!Zeroed())
                 {
-                    if (!Zeroed())
-                        _logger.Error(e, $"Listener at `{LocalNodeAddress}' returned with errors");
+                    _logger.Error(e, $"Listener at `{LocalNodeAddress}' returned with errors");
                 }
             }
 
@@ -336,9 +339,7 @@ namespace zero.core.network.ip
         /// <param name="remoteEp"></param>
         /// <param name="timeout">A timeout</param>
         /// <returns>The number of bytes read</returns>
-        public override async ValueTask<int> ReadAsync(Memory<byte> buffer, int offset, int length,
-            byte[] remoteEp = null,
-            int timeout = 0)
+        public override async ValueTask<int> ReadAsync(Memory<byte> buffer, int offset, int length, byte[] remoteEp = null, int timeout = 0)
         {
             try
             {
