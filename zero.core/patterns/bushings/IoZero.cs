@@ -434,11 +434,10 @@ namespace zero.core.patterns.bushings
                     else
                     {
                         //Are we in teardown?
-                        if (Zeroed())
+                        if (Zeroed() || JobHeap.Zeroed)
                             return false;
 
-                        _logger.Warn(
-                            $"{GetType().Name}: Production for: {Description} failed. Cannot allocate job resources!, heap =>  {JobHeap.Count}/{JobHeap.Capacity}");
+                        _logger.Warn($"{GetType().Name}: Production for: {Description} failed. Cannot allocate job resources!, heap =>  {JobHeap.Count}/{JobHeap.Capacity}");
                         await Task.Delay(parm_min_failed_production_time, AsyncTasks.Token).ConfigureAwait(Zc);
 
                         return false;

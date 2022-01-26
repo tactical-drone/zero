@@ -14,14 +14,11 @@ namespace zero.core.patterns.bushings.contracts
         private readonly ILogger _logger;
 
         public override string Key { get; }
-        public override bool IsOperational()
-        {
-            return true;
-        }
+        
 
         public bool Produce()
         {
-            return true;
+            return IsOperational();
         }
     }
 }

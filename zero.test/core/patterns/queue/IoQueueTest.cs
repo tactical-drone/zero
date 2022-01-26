@@ -174,6 +174,7 @@ namespace zero.test.core.patterns.queue{
         [Fact]
         async Task SpamTestAsync()
         {
+            await Task.Delay(1000);
             var concurrentTasks = new List<Task>();
 #if DEBUG
             var rounds = 2;
@@ -262,7 +263,7 @@ namespace zero.test.core.patterns.queue{
         [Fact]
         public async Task IteratorAsync()
         {
-
+            await Task.Delay(500);
 #if DEBUG
             var threads = 2;
             var itemsPerThread = 1000;

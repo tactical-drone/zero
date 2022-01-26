@@ -421,34 +421,48 @@ namespace zero.core.core
 
                             static async Task<bool> AddOrUpdate(IoNode<TJob> @this, IoNeighbor<TJob> newNeighbor)
                             {
-                                //New neighbor?
-                                if (@this.Neighbors.TryAdd(newNeighbor.Key, newNeighbor))
+                                try
                                 {
-                                    return true;
+                                    //New neighbor?
+                                    if (@this.Neighbors.TryAdd(newNeighbor.Key, newNeighbor))
+                                    {
+                                        return true;
+                                    }
+
+                                    //Existing and not broken neighbor?
+                                    if (@this.Neighbors.TryGetValue(newNeighbor.Key, out var existingNeighbor) &&
+                                        existingNeighbor.UpTime.ElapsedMsToSec() >
+                                        @this.parm_zombie_connect_time_threshold_s &&
+                                        existingNeighbor.Source.IsOperational())
+                                    {
+                                        @this._logger.Warn(
+                                            $"{nameof(ConnectAsync)}: Connection {newNeighbor.Key} [DROPPED], existing {existingNeighbor.Key} [OK]");
+                                        return false;
+                                    }
+
+                                    if (existingNeighbor == null)
+                                        return true;
+
+                                    var warnMsg =
+                                        $"{nameof(ConnectAsync)}: Connection {newNeighbor.Key} [REPLACED], existing {existingNeighbor.Key} with uptime {existingNeighbor.UpTime.ElapsedMs()}ms [DC]";
+                                    @this._logger.Warn(warnMsg);
+
+                                    //Existing broken neighbor...
+                                    await existingNeighbor.Zero(@this, warnMsg).FastPath().ConfigureAwait(@this.Zc);
+
+                                    @this.Neighbors.TryRemove(newNeighbor.Key, out _);
+
+                                    return await AddOrUpdate(@this, newNeighbor).ConfigureAwait(@this.Zc);
+                                }
+                                catch when (@this.Zeroed())
+                                {
+                                }
+                                catch (Exception e) when (!@this.Zeroed())
+                                {
+                                    @this._logger.Error(e,$"{nameof(AddOrUpdate)}:");
                                 }
 
-                                //Existing and not broken neighbor?
-                                if (@this.Neighbors.TryGetValue(newNeighbor.Key, out var existingNeighbor) &&
-                                    existingNeighbor.UpTime.ElapsedMsToSec() > @this.parm_zombie_connect_time_threshold_s &&
-                                    existingNeighbor.Source.IsOperational())
-                                {
-                                    @this._logger.Warn($"{nameof(ConnectAsync)}: Connection {newNeighbor.Key} [DROPPED], existing {existingNeighbor.Key} [OK]");
-                                    return false;
-                                }
-
-                                if (existingNeighbor == null)
-                                    return true;
-
-                                var warnMsg =
-                                    $"{nameof(ConnectAsync)}: Connection {newNeighbor.Key} [REPLACED], existing {existingNeighbor.Key} with uptime {existingNeighbor.UpTime.ElapsedMs()}ms [DC]";
-                                @this._logger.Warn(warnMsg);
-
-                                //Existing broken neighbor...
-                                await existingNeighbor.Zero(@this, warnMsg).FastPath().ConfigureAwait(@this.Zc);
-
-                                @this.Neighbors.TryRemove(newNeighbor.Key, out _);
-
-                                return await AddOrUpdate(@this, newNeighbor).ConfigureAwait(@this.Zc);
+                                return false;
                             }
 
                             return new ValueTask<bool>(AddOrUpdate(@this, newNeighbor));

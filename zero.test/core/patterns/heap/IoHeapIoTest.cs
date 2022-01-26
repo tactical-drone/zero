@@ -42,7 +42,7 @@ namespace zero.test.core.patterns.heap
             Task.WhenAll(spamTasks).WaitAsync(TimeSpan.FromSeconds(10)).GetAwaiter().GetResult();
 
             Assert.Equal(0, h.ReferenceCount);
-            Assert.InRange(h.Count, 0,_capacity);
+            Assert.InRange(h.Count, 0,_capacity * _capacity);
             Assert.Equal(_capacity * _capacity, h.Capacity);
         }
 

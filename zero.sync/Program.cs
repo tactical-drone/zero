@@ -479,10 +479,14 @@ namespace zero.sync
                     catch { }
                 }
 
-                if (line.StartsWith("tcp"))
+                if (line.StartsWith("loadTest"))
                 {
                     var n = _nodes.Where(n => !n.ZeroDrone).ToArray();
                     n[Random.Shared.Next(0,n.Length - 1)].BootAsync(0).AsTask().GetAwaiter().GetResult();
+                    n[Random.Shared.Next(0, n.Length - 1)].BootAsync(0).AsTask().GetAwaiter().GetResult();
+                    n[Random.Shared.Next(0, n.Length - 1)].BootAsync(0).AsTask().GetAwaiter().GetResult();
+                    n[Random.Shared.Next(0, n.Length - 1)].BootAsync(0).AsTask().GetAwaiter().GetResult();
+                    Console.WriteLine("ZERO CORE best case horizontal scale cluster TCP/IP (DDoS) pressure test started... make sure your CPU has enough juice, this test will redline your kernel and hang your OS");
                 }
 
                 if (line.StartsWith("gr"))

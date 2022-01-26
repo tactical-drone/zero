@@ -62,7 +62,7 @@ namespace zero.core.patterns.bushings
                     _pressure = new IoZeroSemaphoreSlim(AsyncTasks, $"{nameof(_pressure)}: {description}",
                         maxBlockers: PrefetchSize, 
                         0, 
-                        maxAsyncWork: PrefetchSize - 1);
+                        maxAsyncWork: 0); //TODO Prefetch - 1 or not?
                 }
 
                 if (BackPressureEnabled)
@@ -70,7 +70,7 @@ namespace zero.core.patterns.bushings
                     _backPressure = new IoZeroSemaphoreSlim(AsyncTasks, $"{nameof(_backPressure)}: {description}",
                         maxBlockers: PrefetchSize,
                         initialCount: concurrencyLevel,
-                        maxAsyncWork: PrefetchSize - 1);
+                        maxAsyncWork: 0); //TODO Prefetch - 1 or not?
                 }
 
                 if (PrefetchEnabled)
@@ -78,7 +78,7 @@ namespace zero.core.patterns.bushings
                     _prefetchPressure = new IoZeroSemaphoreSlim(AsyncTasks, $"{nameof(_prefetchPressure)}: {description}", 
                         maxBlockers: PrefetchSize,
                         initialCount: PrefetchSize,
-                        maxAsyncWork: PrefetchSize - 1);
+                        maxAsyncWork: 0);
                 }
             }
             catch (Exception e)
