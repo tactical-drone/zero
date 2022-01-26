@@ -53,9 +53,9 @@ namespace zero.core.patterns.bushings.contracts
             return State = IoJobMeta.JobState.Produced;
         }
 
-        public override async ValueTask<IIoHeapItem> ReuseAsync()
+        public override async ValueTask<IIoHeapItem> HeapPopAsync(object context)
         {
-            await base.ReuseAsync();
+            await base.HeapPopAsync(context);
 
             //user safety, rtfm?/rtfc!
             State = IoJobMeta.JobState.Undefined;

@@ -375,7 +375,19 @@ namespace zero.core.patterns.bushings
                             {
                                 nextJob.State = IoJobMeta.JobState.ProduceErr;
                                 nextJob.Source?.BackPressure();
-                                return true; //maybe we retry
+                                await ZeroJobAsync(nextJob, true).FastPath().ConfigureAwait(Zc);
+                                nextJob = null;
+
+                                //how long did this failure take?
+                                ts = ts.ElapsedMs();
+                                IsArbitrating = false;
+
+                                //Is the producer spinning? Slow it down
+                                int throttleTime;
+                                if ((throttleTime = parm_min_failed_production_time - ts) > 0)
+                                    await Task.Delay(throttleTime, AsyncTasks.Token).ConfigureAwait(Zc);
+
+                                return true;  //maybe we retry instead of crashing the producer
                             }
 
                             //Pass control over to the consumer
@@ -416,7 +428,7 @@ namespace zero.core.patterns.bushings
                             if((throttleTime = parm_min_failed_production_time - ts) > 0)
                                 await Task.Delay(throttleTime, AsyncTasks.Token).ConfigureAwait(Zc);
                             
-                            return true; //maybe we retry
+                            return true; //maybe we retry instead of crashing the producer
                         }
                     }
                     else
@@ -428,6 +440,7 @@ namespace zero.core.patterns.bushings
                         _logger.Warn(
                             $"{GetType().Name}: Production for: {Description} failed. Cannot allocate job resources!, heap =>  {JobHeap.Count}/{JobHeap.Capacity}");
                         await Task.Delay(parm_min_failed_production_time, AsyncTasks.Token).ConfigureAwait(Zc);
+
                         return false;
                     }
                 }
@@ -445,8 +458,7 @@ namespace zero.core.patterns.bushings
                     if (nextJob != null)
                     {
                         if (!Zeroed() && !nextJob.Zeroed())
-                            _logger.Fatal(
-                                $"{GetType().Name} ({nextJob.GetType().Name}): [FATAL] Job resources were not freed..., state = {nextJob.State}");
+                            _logger.Fatal($"{GetType().Name} ({nextJob.GetType().Name}): [FATAL] Job resources were not freed..., state = {nextJob.State}");
 
                         await ZeroJobAsync(nextJob, true).FastPath().ConfigureAwait(Zc);
                         nextJob = null;
@@ -512,7 +524,7 @@ namespace zero.core.patterns.bushings
                             _previousJobFragment.RemoveAsync(job.PrevJobQHook).FastPath().ConfigureAwait(Zc);
                             job.PrevJobQHook = null;
                         }
-                        JobHeap.Return(job, job.FinalState > 0 && job.FinalState != IoJobMeta.JobState.Accept);
+                        JobHeap.Return(job, true);
                     }
                 }
             }
@@ -629,18 +641,10 @@ namespace zero.core.patterns.bushings
                     finally
                     {
                         //Consume success?
-                        try
-                        {
-                            curJob.State = curJob.State is IoJobMeta.JobState.Consumed or IoJobMeta.JobState.Fragmented
-                                ? IoJobMeta.JobState.Accept
-                                : IoJobMeta.JobState.Reject;
-                        }
-                        catch (Exception e)
-                        {
-                            Console.WriteLine(e);
-                            throw;
-                        }
-
+                        
+                        curJob.State = curJob.State is IoJobMeta.JobState.Consumed or IoJobMeta.JobState.Fragmented
+                            ? IoJobMeta.JobState.Accept
+                            : IoJobMeta.JobState.Reject;
                         try
                         {
                             if (curJob.Id % parm_stats_mod_count == 0 && curJob.Id >= 9999)

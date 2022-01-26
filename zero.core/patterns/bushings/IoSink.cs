@@ -3,6 +3,7 @@ using System.Runtime.CompilerServices;
 using System.Threading.Tasks;
 using zero.core.patterns.bushings.contracts;
 using zero.core.patterns.heap;
+using zero.core.patterns.misc;
 using zero.core.patterns.queue;
 
 namespace zero.core.patterns.bushings
@@ -64,10 +65,11 @@ namespace zero.core.patterns.bushings
         /// <summary>
         /// Heap constructor
         /// </summary>
+        /// <param name="context"></param>
         /// <returns></returns>
-        public override async ValueTask<IIoHeapItem> ReuseAsync()
+        public override async ValueTask<IIoHeapItem> HeapPopAsync(object context)
         {
-            await base.ReuseAsync();
+            await base.HeapPopAsync(context).FastPath().ConfigureAwait(Zc);
             PrevJobQHook = null;
             return this;
         }

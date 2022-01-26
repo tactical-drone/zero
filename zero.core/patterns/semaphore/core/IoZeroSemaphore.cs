@@ -476,7 +476,7 @@ namespace zero.core.patterns.semaphore.core
                 var headMod = (Interlocked.Increment(ref _tail) - 1) % _maxBlockers;
 #if DEBUG
                 Action<object> slot;
-                while ((slot = Interlocked.CompareExchange(ref _signalAwaiter[headMod], ZeroSentinel, null)) != null && _zeroed == 0)
+                while (_tail > _head + _maxBlockers ||  (slot = Interlocked.CompareExchange(ref _signalAwaiter[headMod], ZeroSentinel, null)) != null && _zeroed == 0)
 #else
                 while (Interlocked.CompareExchange(ref _signalAwaiter[headMod], ZeroSentinel, null) != null && _zeroed == 0)
 #endif
@@ -779,7 +779,7 @@ namespace zero.core.patterns.semaphore.core
                 var latch = _signalAwaiter[latchMod];
 
                 //latch a chosen head
-                while (_curWaitCount > 0 && (headIdx > _tail || latch == null || latch == ZeroSentinel || (worker.Continuation = Interlocked.CompareExchange(ref _signalAwaiter[latchMod], ZeroSentinel, latch)) != latch))
+                while (_curWaitCount > 0 && (headIdx >= _tail || latch == null || latch == ZeroSentinel || (worker.Continuation = Interlocked.CompareExchange(ref _signalAwaiter[latchMod], ZeroSentinel, latch)) != latch))
                 {
                     Interlocked.Decrement(ref _head);
 

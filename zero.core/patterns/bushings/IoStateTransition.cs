@@ -19,7 +19,6 @@ namespace zero.core.patterns.bushings
     {
         public IoStateTransition(int initState = 0)
         {
-            ReuseAsync().AsTask().GetAwaiter().GetResult();
             base.Value = initState;
         }
 
@@ -49,11 +48,15 @@ namespace zero.core.patterns.bushings
         public volatile int ExitTime;
         #endregion
 
-        public new IoStateTransition<TState> Next => (IoStateTransition<TState>)base.Next;
+        public new IoStateTransition<TState> Next
+        {
+            get => (IoStateTransition<TState>)base.Next;
+            set => base.Next = value;
+        }
         public new IoStateTransition<TState> Prev
         {
             get => (IoStateTransition<TState>)base.Prev;
-            private set => base.Prev = value;
+            set => base.Prev = value;
         }
 
         public new TState Value => (TState)Enum.ToObject(typeof(TState), base.Value);
@@ -72,34 +75,6 @@ namespace zero.core.patterns.bushings
         /// The absolute time this job took so far
         /// </summary>
         //public long Delta => Prev?.Delta + Mu?? Mu;
-        
-        /// <summary>
-        /// Prepares this item for use after popped from the heap
-        /// </summary>
-        /// <returns>The instance</returns>
-        public ValueTask<IIoHeapItem> ConstructorAsync(IoStateTransition<TState> prev, int initState = default)
-        {
-            ExitTime = EnterTime = Environment.TickCount;
-            base.Next = null;
-            base.Prev = prev;
-            if(base.Prev != null)
-                base.Prev.Next = this;
-            base.Value = initState;
-            return new ValueTask<IIoHeapItem>(this);
-        }
-
-        /// <summary>
-        /// default constructor
-        /// </summary>
-        /// <returns></returns>
-        public ValueTask<IIoHeapItem> ReuseAsync()
-        {
-            ExitTime = EnterTime = Environment.TickCount;
-            base.Next = null;
-            base.Prev = null;
-            base.Value = default;
-            return new ValueTask<IIoHeapItem>(this);
-        }
 
         /// <summary>
         /// default constructor
@@ -194,6 +169,20 @@ namespace zero.core.patterns.bushings
         public TState CompareAndEnterState(int state, int cmp)
         {
             return (TState)Enum.ToObject(typeof(TState), Interlocked.CompareExchange(ref base.Value, state, cmp));
+        }
+
+        public ValueTask<IIoHeapItem> HeapPopAsync(object context)
+        {
+            return new ValueTask<IIoHeapItem>(this);
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public IIoHeapItem HeapConstructAsync(object context)
+        {
+            ExitTime = EnterTime = Environment.TickCount;
+            base.Next = null;
+            base.Prev = null;
+            return this;
         }
     }
 }

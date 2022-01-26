@@ -134,7 +134,7 @@ namespace zero.core.patterns.queue
             {
                 var latch = (Interlocked.Increment(ref _tail) - 1) % _capacity;
                 T latched = default;
-                while (!Zeroed && _count < _capacity &&
+                while (_tail > _head + _capacity || !Zeroed && _count < _capacity && 
                        (latched = Interlocked.CompareExchange(ref _storage[latch], item, default)) != default)
                 {
                     Interlocked.Decrement(ref _tail);

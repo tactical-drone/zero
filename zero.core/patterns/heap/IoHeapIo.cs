@@ -38,32 +38,42 @@ namespace zero.core.patterns.heap
             TItem next = null;
             try
             {
-                //Take from heap
-                if ((next = Take(userData)) != null && !await next.ReuseAsync(userData))
+                if ((next = Take(userData, (newHeapItem, context) =>
+                    {
+                        if (newHeapItem.HeapConstructAsync(context) == null)
+                        {
+                            throw new InvalidOperationException($"{nameof(newHeapItem.HeapConstructAsync)} FAILED: ");
+                        }
+                    })) == null) 
                     return null;
 
                 //init for use
-                next = (TItem) await next!.ReuseAsync().FastPath().ConfigureAwait(Zc);
+                if (await next.HeapPopAsync(userData).FastPath().ConfigureAwait(Zc) == null)
+                {
+                    Return(next);
+                    return null;
+                }
 
-                //Custom constructor
-                localReuse?.Invoke(next, userData);
-
+                //Custom reuse
+                if (localReuse != null)
+                {
+                    if (await localReuse.Invoke(next, userData).FastPath().ConfigureAwait(Zc) == null)
+                    {
+                        Return(next);
+                        return null;
+                    }
+                }
+                
                 return next;
             }
             catch when(Zeroed){}
             catch (Exception e)when(!Zeroed)
             {
+                _logger.Error(e, $"Heap `{this}' item construction returned with errors:");
                 if (next != null)
-                {
-                    _logger.Error(e, $"Heap `{this}' item construction returned with errors:");
-                        Return(next);
-                }                    
-                else
-                {
-                    _logger.Warn($"Heap `{this}' ran out of capacity, Free = {AvailableCapacity}/{Capacity}");
-                }              
+                    Return(next);
             }
-
+            
             return null;
         }
 

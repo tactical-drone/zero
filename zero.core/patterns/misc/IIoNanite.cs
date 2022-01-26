@@ -11,13 +11,6 @@ namespace zero.core.patterns.misc
     public interface IIoNanite : IEquatable<IIoNanite>
     {
         /// <summary>
-        /// Async construction
-        /// </summary>
-        /// <param name="localContext"></param>
-        /// <returns>True if success, false otherwise</returns>
-        ValueTask<bool> ReuseAsync(object localContext);
-
-        /// <summary>
         /// returns an identity
         /// </summary>
         long Serial { get; }

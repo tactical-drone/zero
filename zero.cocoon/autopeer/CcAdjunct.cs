@@ -2288,7 +2288,7 @@ namespace zero.cocoon.autopeer
                 matchRequest = await Hub.Router._probeRequest.ResponseAsync(src.ToString(), response.ReqHash).FastPath().ConfigureAwait(Zc);
 
 #if DEBUG
-            //Try the DBG source info //TODO: bug here
+            //Try the DBG source info //TODO: is this fixed?
             if (!matchRequest && IsProxy)
                 matchRequest = await _probeRequest.ResponseAsync(packet.Header.Ip.Src.GetEndpoint().ToString(), response.ReqHash).FastPath().ConfigureAwait(Zc);
 #endif

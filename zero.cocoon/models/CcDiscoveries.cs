@@ -29,12 +29,12 @@ namespace zero.cocoon.models
             _groupByEp = groupByEp;
         }
 
-        public override async ValueTask<bool> ReuseAsync(object localContext = null)
+        public override IIoHeapItem HeapConstructAsync(object context)
         {
             if (ProtocolConduit != null)
-                return true;
-            
-            IoZero = (IoZero<CcProtocMessage<chroniton, CcDiscoveryBatch>>)localContext;
+                return null;
+
+            IoZero = (IoZero<CcProtocMessage<chroniton, CcDiscoveryBatch>>)context;
 
             var cc = 4;
             var pf = 6;
@@ -57,30 +57,31 @@ namespace zero.cocoon.models
 
             _batchHeap ??= new IoHeap<CcDiscoveryBatch, CcDiscoveries>(bashDesc, parm_max_msg_batch_size)
             {
-                Malloc = static (_, @this) => new CcDiscoveryBatch(@this._batchHeap, @this.parm_max_msg_batch_size, groupByEp:@this._groupByEp),
+                Malloc = static (_, @this) => new CcDiscoveryBatch(@this._batchHeap, @this.parm_max_msg_batch_size, groupByEp: @this._groupByEp),
                 Context = this
             };
 
+            // ReSharper disable once NonAtomicCompoundOperator
             _currentBatch ??= _batchHeap.Take();
             if (_currentBatch == null)
                 throw new OutOfMemoryException($"{Description}: {nameof(CcDiscoveries)}.{nameof(_currentBatch)}");
 
             const string conduitId = nameof(CcAdjunct);
 
-            ProtocolConduit = await MessageService.CreateConduitOnceAsync<CcProtocBatchJob<chroniton, CcDiscoveryBatch>>(conduitId).FastPath().ConfigureAwait(Zc);
+            ProtocolConduit = MessageService.CreateConduitOnceAsync<CcProtocBatchJob<chroniton, CcDiscoveryBatch>>(conduitId).GetAwaiter().GetResult();
 
             if (ProtocolConduit == null)
             {
                 //TODO tuning
                 var channelSource = new CcProtocBatchSource<chroniton, CcDiscoveryBatch>(Description, MessageService, parm_max_msg_batch_size, pf, cc, ac, true);
-                ProtocolConduit = await MessageService.CreateConduitOnceAsync(
+                ProtocolConduit = MessageService.CreateConduitOnceAsync(
                     conduitId,
                     channelSource,
                     static (ioZero, _) => new CcProtocBatchJob<chroniton, CcDiscoveryBatch>(
-                        (IoSource<CcProtocBatchJob<chroniton, CcDiscoveryBatch>>)((IIoConduit)ioZero).UpstreamSource, ((IIoConduit)ioZero).ZeroConcurrencyLevel()), cc).FastPath().ConfigureAwait(Zc);
+                        (IoSource<CcProtocBatchJob<chroniton, CcDiscoveryBatch>>)((IIoConduit)ioZero).UpstreamSource, ((IIoConduit)ioZero).ZeroConcurrencyLevel()), cc).GetAwaiter().GetResult();
             }
-            
-            return ProtocolConduit != null;
+
+            return ProtocolConduit != null? this: null;
         }
 
         /// <summary>
@@ -103,26 +104,7 @@ namespace zero.cocoon.models
             await base.ZeroManagedAsync().FastPath().ConfigureAwait(Zc);
 
             _currentBatch?.Dispose();
-            //if (_currentBatch != null)
-            //{
-
-            //    for (int i = 0; i < _currentBatch.Count; i++)
-            //    {
-            //        var ccDiscoveryBatch = _currentBatch[i];
-            //        if (ccDiscoveryBatch == default)
-            //            break;
-
-            //        await _batchMsgHeap.ReturnAsync(ccDiscoveryBatch).FastPath().ConfigureAwait(ZC);
-            //    }
-            //}
             
-            //await _batchMsgHeap.ZeroManagedAsync<object>(static (batch,_) =>
-            //{
-            //    batch.Message = null;
-            //    batch.EmbeddedMsg = null;
-            //    return default;
-            //}).FastPath().ConfigureAwait(ZC);
-
             await _batchHeap.ZeroManagedAsync<object>(static (batch, _) =>
             {
                 batch.Dispose();
@@ -164,7 +146,7 @@ namespace zero.cocoon.models
         /// <summary>
         /// Batch of messages
         /// </summary>
-        private CcDiscoveryBatch _currentBatch;
+        private volatile CcDiscoveryBatch _currentBatch;
 
         /// <summary>
         /// Batch item heap
@@ -216,7 +198,7 @@ namespace zero.cocoon.models
                 var prevJob = ((CcDiscoveries)PreviousJob)?.ZeroRecovery;
                 if (prevJob.HasValue)
                 {
-                    fastPath = IoZero.ZeroRecoveryEnabled && prevJob?.GetStatus(prevJob.Value.Version) == ValueTaskSourceStatus.Succeeded && prevJob.Value.GetResult(prevJob.Value.Version);
+                    fastPath = IoZero.ZeroRecoveryEnabled && prevJob.Value.GetStatus(prevJob.Value.Version) == ValueTaskSourceStatus.Succeeded && prevJob.Value.GetResult(prevJob.Value.Version);
                     
                     if (zeroRecovery || fastPath)
                     {
@@ -235,7 +217,6 @@ namespace zero.cocoon.models
                     }
                 }
                 
-
                 while (BytesLeftToProcess > 0)
                 {
                     chroniton packet = null;

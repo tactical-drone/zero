@@ -107,14 +107,14 @@ namespace zero.core.feat.models
         /// <summary>
         /// Prepares this item for use after being popped from the heap
         /// </summary>
+        /// <param name="context"></param>
         /// <returns>This instance</returns>
-        public override ValueTask<IIoHeapItem> ReuseAsync()
+        public override ValueTask<IIoHeapItem> HeapPopAsync(object context)
         {
             BytesRead = 0;
             BufferOffset = DatumProvisionLengthMax;
             DatumFragmentLength = 0;
-            //return !Reconfigure ? base.Constructor() : null; //TODO what was this about?
-            return base.ReuseAsync();
+            return base.HeapPopAsync(context);
         }
 
         /// <summary>

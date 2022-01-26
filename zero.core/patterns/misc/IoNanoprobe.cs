@@ -190,7 +190,7 @@ namespace zero.core.patterns.misc
         /// A secondary constructor for async stuff
         /// </summary>
         /// <param name="localContext"></param>
-        public virtual ValueTask<bool> ReuseAsync(object localContext = null) {return new ValueTask<bool>(true);}
+        //public virtual ValueTask<bool> ReuseAsync(object localContext = null) {return new ValueTask<bool>(true);}
         
         /// <summary>
         /// config await

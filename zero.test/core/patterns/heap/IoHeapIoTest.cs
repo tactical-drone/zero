@@ -12,9 +12,9 @@ namespace zero.test.core.patterns.heap
         [Fact]
         void SpamTest()
         {
-            var h = new IoHeapIo<HeapItem, IoHeapIoTest>("test heap", _capacity * _capacity, context:this)
+            var h = new IoHeapIo<TestHeapItem, IoHeapIoTest>("test heap", _capacity * _capacity, context:this)
             {
-                Malloc = (o, test) => new HeapItem(_localVar, (int)o), 
+                Malloc = (o, test) => new TestHeapItem(_localVar, (int)o), 
                 PopAction = (item, o) =>
                 {
                     item.TestVar = (int)o;
@@ -26,7 +26,7 @@ namespace zero.test.core.patterns.heap
             {
                 spamTasks.Add(Task.Factory.StartNew(static state =>
                 {
-                    var (@this,h) = (ValueTuple<IoHeapIoTest, IoHeapIo<HeapItem, IoHeapIoTest>>)state!;
+                    var (@this,h) = (ValueTuple<IoHeapIoTest, IoHeapIo<TestHeapItem, IoHeapIoTest>>)state!;
                     for (var j = 0; j < @this._capacity; j++)
                     {
                         var item = h.Take(j);
@@ -42,24 +42,41 @@ namespace zero.test.core.patterns.heap
             Task.WhenAll(spamTasks).WaitAsync(TimeSpan.FromSeconds(10)).GetAwaiter().GetResult();
 
             Assert.Equal(0, h.ReferenceCount);
-            Assert.InRange(h.Count, 1,_capacity);
+            Assert.InRange(h.Count, 0,_capacity);
             Assert.Equal(_capacity * _capacity, h.Capacity);
         }
 
         [Fact]
-        void ConstructionTest()
+        async Task ConstructionTestAsync()
         {
-            var h = new IoHeapIo<HeapItem, IoHeapIoTest>("test heap", _capacity, true, this)
+            var h = new IoHeapIo<TestHeapItem, IoHeapIoTest>("test heap", _capacity, true, this)
             {
-                Malloc = (o, test) => new HeapItem(_localVar, (int)o)
+                Malloc = (o, test) => new TestHeapItem(_localVar, (int)o),
+                Constructor = (newHeapItem, context) =>
+                {
+                    newHeapItem.TestVar6 = (int)context;
+                },
+                PopAction = (poppedItem, context) =>
+                {
+                    poppedItem.TestVar7 = (int)context;
+                }
             };
 
-            var item = h.Take(3);
+            var item = await h.TakeAsync((newItem, context) =>
+            {
+                newItem.TestVar5 = context;
+                return new ValueTask<TestHeapItem>(newItem);
+            }, userData:3).FastPath().ConfigureAwait(Zc);
+            Assert.Equal(3, item.TestVar4);
+            Assert.Equal(3, item.TestVar5);
+            Assert.Equal(3, item.TestVar6);
+            Assert.Equal(3, item.TestVar7);
+
             Assert.Equal(1, h.ReferenceCount);
             Assert.Equal(0, h.Count);
 
 
-            Assert.Equal(0, item.TestVar);
+            Assert.Equal(3, item.TestVar);
             Assert.Equal(2, item.TestVar2);
             Assert.Equal(3, item.TestVar3);
 
@@ -72,9 +89,9 @@ namespace zero.test.core.patterns.heap
         async Task DestructionTestAsync()
         {
             var capacity = 10;
-            var h = new IoHeapIo<HeapItem, IoHeapIoTest>("test heap", capacity, true, this)
+            var h = new IoHeapIo<TestHeapItem, IoHeapIoTest>("test heap", capacity, true, this)
             {
-                Malloc = (o, test) => new HeapItem(_localVar, (int)o)
+                Malloc = (o, test) => new TestHeapItem(_localVar, (int)o)
             };
             await Task.Yield();
             var i1 = h.Take(0);
@@ -122,13 +139,9 @@ namespace zero.test.core.patterns.heap
         
     }
 
-    public class HeapItem : IoNanoprobe, IIoHeapItem
+    public class TestHeapItem : IoNanoprobe, IIoHeapItem
     {
-        public HeapItem():base()
-        {
-
-        }
-        public HeapItem(int testVar2, int testVar3):base()
+        public TestHeapItem(int testVar2, int testVar3):base()
         {
             TestVar2 = testVar2;
             TestVar3 = testVar3;
@@ -137,10 +150,20 @@ namespace zero.test.core.patterns.heap
         public int TestVar;
         public readonly int TestVar2;
         public readonly int TestVar3;
-        public ValueTask<IIoHeapItem> ReuseAsync()
+        public int TestVar4;
+        public int TestVar5;
+        public int TestVar6;
+        public int TestVar7;
+        public ValueTask<IIoHeapItem> HeapPopAsync(object context)
         {
-            TestVar = 1;
+            TestVar = (int)context;
             return ValueTask.FromResult((IIoHeapItem)this);
+        }
+
+        public IIoHeapItem HeapConstructAsync(object context)
+        {
+            TestVar4 = (int)context;
+            return this;
         }
     }
 

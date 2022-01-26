@@ -137,7 +137,7 @@ namespace zero.core.patterns.heap
         /// <exception cref="InternalBufferOverflowException">Thrown when the max heap size is breached</exception>
         /// <returns>True if the item required malloc, false if popped from the heap otherwise<see cref="TItem"/></returns>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public TItem Take(object userData = null)
+        public TItem Take(object userData = null, Action<TItem, object> customConstructor = null)
         {
             try
             {
@@ -151,6 +151,8 @@ namespace zero.core.patterns.heap
                     
                     Interlocked.Increment(ref _refCount);
                     heapItem = Malloc(userData, Context);
+
+                    customConstructor?.Invoke(heapItem, userData);
                     Constructor?.Invoke(heapItem, userData);
                     PopAction?.Invoke(heapItem, userData);
 

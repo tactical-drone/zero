@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Globalization;
+using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
 using NLog;
@@ -39,7 +40,18 @@ namespace zero.core.patterns.bushings
             StateTransitionHistory = new IoQueue<IoStateTransition<IoJobMeta.JobState>>($"{nameof(StateTransitionHistory)}: {desc}", stateCount, concurrencyLevel, autoScale: true);
             _stateHeap = new($"{nameof(_stateHeap)}: {desc}", (Enum.GetNames(typeof(IoJobMeta.JobState)).Length * 2))
             {
-                Malloc = static (_, _) => new IoStateTransition<IoJobMeta.JobState>() { FinalState = IoJobMeta.JobState.Halted }
+                Malloc = static (_, _) => new IoStateTransition<IoJobMeta.JobState>() { FinalState = IoJobMeta.JobState.Halted },
+                PopAction = (nextState, context) =>
+                {
+                    var (prevState, newStateId) = (ValueTuple<IoStateTransition<IoJobMeta.JobState>, int>)context;
+                    nextState.ExitTime = nextState.EnterTime = Environment.TickCount;
+
+                    nextState.Next = null;
+                    nextState.Prev = prevState;
+                    if (nextState.Prev != null)
+                        nextState.Prev.Next = nextState;
+                    nextState.Set(newStateId);
+                }
             };
 #endif
 
@@ -121,32 +133,52 @@ namespace zero.core.patterns.bushings
         /// </summary>
         /// <returns>This instance</returns>
 #if DEBUG
-        public virtual async ValueTask<IIoHeapItem> ReuseAsync()
+        public virtual async ValueTask<IIoHeapItem> HeapPopAsync(object context)
 #else
-        public virtual ValueTask<IIoHeapItem> ReuseAsync()
+        public virtual ValueTask<IIoHeapItem> HeapPopAsync(object context)
 #endif
         {
-#if DEBUG
-            await StateTransitionHistory.ZeroManagedAsync(static (s, @this) =>
+            try
             {
-                @this._stateHeap.Return(s);
-                return default;
-            }, this).FastPath().ConfigureAwait(Zc);
-
-            await StateTransitionHistory.ClearAsync().FastPath().ConfigureAwait(Zc);
-#else
-            _stateMeta.Set((int)IoJobMeta.JobState.Undefined);
-#endif
-            FinalState = State = IoJobMeta.JobState.Undefined;
-            Id = -1;
-            ZeroRecovery.Reset();
 #if DEBUG
-            return this;
+                await StateTransitionHistory.ZeroManagedAsync(static (s, @this) =>
+                {
+                    @this._stateHeap.Return(s);
+                    return default;
+                }, this).FastPath().ConfigureAwait(Zc);
+
+                await StateTransitionHistory.ClearAsync().FastPath().ConfigureAwait(Zc);
 #else
-            return new ValueTask<IIoHeapItem>(this);
+                _stateMeta.Set((int)IoJobMeta.JobState.Undefined);
 #endif
+                FinalState = State = IoJobMeta.JobState.Undefined;
+                Id = -1;
+                ZeroRecovery.Reset();
+#if DEBUG
+                return this;
+#else
+                return new ValueTask<IIoHeapItem>(this);
+#endif
+            }
+            catch when(Zeroed()){}
+            catch (Exception e)when(!Zeroed())
+            {
+                _logger.Error(e, $"{nameof(HeapPopAsync)}:");
+            }
+
+            return default;
         }
 
+        /// <summary>
+        /// Default empty heap constructor
+        /// </summary>
+        /// <param name="context"></param>
+        /// <returns>A task</returns>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public virtual IIoHeapItem HeapConstructAsync(object context)
+        {
+            return this;
+        }
 
         /// <summary>
         /// zero unmanaged
@@ -337,7 +369,7 @@ namespace zero.core.patterns.bushings
 
 #if DEBUG
                     //Allocate memory for a new current state
-                    var newState = _stateHeap.Take();
+                    var newState = _stateHeap.Take((_stateMeta, (int)value));
                     if (newState == null)
                     {
                         if (!Zeroed())
@@ -346,7 +378,7 @@ namespace zero.core.patterns.bushings
                         return;
                     }
 
-                    newState.ConstructorAsync(_stateMeta, (int)value).GetAwaiter().GetResult();
+                    //newState.ConstructorAsync(_stateMeta, (int)value).GetAwaiter().GetResult();
                     _stateMeta = newState;
 
                     StateTransitionHistory.EnqueueAsync(_stateMeta).GetAwaiter().GetResult();

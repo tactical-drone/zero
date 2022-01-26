@@ -49,39 +49,39 @@ namespace zero.tangle.models
             ArraySegment = new ArraySegment<byte>(Buffer);
         }
 
-        public override async ValueTask<bool> ReuseAsync(object localContext)
-        {
-            //forward to node services
-            if (!Source.ObjectStorage.ContainsKey(nameof(_nodeServicesProxy)))
-            {
-                _nodeServicesProxy = new IoTangleTransactionSource<TKey>($"{nameof(_nodeServicesProxy)}", parm_forward_queue_length);
-                if (!Source.ObjectStorage.TryAdd(nameof(_nodeServicesProxy), _nodeServicesProxy))
-                {
-                    _nodeServicesProxy = (IoTangleTransactionSource<TKey>)Source.ObjectStorage[nameof(_nodeServicesProxy)];
-                }
-            }
+        //public async ValueTask<bool> ReuseAsync(object localContext)
+        //{
+        //    //forward to node services
+        //    if (!Source.ObjectStorage.ContainsKey(nameof(_nodeServicesProxy)))
+        //    {
+        //        _nodeServicesProxy = new IoTangleTransactionSource<TKey>($"{nameof(_nodeServicesProxy)}", parm_forward_queue_length);
+        //        if (!Source.ObjectStorage.TryAdd(nameof(_nodeServicesProxy), _nodeServicesProxy))
+        //        {
+        //            _nodeServicesProxy = (IoTangleTransactionSource<TKey>)Source.ObjectStorage[nameof(_nodeServicesProxy)];
+        //        }
+        //    }
 
-            NodeServicesArbiter = await Source.CreateConduitOnceAsync(nameof(IoNodeServices<TKey>),_nodeServicesProxy, (_,_) => new IoTangleTransaction<TKey>(_nodeServicesProxy), 1).ConfigureAwait(false);
+        //    NodeServicesArbiter = await Source.CreateConduitOnceAsync(nameof(IoNodeServices<TKey>),_nodeServicesProxy, (_,_) => new IoTangleTransaction<TKey>(_nodeServicesProxy), 1).ConfigureAwait(false);
 
-            NodeServicesArbiter.parm_consumer_wait_for_producer_timeout = 0;
-            NodeServicesArbiter.parm_producer_start_retry_time = 0;
+        //    NodeServicesArbiter.parm_consumer_wait_for_producer_timeout = 0;
+        //    NodeServicesArbiter.parm_producer_start_retry_time = 0;
 
-            //forward to neighbor
-            if (!Source.ObjectStorage.ContainsKey(nameof(_neighborProducer)))
-            {
-                _neighborProducer = new IoTangleTransactionSource<TKey>($"{nameof(_neighborProducer)}", parm_forward_queue_length);
-                if (!Source.ObjectStorage.TryAdd(nameof(_neighborProducer), _neighborProducer))
-                {
-                    _neighborProducer = (IoTangleTransactionSource<TKey>)Source.ObjectStorage[nameof(_neighborProducer)];
-                }
-            }
+        //    //forward to neighbor
+        //    if (!Source.ObjectStorage.ContainsKey(nameof(_neighborProducer)))
+        //    {
+        //        _neighborProducer = new IoTangleTransactionSource<TKey>($"{nameof(_neighborProducer)}", parm_forward_queue_length);
+        //        if (!Source.ObjectStorage.TryAdd(nameof(_neighborProducer), _neighborProducer))
+        //        {
+        //            _neighborProducer = (IoTangleTransactionSource<TKey>)Source.ObjectStorage[nameof(_neighborProducer)];
+        //        }
+        //    }
 
-            NeighborServicesArbiter = await Source.CreateConduitOnceAsync(nameof(TanglePeer<IoTangleTransaction<TKey>>),_neighborProducer, (o,s) => new IoTangleTransaction<TKey>(_neighborProducer, -1 /*We block to control congestion*/), 1).ConfigureAwait(false);
-            NeighborServicesArbiter.parm_consumer_wait_for_producer_timeout = -1; //We block and never report slow production
-            NeighborServicesArbiter.parm_producer_start_retry_time = 0;
+        //    NeighborServicesArbiter = await Source.CreateConduitOnceAsync(nameof(TanglePeer<IoTangleTransaction<TKey>>),_neighborProducer, (o,s) => new IoTangleTransaction<TKey>(_neighborProducer, -1 /*We block to control congestion*/), 1).ConfigureAwait(false);
+        //    NeighborServicesArbiter.parm_consumer_wait_for_producer_timeout = -1; //We block and never report slow production
+        //    NeighborServicesArbiter.parm_producer_start_retry_time = 0;
 
-            return await ((IoNanoprobe)this).ReuseAsync().ConfigureAwait(false);
-        }
+        //    return true;
+        //}
 
         
         /// <summary>
