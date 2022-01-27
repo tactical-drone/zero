@@ -313,21 +313,27 @@ namespace zero.test.core.patterns.semaphore
         [Fact]
         async Task TestIoZeroSemaphoreSlimSpamAsync()
         {
-            long count = 1000000;
+#if DEBUG
+            long count = 100000;
+#else
+            long count = 100000;
+#endif
+
             var v = new IoZeroSemaphoreSlim(new CancellationTokenSource(), string.Empty, 1, 1);
 
             var totalTime = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
 
-            var t = Task.Factory.StartNew( () =>
+            var t = Task.Factory.StartNew(() =>
             {
                 for (var i = 0; i < count - 1; i++)
                 {
-                    while (v.Release(bestEffort: true) != 1) { Thread.Yield();}
+                    while (v.Release(bestEffort: true) != 1) {}
                 }
             });
 
             long ave = 0;
-            for (var i = 0; i < count; i++)
+            int i = 0;
+            for (i = 0; i < count; i++)
             {
                 var ts = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
                 Assert.True(await v.WaitAsync().FastPath().ConfigureAwait(Zc));
@@ -336,7 +342,15 @@ namespace zero.test.core.patterns.semaphore
 
             Assert.InRange(ave/count, 0, 15 * 4);
 
-            await t.ConfigureAwait(false);
+            try
+            {
+                await t.WaitAsync(TimeSpan.FromSeconds(15)).ConfigureAwait(false);
+            }
+            catch (Exception)
+            {
+                _output.WriteLine($"completed {i}/{count}");
+            }
+
             var maps = count * 1000 / totalTime.ElapsedMs() / 1000;
             _output.WriteLine($"MAPS = {maps} K/s, t = {totalTime.ElapsedMs()}ms");
             Assert.InRange(maps, 1, int.MaxValue);

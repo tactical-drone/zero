@@ -33,10 +33,8 @@ namespace zero.core.runtime.scheduler
             for (var i = 0; i < _workerCount; i++)
             {
                 _qUp[i] = new IoManualResetValueTaskSource<bool>();
-            }
-
-            for (var i = 0; i < _workerCount; i++)
                 SpawnWorker(i);
+            }
         }
 
         private void SpawnWorker(int j, Task prime = null)
@@ -86,7 +84,7 @@ namespace zero.core.runtime.scheduler
         private readonly CancellationTokenSource _asyncTasks;
         private readonly IoManualResetValueTaskSource<bool>[] _qUp;
         private readonly IoQueue<Task> _workQueue;
-        private int _workerCount;
+        private volatile int _workerCount;
         private int _load;
         public double LoadFactor => (double) Volatile.Read(ref _load) / _workerCount;
         public int CurrentCapacity => _workQueue.Capacity;
@@ -94,54 +92,48 @@ namespace zero.core.runtime.scheduler
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         protected override void QueueTask(Task task)
         {
-            var scheduled = false;
             if (_load != _workerCount)
             {
-                for (var i = 0; i < _workerCount; i++)
+                _ = _workQueue.EnqueueAsync(task).AsTask().ContinueWith(static (_, state) =>
                 {
-                    try
+                    var scheduled = false;
+                    var (@this, task) = (ValueTuple<IoZeroScheduler, Task>)state;
+                    for (var i = 0; i < @this._workerCount; i++)
                     {
-                        var q = _qUp[i];
-                        //if(q == default)
-                        //    continue;
+                        var q = @this._qUp[i];
 
-                        if (q.GetStatus(q.Version) != ValueTaskSourceStatus.Pending) continue;
-                        try 
+                        try
                         {
-                            _ = _workQueue.EnqueueAsync(task);
+                            if (q.GetStatus(q.Version) != ValueTaskSourceStatus.Pending) continue;
                             q.SetResult(true);
                             scheduled = true;
-                            return;
                         }
                         catch
                         {
                             // ignored
                         }
                     }
-                    catch
+
+                    if (!scheduled)
                     {
-                        // ignored
+                        var newWorkerId = Interlocked.Increment(ref @this._workerCount);
+                        if (@this._workerCount <= _maxWorker)
+                        {
+                            Console.WriteLine("Adding new worker...");
+                            //Thread.Sleep(1000);
+
+                            @this._qUp[newWorkerId] = new IoManualResetValueTaskSource<bool>();
+                            @this.SpawnWorker(newWorkerId, task);
+                        }
+                        else
+                        {
+                            Interlocked.Decrement(ref @this._workerCount);
+                        }
                     }
-                }
+
+                }, (this, task));
             }
 
-            if (!scheduled)
-            {
-                var newWorkerId = Interlocked.Increment(ref _workerCount);
-                if (_workerCount <= _maxWorker)
-                {
-                    Console.WriteLine("Adding new worker...");
-                    //Thread.Sleep(1000);
-
-                    _qUp[newWorkerId] = new IoManualResetValueTaskSource<bool>();
-                    SpawnWorker(newWorkerId, task);
-                }
-                else
-                {
-                    Interlocked.Decrement(ref _workerCount);
-                }
-            }
-            
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]

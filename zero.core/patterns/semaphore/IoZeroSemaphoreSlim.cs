@@ -54,10 +54,7 @@ namespace zero.core.patterns.semaphore
             _semaphore.OnCompleted(continuation, state, token, flags);
         }
 
-        public void ZeroRef(ref IIoZeroSemaphore @ref)
-        {
-            //_semaphore.ZeroRef(ref @ref);
-        }
+        public void ZeroRef(ref IIoZeroSemaphore @ref) => _semaphore.ZeroRef(ref @ref);
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public int Release(int releaseCount = 1, bool bestEffort = false)
@@ -86,107 +83,8 @@ namespace zero.core.patterns.semaphore
 
         public long Tail => ((IoZeroSemaphore)_semaphore).Tail;
         public long Head => ((IoZeroSemaphore)_semaphore).Head;
-        //int IIoZeroSemaphore.ZeroEnter()
-        //{
-        //    throw new NotImplementedException();
-        //}
-
-        //int IIoZeroSemaphore.ZeroCount()
-        //{
-        //    throw new NotImplementedException();
-        //}
-
-        //int IIoZeroSemaphore.ZeroIncCount()
-        //{
-        //    throw new NotImplementedException();
-        //}
-
-        //int IIoZeroSemaphore.ZeroDecCount()
-        //{
-        //    throw new NotImplementedException();
-        //}
-
-        //int IIoZeroSemaphore.ZeroAddCount(int value)
-        //{
-        //    throw new NotImplementedException();
-        //}
-
-        //long IIoZeroSemaphore.ZeroHead()
-        //{
-        //    throw new NotImplementedException();
-        //}
-
-        //long IIoZeroSemaphore.ZeroTail()
-        //{
-        //    throw new NotImplementedException();
-        //}
-
-        //long IIoZeroSemaphore.ZeroNextTail()
-        //{
-        //    throw new NotImplementedException();
-        //}
-
-        //long IIoZeroSemaphore.ZeroNextHead()
-        //{
-        //    throw new NotImplementedException();
-        //}
-
-        //long IIoZeroSemaphore.ZeroPrevTail()
-        //{
-        //    throw new NotImplementedException();
-        //}
-
-        //long IIoZeroSemaphore.ZeroPrevHead()
-        //{
-        //    throw new NotImplementedException();
-        //}
-
-        //int IIoZeroSemaphore.ZeroIncWait()
-        //{
-        //    throw new NotImplementedException();
-        //}
-
-        //int IIoZeroSemaphore.ZeroDecWait()
-        //{
-        //    throw new NotImplementedException();
-        //}
-
-        //int IIoZeroSemaphore.ZeroWaitCount()
-        //{
-        //    throw new NotImplementedException();
-        //}
-
-        //int IIoZeroSemaphore.ZeroIncAsyncCount()
-        //{
-        //    throw new NotImplementedException();
-        //}
-
-        //int IIoZeroSemaphore.ZeroAsyncCount()
-        //{
-        //    throw new NotImplementedException();
-        //}
-
-        //short IIoZeroSemaphore.ZeroToken()
-        //{
-        //    throw new NotImplementedException();
-        //}
 
         int IIoZeroSemaphore.ZeroDecAsyncCount()
-        {
-            throw new NotImplementedException();
-        }
-
-        short IIoZeroSemaphore.ZeroTokenBump()
-        {
-            throw new NotImplementedException();
-        }
-
-        public bool IsCancellationRequested()
-        {
-            throw new NotImplementedException();
-        }
-
-        public void ZeroThrow()
         {
             throw new NotImplementedException();
         }

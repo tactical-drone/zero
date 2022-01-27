@@ -554,6 +554,15 @@ namespace zero.core.patterns.misc
             return _concurrencyLevel;
         }
 
+        /// <summary>
+        /// Execute atomic actions
+        /// </summary>
+        /// <typeparam name="T">callback context</typeparam>
+        /// <param name="ownershipAction">The callback</param>
+        /// <param name="userData">context</param>
+        /// <param name="disposing">if we are disposing</param>
+        /// <param name="force">Force execution even if zeroed</param>
+        /// <returns></returns>
         public async ValueTask<bool> ZeroAtomic<T>(Func<IIoNanite, T, bool, ValueTask<bool>> ownershipAction,
             T userData = default, bool disposing = false, bool force = false)
         {
@@ -780,7 +789,6 @@ namespace zero.core.patterns.misc
         /// <returns>A ValueTask</returns>
         protected ValueTask ZeroAsync<T>(Func<T, ValueTask> continuation, T state, TaskCreationOptions options, TaskScheduler scheduler = null, bool unwrap = false, [CallerFilePath] string filePath = null, [CallerMemberName] string methodName = null, [CallerLineNumber] int lineNumber = default)
         {
-            
             return ZeroAsync<T>(continuation, state, AsyncTasks.Token, options, scheduler ?? IoZeroScheduler.ZeroDefault, unwrap, filePath, methodName: methodName, lineNumber);
         }
 

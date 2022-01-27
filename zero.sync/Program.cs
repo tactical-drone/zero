@@ -17,6 +17,7 @@ using zero.cocoon;
 using zero.cocoon.autopeer;
 using zero.cocoon.events.services;
 using zero.cocoon.identity;
+using zero.core.feat.patterns.semaphore;
 using zero.core.misc;
 using zero.core.network.ip;
 using zero.core.patterns.misc;
@@ -851,8 +852,10 @@ namespace zero.sync
             var asyncTasks = new CancellationTokenSource();
 
             var capacity = 3;
-            var mutex = new IoZeroSemaphoreSlim(asyncTasks, "zero slim", maxBlockers: capacity, initialCount: 0, maxAsyncWork: 0, enableAutoScale: false, enableFairQ: false, enableDeadlockDetection: true);
+
+            //.NET RUNTIME REFERENCE MUTEX FOR TESTING
             //var mutex = new IoZeroRefMut(asyncTasks.Token);
+            var mutex = new IoZeroSemaphoreSlim(asyncTasks, "zero slim", maxBlockers: capacity, initialCount: 0, maxAsyncWork: 0, enableAutoScale: false, enableFairQ: false, enableDeadlockDetection: true);
 
             var releaseCount = 2;
             var waiters = 3;
@@ -1078,35 +1081,25 @@ namespace zero.sync
                            if (targetSleep > 0)
                                await Task.Delay((int)targetSleep, asyncTasks.Token).ConfigureAwait(Zc);
 
-                           if (mutex.CurNrOfBlockers >= mutex.Capacity*4/5)
-                           {
-                               //await Task.Delay(200).ConfigureAwait(ZC);
-                           }
-                           
                            try
                            {
-                               Interlocked.Add(ref semCount, curCount = mutex.Release(releaseCount));
+                               if ((curCount = mutex.Release(releaseCount)) > 0)
+                               {
+                                   Interlocked.Add(ref semCount, curCount);
+                                   Interlocked.Increment(ref semPollCount);
+                                   Interlocked.Add(ref dq[i1], releaseCount);
+                               }
+                               else
+                               {
+                                   var ts = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+                                   await Task.Delay(1, asyncTasks.Token).ConfigureAwait(Zc);
+                               }
 
-                               Interlocked.Increment(ref semPollCount);
-
-                               if(curCount > 0)
-                                    Interlocked.Add(ref dq[i1], releaseCount);
                            }
                            catch (SemaphoreFullException)
                            {
-                               // var f = eq1_fps + eq2_fps + 1;
-                               //
-                               // var d = mutex.ReadyCount / (f) * 1000.0;
-                               // var val = (int)d;
-                               // val = Math.Min(1, val);
 
-                               //Console.WriteLine($"Throttling: {val} ms, curCount = {mutex.ReadyCount}");
-                               var ts = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-                               await Task.Delay(1, asyncTasks.Token).ConfigureAwait(Zc);
-                               if (ts.ElapsedMs() > 1200)
-                               {
-                                   Console.WriteLine($"{ts.ElapsedMs()} ms late");
-                               }
+                               
                            }
                            catch (TaskCanceledException)
                            {
