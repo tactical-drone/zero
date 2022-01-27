@@ -262,9 +262,12 @@ namespace zero.core.patterns.bushings
         {
             await base.ZeroManagedAsync().FastPath().ConfigureAwait(Zc);
 
-            await _pressure.Zero(this, $"{nameof(ZeroManagedAsync)}: teardown").FastPath().ConfigureAwait(Zc);
-            await _backPressure.Zero(this, $"{nameof(ZeroManagedAsync)}: teardown").FastPath().ConfigureAwait(Zc);
-            await _prefetchPressure.Zero(this, $"{nameof(ZeroManagedAsync)}: teardown").FastPath().ConfigureAwait(Zc);
+            if(_pressure != null)
+                await _pressure.Zero(this, $"{nameof(ZeroManagedAsync)}: teardown").FastPath().ConfigureAwait(Zc);
+            if(_backPressure != null)
+                await _backPressure.Zero(this, $"{nameof(ZeroManagedAsync)}: teardown").FastPath().ConfigureAwait(Zc);
+            if(_prefetchPressure != null)
+                await _prefetchPressure.Zero(this, $"{nameof(ZeroManagedAsync)}: teardown").FastPath().ConfigureAwait(Zc);
 
             var reason = $"{nameof(IoSource<TJob>)}: teardown";
 

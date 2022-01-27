@@ -196,9 +196,9 @@ namespace zero.cocoon.models
 
                 //Ensure that the previous job (which could have been launched out of sync) has completed
                 var prevJob = ((CcDiscoveries)PreviousJob)?.ZeroRecovery;
-                if (prevJob.HasValue)
+                if (prevJob != null)
                 {
-                    fastPath = IoZero.ZeroRecoveryEnabled && prevJob.Value.GetStatus(prevJob.Value.Version) == ValueTaskSourceStatus.Succeeded && prevJob.Value.GetResult(prevJob.Value.Version);
+                    fastPath = IoZero.ZeroRecoveryEnabled && prevJob.GetStatus(prevJob.Version) == ValueTaskSourceStatus.Succeeded && prevJob.GetResult(prevJob.Version);
                     
                     if (zeroRecovery || fastPath)
                     {
@@ -208,7 +208,7 @@ namespace zero.cocoon.models
                         }
                         else
                         {
-                            var prevJobTask = new ValueTask<bool>(prevJob, prevJob.Value.Version);
+                            var prevJobTask = new ValueTask<bool>(prevJob, prevJob.Version);
                             if (await prevJobTask.FastPath().ConfigureAwait(Zc))
                                 AddRecoveryBits();
                         }

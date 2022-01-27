@@ -46,7 +46,7 @@ namespace zero.test.core.patterns.bushings
                     throw;
                 }
             }
-            await z1.WaitAsync(TimeSpan.FromSeconds(1)).ConfigureAwait(false);
+            await z1.WaitAsync(TimeSpan.FromSeconds(5)).ConfigureAwait(false);
 
             Assert.InRange(ts.ElapsedMs(), 1400, 2000);
             _output.WriteLine($"{ts.ElapsedMs()}ms ~ 1500");
@@ -80,7 +80,7 @@ namespace zero.test.core.patterns.bushings
                 _output.WriteLine($"{c1.EventCount}/{count}");
                 await Task.Delay(500).ConfigureAwait(true);
             }
-            await z1.WaitAsync(TimeSpan.FromSeconds(1)).ConfigureAwait(false);
+            await z1.WaitAsync(TimeSpan.FromSeconds(5)).ConfigureAwait(false);
 
             var targetTime = count * 100 / concurrencyLevel;
 
@@ -112,7 +112,7 @@ namespace zero.test.core.patterns.bushings
                 _output.WriteLine($"{c1.EventCount}/{count}");
                 await Task.Delay(500).ConfigureAwait(false);
             }
-            await z1.WaitAsync(TimeSpan.FromSeconds(1)).ConfigureAwait(false);
+            await z1.WaitAsync(TimeSpan.FromSeconds(5)).ConfigureAwait(false);
 
             var fpses = count * 1000 / ts.ElapsedMs() / 1000;
 
@@ -147,7 +147,7 @@ namespace zero.test.core.patterns.bushings
                 await Task.Delay(500).ConfigureAwait(false);
             }
 
-            await z1.WaitAsync(TimeSpan.FromSeconds(1)).ConfigureAwait(false);
+            await z1.WaitAsync(TimeSpan.FromSeconds(5)).ConfigureAwait(false);
 
             Assert.InRange(ts.ElapsedMs(), totalTimeMs / concurrencyLevel / 2, totalTimeMs / concurrencyLevel * 1.5);
             _output.WriteLine($"{ts.ElapsedMs()}ms ~ {totalTimeMs / concurrencyLevel}ms");

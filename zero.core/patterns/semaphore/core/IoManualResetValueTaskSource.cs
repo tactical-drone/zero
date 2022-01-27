@@ -3,7 +3,7 @@ using System.Threading.Tasks.Sources;
 
 namespace zero.core.patterns.semaphore.core
 {
-    public struct IoManualResetValueTaskSource<T> : IValueTaskSource<T>, IValueTaskSource
+    public class IoManualResetValueTaskSource<T> : IValueTaskSource<T>, IValueTaskSource
     {
         public IoManualResetValueTaskSource()
         {
@@ -12,11 +12,12 @@ namespace zero.core.patterns.semaphore.core
             ZeroRef(ref coreRef);
         }
 
-        public IoManualResetValueTaskSource(bool runContinuationsAsynchronously = false)
+        public IoManualResetValueTaskSource(bool runContinuationsAsynchronously = false, bool runContinuationsNatively = true)
         {
             IIoManualResetValueTaskSourceCore<T> coreRef = new IoManualResetValueTaskSourceCore<T>
             {
-                RunContinuationsAsynchronously = runContinuationsAsynchronously
+                RunContinuationsAsynchronously = runContinuationsAsynchronously,
+                RunContinuationsNatively = runContinuationsNatively
             }; 
             _coreRef = null;
             ZeroRef(ref coreRef);
@@ -26,6 +27,8 @@ namespace zero.core.patterns.semaphore.core
         {
             _coreRef = coreRef;
         }
+
+        public object Ref => _coreRef;
 #if DEBUG
         private volatile IIoManualResetValueTaskSourceCore<T> _coreRef;
 

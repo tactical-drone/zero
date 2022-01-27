@@ -18,18 +18,18 @@ namespace zero.core.patterns.semaphore.core
         /// or <see cref="ManualResetValueTaskSourceCoreShared.SSentinel"/> if the operation completed before a callback was supplied,
         /// or null if a callback hasn't yet been provided and the operation hasn't yet completed.
         /// </summary>
-        private Action<object> _continuation;
+        private volatile Action<object> _continuation;
         /// <summary>State to pass to <see cref="_continuation"/>.</summary>
-        private object _continuationState;
+        private volatile object _continuationState;
         /// <summary><see cref="ExecutionContext"/> to flow to the callback, or null if no flowing is required.</summary>
-        private ExecutionContext _executionContext;
+        private volatile ExecutionContext _executionContext;
         /// <summary>
         /// A "captured" <see cref="SynchronizationContext"/> or <see cref="TaskScheduler"/> with which to invoke the callback,
         /// or null if no special context is required.
         /// </summary>
-        private object _capturedContext;
+        private volatile object _capturedContext;
         /// <summary>Whether the current operation has completed.</summary>
-        private bool _completed;
+        private volatile bool _completed;
         /// <summary>The result with which the operation succeeded, or the default value if it hasn't yet completed or failed.</summary>
         private TResult _result;
         /// <summary>The exception with which the operation failed, or null if it hasn't yet completed or completed successfully.</summary>
@@ -43,6 +43,11 @@ namespace zero.core.patterns.semaphore.core
         /// <summary>Gets or sets whether to force continuations to run asynchronously.</summary>
         /// <remarks>Continuations may run asynchronously if this is false, but they'll never run synchronously if this is true.</remarks>
         public bool RunContinuationsAsynchronously { get; set; }
+
+        /// <summary>
+        /// Run continuations on the flowing scheduler, else on the default one
+        /// </summary>
+        public bool RunContinuationsNatively { get; set; }
 
         /// <summary>Resets to prepare for the next operation.</summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -143,7 +148,7 @@ namespace zero.core.patterns.semaphore.core
                 _executionContext = ExecutionContext.Capture();
             }
 
-            if ((flags & ValueTaskSourceOnCompletedFlags.UseSchedulingContext) != 0)
+            if (RunContinuationsNatively && (flags & ValueTaskSourceOnCompletedFlags.UseSchedulingContext) != 0)
             {
                 var sc = SynchronizationContext.Current;
                 if (sc != null && sc.GetType() != typeof(SynchronizationContext))

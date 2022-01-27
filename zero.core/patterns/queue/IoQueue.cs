@@ -230,11 +230,13 @@ namespace zero.core.patterns.queue
                 node.Value = item;
                 
                 // ReSharper disable once ConditionIsAlwaysTrueOrFalse
-                if (!await _syncRoot.WaitAsync().FastPath().ConfigureAwait(Zc) || !(entered = true) || _zeroed > 0)
+                if (!await _syncRoot.WaitAsync().FastPath().ConfigureAwait(Zc))
                 {
                     _nodeHeap.Return(node);
                     return null;
                 }
+
+                entered = true;
 
                 if (_tail == null)
                 {
@@ -321,13 +323,14 @@ namespace zero.core.patterns.queue
                 node.Value = item;
 
                 // ReSharper disable once ConditionIsAlwaysTrueOrFalse
-                
-                if (!await _syncRoot.WaitAsync().FastPath().ConfigureAwait(Zc) || !(entered = true) || _zeroed > 0)
+                if (!await _syncRoot.WaitAsync().FastPath().ConfigureAwait(Zc))
                 {
                     _nodeHeap.Return(node);
                     LogManager.GetCurrentClassLogger().Fatal($"{nameof(PushBackAsync)}: _syncRoot failure ~> {_syncRoot}");
                     return null;
                 }
+
+                entered = true;
 
                 if (_head == null)
                 {
@@ -355,6 +358,7 @@ namespace zero.core.patterns.queue
             }
         }
 
+        private volatile int _entered = 0;
         /// <summary>
         /// Blocking dequeue item
         /// </summary>
@@ -368,14 +372,19 @@ namespace zero.core.patterns.queue
                 return default;
             }
 
-            var blocked = false;
+            var entered = false;
             try
             {
                 if (_pressure != null && !await _pressure.WaitAsync().FastPath().ConfigureAwait(Zc) || _zeroed > 0)
                     return default;
 
-                if (!await _syncRoot.WaitAsync().FastPath().ConfigureAwait(Zc) || !(blocked = true) || _zeroed > 0)
+                if (!await _syncRoot.WaitAsync().FastPath().ConfigureAwait(Zc))
+                {
                     return default;
+                }
+                Interlocked.Increment(ref _entered);
+                entered = true;
+                Debug.Assert(_entered < 2);
 
                 if (_count == 0)
                     return default;
@@ -399,8 +408,14 @@ namespace zero.core.patterns.queue
             }
             finally
             {
-                if (blocked)
+                if (entered)
+                {
+                    Interlocked.Decrement(ref _entered);
                     _syncRoot.Release();
+                }
+
+                //var t = _syncRoot.ReadyCount == 1 || _entered > 0;
+                //Debug.Assert(t);
             }
             
             try
