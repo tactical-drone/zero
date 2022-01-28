@@ -104,23 +104,6 @@ namespace zero.core.runtime.scheduler
 
                     while (!@this._asyncTasks.IsCancellationRequested)
                     {
-                        //drop zombie workers
-                        if (workerId == @this._workerCount && @this._dropWorker > 0)
-                        {
-                            if (Interlocked.Decrement(ref @this._dropWorker) >= 0)
-                            {
-                                if (@this._workerPunchCards[workerId] > 0)
-                                {
-#if DEBUG
-                                    Console.WriteLine($"!!!! KILLED WORKER THREAD ~> ZW[{workerId}], jobs = {jobsProcessed}");
-#endif
-                                }
-                                break;
-                            }
-
-                            Interlocked.Increment(ref @this._dropWorker);
-                        }
-
                         var q = Volatile.Read(ref @this._qUp[workerId]);
                         try
                         {
@@ -188,6 +171,22 @@ namespace zero.core.runtime.scheduler
                             @this._qUp[workerId].Reset();
                             Interlocked.Decrement(ref @this._load);
                         }
+
+                        //drop zombie workers
+                        if (workerId == @this._workerCount && @this._dropWorker > 0)
+                        {
+                            if (Interlocked.Decrement(ref @this._dropWorker) >= 0)
+                            {
+                                if (@this._workerPunchCards[workerId] > 0)
+                                {
+#if DEBUG
+                                    Console.WriteLine($"!!!! KILLED WORKER THREAD ~> ZW[{workerId}], jobs = {jobsProcessed}");
+#endif
+                                }
+                                break;
+                            }
+                            Interlocked.Increment(ref @this._dropWorker);
+                        }
                     }
 
                     var qTmp = @this._qUp[workerId];
@@ -195,9 +194,7 @@ namespace zero.core.runtime.scheduler
 
                     try
                     {
-                        qTmp.Reset();
                         qTmp.SetException(new ThreadInterruptedException($"Inactive thread {workerId} was purged"));
-                        //Console.WriteLine($"!!!! KILLED THREAD ~> ZW[{workerId}], t = {@this.ThreadCount}, l = {@this.Load}/{Environment.ProcessorCount}({(double)@this.Load / Environment.ProcessorCount * 100.0:0.0}%) ({@this.LoadFactor * 100:0.0}%), q = {@this.QLength})");
                     }
                     catch
                     {
