@@ -1,5 +1,4 @@
 ﻿using System;
-using System.Threading;
 using System.Threading.Tasks.Sources;
 
 namespace zero.core.patterns.semaphore.core
@@ -8,7 +7,7 @@ namespace zero.core.patterns.semaphore.core
     {
         public IoManualResetValueTaskSource()
         {
-            IIoManualResetValueTaskSourceCore < T > coreRef = new IoManualResetValueTaskSourceCore<T>();
+            IIoManualResetValueTaskSourceCore <T> coreRef = new IoManualResetValueTaskSourceCore<T>();
             _coreRef = null;
             ZeroRef(ref coreRef);
         }
@@ -26,7 +25,7 @@ namespace zero.core.patterns.semaphore.core
 
         private void ZeroRef(ref IIoManualResetValueTaskSourceCore<T> coreRef)
         {
-            Volatile.Write(ref _coreRef, coreRef);
+            _coreRef = coreRef;
         }
 
         public object Ref => _coreRef;
