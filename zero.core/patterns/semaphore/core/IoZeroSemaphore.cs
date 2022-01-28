@@ -798,6 +798,9 @@ namespace zero.core.patterns.semaphore.core
                     headIdx = Interlocked.Increment(ref _head) - 1;
                     latchMod = headIdx % _maxBlockers;
                     latch = _signalAwaiter[latchMod];
+
+                    if (_zeroed > 0)
+                        break;
                 }
 
                 if (worker.Continuation != latch || latch == ZeroSentinel || latch == null)

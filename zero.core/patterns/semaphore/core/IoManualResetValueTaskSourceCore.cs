@@ -33,11 +33,11 @@ namespace zero.core.patterns.semaphore.core
         /// <summary>The result with which the operation succeeded, or the default value if it hasn't yet completed or failed.</summary>
         private TResult _result;
         /// <summary>The exception with which the operation failed, or null if it hasn't yet completed or completed successfully.</summary>
-        private ExceptionDispatchInfo _error;
+        private volatile ExceptionDispatchInfo _error;
 
 #if DEBUG
         /// <summary>The current version of this value, used to help prevent misuse.</summary>
-        private short _version;
+        private volatile int _version;
 #endif
 
         /// <summary>Gets or sets whether to force continuations to run asynchronously.</summary>
@@ -63,11 +63,27 @@ namespace zero.core.patterns.semaphore.core
             _completed = false;
 
 #if DEBUG
-            _version++;
-            //sec overhead
-            if (_version == short.MaxValue)
+            if (Interlocked.Increment(ref _version) == short.MaxValue)
                 _version = 0;
 #endif
+        }
+
+
+        /// <summary>
+        /// If this primitive has been cocked
+        /// </summary>
+        /// <returns>True if cocked, false otherwise</returns>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public bool Set(bool reset = false)
+        {
+            var s = _continuation != null && _continuation != ManualResetValueTaskSourceCoreShared.SSentinel;
+            if (reset && s)
+            {
+                Reset();
+                return true;
+            }
+                
+            return s;
         }
 
         /// <summary>Completes with a successful result.</summary>
@@ -91,10 +107,10 @@ namespace zero.core.patterns.semaphore.core
 
 #if DEBUG 
         /// <summary>Gets the operation version.</summary>
-        public short Version => _version;
+        public int Version => _version;
 #else
         /// <summary>Gets the operation version.</summary>
-        public short Version => 9;
+        public int Version => 9;
 #endif
 
         /// <summary>Gets the status of the operation.</summary>
@@ -135,11 +151,12 @@ namespace zero.core.patterns.semaphore.core
         /// <param name="flags">The flags describing the behavior of the continuation.</param>
         public void OnCompleted(Action<object> continuation, object state, short token, ValueTaskSourceOnCompletedFlags flags)
         {
+#if DEBUG
             if (continuation == null)
             {
                 throw new ArgumentNullException(nameof(continuation));
             }
-#if DEBUG
+
             ValidateToken(token);   
 #endif
 
@@ -214,7 +231,7 @@ namespace zero.core.patterns.semaphore.core
 #if DEBUG
         /// <summary>Ensures that the specified token matches the current version.</summary>
         /// <param name="token">The token supplied by <see cref="ValueTask"/>.</param>
-        private void ValidateToken(short token)
+        private void ValidateToken(int token)
         {
             if (token != _version)
             {

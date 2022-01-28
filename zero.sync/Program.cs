@@ -399,6 +399,11 @@ namespace zero.sync
             var cOrig = ThreadPool.CompletedWorkItemCount;
             var c = ThreadPool.CompletedWorkItemCount;
 
+            var TS = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+            var TSOrig = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+            var COrig = ThreadPool.CompletedWorkItemCount;
+            var C = ThreadPool.CompletedWorkItemCount;
+
             AppDomain.CurrentDomain.ProcessExit += (sender, eventArgs) =>
             {
                 Console.WriteLine("###");
@@ -424,9 +429,16 @@ namespace zero.sync
 
                 if (line == "t")
                 {
-                    Console.WriteLine($"q time = {ThreadPool.PendingWorkItemCount / ((ThreadPool.CompletedWorkItemCount - c) / (double)ts.ElapsedMs()):0}ms, w = {ThreadPool.ThreadCount}, p = {ThreadPool.PendingWorkItemCount}, t = {ThreadPool.CompletedWorkItemCount}, {(ThreadPool.CompletedWorkItemCount - cOrig) / (double)tsOrig.ElapsedMsToSec():0.0} ops, c = {ThreadPool.CompletedWorkItemCount-c}, {(ThreadPool.CompletedWorkItemCount-c)/(double)ts.ElapsedMsToSec():0.0} tps");
+                    Console.WriteLine($"load = {IoZeroScheduler.Zero.Load}({IoZeroScheduler.Zero.LoadFactor * 100:0.0}%), q time = {ThreadPool.PendingWorkItemCount / ((ThreadPool.CompletedWorkItemCount - c) / (double)ts.ElapsedMs()):0}ms, threads = {ThreadPool.ThreadCount}({IoZeroScheduler.Zero.ThreadCount}), p = {ThreadPool.PendingWorkItemCount}({IoZeroScheduler.Zero.QLength}), t = {ThreadPool.CompletedWorkItemCount}, {(ThreadPool.CompletedWorkItemCount - cOrig) / (double)tsOrig.ElapsedMsToSec():0.0} ops, c = {ThreadPool.CompletedWorkItemCount-c}, {(ThreadPool.CompletedWorkItemCount-c)/(double)ts.ElapsedMsToSec():0.0} tps");
                     ts = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
                     c = ThreadPool.CompletedWorkItemCount;
+                }
+
+                if (line == "T")
+                {
+                    Console.WriteLine($"load = {IoZeroScheduler.Zero.Load}({IoZeroScheduler.Zero.LoadFactor * 100:0.0}%), q time = {ThreadPool.PendingWorkItemCount / ((ThreadPool.CompletedWorkItemCount - c) / (double)ts.ElapsedMs()):0}ms, threads = {ThreadPool.ThreadCount}({IoZeroScheduler.Zero.ThreadCount}), p = {ThreadPool.PendingWorkItemCount}({IoZeroScheduler.Zero.QLength}), t = {IoZeroScheduler.Zero.CompletedWorkItemCount}, {(IoZeroScheduler.Zero.CompletedWorkItemCount - COrig) / (double)TSOrig.ElapsedMsToSec():0.0} ops, c = {IoZeroScheduler.Zero.CompletedWorkItemCount - C}, {(IoZeroScheduler.Zero.CompletedWorkItemCount - C) / (double)TS.ElapsedMsToSec():0.0} tps");
+                    TS = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+                    C = IoZeroScheduler.Zero.CompletedWorkItemCount;
                 }
 
                 if (line.StartsWith("logf"))
@@ -519,7 +531,6 @@ namespace zero.sync
                         }
 
                         long v = 1;
-                        long C = 0;
                         _rampDelay = 5000;
                         _rampTarget = 1000;
                         var start = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();

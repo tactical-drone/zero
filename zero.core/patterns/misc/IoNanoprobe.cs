@@ -731,16 +731,11 @@ namespace zero.core.patterns.misc
 #else
                     catch (TaskCanceledException) { }
 #endif
-                    catch when (nanoprobe != null && nanoprobe.Zeroed() ||
-                               nanoprobe == null && @this._zeroed > 0)
-                    { }
-                    catch (Exception e) when (nanoprobe != null && !nanoprobe.Zeroed() ||
-                                              nanoprobe == null && @this._zeroed == 0)
+                    catch when (nanoprobe != null && nanoprobe.Zeroed() || nanoprobe == null && @this._zeroed > 0) { }
+                    catch (Exception e) when (nanoprobe != null && !nanoprobe.Zeroed() || nanoprobe == null && @this._zeroed == 0)
                     {
                         _logger.Error(e, $"{Path.GetFileName(fileName)}:{methodName}() line {lineNumber} - [{@this.Description}]: {nameof(Zero)}");
                     }
-
-
                 }, ValueTuple.Create(this, continuation, state, filePath, methodName, lineNumber), asyncToken, options, IoZeroScheduler.ZeroDefault);
 
                 if (unwrap)

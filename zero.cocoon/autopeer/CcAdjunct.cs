@@ -1167,7 +1167,7 @@ namespace zero.cocoon.autopeer
                                 if (j < width)
                                     break;
 
-                                var waitForConsumer = new ValueTask<bool>(@this._zeroSync, @this._zeroSync.Version);
+                                var waitForConsumer = new ValueTask<bool>(@this._zeroSync, (short)@this._zeroSync.Version);
                                 if(!await waitForConsumer.FastPath().ConfigureAwait(@this.Zc))
                                     break;
                                 

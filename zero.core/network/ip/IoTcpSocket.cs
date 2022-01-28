@@ -115,7 +115,7 @@ namespace zero.core.network.ip
 
                     Socket socket;
                     IoTcpSocket newSocket;
-                    var connected = new ValueTask<Socket>(taskCore, taskCore.Version);
+                    var connected = new ValueTask<Socket>(taskCore, (short)taskCore.Version);
 
                     if ((socket = await connected.FastPath().ConfigureAwait(Zc)) != null)
                     {
@@ -203,7 +203,7 @@ namespace zero.core.network.ip
                     catch (Exception e)
                     {
                         LogManager.GetCurrentClassLogger().Trace(e, $"{nameof(NativeSocket.BeginConnect)}");
-                        if (taskCore.GetStatus(taskCore.Version) == ValueTaskSourceStatus.Pending)
+                        if (taskCore.GetStatus((short)taskCore.Version) == ValueTaskSourceStatus.Pending)
                             taskCore.SetResult(false);
                     }
                 }, (NativeSocket, taskCore));
@@ -235,7 +235,7 @@ namespace zero.core.network.ip
                     }, ValueTuple.Create(this, taskCore, connectAsync, timeout), TaskCreationOptions.DenyChildAttach);
                 }
 
-                var connected = new ValueTask<bool>(taskCore, taskCore.Version);
+                var connected = new ValueTask<bool>(taskCore, (short)taskCore.Version);
                 if (!await connected.FastPath().ConfigureAwait(Zc))
                 {
                     try

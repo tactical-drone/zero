@@ -20,9 +20,9 @@ namespace zero.core.patterns.semaphore
 
         private readonly IoZeroResetValueTaskSource<bool> _pressure = new();
 
-        public int CurNrOfBlockers => _pressure.GetStatus(_pressure.Version) == ValueTaskSourceStatus.Pending ? 1 : 0;
+        public int CurNrOfBlockers => _pressure.GetStatus((short)_pressure.Version) == ValueTaskSourceStatus.Pending ? 1 : 0;
 
-        public int ReadyCount => _pressure.GetStatus(_pressure.Version) == ValueTaskSourceStatus.Succeeded ? 1 : 0;
+        public int ReadyCount => _pressure.GetStatus((short)_pressure.Version) == ValueTaskSourceStatus.Succeeded ? 1 : 0;
 
         public int MaxAsyncWorkers => 0;
 
@@ -42,7 +42,7 @@ namespace zero.core.patterns.semaphore
 
         public bool IsCancellationRequested()
         {
-            return _pressure.GetStatus(_pressure.Version) == ValueTaskSourceStatus.Canceled;
+            return _pressure.GetStatus((short)_pressure.Version) == ValueTaskSourceStatus.Canceled;
         }
 
         public void ZeroThrow()
@@ -100,7 +100,7 @@ namespace zero.core.patterns.semaphore
             throw new NotImplementedException();
         }
 
-        public short Version => _pressure.Version;
+        public int Version => _pressure.Version;
         
     }
 }

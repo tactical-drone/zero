@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Runtime.CompilerServices;
@@ -133,15 +134,18 @@ namespace zero.core.patterns.queue
             try
             {
                 var latch = (Interlocked.Increment(ref _tail) - 1) % _capacity;
-                T latched = default;
-                while (_tail > _head + _capacity || !Zeroed && _count < _capacity && 
-                       (latched = Interlocked.CompareExchange(ref _storage[latch], item, default)) != default)
+                T latched = null;
+                while (_tail > _head + _capacity  || _count < _capacity && 
+                       (latched = Interlocked.CompareExchange(ref _storage[latch], item, null)) != null)
                 {
                     Interlocked.Decrement(ref _tail);
                     latch = (Interlocked.Increment(ref _tail) - 1) % _capacity;
+
+                    if (Zeroed)
+                        break;
                 }
 
-                if (latched == default)
+                if (latched == null)
                 {
                     _curEnumerator.IncIteratorCount();
                     Interlocked.Increment(ref _count);
@@ -186,37 +190,47 @@ namespace zero.core.patterns.queue
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public bool TryTake([MaybeNullWhen(false)] out T result)
         {
-            result = default;
-
-            if (_count == 0)
-                return false;
-
-            var latchIdx = Interlocked.Increment(ref _head) - 1;
-            var latchMod = latchIdx % _capacity;
-            var latch = _storage[latchMod];
-            while (!Zeroed && latchIdx < _tail && _count > 0 && (result = Interlocked.CompareExchange(ref _storage[latchMod], default, latch)) != latch)
+            var success = false;
+            result = null;
+            try
             {
-                //skip over empty slots
-                if (latch != null)
+                if (_count == 0)
+                    return false;
+
+                var latchIdx = Interlocked.Increment(ref _head) - 1;
+                var latchMod = latchIdx % _capacity;
+                var latch = _storage[latchMod];
+                while (latchIdx < _tail && _count > 0 && (result = Interlocked.CompareExchange(ref _storage[latchMod], null, latch)) != latch)
+                {
+                    //skip over empty slots
+                    if (latch != null)
+                        Interlocked.Decrement(ref _head);
+                    else
+                        Interlocked.Decrement(ref _count);
+
+                    latchIdx = Interlocked.Increment(ref _head) - 1;
+                    latchMod = latchIdx % _capacity;
+                    latch = _storage[latchMod];
+                    if (Zeroed)
+                        break;
+                }
+
+                if (result != latch || result == null)
+                {
                     Interlocked.Decrement(ref _head);
-                else
-                    Interlocked.Decrement(ref _count);
+                    return false;
+                }
+                _storage[latchMod] = null;
 
-                latchIdx = Interlocked.Increment(ref _head) - 1;
-                latchMod = latchIdx % _capacity;
-                latch = _storage[latchMod];
+                Interlocked.Decrement(ref _count);
+
+                return success = true;
             }
-
-            if (result != latch || result == default)
+            finally
             {
-                Interlocked.Decrement(ref _head);
-                return false;
+                if(success)//TODO: what is going on here?
+                    Debug.Assert(result != null); //TODO: Why does this assert fail?
             }
-            _storage[latchMod] = default;
-
-            Interlocked.Decrement(ref _count);
-
-            return true;
         }
 
         /// <summary>
@@ -227,7 +241,7 @@ namespace zero.core.patterns.queue
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public bool TryPeek([MaybeNullWhen(false)] out T result)
         {                        
-            return (result = _storage[(_tail - 1) % _capacity]) != default;
+            return (result = _storage[(_tail - 1) % _capacity]) != null;
         }
 
         /// <summary>

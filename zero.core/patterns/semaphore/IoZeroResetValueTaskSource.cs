@@ -20,7 +20,7 @@ namespace zero.core.patterns.semaphore
         private IoManualResetValueTaskSourceCore<T> _zeroCore;
 
         public bool RunContinuationsAsynchronously => _zeroCore.RunContinuationsAsynchronously;
-        public short Version => _zeroCore.Version;
+        public int Version => _zeroCore.Version;
         public void Reset() => _zeroCore.Reset();
         public void SetResult(T result) => _zeroCore.SetResult(result);
 
@@ -61,9 +61,9 @@ namespace zero.core.patterns.semaphore
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public ValueTask<T> WaitAsync()
         {
-            if (_zeroCore.GetStatus(_zeroCore.Version) != ValueTaskSourceStatus.Succeeded)
-                return new ValueTask<T>(this, _zeroCore.Version);
-            return new ValueTask<T>(GetResult(Version));
+            if (_zeroCore.GetStatus((short)_zeroCore.Version) != ValueTaskSourceStatus.Succeeded)
+                return new ValueTask<T>(this, (short)_zeroCore.Version);
+            return new ValueTask<T>(GetResult((short)Version));
         }
     }
 }

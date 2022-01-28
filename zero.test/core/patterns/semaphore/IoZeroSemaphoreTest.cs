@@ -265,14 +265,14 @@ namespace zero.test.core.patterns.semaphore
                 var ts = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
 
                 var version = v.Version;
-                var status = v.GetStatus(version);
+                var status = v.GetStatus((short)version);
                 //_output.WriteLine($"w -> {status}[{version}] \t- {DateTimeOffset.UtcNow.Ticks} - {i}/{count} - {Thread.CurrentThread.ManagedThreadId}");
 
                 Assert.True(await v.WaitAsync().FastPath().ConfigureAwait(Zc));
                 Assert.InRange(ts.ElapsedMs(), 0, 20000);
 
                 version = v.Version;
-                status = v.GetStatus(version);
+                status = v.GetStatus((short)version);
                 //_output.WriteLine($"w <- {status}[{version}] \t- {DateTimeOffset.UtcNow.Ticks} - {i}/{count} - {Thread.CurrentThread.ManagedThreadId}");
             }
 

@@ -402,7 +402,7 @@ namespace zero.core.network.ip
                 args.SetBuffer(buf);
                 args.RemoteEndPoint = endPoint;
 
-                var sent = new ValueTask<bool>(taskCore, taskCore.Version);
+                var sent = new ValueTask<bool>(taskCore, (short)taskCore.Version);
                 //receive
                 if (NativeSocket.SendToAsync(args) && !await sent.FastPath().ConfigureAwait(Zc))
                     return 0;
@@ -449,7 +449,7 @@ namespace zero.core.network.ip
             try
             {
                 var tcs = (IoManualResetValueTaskSource<bool>)eventArgs.UserToken;
-                tcs.SetResult(!Zeroed() && eventArgs.SocketError == SocketError.Success && tcs.GetStatus(tcs.Version) == System.Threading.Tasks.Sources.ValueTaskSourceStatus.Pending);
+                tcs.SetResult(!Zeroed() && eventArgs.SocketError == SocketError.Success && tcs.GetStatus((short)tcs.Version) == System.Threading.Tasks.Sources.ValueTaskSourceStatus.Pending);
             }
             catch(Exception) when(Zeroed()){}
             catch(Exception e) when (!Zeroed())
@@ -498,7 +498,7 @@ namespace zero.core.network.ip
                             throw new OutOfMemoryException(nameof(_recvArgs));
                         var recvSource = new IoManualResetValueTaskSource<bool>();
                         
-                        var receiveAsync = new ValueTask<bool>(recvSource, recvSource.Version);
+                        var receiveAsync = new ValueTask<bool>(recvSource, (short)recvSource.Version);
                         IValueTaskSource<bool> recvSourceRef = recvSource;
 
                         static void SetRef(ref IValueTaskSource<bool> s, SocketAsyncEventArgs a)
