@@ -218,6 +218,7 @@ namespace zero.core.patterns.queue
                 if (result != latch || result == null)
                 {
                     Interlocked.Decrement(ref _head);
+                    result = null;
                     return false;
                 }
                 _storage[latchMod] = null;

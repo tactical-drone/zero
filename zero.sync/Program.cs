@@ -441,6 +441,13 @@ namespace zero.sync
                     C = IoZeroScheduler.Zero.CompletedWorkItemCount;
                 }
 
+                if (line == "L")
+                {
+                    Console.WriteLine($"[{IoZeroScheduler.Zero.Running}/{IoZeroScheduler.Zero.Blocked}/{IoZeroScheduler.Zero.Active}] load = {IoZeroScheduler.Zero.Load}({IoZeroScheduler.Zero.LoadFactor * 100:0.0}%), q time = {ThreadPool.PendingWorkItemCount / ((ThreadPool.CompletedWorkItemCount - c) / (double)ts.ElapsedMs()):0}ms, threads = {ThreadPool.ThreadCount}({IoZeroScheduler.Zero.ThreadCount}), p = {ThreadPool.PendingWorkItemCount}({IoZeroScheduler.Zero.QLength}), t = {IoZeroScheduler.Zero.CompletedWorkItemCount}, {(IoZeroScheduler.Zero.CompletedWorkItemCount - COrig) / (double)TSOrig.ElapsedMsToSec():0.0} ops, c = {IoZeroScheduler.Zero.CompletedWorkItemCount - C}, {(IoZeroScheduler.Zero.CompletedWorkItemCount - C) / (double)TS.ElapsedMsToSec():0.0} tps");
+                    TS = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+                    C = IoZeroScheduler.Zero.CompletedWorkItemCount;
+                }
+
                 if (line.StartsWith("logf"))
                 {
                     try

@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Threading;
 using System.Threading.Tasks.Sources;
 
 namespace zero.core.patterns.semaphore.core
@@ -25,7 +26,7 @@ namespace zero.core.patterns.semaphore.core
 
         private void ZeroRef(ref IIoManualResetValueTaskSourceCore<T> coreRef)
         {
-            _coreRef = coreRef;
+            Volatile.Write(ref _coreRef, coreRef);
         }
 
         public object Ref => _coreRef;
@@ -43,7 +44,7 @@ namespace zero.core.patterns.semaphore.core
         public ValueTaskSourceStatus GetStatus(short token) => _coreRef.GetStatus(token);
         public void OnCompleted(Action<object> continuation, object state, short token, ValueTaskSourceOnCompletedFlags flags) => _coreRef.OnCompleted(continuation, state, token, flags);
 #else
-        private volatile IIoManualResetValueTaskSourceCore<T> _coreRef;
+        private IIoManualResetValueTaskSourceCore<T> _coreRef;
 
         public bool RunContinuationsAsynchronously { get => _coreRef.RunContinuationsAsynchronously; set => _coreRef.RunContinuationsAsynchronously = value; }
         public int Version => _coreRef.Version;

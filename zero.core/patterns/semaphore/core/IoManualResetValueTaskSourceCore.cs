@@ -76,14 +76,18 @@ namespace zero.core.patterns.semaphore.core
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public bool Set(bool reset = false)
         {
-            var s = _continuation != null && _continuation != ManualResetValueTaskSourceCoreShared.SSentinel;
-            if (reset && s)
+            if (reset)
             {
-                Reset();
-                return true;
+                var signalled = _continuation == ManualResetValueTaskSourceCoreShared.SSentinel;
+                if (!signalled && _continuation != null)
+                {
+                    Reset();
+                    return true;
+                }
+
+                return !signalled;
             }
-                
-            return s;
+            return _continuation != null && _continuation != ManualResetValueTaskSourceCoreShared.SSentinel;
         }
 
         /// <summary>Completes with a successful result.</summary>
@@ -200,7 +204,7 @@ namespace zero.core.patterns.semaphore.core
             if (oldContinuation != null)
             {
                 // Operation already completed, so we need to queue the supplied callback.
-                if (!ReferenceEquals(oldContinuation, ManualResetValueTaskSourceCoreShared.SSentinel))
+                if (!ReferenceEquals(oldContinuation, ManualResetValueTaskSourceCoreShared.SSentinel) && RunContinuationsNatively)
                 {
                     throw new InvalidOperationException();
                 }
