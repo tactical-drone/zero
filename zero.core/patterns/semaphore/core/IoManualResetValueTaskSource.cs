@@ -46,7 +46,7 @@ namespace zero.core.patterns.semaphore.core
         private volatile IIoManualResetValueTaskSourceCore<T> _coreRef;
 
         public bool RunContinuationsAsynchronously { get => _coreRef.RunContinuationsAsynchronously; set => _coreRef.RunContinuationsAsynchronously = value; }
-        public short Version => _coreRef.Version;
+        public int Version => _coreRef.Version;
         public void Reset() => _coreRef.Reset();
         public void SetResult(T result) => _coreRef.SetResult(result);
         public void SetException(Exception error) => _coreRef.SetException(error);
