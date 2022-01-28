@@ -59,16 +59,16 @@ namespace zero.core.runtime.scheduler
         private int _load;
         private long _completedWorkItemCount;
         private volatile int _lastSpawnedWorker;
-        public int Active;
-        public int Blocked;
-        public int Running;
+        public IEnumerable<int> Active => _workerPunchCards.Take(_workerCount).Where(t => t > 0);
+        public IEnumerable<int> Blocked => Active.Where(t => t.ElapsedMs() > SlowWorkerThreshold);
+        public IEnumerable<int> Running => Active.Except(Blocked);
 
         public int Load => Volatile.Read(ref _load);
         public int QLength => _workQueue.Count;
         public int ThreadCount => _workerCount;
         public long CompletedWorkItemCount => _completedWorkItemCount;
         public double LoadFactor => (double) Volatile.Read(ref _load) / _workerCount;
-        public int CurrentCapacity => _workQueue.Capacity;
+        public int Capacity => _workQueue.Capacity;
 
         /// <summary>
         /// Spawn a new worker thread
@@ -78,17 +78,12 @@ namespace zero.core.runtime.scheduler
         private void SpawnWorker(int j, Task prime = null)
         {
 #if DEBUG
-            var cards = _workerPunchCards.Take(_workerCount);
-            var active = cards.Where(t => t > 0).ToList();
-            Blocked = active.Count(t => t.ElapsedMs() > 5000);
-            Active = active.Count;
-            Running = Active - Blocked;
             var d = 0;
-            if (active.Any())
+            if (Active.Any())
             {
-                d = ((int)active.Average()).ElapsedMs();
+                d = ((int)Active.Average()).ElapsedMs();
             }
-            Console.WriteLine($"spawning zero worker[{j}], t = {ThreadCount}, l = {Load}/{Environment.ProcessorCount}({(double)Load / Environment.ProcessorCount * 100.0:0.0}%) ({LoadFactor * 100:0.0}%), q = {QLength}, z = {d}ms, a = {Active}, r = {Running}, w = {Blocked} ({(double)Blocked / Active * 100:0.0}%)");
+            Console.WriteLine($"spawning zero worker[{j}], t = {ThreadCount}, l = {Load}/{Environment.ProcessorCount}({(double)Load / Environment.ProcessorCount * 100.0:0.0}%) ({LoadFactor * 100:0.0}%), q = {QLength}, z = {d}ms, a = {Active}, r = {Running}, w = {Blocked} ({(double)Blocked.Count() / Active.Count() * 100:0.0}%)");
 #endif
             // ReSharper disable once AsyncVoidLambda
             new Thread(static async state =>
@@ -103,6 +98,10 @@ namespace zero.core.runtime.scheduler
                     if (prime != null)
                         @this.TryExecuteTask(prime);
 
+#if DEBUG
+                    var jobsProcessed = 0;           
+#endif
+
                     while (!@this._asyncTasks.IsCancellationRequested)
                     {
                         //drop zombie workers
@@ -113,8 +112,7 @@ namespace zero.core.runtime.scheduler
                                 if (@this._workerPunchCards[workerId] > 0)
                                 {
 #if DEBUG
-                                    var s = TimeSpan.FromSeconds(@this._workerPunchCards[workerId].ElapsedMs()).TotalSeconds;
-                                    Console.WriteLine($"!!!! KILLED WORKER THREAD ~> ZW[{workerId}], age = {s}s");
+                                    Console.WriteLine($"!!!! KILLED WORKER THREAD ~> ZW[{workerId}], jobs = {jobsProcessed}");
 #endif
                                 }
                                 break;
@@ -150,14 +148,11 @@ namespace zero.core.runtime.scheduler
                                     {
                                         @this._workerPunchCards[workerId] = Environment.TickCount;
                                         if (@this.TryExecuteTask(work))
-                                            Interlocked.Increment(ref @this._completedWorkItemCount);
-                                        else
                                         {
-                                            var cards = @this._workerPunchCards.Take(@this._workerCount);
-                                            var active = cards.Where(t => t > 0).ToList();
-                                            @this.Blocked = active.Count(t => t.ElapsedMs() > 5000);
-                                            @this.Active = active.Count;
-                                            @this.Running = @this.Active - @this.Blocked;
+                                            Interlocked.Increment(ref @this._completedWorkItemCount);
+#if DEBUG
+                                            jobsProcessed++;                                      
+#endif
                                         }
                                     }
                                 }
