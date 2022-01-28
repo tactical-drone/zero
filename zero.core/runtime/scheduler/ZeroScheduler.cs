@@ -20,9 +20,9 @@ namespace zero.core.runtime.scheduler
         static IoZeroScheduler()
         {
             Zero = new IoZeroScheduler();
-            ZeroDefault = Zero;
+            //ZeroDefault = Zero;
 
-            //ZeroDefault = Default; //TODO: for now we use default which is still much better
+            ZeroDefault = Default; //TODO: for now we use default which is still much better
         }
         public IoZeroScheduler(CancellationTokenSource asyncTasks = null)
         {
