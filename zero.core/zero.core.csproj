@@ -45,14 +45,6 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Compile Remove="patterns\queue\IoBag - Copy %282%29.cs" />
-    <Compile Remove="patterns\queue\IoBag - Copy %283%29.cs" />
-    <Compile Remove="patterns\queue\IoBag - Copy %284%29.cs" />
-    <Compile Remove="patterns\queue\IoBag - Copy.cs" />
-    <Compile Remove="patterns\semaphore\core\IoZeroSemaphore - Copy.cs" />
-  </ItemGroup>
-
-  <ItemGroup>
     <None Include="..\.editorconfig" Link=".editorconfig" />
     <None Include="..\.gitignore" Link=".gitignore" />
     <None Include="..\readme.md" Link="readme.md" />
