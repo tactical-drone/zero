@@ -196,7 +196,7 @@ namespace zero.core.patterns.queue
         /// <param name="deDup">Whether to de-dup this item from the bag</param>
         /// <exception cref="OutOfMemoryException">Thrown if we are internally OOM</exception>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public int Add(T item, bool deDup = false)
+        public int TryEnqueue(T item, bool deDup = false)
         {
             if (_count >= Capacity)
             {
@@ -248,7 +248,7 @@ namespace zero.core.patterns.queue
                 //retry on scaling
                 if (insaneScale != Capacity)
                 {
-                    return Add(item, deDup);
+                    return TryEnqueue(item, deDup);
                 }
 
                 //if success
@@ -271,7 +271,7 @@ namespace zero.core.patterns.queue
                 if (IsAutoScaling)
                 {
                     Scale();
-                    return Add(item, deDup);
+                    return TryEnqueue(item, deDup);
                 }
 
                 if (!Zeroed)
@@ -282,7 +282,7 @@ namespace zero.core.patterns.queue
             }
             catch (IndexOutOfRangeException)
             {
-                Add(item, deDup);
+                TryEnqueue(item, deDup);
             }
             catch when (Zeroed)
             {
@@ -312,7 +312,7 @@ namespace zero.core.patterns.queue
         /// <param name="result">The item to be fetched</param>
         /// <returns>True if an item was found and returned, false otherwise</returns>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public bool TryTake([MaybeNullWhen(false)] out T result)
+        public bool TryDequeue([MaybeNullWhen(false)] out T result)
         {
             result = null;
 
@@ -352,7 +352,7 @@ namespace zero.core.patterns.queue
                 
                 if (insaneScale != Capacity)
                 {
-                    return TryTake(out result);
+                    return TryDequeue(out result);
                 }
 
                 if (result != latch || result == null)

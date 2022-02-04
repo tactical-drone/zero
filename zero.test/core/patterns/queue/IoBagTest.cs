@@ -28,7 +28,7 @@ namespace zero.test.core.patterns.queue
 
             for (int i = 0; i < bag.Capacity - 1; i++)
             {
-                bag.Add(i);
+                bag.TryEnqueue(i);
             }
 
             Assert.True(bag.Contains(bag.Capacity / 2));
@@ -46,7 +46,7 @@ namespace zero.test.core.patterns.queue
             {
                 sb.Append($"{i}");
                 if (i == 7)
-                    bag.Add(11);
+                    bag.TryEnqueue(11);
 
                 if (i == 11)
                     break;
@@ -56,7 +56,7 @@ namespace zero.test.core.patterns.queue
 
             foreach (var i in bag)
             {
-                bag.TryTake(out var r);
+                bag.TryDequeue(out var r);
                 sb.Append($"{i}");
             }
 
@@ -82,7 +82,7 @@ namespace zero.test.core.patterns.queue
                 insert.Add(Task.Factory.StartNew(static state =>
                 {
                     var (@this,_bag, idx) = (ValueTuple<IoBagTest, IoZeroQ<IoInt32>, int>)state!;
-                    _bag.Add(Interlocked.Increment(ref idx));
+                    _bag.TryEnqueue(Interlocked.Increment(ref idx));
                 }, (this, bag, idx), TaskCreationOptions.DenyChildAttach));
             }
 
@@ -90,9 +90,9 @@ namespace zero.test.core.patterns.queue
 
             Assert.Equal(threads, bag.Count);
 
-            bag.TryTake(out _);
-            bag.TryTake(out _);
-            bag.TryTake(out _);
+            bag.TryDequeue(out _);
+            bag.TryDequeue(out _);
+            bag.TryDequeue(out _);
 
             Assert.Equal(threads - 3, bag.Count);
 
@@ -105,7 +105,7 @@ namespace zero.test.core.patterns.queue
             Assert.Equal(threads - 3, c);
 
             while (bag.Count > 0)
-                bag.TryTake(out _);
+                bag.TryDequeue(out _);
 
             Assert.Equal(0, bag.Count);
 
@@ -121,20 +121,20 @@ namespace zero.test.core.patterns.queue
         {
             var bag = new IoZeroQ<IoInt32>("test", 2, true);
 
-            bag.Add(0);
-            bag.Add(1);
-            bag.Add(2);
-            bag.Add(3);
-            bag.Add(4);
+            bag.TryEnqueue(0);
+            bag.TryEnqueue(1);
+            bag.TryEnqueue(2);
+            bag.TryEnqueue(3);
+            bag.TryEnqueue(4);
 
             Assert.Equal(7, bag.Capacity);
             Assert.Equal(5, bag.Count);
 
-            bag.Add(5);
-            bag.Add(6);
-            bag.Add(7);
-            bag.Add(8);
-            bag.Add(9);
+            bag.TryEnqueue(5);
+            bag.TryEnqueue(6);
+            bag.TryEnqueue(7);
+            bag.TryEnqueue(8);
+            bag.TryEnqueue(9);
 
             Assert.Equal(15, bag.Capacity);
 
@@ -142,7 +142,7 @@ namespace zero.test.core.patterns.queue
             var c = bag.Count;
             for (int i = 0; i < c; i++)
             {
-                if (bag.TryTake(out var t))
+                if (bag.TryDequeue(out var t))
                 {
                     Assert.True(t > p);
                     p = t;
@@ -158,11 +158,11 @@ namespace zero.test.core.patterns.queue
         {
             var bag = new IoZeroQ<IoInt32>("test", 2, true);
 
-            bag.Add(0);
-            bag.Add(1);
-            var idx = bag.Add(2);
-            bag.Add(3);
-            bag.Add(4);
+            bag.TryEnqueue(0);
+            bag.TryEnqueue(1);
+            var idx = bag.TryEnqueue(2);
+            bag.TryEnqueue(3);
+            bag.TryEnqueue(4);
 
             //bag[idx] = default;
 
@@ -185,7 +185,7 @@ namespace zero.test.core.patterns.queue
             var size = bag.Count;
             for (int i = 0; i < size; i++)
             {
-                if (bag.TryTake(out var i32))
+                if (bag.TryDequeue(out var i32))
                 {
                     Assert.True(i32 > prev);
                     prev = i32;

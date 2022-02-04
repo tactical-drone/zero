@@ -23,13 +23,13 @@ namespace zero.core.runtime.scheduler
     /// </summary>
     public class IoZeroScheduler : TaskScheduler
     {
-        public static bool Enabled = false;
+        public static bool Enabled = true;
         static IoZeroScheduler()
         {
             Zero = new IoZeroScheduler();
             ZeroDefault = Zero;
 
-            ZeroDefault = Default; //TODO: for now we use default which is still much better
+            //ZeroDefault = Default; 
         }
         public IoZeroScheduler(CancellationTokenSource asyncTasks = null)
         {
@@ -451,7 +451,7 @@ var d = 0;
                                     Interlocked.Increment(ref @this._workerPunchCards[workerId]);
                                 }
 
-                                while (queue.Count > 0 && queue.TryTake(out var work))
+                                while (queue.Count > 0 && queue.TryDequeue(out var work))
                                 {
                                     try
                                     {
@@ -627,7 +627,7 @@ var d = 0;
             }
 
             //queue the work for processing
-            _workQueue.Add(task);
+            _workQueue.TryEnqueue(task);
 
             PollQueen(task);
         }
@@ -655,7 +655,7 @@ var d = 0;
 
                 var tmpSignal = zeroSignal;
                 if (task.Status <= TaskStatus.WaitingToRun)
-                    _queenQueue.Add(tmpSignal);
+                    _queenQueue.TryEnqueue(tmpSignal);
                 else
                     return true;
 

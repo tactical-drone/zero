@@ -142,7 +142,7 @@ namespace zero.core.patterns.heap
             try
             {
                 //If the heap is empty
-                if (!_ioHeapBuf.TryTake(out var heapItem))
+                if (!_ioHeapBuf.TryDequeue(out var heapItem))
                 {
                     if (_refCount == _ioHeapBuf.Capacity && !IsAutoScaling)
                     {
@@ -196,7 +196,7 @@ namespace zero.core.patterns.heap
             try
             {
                 if (!zero)
-                    _ioHeapBuf.Add(item, deDup);
+                    _ioHeapBuf.TryEnqueue(item, deDup);
                 Interlocked.Decrement(ref _refCount);
             }
             catch (Exception) when(_zeroed > 0){ }
