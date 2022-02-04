@@ -710,6 +710,12 @@ namespace zero.cocoon.autopeer
                         @this._logger.Warn($"{@this.Description}: Popdog is slow!!!, {(ts.ElapsedMs() - targetDelay) / 1000.0:0.0}s");
                     }
 
+                    if (ts.ElapsedMs() < targetDelay && !@this.Zeroed())
+                    {
+                        @this._logger.Warn($"{@this.Description}: Popdog is FAST!!!, {(ts.ElapsedMs() - targetDelay):0.0}ms / {targetDelay}");
+                    }
+
+
                     try
                     {
                         await @this.EnsureRoboticsAsync().FastPath().ConfigureAwait(@this.Zc);
@@ -792,14 +798,14 @@ namespace zero.cocoon.autopeer
                     await ZeroAsync(static async @this =>
                     {
                         await @this.ProcessDiscoveriesAsync().FastPath().ConfigureAwait(@this.Zc);
-                    }, this, TaskCreationOptions.None ).FastPath().ConfigureAwait(Zc);
+                    }, this, TaskCreationOptions.LongRunning | TaskCreationOptions.DenyChildAttach ).FastPath().ConfigureAwait(Zc);
 
                     ////UDP traffic
                     await ZeroAsync(static async state =>
                     {
                         var (@this, assimilateAsync) = state;
                         await assimilateAsync().FastPath().ConfigureAwait(@this.Zc);
-                    }, ValueTuple.Create<CcAdjunct, Func<ValueTask>>(this, base.BlockOnReplicateAsync), TaskCreationOptions.None).FastPath().ConfigureAwait(Zc);
+                    }, ValueTuple.Create<CcAdjunct, Func<ValueTask>>(this, base.BlockOnReplicateAsync), TaskCreationOptions.LongRunning).FastPath().ConfigureAwait(Zc);
 
                     await AsyncTasks.Token.BlockOnNotCanceledAsync().FastPath().ConfigureAwait(Zc);
                 }
@@ -1168,7 +1174,7 @@ namespace zero.cocoon.autopeer
                                     break;
 
                                 var waitForConsumer = new ValueTask<bool>(@this._zeroSync, (short)@this._zeroSync.Version);
-                                if(!await waitForConsumer.FastPath().ConfigureAwait(@this.Zc))
+                                if(!await waitForConsumer.FastPath())
                                     break;
                                 
                                 @this._zeroSync.Reset();
@@ -1180,7 +1186,7 @@ namespace zero.cocoon.autopeer
                             @this._logger?.Error(e, $"{@this.Description}");
                         }
                     
-                    },this, TaskCreationOptions.LongRunning | TaskCreationOptions.PreferFairness, IoZeroScheduler.ZeroDefault);
+                    },this, TaskCreationOptions.LongRunning | TaskCreationOptions.PreferFairness);
 
                     consumer = ZeroOptionAsync(static async @this  =>
                     {
@@ -1314,7 +1320,7 @@ namespace zero.cocoon.autopeer
                                 }
 
                                 var j = 0;
-                                while (await preload[j].FastPath() && ++j < width) { }
+                                while (await preload[j].FastPath().ConfigureAwait(false) && ++j < width) { }
 
                                 @this._zeroSync.SetResult(j == width);
 
@@ -1327,7 +1333,7 @@ namespace zero.cocoon.autopeer
                         {
                             @this._logger?.Error(e, $"{@this.Description}");
                         }
-                    }, this, TaskCreationOptions.LongRunning | TaskCreationOptions.PreferFairness, IoZeroScheduler.ZeroDefault);
+                    }, this, TaskCreationOptions.LongRunning | TaskCreationOptions.PreferFairness);
                     await Task.WhenAll(producer.AsTask(), consumer.AsTask()).ConfigureAwait(Zc);
                 }
                 while (!Zeroed());

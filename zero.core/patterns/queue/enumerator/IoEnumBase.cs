@@ -8,7 +8,7 @@ namespace zero.core.patterns.queue.enumerator
 {
     public abstract class IoEnumBase<T>: IEnumerator<T>
     {
-        protected IEnumerable<T> Collection;
+        protected volatile IEnumerable<T> Collection;
 
         protected volatile int Disposed;
 
@@ -22,14 +22,22 @@ namespace zero.core.patterns.queue.enumerator
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public IoEnumBase<T> Reuse(IEnumerable<T> container, Func<IEnumerable<T>, IoEnumBase<T>> make)
         {
-            if (Disposed == 0)
+            try
+            {
+                if (Disposed == 0 || Interlocked.CompareExchange(ref Disposed, 0, 1) != 1)
+                {
+                    Interlocked.Exchange(ref Disposed, 0);
+                    return make(container);
+                }
+                    
+
+                Collection = container;
                 return this;
-
-            if (Interlocked.CompareExchange(ref Disposed, 0, 1) != 1)
-                return make(container);
-
-            Collection = container;
-            return this;
+            }
+            finally
+            {
+                Reset();
+            }
         }
 
         public abstract T Current { get; }

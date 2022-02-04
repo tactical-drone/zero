@@ -78,14 +78,13 @@ namespace zero.core.patterns.semaphore.core
         {
             if (reset)
             {
-                var signalled = _continuation == ManualResetValueTaskSourceCoreShared.SSentinel;
-                if (!signalled && _continuation != null)
+                if (_continuation != ManualResetValueTaskSourceCoreShared.SSentinel && _continuation != null)
                 {
                     Reset();
                     return true;
                 }
 
-                return !signalled;
+                return _continuation != ManualResetValueTaskSourceCoreShared.SSentinel;
             }
             return _continuation != null && _continuation != ManualResetValueTaskSourceCoreShared.SSentinel;
         }
@@ -164,71 +163,77 @@ namespace zero.core.patterns.semaphore.core
             ValidateToken(token);   
 #endif
 
-            if ((flags & ValueTaskSourceOnCompletedFlags.FlowExecutionContext) != 0)
+            try
             {
-                _executionContext = ExecutionContext.Capture();
-            }
-
-            if (RunContinuationsNatively && (flags & ValueTaskSourceOnCompletedFlags.UseSchedulingContext) != 0)
-            {
-                var sc = SynchronizationContext.Current;
-                if (sc != null && sc.GetType() != typeof(SynchronizationContext))
+                if ((flags & ValueTaskSourceOnCompletedFlags.FlowExecutionContext) != 0)
                 {
-                    _capturedContext = sc;
+                    _executionContext = ExecutionContext.Capture();
                 }
-                else
+
+                if (RunContinuationsNatively && (flags & ValueTaskSourceOnCompletedFlags.UseSchedulingContext) != 0)
                 {
-                    var ts = TaskScheduler.Current;
-                    if (ts != TaskScheduler.Default)
+                    var sc = SynchronizationContext.Current;
+                    if (sc != null && sc.GetType() != typeof(SynchronizationContext))
                     {
-                        _capturedContext = ts;
+                        _capturedContext = sc;
                     }
-                }
-            }
-
-            // We need to set the continuation state before we swap in the delegate, so that
-            // if there's a race between this and SetResult/Exception and SetResult/Exception
-            // sees the _continuation as non-null, it'll be able to invoke it with the state
-            // stored here.  However, this also means that if this is used incorrectly (e.g.
-            // awaited twice concurrently), _continuationState might get erroneously overwritten.
-            // To minimize the chances of that, we check preemptively whether _continuation
-            // is already set to something other than the completion sentinel.
-
-            object oldContinuation = _continuation;
-            if (oldContinuation == null)
-            {
-                _continuationState = state;
-                oldContinuation = Interlocked.CompareExchange(ref _continuation, continuation, null);
-            }
-
-            if (oldContinuation != null)
-            {
-                // Operation already completed, so we need to queue the supplied callback.
-                if (!ReferenceEquals(oldContinuation, ManualResetValueTaskSourceCoreShared.SSentinel) && RunContinuationsNatively)
-                {
-                    throw new InvalidOperationException();
-                }
-
-                switch (_capturedContext)
-                {
-                    case null:
-                    {
-                        Task.Factory.StartNew(continuation, state, CancellationToken.None,
-                                TaskCreationOptions.DenyChildAttach, TaskScheduler.Default);
-                        break;
-                    }
-                    case SynchronizationContext sc:
-                        sc.Post(s =>
+                    else
+                    { 
+                        var ts = TaskScheduler.Current;
+                        if (ts != TaskScheduler.Default)
                         {
-                            var tuple = ((Action<object>, object))s;
-                            tuple.Item1(tuple.Item2);
-                        }, (continuation, state));
-                        break;
-
-                    case TaskScheduler ts:
-                        Task.Factory.StartNew(continuation, state, CancellationToken.None, TaskCreationOptions.DenyChildAttach, ts);
-                        break;
+                            _capturedContext = ts;
+                        }
+                    }
                 }
+
+                // We need to set the continuation state before we swap in the delegate, so that
+                // if there's a race between this and SetResult/Exception and SetResult/Exception
+                // sees the _continuation as non-null, it'll be able to invoke it with the state
+                // stored here.  However, this also means that if this is used incorrectly (e.g.
+                // awaited twice concurrently), _continuationState might get erroneously overwritten.
+                // To minimize the chances of that, we check preemptively whether _continuation
+                // is already set to something other than the completion sentinel.
+
+                object oldContinuation = _continuation;
+                if (oldContinuation == null)
+                {
+                    _continuationState = state;
+                    oldContinuation = Interlocked.CompareExchange(ref _continuation, continuation, null);
+                }
+
+                if (oldContinuation != null)
+                {
+                    // Operation already completed, so we need to queue the supplied callback.
+                    if (!ReferenceEquals(oldContinuation, ManualResetValueTaskSourceCoreShared.SSentinel) && RunContinuationsNatively)
+                    {
+                        throw new InvalidOperationException();
+                    }
+
+                    switch (_capturedContext)
+                    {
+                        case null:
+                        {
+                            Task.Factory.StartNew(continuation, state, CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Default);
+                            break;
+                        }
+                        case SynchronizationContext sc:
+                            sc.Post(s =>
+                            {
+                                var tuple = ((Action<object>, object))s;
+                                tuple.Item1(tuple.Item2);
+                            }, (continuation, state));
+                            break;
+
+                        case TaskScheduler ts:
+                            Task.Factory.StartNew(continuation, state, CancellationToken.None, TaskCreationOptions.DenyChildAttach, ts);
+                            break;
+                    }
+                }
+            }
+            catch (Exception e)
+            {
+                Console.WriteLine(e);
             }
         }
 

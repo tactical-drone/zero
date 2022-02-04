@@ -30,7 +30,7 @@ namespace zero.core.core
             MallocNeighbor = mallocNeighbor;
             _preFetch = prefetch;
             _logger = LogManager.GetCurrentClassLogger();
-            NeighborTasks = new IoQueue<Task>($"{nameof(NeighborTasks)}", maxNeighbors, concurrencyLevel, autoScale:true);
+            NeighborTasks = new IoQueue<Task>($"{nameof(NeighborTasks)}", 32, concurrencyLevel, autoScale:true);
         }
 
         /// <summary>
@@ -371,7 +371,7 @@ namespace zero.core.core
 
                     if(!@this.Zeroed() && !newNeighbor.Zeroed())
                         @this._logger.Warn($"{nameof(newNeighbor.BlockOnReplicateAsync)}: [FAILED]... restarting...");
-                }, ValueTuple.Create(this, newNeighbor, Zc), TaskCreationOptions.DenyChildAttach | TaskCreationOptions.PreferFairness, IoZeroScheduler.ZeroDefault).AsTask()).FastPath().ConfigureAwait(Zc);
+                }, ValueTuple.Create(this, newNeighbor, Zc), TaskCreationOptions.DenyChildAttach | TaskCreationOptions.LongRunning | TaskCreationOptions.PreferFairness).AsTask()).FastPath().ConfigureAwait(Zc);
 
                 await node.Value.ContinueWith(static async (_, state) =>
                 {
@@ -415,7 +415,7 @@ namespace zero.core.core
 
                     newNeighbor = MallocNeighbor(this, newClient, extraData);
 
-                    if (await ZeroAtomic(static (_, state, _) =>
+                    if (newNeighbor != null && await ZeroAtomic(static (_, state, _) =>
                         {
                             var (@this, newNeighbor) = state;
 
@@ -454,10 +454,10 @@ namespace zero.core.core
 
                                     return await AddOrUpdate(@this, newNeighbor).ConfigureAwait(@this.Zc);
                                 }
-                                catch when (@this.Zeroed())
+                                catch when (@this.Zeroed() || newNeighbor.Zeroed())
                                 {
                                 }
-                                catch (Exception e) when (!@this.Zeroed())
+                                catch (Exception e) when (!@this.Zeroed() && newNeighbor.Zeroed())
                                 {
                                     @this._logger.Error(e,$"{nameof(AddOrUpdate)}:");
                                 }
@@ -466,13 +466,13 @@ namespace zero.core.core
                             }
 
                             return new ValueTask<bool>(AddOrUpdate(@this, newNeighbor));
-                        }, ValueTuple.Create(this, newNeighbor)).FastPath().ConfigureAwait(Zc))
+                        }, (this, newNeighbor)).FastPath().ConfigureAwait(Zc))
                     {
                         return newNeighbor;
                     }
-                    else
+                    else if(newNeighbor != null)
                     {
-                        _logger.Debug($"Neighbor with id = {newNeighbor.Key} already exists! Closing connection from {newClient.IoNetSocket.RemoteNodeAddress} ...");
+                        _logger.Debug($"Neighbor with id = {newNeighbor?.Key} already exists! Closing connection from {newClient.IoNetSocket.RemoteNodeAddress} ...");
                         await newNeighbor.Zero(this, "Dropped, connection already exists").FastPath().ConfigureAwait(Zc);
                     }
                 }
@@ -497,35 +497,30 @@ namespace zero.core.core
         /// <summary>
         /// Start the node
         /// </summary>
-        public async ValueTask StartAsync(Func<ValueTask> bootstrapFunc = null)
+        public async ValueTask StartAsync(Func<ValueTask> bootstrapFunc = null, TaskScheduler customScheduler = null)
         {
             if(Interlocked.CompareExchange(ref _activated, 1, 0) != 0)
                 return;
             
             _logger.Trace($"Unimatrix ZeroAsync: {Description}");
-            try
+            
+            await ZeroAsync(static async state =>
             {
+                var (@this, bootstrapFunc) = state;
                 var retry = 3;
-                while (!Zeroed() && retry-- > 0)
+                while (!@this.Zeroed() && retry-- > 0)
                 {
-                    await SpawnListenerAsync<object>(bootstrapAsync: bootstrapFunc).FastPath().ConfigureAwait(Zc);
-                    if (!Zeroed())
-                        _logger.Warn($"Listener restart... {Description}");
+                    await @this.SpawnListenerAsync<object>(bootstrapAsync: bootstrapFunc).FastPath().ConfigureAwait(@this.Zc);
+                    if (!@this.Zeroed())
+                        @this._logger.Warn($"Listener restart... {@this.Description}");
                     else
-                        await Zero(this, "Zeroed").FastPath().ConfigureAwait(Zc);
+                        await @this.Zero(@this, "Zeroed").FastPath().ConfigureAwait(@this.Zc);
                 }
 
-                if(!Zeroed())
-                    _logger.Trace($"{Description}: {(_listenerTask.IsCompletedSuccessfully ? "clean" : "dirty")} exit ({_listenerTask}), retries left = {retry}");
-            }
-            catch when (Zeroed())
-            {
-            }
-            catch (Exception e) when (!Zeroed())
-            {
-                _logger.Error(e, $"Unimatrix Failed ~> {Description}");
-            }
-
+                if (!@this.Zeroed())
+                    @this._logger.Trace($"{@this.Description}: {(@this._listenerTask.IsCompletedSuccessfully ? "clean" : "dirty")} exit ({@this._listenerTask}), retries left = {retry}");
+            },(this, bootstrapFunc), TaskCreationOptions.DenyChildAttach | TaskCreationOptions.LongRunning, customScheduler??IoZeroScheduler.ZeroDefault, true).FastPath().ConfigureAwait(Zc);
+            
             _activated = 0;
         }
 

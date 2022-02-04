@@ -8,29 +8,29 @@ namespace zero.gauge.core.misc
     {
         readonly byte[] _array = RandomNumberGenerator.GetBytes(sizeof(ulong)*2);
 
-        //[Benchmark]
-        //public void MemoryMarshal_ulong()
-        //{
-        //    var v = MemoryMarshal.Read<ulong>(_array);
-        //}
+        [Benchmark]
+        public void MemoryMarshal_ulong()
+        {
+            var v = MemoryMarshal.Read<ulong>(_array);
+        }
 
-        //[Benchmark]
-        //public void MemoryMarshal_uint()
-        //{
-        //    var v = MemoryMarshal.Read<int>(_array);
-        //}
+        [Benchmark]
+        public void MemoryMarshal_uint()
+        {
+            var v = MemoryMarshal.Read<int>(_array);
+        }
 
-        //[Benchmark]
-        //public void BitConverter_ulong()
-        //{
-        //    var v = BitConverter.ToUInt64(_array);
-        //}
+        [Benchmark]
+        public void BitConverter_ulong()
+        {
+            var v = BitConverter.ToUInt64(_array);
+        }
 
-        //[Benchmark]
-        //public void BitConverter_uint()
-        //{
-        //    var v = BitConverter.ToUInt32(_array);
-        //}
+        [Benchmark]
+        public void BitConverter_uint()
+        {
+            var v = BitConverter.ToUInt32(_array);
+        }
 
 
         [Benchmark]

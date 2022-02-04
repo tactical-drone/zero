@@ -508,6 +508,7 @@ namespace zero.core.patterns.queue
             _curEnumerator = (IoQueueEnumerator<T>)_curEnumerator.Reuse(this, c => new IoQueueEnumerator<T>((IoQueue<T>)c));
             _curEnumerator.Reset();
             return _curEnumerator;
+            //return _curEnumerator = new IoQueueEnumerator<T>(this);
         }
 
         /// <summary>
@@ -589,8 +590,15 @@ namespace zero.core.patterns.queue
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Reset()
         {
-            _curEnumerator.Reset();
-            _curEnumerator.Modified = false;
+            if (_curEnumerator != null)
+            {
+                _curEnumerator.Reset();
+                _curEnumerator.Modified = false;
+            }
+            else
+            {
+                _ = GetEnumerator();
+            }
         }
 
     }

@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Runtime.InteropServices.ComTypes;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -354,7 +355,7 @@ namespace zero.test.core.patterns.queue{
             await q.DequeueAsync();
             await q.DequeueAsync();
 
-            Assert.Equal(8, q.Capacity);
+            Assert.Equal(7, q.Capacity);
         }
 
         private IoQueue<IoInt32> _queuePressure = null!;
@@ -472,7 +473,7 @@ namespace zero.test.core.patterns.queue{
         async Task QueueBackPressureAsync()
         {
             _blockCancellationSignal = new CancellationTokenSource();
-            _queuePressure = new IoQueue<IoInt32>("test Q", 2, 2, disablePressure: false, enableBackPressure:true);
+            _queuePressure = new IoQueue<IoInt32>("test Q", 4, 2, disablePressure: false, enableBackPressure:true);
 
             await Task.Yield();
 
@@ -519,8 +520,8 @@ namespace zero.test.core.patterns.queue{
             {
                 var @this = (IoQueueTest)state!;
                 await Task.Delay(100, @this._blockCancellationSignal.Token).ConfigureAwait(@this._zc);
-                await @this._queuePressure.EnqueueAsync(1).FastPath().ConfigureAwait(@this._zc);
-                await @this._queuePressure.EnqueueAsync(1).FastPath().ConfigureAwait(@this._zc);
+                _ = @this._queuePressure.EnqueueAsync(1).FastPath().ConfigureAwait(@this._zc);
+                _ = @this._queuePressure.EnqueueAsync(1).FastPath().ConfigureAwait(@this._zc);
                 var s = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
                 //blocking
                 await @this._queuePressure.EnqueueAsync(1).FastPath().ConfigureAwait(@this._zc);

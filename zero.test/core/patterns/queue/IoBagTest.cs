@@ -24,7 +24,7 @@ namespace zero.test.core.patterns.queue
         void InsertTest()
         {
 
-            var bag = new IoBag<IoInt32>("test", 11, true);
+            var bag = new IoBag<IoInt32>("test", 16, true);
 
             for (int i = 0; i < bag.Capacity - 1; i++)
             {
@@ -34,6 +34,14 @@ namespace zero.test.core.patterns.queue
             Assert.True(bag.Contains(bag.Capacity / 2));
 
             var sb = new StringBuilder();
+
+            foreach (var i in bag)
+            {
+                sb.Append($"{i}");
+            }
+
+            Assert.Equal("012345678910111213", sb.ToString());
+
             foreach (var i in bag)
             {
                 sb.Append($"{i}");
@@ -44,20 +52,22 @@ namespace zero.test.core.patterns.queue
                     break;
             }
 
+            Assert.Equal("01234567891011121301234567891011", sb.ToString());
+
             foreach (var i in bag)
             {
                 bag.TryTake(out var r);
                 sb.Append($"{i}");
             }
 
-            Assert.Equal("012345678911012345678911", sb.ToString());
+            Assert.Equal("0123456789101112130123456789101101234567891011121311", sb.ToString());
         }
 
         [Fact]
         public async Task IteratorAsync()
         {
             var threads = 100;
-            var bag = new IoBag<IoInt32>("test", 100, true);
+            var bag = new IoBag<IoInt32>("test", 128, true);
             await Task.Yield();
             var c = 0;
             foreach (var ioInt32 in bag)
@@ -109,7 +119,7 @@ namespace zero.test.core.patterns.queue
         [Fact]
         void AutoScale()
         {
-            var bag = new IoBag<IoInt32>("test", 1, true);
+            var bag = new IoBag<IoInt32>("test", 2, true);
 
             bag.Add(0);
             bag.Add(1);
@@ -117,13 +127,36 @@ namespace zero.test.core.patterns.queue
             bag.Add(3);
             bag.Add(4);
 
-            Assert.Equal(8, bag.Capacity);
+            Assert.Equal(7, bag.Capacity);
+            Assert.Equal(5, bag.Count);
+
+            bag.Add(5);
+            bag.Add(6);
+            bag.Add(7);
+            bag.Add(8);
+            bag.Add(9);
+
+            Assert.Equal(15, bag.Capacity);
+
+            var p = -1;
+            var c = bag.Count;
+            for (int i = 0; i < c; i++)
+            {
+                if (bag.TryTake(out var t))
+                {
+                    Assert.True(t > p);
+                    p = t;
+                }
+            }
+
+            Assert.Equal(15, bag.Capacity);
+            Assert.Equal(0, bag.Count);
         }
 
         [Fact]
         void ZeroSupport()
         {
-            var bag = new IoBag<IoInt32>("test", 1, true);
+            var bag = new IoBag<IoInt32>("test", 2, true);
 
             bag.Add(0);
             bag.Add(1);
@@ -131,7 +164,7 @@ namespace zero.test.core.patterns.queue
             bag.Add(3);
             bag.Add(4);
 
-            bag[idx] = default;
+            //bag[idx] = default;
 
             Assert.Equal(5, bag.Count);
 
@@ -145,11 +178,25 @@ namespace zero.test.core.patterns.queue
                 sb.Append($"{i}");
             }
 
-
             Assert.Equal(5, bag.Count);
+            Assert.Equal("0123401234", sb.ToString());
 
-            Assert.Equal("01340134", sb.ToString());
+            IoInt32 prev = -1;
+            var size = bag.Count;
+            for (int i = 0; i < size; i++)
+            {
+                if (bag.TryTake(out var i32))
+                {
+                    Assert.True(i32 > prev);
+                    prev = i32;
+                }
+            }
 
+            Assert.Equal(0, bag.Count);
+            Assert.True(bag.Tail>=bag.Head);
+
+            for (var i = 0; i < bag.Capacity; i++)
+                Assert.True(bag[i] == null);
         }
 
         public bool Zc => IoNanoprobe.ContinueOnCapturedContext;

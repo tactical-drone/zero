@@ -12,11 +12,10 @@ namespace zero.core.misc
 	/// </summary>
 	public class IoInt32
 	{
-		int value = 0;
-
-		public IoInt32(int value)
+        readonly int _value;
+        public IoInt32(int value)
 		{
-			this.value = value;
+			_value = value;
 		}
 
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -28,73 +27,91 @@ namespace zero.core.misc
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		public static implicit operator int(IoInt32 integer)
 		{
-			return integer.value;
+			return integer._value;
 		}
 
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		public static int operator +(IoInt32 one, IoInt32 two)
 		{
-			return one.value + two.value;
+			return one._value + two._value;
 		}
 
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		public static IoInt32 operator +(int one, IoInt32 two)
 		{
-			return new IoInt32(one + two);
+			return new IoInt32(one + (int)two);
 		}
 
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		public static int operator -(IoInt32 one, IoInt32 two)
 		{
-			return one.value - two.value;
+			return one._value - two._value;
 		}
 
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		public static IoInt32 operator -(int one, IoInt32 two)
 		{
-			return new IoInt32(one - two);
+			return new IoInt32(one - (int)two);
 		}
 
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		public static bool operator ==(int one, IoInt32 two)
 		{
-			return one == two.value;
+            if ((object)two == null)
+                return false;
+
+			return one == two._value;
 		}
 
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
-		public static bool operator != (int one, IoInt32 two)
-		{
-			return one != two.value;
+		public static bool operator !=(int one, IoInt32 two)
+        {
+            if ((object)two == null)
+                return false;
+
+			return one != two._value;
 		}
 
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		public static bool operator ==(IoInt32 one, IoInt32 two)
 		{
-			return one.value == two.value;
+            if ((object)one == null || (object)two == null)
+                return (object)one == (object)two;
+
+            if ((object)one == (object)two)
+                return true;
+
+			return one._value == two._value;
 		}
 
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		public static bool operator !=(IoInt32 one, IoInt32 two)
-		{
-			return one.value != two.value;
+        {
+            if ((object)one == null || (object)two == null)
+                return false;
+            
+            return one._value != two._value;
 		}
 
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		public override bool Equals(object obj)
         {
-			return ((IoInt32)obj).value == value;
+            if (obj == null)
+                return false;
+
+			return ((IoInt32)obj)._value == _value;
         }
 
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		public override int GetHashCode()
         {
-            return value.GetHashCode();
+            return _value.GetHashCode();
         }
 
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		public override string ToString()
         {
-            return value.ToString();
+            return _value.ToString();
         }
     }
 }

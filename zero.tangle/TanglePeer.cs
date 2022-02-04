@@ -125,7 +125,7 @@ namespace zero.tangle
                                         if ((DateTime.Now - startTime).TotalSeconds > ((TangleNode<IoTangleMessage<TKey>, TKey>)Node).Milestones.AveMilestoneSeconds * 0.9)
                                             break;
                                     }
-                                }, TaskCreationOptions.LongRunning);
+                                }, TaskCreationOptions.None);
                             }
 #pragma warning restore 4014
                         });

@@ -78,7 +78,7 @@ namespace zero.core.misc
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static int ElapsedMsToSec(this int timestamp)
         {
-            return (unchecked(Environment.TickCount - timestamp)) / 1000;
+            return unchecked(Environment.TickCount - timestamp) / 1000;
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]

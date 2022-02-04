@@ -24,14 +24,14 @@ namespace zero.core.feat.misc
             _description = description??$"{GetType()}";
             _ttlMs = ttlMs;
 
-            _lut = new IoQueue<IoChallenge>($"Matcher: {description}", Math.Max(concurrencyLevel*2, _capacity), concurrencyLevel * 2, autoScale: autoscale);
+            _lut = new IoQueue<IoChallenge>($"Matcher: {description}", 32, concurrencyLevel * 2, autoScale: autoscale);
 
-            _valHeap = new IoHeap<IoChallenge>($"{nameof(_valHeap)}: {description}", Math.Max(concurrencyLevel * 2, _capacity), autoScale: autoscale)
+            _valHeap = new IoHeap<IoChallenge>($"{nameof(_valHeap)}: {description}", 32, autoScale: autoscale)
             {
                 Malloc = static (_,_) => new IoChallenge()
             };
 
-            _carHeap = new IoHeap<ChallengeAsyncResponse>($"{nameof(_carHeap)}: {description}", Math.Max(concurrencyLevel * 2, _capacity), autoScale: autoscale)
+            _carHeap = new IoHeap<ChallengeAsyncResponse>($"{nameof(_carHeap)}: {description}", 32, autoScale: autoscale)
             {
                 Malloc = static (_, _) => new ChallengeAsyncResponse()
             };

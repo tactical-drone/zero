@@ -88,7 +88,7 @@ namespace zero.test.core.patterns.heap
         [Fact]
         async Task DestructionTestAsync()
         {
-            var capacity = 10;
+            var capacity = 16;
             var h = new IoHeapIo<TestHeapItem, IoHeapIoTest>("test heap", capacity, true, this)
             {
                 Malloc = (o, test) => new TestHeapItem(_localVar, (int)o)
@@ -130,7 +130,7 @@ namespace zero.test.core.patterns.heap
        
 
 #if true
-        private int _capacity = 10;
+        private int _capacity = 16;
 #else
         private int _capacity = 100;
 #endif

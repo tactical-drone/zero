@@ -350,7 +350,7 @@ namespace zero.core.network.ip
             catch (SocketException e) when (!Zeroed())
             {
                 var errMsg = $"{nameof(ReadAsync)}: {e.Message} - {Description}";
-                _logger.Debug(errMsg);
+                _logger?.Debug(errMsg);
                 await Zero(this, errMsg).FastPath().ConfigureAwait(Zc);
             }
             catch (Exception) when (Zeroed()){}

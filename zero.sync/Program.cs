@@ -201,7 +201,7 @@ namespace zero.sync
                             if (c == 1)
                                 await Task.Delay(5000);
                             Console.WriteLine($"added {c++}/{tasks.Count}");
-                            task.Start(IoZeroScheduler.ZeroDefault);
+                            task.Start();
                         }
                         else
                         {
@@ -274,6 +274,12 @@ namespace zero.sync
                         uptimeCount = 1;
                         foreach (var ioCcNode in _nodes)
                         {
+                            //if (ioCcNode.Zeroed())
+                            //{
+                            //    Thread.Sleep(1000);
+                            //    continue;
+                            //}
+
                             try
                             {
                                 opeers += ioCcNode.Drones.Count;
@@ -393,16 +399,24 @@ namespace zero.sync
                 }
             }, TaskCreationOptions.DenyChildAttach);
 
+            long C = 0;
+
             string line;
-            var ts = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-            var tsOrig = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+            var ts = Environment.TickCount;
+            var tsOrig = Environment.TickCount;
             var cOrig = ThreadPool.CompletedWorkItemCount;
             var c = ThreadPool.CompletedWorkItemCount;
+            
 
-            var TS = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-            var TSOrig = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-            var COrig = ThreadPool.CompletedWorkItemCount;
-            var C = ThreadPool.CompletedWorkItemCount;
+            var LS = Environment.TickCount;
+            var LSOrig = Environment.TickCount;
+            var LOrig = IoZeroScheduler.Zero.CompletedWorkItemCount;
+            var LC = IoZeroScheduler.Zero.CompletedWorkItemCount;
+
+            var QS = Environment.TickCount;
+            var QSOrig = Environment.TickCount;
+            var QOrig = IoZeroScheduler.Zero.CompletedQItemCount;
+            var QC = IoZeroScheduler.Zero.CompletedQItemCount;
 
             AppDomain.CurrentDomain.ProcessExit += (sender, eventArgs) =>
             {
@@ -417,258 +431,265 @@ namespace zero.sync
 
             while ((line = Console.ReadLine()) != null && !line.StartsWith("quit"))
             {
-                if (line == "gc")
+                try
                 {
-                    var pinned = GC.GetGCMemoryInfo(GCKind.Any).PinnedObjectsCount;
-                    GC.Collect(GC.MaxGeneration);
-                    Console.WriteLine($"Pinned was = {pinned}, now {GC.GetGCMemoryInfo(GCKind.Any).PinnedObjectsCount}");
-                }
+                    if (line == "gc")
+                    {
+                        var pinned = GC.GetGCMemoryInfo(GCKind.Any).PinnedObjectsCount;
+                        GC.Collect(GC.MaxGeneration);
+                        Console.WriteLine($"Pinned was = {pinned}, now {GC.GetGCMemoryInfo(GCKind.Any).PinnedObjectsCount}");
+                    }
                 
-                if (line == "q")
-                    break;
+                    if (line == "q")
+                        break;
 
-                if (line == "t")
-                {
-                    Console.WriteLine($"load = {IoZeroScheduler.Zero.Load}({IoZeroScheduler.Zero.LoadFactor * 100:0.0}%), q time = {ThreadPool.PendingWorkItemCount / ((ThreadPool.CompletedWorkItemCount - c) / (double)ts.ElapsedMs()):0}ms, threads = {ThreadPool.ThreadCount}({IoZeroScheduler.Zero.ThreadCount}), p = {ThreadPool.PendingWorkItemCount}({IoZeroScheduler.Zero.QLength}), t = {ThreadPool.CompletedWorkItemCount}, {(ThreadPool.CompletedWorkItemCount - cOrig) / (double)tsOrig.ElapsedMsToSec():0.0} ops, c = {ThreadPool.CompletedWorkItemCount-c}, {(ThreadPool.CompletedWorkItemCount-c)/(double)ts.ElapsedMsToSec():0.0} tps");
-                    ts = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-                    c = ThreadPool.CompletedWorkItemCount;
-                }
-
-                if (line == "T")
-                {
-                    Console.WriteLine($"load = {IoZeroScheduler.Zero.Load}({IoZeroScheduler.Zero.LoadFactor * 100:0.0}%), q time = {ThreadPool.PendingWorkItemCount / ((ThreadPool.CompletedWorkItemCount - c) / (double)ts.ElapsedMs()):0}ms, threads = {ThreadPool.ThreadCount}({IoZeroScheduler.Zero.ThreadCount}), p = {ThreadPool.PendingWorkItemCount}({IoZeroScheduler.Zero.QLength}), t = {IoZeroScheduler.Zero.CompletedWorkItemCount}, {(IoZeroScheduler.Zero.CompletedWorkItemCount - COrig) / (double)TSOrig.ElapsedMsToSec():0.0} ops, c = {IoZeroScheduler.Zero.CompletedWorkItemCount - C}, {(IoZeroScheduler.Zero.CompletedWorkItemCount - C) / (double)TS.ElapsedMsToSec():0.0} tps");
-                    TS = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-                    C = IoZeroScheduler.Zero.CompletedWorkItemCount;
-                }
-
-                if (line == "L")
-                {
-                    Console.WriteLine($"[{IoZeroScheduler.Zero.Running}/{IoZeroScheduler.Zero.Blocked}/{IoZeroScheduler.Zero.Active}] load = {IoZeroScheduler.Zero.Load}({IoZeroScheduler.Zero.LoadFactor * 100:0.0}%), q time = {ThreadPool.PendingWorkItemCount / ((ThreadPool.CompletedWorkItemCount - c) / (double)ts.ElapsedMs()):0}ms, threads = {ThreadPool.ThreadCount}({IoZeroScheduler.Zero.ThreadCount}), p = {ThreadPool.PendingWorkItemCount}({IoZeroScheduler.Zero.QLength}), t = {IoZeroScheduler.Zero.CompletedWorkItemCount}, {(IoZeroScheduler.Zero.CompletedWorkItemCount - COrig) / (double)TSOrig.ElapsedMsToSec():0.0} ops, c = {IoZeroScheduler.Zero.CompletedWorkItemCount - C}, {(IoZeroScheduler.Zero.CompletedWorkItemCount - C) / (double)TS.ElapsedMsToSec():0.0} tps");
-                    TS = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-                    C = IoZeroScheduler.Zero.CompletedWorkItemCount;
-                }
-
-                if (line.StartsWith("logf"))
-                {
-                    try
+                    if (line == "t")
                     {
-                        var line1 = line;
-                        var res = line1.Split(' ')[1];
-                        if (!string.IsNullOrEmpty(res))
+                        Console.WriteLine($"load = {IoZeroScheduler.Zero.Load}({IoZeroScheduler.Zero.LoadFactor * 100:0.0}%), q time = {ThreadPool.PendingWorkItemCount / ((ThreadPool.CompletedWorkItemCount - c) / (double)ts.ElapsedMs()):0}ms, threads = {ThreadPool.ThreadCount}({IoZeroScheduler.Zero.ThreadCount}), p = {ThreadPool.PendingWorkItemCount}({IoZeroScheduler.Zero.WLength}), t = {ThreadPool.CompletedWorkItemCount}, {(ThreadPool.CompletedWorkItemCount - cOrig) / (double)tsOrig.ElapsedMsToSec():0.0} ops, c = {ThreadPool.CompletedWorkItemCount-c}, {(ThreadPool.CompletedWorkItemCount-c)/(double)ts.ElapsedMsToSec():0.0} tps");
+                        ts = Environment.TickCount;
+                        c = ThreadPool.CompletedWorkItemCount;
+                    }
+
+                    if (line == "L")
+                    {
+                        Console.WriteLine($"[{IoZeroScheduler.Zero.Free.Count()}/{IoZeroScheduler.Zero.Blocked.Count()}/{IoZeroScheduler.Zero.Active.Count()}] load = {IoZeroScheduler.Zero.Load}({IoZeroScheduler.Zero.LoadFactor * 100:0.0}%), q time = {IoZeroScheduler.Zero.WLength / ((IoZeroScheduler.Zero.CompletedWorkItemCount - LC) / (double)LS.ElapsedMs()):0}ms, workers = {IoZeroScheduler.Zero.ThreadCount}, p = {IoZeroScheduler.Zero.WLength}, C = {IoZeroScheduler.Zero.CompletedWorkItemCount}, {(IoZeroScheduler.Zero.CompletedWorkItemCount - LOrig) / (double)LSOrig.ElapsedMsToSec():0.0} ops, c = {IoZeroScheduler.Zero.CompletedWorkItemCount - LC}, {(IoZeroScheduler.Zero.CompletedWorkItemCount - LC) / (double)LS.ElapsedMsToSec():0.0} tps");
+                        LS = Environment.TickCount;
+                        LC = IoZeroScheduler.Zero.CompletedWorkItemCount;
+                    }
+
+                    if (line == "Q")
+                    {
+                        Console.WriteLine($"[{IoZeroScheduler.Zero.QFree.Count()}/{IoZeroScheduler.Zero.QBlocked.Count()}/{IoZeroScheduler.Zero.QActive.Count()}] load = {IoZeroScheduler.Zero.QLoad}({IoZeroScheduler.Zero.QLoadFactor * 100:0.0}%), q time = {IoZeroScheduler.Zero.QLength / ((IoZeroScheduler.Zero.QLength - QC) / (double)QS.ElapsedMs()):0}ms, queens = {IoZeroScheduler.Zero.QThreadCount}, p = {IoZeroScheduler.Zero.QLength}, C = {IoZeroScheduler.Zero.CompletedQItemCount}, {(IoZeroScheduler.Zero.CompletedWorkItemCount - QOrig) / (double)QSOrig.ElapsedMsToSec():0.0} ops, c = {IoZeroScheduler.Zero.CompletedQItemCount - QC}, {(IoZeroScheduler.Zero.CompletedQItemCount - QC) / (double)QS.ElapsedMsToSec():0.0} tps");
+                        QS = Environment.TickCount;
+                        QC = IoZeroScheduler.Zero.CompletedQItemCount;
+                    }
+
+                    if (line.StartsWith("logf"))
+                    {
+                        try
                         {
-                            LogManager.Configuration.LoggingRules.Last().Filters.Add(new WhenMethodFilter(logEvent =>
+                            var line1 = line;
+                            var res = line1.Split(' ')[1];
+                            if (!string.IsNullOrEmpty(res))
                             {
-                                var res = logEvent.Message.Contains(line1.Split(' ')[1]);
-
-                                return res
-                                    ? FilterResult.Log
-                                    : FilterResult.Ignore;
-                            }));
-                            LogManager.Configuration = LogManager.Configuration;
-                        }
-                    }
-                    catch { }
-                }
-
-                if (line.StartsWith("log "))
-                {
-                    try
-                    {
-                        LogManager.Configuration.Variables["zeroLogLevel"] = $"{line.Split(' ')[1]}";
-                        LogManager.ReconfigExistingLoggers();
-                    }
-                    catch { }
-                }
-
-                if (line.StartsWith("ramp "))
-                {                    
-                    try
-                    {
-                        if (line.Contains("target"))
-                        {
-                            _rampTarget = int.Parse(line.Split(' ')[2]);
-                            Console.WriteLine($"rampTarget = {_rampTarget}");
-                        }
-                        
-                        if (line.Contains("delay"))
-                        {
-                            _rampDelay = int.Parse(line.Split(' ')[2]);
-                            Console.WriteLine($"rampDelay = {_rampDelay}");
-                        }
-                    }
-                    catch { }
-                }
-
-                if (line.StartsWith("loadTest"))
-                {
-                    var n = _nodes.Where(n => !n.ZeroDrone).ToArray();
-                    n[Random.Shared.Next(0,n.Length - 1)].BootAsync(0).AsTask().GetAwaiter().GetResult();
-                    n[Random.Shared.Next(0, n.Length - 1)].BootAsync(0).AsTask().GetAwaiter().GetResult();
-                    n[Random.Shared.Next(0, n.Length - 1)].BootAsync(0).AsTask().GetAwaiter().GetResult();
-                    n[Random.Shared.Next(0, n.Length - 1)].BootAsync(0).AsTask().GetAwaiter().GetResult();
-                    Console.WriteLine("ZERO CORE best case horizontal scale cluster TCP/IP (DDoS) pressure test started... make sure your CPU has enough juice, this test will redline your kernel and hang your OS");
-                }
-
-                if (line.StartsWith("gr"))
-                {
-                    foreach (var ccCollective in _nodes)
-                    {
-                        ccCollective.Drones.ForEach(d=>d.ToggleAccountingBit());
-                    }
-                }
-
-                var gossipTasks = new List<Task>();
-                if (line.StartsWith("gossip"))
-                {
-                    if (line.Contains("verbose"))
-                    {
-                        _verboseGossip = !_verboseGossip;
-                        Console.WriteLine($"gossip verbose = {_verboseGossip}");
-                    }
-                    else if (line.Contains("restart"))
-                    {
-                        if (gossipTasks.Count > 0)
-                        {
-                            _running = false;
-                            _startAccounting = false;
-                            Task.WaitAll(gossipTasks.ToArray());
-                            tasks.ToList().ForEach(t=>t.Result.ClearDupBuf());
-                            gossipTasks.Clear();
-                            AutoPeeringEventService.QueuedEvents[0].ClearAsync().AsTask().GetAwaiter().GetResult();
-                        }
-
-                        long v = 1;
-                        _rampDelay = 5000;
-                        _rampTarget = 1000;
-                        var start = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-                        var threads = 3;
-                        _running = true;
-                        for (int i = 0; i < threads; i++)
-                        {
-                            var i1 = i;
-                            gossipTasks.Add(Task.Factory.StartNew(async () =>
-                            {
-                                while (!_startAccounting)
-                                    await Task.Delay(1000).ConfigureAwait(Zc);
-                                Console.WriteLine($"Starting accounting... {tasks.Count}");
-                                await Task.Delay(random.Next(1000 / threads) * i1).ConfigureAwait(Zc);
-                                while (_running)
+                                LogManager.Configuration.LoggingRules.Last().Filters.Add(new WhenMethodFilter(logEvent =>
                                 {
-                                    if (!_startAccounting)
-                                    {
-                                        await Task.Delay(1000).ConfigureAwait(Zc);
-                                        continue;
-                                    }
+                                    var res = logEvent.Message.Contains(line1.Split(' ')[1]);
 
-                                    foreach (var t in tasks)
+                                    return res
+                                        ? FilterResult.Log
+                                        : FilterResult.Ignore;
+                                }));
+                                LogManager.Configuration = LogManager.Configuration;
+                            }
+                        }
+                        catch { }
+                    }
+
+                    if (line.StartsWith("log "))
+                    {
+                        try
+                        {
+                            LogManager.Configuration.Variables["zeroLogLevel"] = $"{line.Split(' ')[1]}";
+                            LogManager.ReconfigExistingLoggers();
+                        }
+                        catch { }
+                    }
+
+                    if (line.StartsWith("ramp "))
+                    {                    
+                        try
+                        {
+                            if (line.Contains("target"))
+                            {
+                                _rampTarget = int.Parse(line.Split(' ')[2]);
+                                Console.WriteLine($"rampTarget = {_rampTarget}");
+                            }
+                        
+                            if (line.Contains("delay"))
+                            {
+                                _rampDelay = int.Parse(line.Split(' ')[2]);
+                                Console.WriteLine($"rampDelay = {_rampDelay}");
+                            }
+                        }
+                        catch { }
+                    }
+
+                    if (line.StartsWith("loadTest"))
+                    {
+                        var n = _nodes.Where(n => !n.ZeroDrone).ToArray();
+                        n[Random.Shared.Next(0,n.Length - 1)].BootAsync(0).AsTask().GetAwaiter().GetResult();
+                        n[Random.Shared.Next(0, n.Length - 1)].BootAsync(0).AsTask().GetAwaiter().GetResult();
+                        n[Random.Shared.Next(0, n.Length - 1)].BootAsync(0).AsTask().GetAwaiter().GetResult();
+                        n[Random.Shared.Next(0, n.Length - 1)].BootAsync(0).AsTask().GetAwaiter().GetResult();
+                        Console.WriteLine("ZERO CORE best case horizontal scale cluster TCP/IP (DDoS) pressure test started... make sure your CPU has enough juice, this test will redline your kernel and hang your OS");
+                    }
+
+                    if (line.StartsWith("gr"))
+                    {
+                        foreach (var ccCollective in _nodes)
+                        {
+                            ccCollective.Drones.ForEach(d=>d.ToggleAccountingBit());
+                        }
+                    }
+
+                    var gossipTasks = new List<Task>();
+                    if (line.StartsWith("gossip"))
+                    {
+                        if (line.Contains("verbose"))
+                        {
+                            _verboseGossip = !_verboseGossip;
+                            Console.WriteLine($"gossip verbose = {_verboseGossip}");
+                        }
+                        else if (line.Contains("restart"))
+                        {
+                            if (gossipTasks.Count > 0)
+                            {
+                                _running = false;
+                                _startAccounting = false;
+                                Task.WaitAll(gossipTasks.ToArray());
+                                tasks.ToList().ForEach(t=>t.Result.ClearDupBuf());
+                                gossipTasks.Clear();
+                                AutoPeeringEventService.QueuedEvents[0].ClearAsync().AsTask().GetAwaiter().GetResult();
+                            }
+
+                            long v = 1;
+                            _rampDelay = 5000;
+                            _rampTarget = 1000;
+                            var start = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+                            var threads = 3;
+                            _running = true;
+                            for (int i = 0; i < threads; i++)
+                            {
+                                var i1 = i;
+                                gossipTasks.Add(Task.Factory.StartNew(async () =>
+                                {
+                                    while (!_startAccounting)
+                                        await Task.Delay(1000).ConfigureAwait(Zc);
+                                    Console.WriteLine($"Starting accounting... {tasks.Count}");
+                                    await Task.Delay(random.Next(1000 / threads) * i1).ConfigureAwait(Zc);
+                                    while (_running)
                                     {
                                         if (!_startAccounting)
-                                            break;
-                                        var ts2 = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-                                        if (!await ((CcCollective)t.AsyncState)!.BootAsync(Interlocked.Increment(ref v)).FastPath()
-                                                .ConfigureAwait(Zc))
                                         {
-                                            if (_verboseGossip)
-                                                Console.WriteLine($"* - {ts2.ElapsedMs()}ms");
+                                            await Task.Delay(1000).ConfigureAwait(Zc);
                                             continue;
                                         }
 
-                                        if (_verboseGossip)
-                                            Console.WriteLine($". - {ts2.ElapsedMs()}ms");
-
-                                        //ramp
-                                        if (_rampDelay > _rampTarget)
+                                        foreach (var t in tasks)
                                         {
-                                            Interlocked.Decrement(ref _rampDelay);
-                                            //Console.WriteLine($"ramp = {_rampDelay}");
-                                        }
+                                            if (!_startAccounting)
+                                                break;
+                                            var ts2 = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+                                            if (!await ((CcCollective)t.AsyncState)!.BootAsync(Interlocked.Increment(ref v)).FastPath()
+                                                    .ConfigureAwait(Zc))
+                                            {
+                                                if (_verboseGossip)
+                                                    Console.WriteLine($"* - {ts2.ElapsedMs()}ms");
+                                                continue;
+                                            }
+
+                                            if (_verboseGossip)
+                                                Console.WriteLine($". - {ts2.ElapsedMs()}ms");
+
+                                            //ramp
+                                            if (_rampDelay > _rampTarget)
+                                            {
+                                                Interlocked.Decrement(ref _rampDelay);
+                                                //Console.WriteLine($"ramp = {_rampDelay}");
+                                            }
                                         
-                                        await Task.Delay(_rampDelay).ConfigureAwait(false);
+                                            await Task.Delay(_rampDelay).ConfigureAwait(false);
 
-                                        if (Interlocked.Increment(ref C) % 5000 == 0)
-                                        {
-                                            Console.WriteLine($"{C / ((DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() - start) / 1000.0):0.0} g/ps");
-                                            Interlocked.Exchange(ref C, 0);
-                                            start = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+                                            if (Interlocked.Increment(ref C) % 5000 == 0)
+                                            {
+                                                Console.WriteLine($"{C / ((DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() - start) / 1000.0):0.0} g/ps");
+                                                Interlocked.Exchange(ref C, 0);
+                                                start = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+                                            }
                                         }
                                     }
-                                }
-                                Console.WriteLine("Stopped gossip...");
-                            }, TaskCreationOptions.DenyChildAttach | TaskCreationOptions.LongRunning));
-                            _startAccounting = true;
+                                    Console.WriteLine("Stopped gossip...");
+                                }, TaskCreationOptions.DenyChildAttach | TaskCreationOptions.DenyChildAttach));
+                                _startAccounting = true;
+                            }
+                            Console.WriteLine($"Stopped auto peering...  {tasks.Count}");
                         }
-                        Console.WriteLine($"Stopped auto peering...  {tasks.Count}");
+                        else
+                        {
+                            _startAccounting = !_startAccounting;
+                            Console.WriteLine($"gossip = {_startAccounting}");
+                        }
                     }
-                    else
-                    {
-                        _startAccounting = !_startAccounting;
-                        Console.WriteLine($"gossip = {_startAccounting}");
-                    }
-                }
 
-                if (line.StartsWith("dn "))
-                {
-                    try
+                    if (line.StartsWith("dn "))
                     {
-                        _nodes.FirstOrDefault(n => n.CcId.IdString() == line.Split(' ')[1]).PrintNeighborhood();
-                    }
-                    catch (Exception){}                    
-                }
-
-                if (line.StartsWith("ec"))
-                {
-                    if (line.Contains("clear"))
-                    {
-                        foreach (var ccCollective in _nodes)
-                            ccCollective.ClearEventCounter();
-                    }
-                    else
-                    {
-                        var nodes= _nodes.Where(n=>!n.ZeroDrone).ToList();
                         try
                         {
-                            
-                            var min = nodes.Min(n => n.EventCount);
-                            var max = nodes.Max(n => n.EventCount);
-                            //var nmax = max;
-
-                            var ave = nodes.Average(n => n.EventCount);
-                            var err = nodes.Select(n => Math.Abs(n.EventCount - ave)).Average();
-                            var r = 0;
-                            var target = 0;
-                            while (err > (target = 50 - r/100 * 40) && r++ < 100 && nodes.Count > 0)
-                            {
-                                nodes = nodes.Where(n => Math.Abs(n.EventCount - ave) < target).ToList();
-                                ave = nodes.Average(n => n.EventCount);
-                                err = nodes.Select(n => Math.Abs(n.EventCount - ave)).Average();
-                                //nmax = nodes.Max(n => n.EventCount);
-                            }
-                            
-                            Console.WriteLine($"zero liveness at {nodes.Count()/((double)_nodes.Count - 4)*100:0.00}%, {nodes.Count()}/{_nodes.Count-4}, min/max = [{min},{max}], ave = {ave:0.0}, err = {err:0.0}, r = {r}");
+                            _nodes.FirstOrDefault(n => n.CcId.IdString() == line.Split(' ')[1]).PrintNeighborhood();
                         }
-                        catch (Exception) { }
+                        catch (Exception){}                    
+                    }
+
+                    if (line.StartsWith("ec"))
+                    {
+                        if (line.Contains("clear"))
+                        {
+                            foreach (var ccCollective in _nodes)
+                                ccCollective.ClearEventCounter();
+                        }
+                        else
+                        {
+                            var nodes= _nodes.Where(n=>!n.ZeroDrone).ToList();
+                            try
+                            {
+                            
+                                var min = nodes.Min(n => n.EventCount);
+                                var max = nodes.Max(n => n.EventCount);
+                                //var nmax = max;
+
+                                var ave = nodes.Average(n => n.EventCount);
+                                var err = nodes.Select(n => Math.Abs(n.EventCount - ave)).Average();
+                                var r = 0;
+                                var target = 0;
+                                while (err > (target = 50 - r/100 * 40) && r++ < 100 && nodes.Count > 0)
+                                {
+                                    nodes = nodes.Where(n => Math.Abs(n.EventCount - ave) < target).ToList();
+                                    ave = nodes.Average(n => n.EventCount);
+                                    err = nodes.Select(n => Math.Abs(n.EventCount - ave)).Average();
+                                    //nmax = nodes.Max(n => n.EventCount);
+                                }
+                            
+                                Console.WriteLine($"zero liveness at {nodes.Count()/((double)_nodes.Count - 4)*100:0.00}%, {nodes.Count()}/{_nodes.Count-4}, min/max = [{min},{max}], ave = {ave:0.0}, err = {err:0.0}, r = {r}");
+                            }
+                            catch (Exception) { }
+                        }
+                    }
+
+                    if (line.StartsWith("stream"))
+                    {
+                        AutoPeeringEventService.ToggleActiveAsync().GetAwaiter().GetResult();
+                        Console.WriteLine($"event stream = {(AutoPeeringEventService.Operational? "On":"Off")}");
+                    }
+
+                    if (line.StartsWith("zero"))
+                    {
+                        ZeroAsync(total).AsTask().ContinueWith(_ =>
+                        {
+                            if (_nodes != null)
+                            {
+                                Console.WriteLine($"z = {_nodes.Count(n => n.Zeroed())}/{total}");
+                                _nodes.Clear();
+                                _nodes = null;
+                                tasks?.Clear();
+                                tasks = null;
+                            }
+                        }).GetAwaiter().GetResult();
                     }
                 }
-
-                if (line.StartsWith("stream"))
+                catch (Exception e)
                 {
-                    AutoPeeringEventService.ToggleActiveAsync().GetAwaiter().GetResult();
-                    Console.WriteLine($"event stream = {(AutoPeeringEventService.Operational? "On":"Off")}");
-                }
-
-                if (line.StartsWith("zero"))
-                {
-                    ZeroAsync(total).AsTask().ContinueWith(_ =>
-                    {
-                        if (_nodes != null)
-                        {
-                            Console.WriteLine($"z = {_nodes.Count(n => n.Zeroed())}/{total}");
-                            _nodes.Clear();
-                            _nodes = null;
-                            tasks?.Clear();
-                            tasks = null;
-                        }
-                    }).GetAwaiter().GetResult();
+                    Console.WriteLine(e);
                 }
             };
             
@@ -698,7 +719,7 @@ namespace zero.sync
         private static Task QueueTestAsync() //TODO make unit tests
         {
 
-            IoQueue<int> q = new("test", 2000000, 200);
+            IoQueue<int> q = new("test", 300, 400);
             var head = q.PushBackAsync(2).FastPath().ConfigureAwait(Zc).GetAwaiter().GetResult();
             q.PushBackAsync(1).FastPath().ConfigureAwait(Zc).GetAwaiter();
             q.EnqueueAsync(3).FastPath().ConfigureAwait(Zc).GetAwaiter();
@@ -846,7 +867,7 @@ namespace zero.sync
                         }
                     }
                     Console.Write($"({i3}-{q.Count})");
-                }, new CancellationToken(), TaskCreationOptions.DenyChildAttach, TaskScheduler.Current).Unwrap());
+                }, new CancellationToken(), TaskCreationOptions.DenyChildAttach, TaskScheduler.Default).Unwrap());
             }
             Task.WhenAll(_concurrentTasks).GetAwaiter().GetResult();
             

@@ -186,9 +186,7 @@ namespace zero.core.patterns.queue
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public IEnumerator<int> GetEnumerator()
         {
-            _curEnumerator = (IoHashCodeEnum)_curEnumerator.Reuse(this, b => new IoHashCodeEnum((IoHashCodes)b));
-            _curEnumerator.Reset();
-            return _curEnumerator;
+            return _curEnumerator = (IoHashCodeEnum)_curEnumerator.Reuse(this, b => new IoHashCodeEnum((IoHashCodes)b));
         }
 
         /// <summary>

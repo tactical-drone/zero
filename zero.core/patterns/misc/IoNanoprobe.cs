@@ -218,7 +218,7 @@ namespace zero.core.patterns.misc
                 var @this = (IoNanoprobe)state;
 
                 await @this.Zero(@this, $"{nameof(IDisposable)}").FastPath().ConfigureAwait(false);
-            },this, CancellationToken.None,TaskCreationOptions.None, TaskScheduler.Default);
+            },this, CancellationToken.None,TaskCreationOptions.DenyChildAttach, TaskScheduler.Default);
         }
 
         /// <summary>
@@ -676,7 +676,7 @@ namespace zero.core.patterns.misc
                     }
 
                     return default;
-                }, ValueTuple.Create(this, continuation, state, filePath, methodName, lineNumber), asyncToken, options, IoZeroScheduler.ZeroDefault);
+                }, ValueTuple.Create(this, continuation, state, filePath, methodName, lineNumber), asyncToken, options, scheduler??TaskScheduler.Current);
 
                 return await zeroAsyncTask.Result;
                 
@@ -736,7 +736,7 @@ namespace zero.core.patterns.misc
                     {
                         _logger.Error(e, $"{Path.GetFileName(fileName)}:{methodName}() line {lineNumber} - [{@this.Description}]: {nameof(Zero)}");
                     }
-                }, ValueTuple.Create(this, continuation, state, filePath, methodName, lineNumber), asyncToken, options, IoZeroScheduler.ZeroDefault);
+                }, ValueTuple.Create(this, continuation, state, filePath, methodName, lineNumber), asyncToken, options, scheduler??TaskScheduler.Current);
 
                 if (unwrap)
                     await zeroAsyncTask.Unwrap();
@@ -768,7 +768,7 @@ namespace zero.core.patterns.misc
         /// <returns>A ValueTask</returns>
         protected ValueTask<TResult> ZeroAsync<T,TResult>(Func<T, ValueTask<TResult>> continuation, T state, TaskCreationOptions options, TaskScheduler scheduler = null,  [CallerFilePath] string filePath = null, [CallerMemberName] string methodName = null, [CallerLineNumber] int lineNumber = default )
         {
-            return ZeroAsync(continuation, state, AsyncTasks.Token, options, scheduler?? IoZeroScheduler.ZeroDefault, filePath, methodName: methodName, lineNumber);
+            return ZeroAsync(continuation, state, AsyncTasks.Token, options, scheduler, filePath, methodName: methodName, lineNumber);
         }
 
         /// <summary>
@@ -778,13 +778,14 @@ namespace zero.core.patterns.misc
         /// <param name="state">user state</param>
         /// <param name="options">Task options</param>
         /// <param name="scheduler">The scheduler</param>
+        /// <param name="unwrap"></param>
         /// <param name="filePath"></param>
         /// <param name="methodName"></param>
         /// <param name="lineNumber"></param>
         /// <returns>A ValueTask</returns>
         protected ValueTask ZeroAsync<T>(Func<T, ValueTask> continuation, T state, TaskCreationOptions options, TaskScheduler scheduler = null, bool unwrap = false, [CallerFilePath] string filePath = null, [CallerMemberName] string methodName = null, [CallerLineNumber] int lineNumber = default)
         {
-            return ZeroAsync<T>(continuation, state, AsyncTasks.Token, options, scheduler ?? IoZeroScheduler.ZeroDefault, unwrap, filePath, methodName: methodName, lineNumber);
+            return ZeroAsync<T>(continuation, state, AsyncTasks.Token, options, scheduler, unwrap, filePath, methodName: methodName, lineNumber);
         }
 
         /// <summary>
@@ -803,8 +804,7 @@ namespace zero.core.patterns.misc
         {
             try
             {
-                return ZeroAsync(continuation, state, AsyncTasks.Token, options, scheduler ?? IoZeroScheduler.ZeroDefault,
-                    unwrap, filePath, methodName, lineNumber);
+                return ZeroAsync(continuation, state, AsyncTasks.Token, options, scheduler, unwrap, filePath, methodName, lineNumber);
             }
             catch (Exception) when(Zeroed()){}
             catch (Exception e) when (!Zeroed())
@@ -832,7 +832,7 @@ namespace zero.core.patterns.misc
             bool unwrap = true, [CallerFilePath] string filePath = null, [CallerMemberName] string methodName = null,
             [CallerLineNumber] int lineNumber = default)
         {
-            return ZeroOptionAsync(continuation, state, options, scheduler ?? TaskScheduler.Current, unwrap, filePath, methodName, lineNumber);
+            return ZeroOptionAsync(continuation, state, options, scheduler, unwrap, filePath, methodName, lineNumber);
         }
 
         public class ZeroException:ApplicationException
