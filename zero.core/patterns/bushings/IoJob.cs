@@ -36,8 +36,7 @@ namespace zero.core.patterns.bushings
             Source = source;
             _jobDesc = desc;
 #if DEBUG
-            var stateCount = Enum.GetNames(typeof(IoJobMeta.JobState)).Length;
-            StateTransitionHistory = new IoQueue<IoStateTransition<IoJobMeta.JobState>>($"{nameof(StateTransitionHistory)}: {desc}", stateCount, concurrencyLevel, autoScale: true);
+            StateTransitionHistory = new IoQueue<IoStateTransition<IoJobMeta.JobState>>($"{nameof(StateTransitionHistory)}: {desc}", 64, concurrencyLevel, autoScale: true);
             _stateHeap = new($"{nameof(_stateHeap)}: {desc}", (Enum.GetNames(typeof(IoJobMeta.JobState)).Length * 2))
             {
                 Malloc = static (_, _) => new IoStateTransition<IoJobMeta.JobState>() { FinalState = IoJobMeta.JobState.Halted },

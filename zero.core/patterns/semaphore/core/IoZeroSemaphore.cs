@@ -504,7 +504,13 @@ namespace zero.core.patterns.semaphore.core
                 Action<object> slot = null;
                 bool insaneOverflow;
                 var c = 0;
-                while (_curWaitCount < _maxBlockers && ((insaneOverflow = tailIdx > _head + _maxBlockers) || (slot = Interlocked.CompareExchange(ref _signalAwaiter[tailMod], ZeroSentinel, null)) != null))
+                while (
+                    _curWaitCount < _maxBlockers && 
+                    (
+                       (insaneOverflow = tailIdx > _head + _maxBlockers) || 
+                       (slot = Interlocked.CompareExchange(ref _signalAwaiter[tailMod], ZeroSentinel, null)) != null
+                    )
+                )
                 {
                     if (++c == 10000000)
                     {

@@ -225,8 +225,9 @@ namespace zero.core.patterns.queue
                 T slot = null;
                 
                 var c = 0;
-                while (_count < insaneScale && (tailIdx > _head + insaneScale || insaneScale == Capacity &&
-                           (slot = CompareExchange(tailMod, item, null)) != null))
+                while (
+                    _count < insaneScale && 
+                    (tailIdx > _head + insaneScale || insaneScale == Capacity && (slot = CompareExchange(tailMod, item, null)) != null))
                 {
                     if (++c == 10000000)
                     {
@@ -256,7 +257,6 @@ namespace zero.core.patterns.queue
                 //if success
                 if (slot == null)
                 {
-                    Debug.Assert(tailIdx < _tail);
                     Interlocked.Increment(ref _count);//count first
                     Interlocked.Increment(ref _tail);
                     _curEnumerator.IncIteratorCount(); //TODO: is this a good idea?
@@ -336,9 +336,9 @@ namespace zero.core.patterns.queue
                 var latch = this[latchMod = (headLatch = _head) % (insaneScale = Capacity)];//TODO: s?
 
                 var c = 0;
-                while (_count > 0 &&
-                       insaneScale == Capacity &&
-                       (headLatch > _tail || latch == null || (result = CompareExchange(latchMod, null, latch)) != latch))
+                while (_count > 0 && 
+                    insaneScale == Capacity &&
+                    (headLatch > _tail || latch == null || (result = CompareExchange(latchMod, null, latch)) != latch))
                 {
                     if (++c == 10000000)
                     {

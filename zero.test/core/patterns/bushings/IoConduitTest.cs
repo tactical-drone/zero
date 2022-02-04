@@ -73,7 +73,7 @@ namespace zero.test.core.patterns.bushings
             var ts = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
             while (!z1.IsCompleted)
             {
-                if (c1.EventCount > count || ts.ElapsedMs() > 10000)
+                if (c1.EventCount > count || ts.ElapsedMs() > 10000000)
                 {
                     await c1.Zero(null, "test done").FastPath().ConfigureAwait(Zc);
                 }
