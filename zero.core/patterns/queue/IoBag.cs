@@ -238,11 +238,12 @@ namespace zero.core.patterns.queue
                         Thread.Yield();
                     }
 
-                    tailMod = (tailIdx = _tail) % (insaneScale = Capacity);
                     if (Zeroed)
                         break;
 
                     slot = null;
+
+                    tailMod = (tailIdx = _tail) % (insaneScale = Capacity);
                 }
                 
 
@@ -348,10 +349,11 @@ namespace zero.core.patterns.queue
                         Thread.Yield();
                     }
 
-                    latch = this[latchMod = (headLatch = _head) % (insaneScale = Capacity)];
                     if (Zeroed)
                         break;
                     result = null;
+
+                    latch = this[latchMod = (headLatch = _head) % (insaneScale = Capacity)];
                 }
                 
                 if (insaneScale != Capacity)

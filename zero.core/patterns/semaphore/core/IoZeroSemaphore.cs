@@ -501,9 +501,6 @@ namespace zero.core.patterns.semaphore.core
                 long tailIdx = 0;
                 var tailMod = (tailIdx = _tail) % _maxBlockers;
 
-                //var tailIdx = Interlocked.Increment(ref _tail) - 1;
-                //var tailMod = tailIdx % _maxBlockers;
-
                 Action<object> slot = null;
                 bool insaneOverflow;
                 var c = 0;
@@ -518,19 +515,12 @@ namespace zero.core.patterns.semaphore.core
                         Thread.Yield();
                     }
 
-                    //if (insaneOverflow)
-                    {
-                        //Interlocked.Decrement(ref _tail);
-                        //tailIdx = Interlocked.Increment(ref _tail) - 1;
-                        //tailMod = tailIdx % _maxBlockers;
-                    }
-
-                    tailMod = (tailIdx = _tail) % _maxBlockers;
-
                     if (_zeroed > 0)
                         break;
 
                     slot = null;
+
+                    tailMod = (tailIdx = _tail) % _maxBlockers;
                 }
 
 #else
@@ -819,10 +809,6 @@ namespace zero.core.patterns.semaphore.core
             if (Zeroed() || !bestEffort && (releaseCount < 1 || releaseCount + _curSignalCount > _maxBlockers))
                 return -1;
 
-            //best effort releases do not bump _curSignalCount
-            //if (!bestEffort)
-            //    Interlocked.Add(ref _curSignalCount, releaseCount);
-
             //lock in return value
             var released = 0;
 
@@ -835,25 +821,21 @@ namespace zero.core.patterns.semaphore.core
                 ZeroLock();
 #endif
                 //latch a chosen head
-
                 long headLatch = 0;
                 long headMod = 0;
                 var latch = _signalAwaiter[headMod = (headLatch = _head) % _maxBlockers];//TODO: bug
 
-                //var headIdx = Interlocked.Increment(ref _head) - 1;
-                //var headMod = headIdx % _maxBlockers;
-                //var latch = _signalAwaiter[headMod];
-
-                //while (_curWaitCount > 0 && (headIdx > _tail || latch == null || latch == ZeroSentinel ||
-                //                             (worker.Continuation = Interlocked.CompareExchange(ref _signalAwaiter[latchMod], ZeroSentinel, latch)) != latch))
-
                 var c = 0;
-                while (_curWaitCount > 0 &&
-                       //headIdx < _tail &&
-                       (headLatch > _tail || latch == null || latch == ZeroSentinel || (worker.Continuation = Interlocked.CompareExchange(ref _signalAwaiter[headMod], ZeroSentinel, latch)) != latch))
+                while (
+                    _curWaitCount > 0 &&
+                    (
+                       headLatch > _tail || 
+                       latch == null || 
+                       latch == ZeroSentinel || 
+                       (worker.Continuation = Interlocked.CompareExchange(ref _signalAwaiter[headMod], ZeroSentinel, latch)) != latch)
+                    )
                 {
-                    //Interlocked.Decrement(ref _head);
-
+                    
                     if (++c == 10000000)
                     {
                         Console.WriteLine($"[{c}] 2 Release: bad latch[{headMod}] = {worker.Continuation != latch}(null = {latch == null}), overflow = {headLatch > _tail}, {Description}");
@@ -863,19 +845,17 @@ namespace zero.core.patterns.semaphore.core
                         Thread.Yield();
                     }
 
-                    latch = _signalAwaiter[headMod = (headLatch = _head) % _maxBlockers];
-
                     if (_zeroed > 0)
                         break;
 
                     if (_curSignalCount == 0)
                         bestEffort = true;
+
+                    latch = _signalAwaiter[headMod = (headLatch = _head) % _maxBlockers];
                 }
 
                 if (worker.Continuation != latch || latch == ZeroSentinel || latch == null)
                 {
-                    //Interlocked.Decrement(ref _head);
-
                     if (Zeroed())
                         break;
 

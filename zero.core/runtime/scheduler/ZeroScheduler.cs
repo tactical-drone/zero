@@ -179,19 +179,19 @@ namespace zero.core.runtime.scheduler
         private long _completedQItemCount;
         private volatile int _lastSpawnedWorker;
 
-        public IEnumerable<int> Active => _workerPunchCards.Take(_workerCount).Where(t => t >= 0);
-        public IEnumerable<int> Blocked => Active.Where(t => t != 0);
-        public IEnumerable<int> Free => Active.Where(t => t == 0);
+        public IEnumerable<int> Active => _workerPunchCards?.Take(_workerCount).Where(t => t >= 0);
+        public IEnumerable<int> Blocked => Active?.Where(t => t != 0);
+        public IEnumerable<int> Free => Active?.Where(t => t == 0);
 
-        public IEnumerable<int> QActive => _queenPunchCards.Take(_queenCount).Where(t => t >= 0);
-        public IEnumerable<int> QBlocked => QActive.Where(t => t != 0);
-        public IEnumerable<int> QFree => QActive.Where(t => t == 0);
+        public IEnumerable<int> QActive => _queenPunchCards?.Take(_queenCount).Where(t => t >= 0);
+        public IEnumerable<int> QBlocked => QActive?.Where(t => t != 0);
+        public IEnumerable<int> QFree => QActive?.Where(t => t == 0);
 
-        public int Load => Blocked.Count();
-        public int QLoad => QBlocked.Count();
-        public int WLength => _workQueue.Count;
+        public int Load => Blocked?.Count()??0;
+        public int QLoad => QBlocked?.Count()??0;
+        public int WLength => _workQueue?.Count??0;
 
-        public int QLength => _queenQueue.Count;
+        public int QLength => _queenQueue?.Count??0;
         public int ThreadCount => _workerCount;
         public int QThreadCount => _queenCount;
         public long CompletedWorkItemCount => _completedWorkItemCount;
