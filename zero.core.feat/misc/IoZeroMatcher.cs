@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Runtime.CompilerServices;
-using System.Runtime.InteropServices;
 using System.Security.Cryptography;
 using System.Threading;
 using System.Threading.Tasks;
@@ -101,7 +100,6 @@ namespace zero.core.feat.misc
 
             await _carHeap.ZeroManagedAsync<object>().FastPath().ConfigureAwait(Zc);
         }
-
 
         internal class ChallengeAsyncResponse
         {

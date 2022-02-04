@@ -24,7 +24,7 @@ namespace zero.test.core.patterns.queue
         void InsertTest()
         {
 
-            var bag = new IoBag<IoInt32>("test", 16, true);
+            var bag = new IoZeroQ<IoInt32>("test", 16, true);
 
             for (int i = 0; i < bag.Capacity - 1; i++)
             {
@@ -67,7 +67,7 @@ namespace zero.test.core.patterns.queue
         public async Task IteratorAsync()
         {
             var threads = 100;
-            var bag = new IoBag<IoInt32>("test", 128, true);
+            var bag = new IoZeroQ<IoInt32>("test", 128, true);
             await Task.Yield();
             var c = 0;
             foreach (var ioInt32 in bag)
@@ -81,7 +81,7 @@ namespace zero.test.core.patterns.queue
             {
                 insert.Add(Task.Factory.StartNew(static state =>
                 {
-                    var (@this,_bag, idx) = (ValueTuple<IoBagTest, IoBag<IoInt32>, int>)state!;
+                    var (@this,_bag, idx) = (ValueTuple<IoBagTest, IoZeroQ<IoInt32>, int>)state!;
                     _bag.Add(Interlocked.Increment(ref idx));
                 }, (this, bag, idx), TaskCreationOptions.DenyChildAttach));
             }
@@ -119,7 +119,7 @@ namespace zero.test.core.patterns.queue
         [Fact]
         void AutoScale()
         {
-            var bag = new IoBag<IoInt32>("test", 2, true);
+            var bag = new IoZeroQ<IoInt32>("test", 2, true);
 
             bag.Add(0);
             bag.Add(1);
@@ -156,7 +156,7 @@ namespace zero.test.core.patterns.queue
         [Fact]
         void ZeroSupport()
         {
-            var bag = new IoBag<IoInt32>("test", 2, true);
+            var bag = new IoZeroQ<IoInt32>("test", 2, true);
 
             bag.Add(0);
             bag.Add(1);

@@ -1,7 +1,6 @@
 ﻿using System;
 using System.Collections;
 using System.Collections.Generic;
-using System.ComponentModel;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Linq;
@@ -15,15 +14,15 @@ using zero.core.patterns.queue.enumerator;
 namespace zero.core.patterns.queue
 {
     /// <summary>
-    /// A lighter concurrent bag implementation
+    /// A lighter concurrent round robin Q
     /// </summary>
-    public class IoBag<T> : IEnumerable<T>
+    public class IoZeroQ<T> : IEnumerable<T>
     where T : class
     {
         /// <summary>
         /// Constructor
         /// </summary>
-        public IoBag(string description, int capacity, bool autoScale = false)
+        public IoZeroQ(string description, int capacity, bool autoScale = false)
         {
 #if DEBUG
             _description = description;
@@ -41,8 +40,8 @@ namespace zero.core.patterns.queue
                 _storage[0] = new T[_capacity];
 
                 var v = Log2((ulong)capacity) - 1;
-                bool scaled = false;
-                for (int i = 0; i < v; i++)
+                var scaled = false;
+                for (var i = 0; i < v; i++)
                 {
                     scaled = Scale(true);
                 }
@@ -57,11 +56,11 @@ namespace zero.core.patterns.queue
                 _storage[0] = new T[_capacity];
             }
 
-            _curEnumerator = new IoBagEnumerator<T>(this);
+            _curEnumerator = new IoQEnumerator<T>(this);
         }
 
         private volatile int _zeroed;
-        private readonly bool Zc = IoNanoprobe.ContinueOnCapturedContext;
+        private readonly bool _zc = IoNanoprobe.ContinueOnCapturedContext;
         private readonly string _description;
 
         private volatile T[][] _storage;
@@ -76,7 +75,7 @@ namespace zero.core.patterns.queue
         public long Head => _head;
         private long _head;
 
-        private volatile IoBagEnumerator<T> _curEnumerator;
+        private volatile IoQEnumerator<T> _curEnumerator;
 
         private volatile bool _autoScale;
 
@@ -88,7 +87,7 @@ namespace zero.core.patterns.queue
         /// <summary>
         /// Description
         /// </summary>
-        public string Description => $"{nameof(IoBag<T>)}: {nameof(Count)} = {_count}/{_capacity}, s = {IsAutoScaling}, h = {_head}/{_tail} (d:{_tail - _head}), desc = {_description}";
+        public string Description => $"{nameof(IoZeroQ<T>)}: {nameof(Count)} = {_count}/{_capacity}, s = {IsAutoScaling}, h = {_head}/{_tail} (d:{_tail - _head}), desc = {_description}";
 
         /// <summary>
         /// Current number of items in the bag
@@ -151,8 +150,8 @@ namespace zero.core.patterns.queue
                 {
                     var hwm = (1 << _virility + 1) * _capacity;
                     _storage[_virility + 1] = new T[hwm];
-                    Interlocked.Increment(ref _virility);
                     Interlocked.Add(ref _hwm, hwm);
+                    Interlocked.Increment(ref _virility);
                     return true;
                 }
                 return false;
@@ -187,8 +186,8 @@ namespace zero.core.patterns.queue
         }
 
 #if DEBUG
-        private volatile int _addsAttempted = 0;
-        private volatile int _adds = 0;
+        private volatile int _addsAttempted;
+        private volatile int _adds;
 #endif
         /// <summary>
         /// Add item to the bag
@@ -218,9 +217,8 @@ namespace zero.core.patterns.queue
 #if DEBUG
                 Interlocked.Increment(ref _addsAttempted);
 #endif
-
-                var insaneScale = 0;
-                long tailIdx = 0;
+                int insaneScale;
+                long tailIdx;
                 var tailMod = (tailIdx = _tail) % (insaneScale = Capacity);
                 T slot = null;
                 
@@ -247,7 +245,6 @@ namespace zero.core.patterns.queue
                     tailMod = (tailIdx = _tail) % (insaneScale = Capacity);
                 }
                 
-
                 //retry on scaling
                 if (insaneScale != Capacity)
                 {
@@ -305,8 +302,8 @@ namespace zero.core.patterns.queue
         }
 
 #if DEBUG
-        private volatile int _takesAttempted = 0;
-        private volatile int _takes = 0;
+        private volatile int _takesAttempted;
+        private volatile int _takes;
 #endif
 
         /// <summary>
@@ -317,9 +314,6 @@ namespace zero.core.patterns.queue
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public bool TryTake([MaybeNullWhen(false)] out T result)
         {
-#if DEBUG
-            var success = false;
-#endif
             result = null;
 
             try
@@ -330,9 +324,9 @@ namespace zero.core.patterns.queue
                 Interlocked.Increment(ref _takesAttempted);
 #endif
 
-                var insaneScale = 0;
-                long headLatch = 0;
-                long latchMod = 0;
+                int insaneScale;
+                long headLatch;
+                long latchMod;
                 var latch = this[latchMod = (headLatch = _head) % (insaneScale = Capacity)];//TODO: s?
 
                 var c = 0;
@@ -377,11 +371,7 @@ namespace zero.core.patterns.queue
                 if (c > 10000000)
                     Console.WriteLine($"[{c}] 4  (R) latch[{latchMod}] bad = {latch != result}, overflow = {headLatch > _tail}, scale = {insaneScale != Capacity}, {Description}");
 
-#if DEBUG
-                return success = true;       
-#else
                 return true;
-#endif
             }
             finally
             {
@@ -427,12 +417,12 @@ namespace zero.core.patterns.queue
                             continue;
 
                         if (op != null)
-                            await op(item, nanite).FastPath().ConfigureAwait(Zc);
+                            await op(item, nanite).FastPath().ConfigureAwait(_zc);
 
                         if (item is IIoNanite ioNanite)
                         {
                             if (!ioNanite.Zeroed())
-                                await ioNanite.Zero((IIoNanite)nanite, string.Empty).FastPath().ConfigureAwait(Zc);
+                                await ioNanite.Zero((IIoNanite)nanite, string.Empty).FastPath().ConfigureAwait(_zc);
                         }
                     }
                     catch (InvalidCastException) { }
@@ -489,9 +479,9 @@ namespace zero.core.patterns.queue
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public IEnumerator<T> GetEnumerator()
         {
-            _curEnumerator = (IoBagEnumerator<T>)_curEnumerator.Reuse(this, b => new IoBagEnumerator<T>((IoBag<T>)b));
-            return _curEnumerator;
-            //return new IoBagEnumerator<T>(this);
+            //_curEnumerator = (IoQEnumerator<T>)_curEnumerator.Reuse(this, b => new IoQEnumerator<T>((IoZeroQ<T>)b));
+            //return _curEnumerator;
+            return _curEnumerator = new IoQEnumerator<T>(this);
         }
 
         /// <summary>

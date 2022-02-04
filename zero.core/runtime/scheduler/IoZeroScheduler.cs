@@ -27,7 +27,7 @@ namespace zero.core.runtime.scheduler
         static IoZeroScheduler()
         {
             Zero = new IoZeroScheduler();
-            //ZeroDefault = Zero;
+            ZeroDefault = Zero;
 
             ZeroDefault = Default; //TODO: for now we use default which is still much better
         }
@@ -38,11 +38,11 @@ namespace zero.core.runtime.scheduler
             if(!Enabled)
                 return;
             _asyncTasks = asyncTasks?? new CancellationTokenSource();
-            _workerCount = Math.Max(Environment.ProcessorCount >> 2, 2);
+            _workerCount = Math.Max(Environment.ProcessorCount >> 1, 2);
             var capacity = MaxWorker;
 
-            Volatile.Write(ref _workQueue, new IoBag<Task>(string.Empty, capacity, true));
-            Volatile.Write(ref _queenQueue, new IoBag<ZeroSignal>(string.Empty, capacity, true));
+            Volatile.Write(ref _workQueue, new IoZeroQ<Task>(string.Empty, capacity, true));
+            Volatile.Write(ref _queenQueue, new IoZeroQ<ZeroSignal>(string.Empty, capacity, true));
             Volatile.Write(ref _signalHeap, new IoHeap<ZeroSignal>(string.Empty, capacity, true)
             {
                 Malloc = (_, _) => new ZeroSignal(),
@@ -72,12 +72,6 @@ namespace zero.core.runtime.scheduler
                 spawnQueen($"zero scheduler queen thread {i}", i, Volatile.Read(ref _queenQueue), null, ThreadPriority.Highest, QueenHandler);
             }
             Interlocked.Exchange(ref _queenCount, _workerCount);
-
-            //spawn queen thread.
-            Volatile.Write(ref _pollQueen[_queenCount], MallocQueenTaskCore);
-            spawnQueen($"zero scheduler queen thread {_queenCount}", _queenCount, Volatile.Read(ref _queenQueue), null, ThreadPriority.Highest, QueenHandler);
-
-            Interlocked.Increment(ref _queenCount);
 
             //new Thread(
             Task.Factory.StartNew(static state =>
@@ -110,7 +104,6 @@ namespace zero.core.runtime.scheduler
                                         {
                                             try
                                             {
-                                                Console.WriteLine($"Polling worker on {@this.WLength}");
                                                 @this._pollWorker[w].SetResult(true);
                                             }
                                             catch
@@ -156,7 +149,7 @@ namespace zero.core.runtime.scheduler
         private static readonly int WorkerExpireThreshold = 10;
         private static readonly int MaxLoad = Environment.ProcessorCount * 10;
 
-        private static readonly int MaxWorker = (int)Math.Pow(2, 14);
+        private static readonly int MaxWorker = (int)Math.Pow(2, 16);
         public static readonly TaskScheduler ZeroDefault;
         public static readonly IoZeroScheduler Zero;
         private CancellationTokenSource _asyncTasks;
@@ -165,8 +158,8 @@ namespace zero.core.runtime.scheduler
         private volatile int[] _workerPunchCards;
         private volatile int[] _queenPunchCards;
         private volatile int _dropWorker;
-        private volatile IoBag<Task> _workQueue;
-        private volatile IoBag<ZeroSignal> _queenQueue;
+        private volatile IoZeroQ<Task> _workQueue;
+        private volatile IoZeroQ<ZeroSignal> _queenQueue;
         private volatile IoHeap<ZeroSignal> _signalHeap;
         
         private volatile int _workerCount;
@@ -237,30 +230,32 @@ namespace zero.core.runtime.scheduler
                 {
                     try
                     {
-                        @this._pollWorker[i].SetResult(true);
-                        Interlocked.Exchange(ref s.Processed, 1);
+                        if (@this._workerPunchCards[i] == 0)
+                        {
+                            @this._pollWorker[i].SetResult(true);
+                            Interlocked.Exchange(ref s.Processed, 1);
 #if _TRACE_
-                        Console.WriteLine($"Polled worker {i} from queen {workerId}, for task {s.Task!.Id}");
+                            Console.WriteLine($"Polled worker {i} from queen {workerId}, for task {s.Task!.Id}");
 #endif
-                        //return mem
-                        s.Task = null;
-                        @this._signalHeap.Return(s);
-                        return;
+                            //return mem
+                            s.Task = null;
+                            @this._signalHeap.Return(s);
+                            return;
+                        }
                     }
                     catch
                     {
                         // ignored
                     }
                 }
-               
+                Interlocked.Exchange(ref s.Processed, 1);
                 try
                 {
                     //if there is nothing in the Q we don't have to spawn
                     if (@this._workQueue.Count == 0 || s.Task!.Status >= TaskStatus.WaitingToRun)
                         return;
 
-                    if (s.Task != null && //@this._lastSpawnedWorker.ElapsedMs() > WorkerSpawnRate &&
-                        s.Task.Status <= TaskStatus.WaitingToRun)
+                    if (s.Task != null && @this._lastSpawnedWorker.ElapsedMs() > WorkerSpawnRate && s.Task.Status <= TaskStatus.WaitingToRun)
                     {
                         var newWorkerId = Interlocked.Increment(ref @this._workerCount) - 1;
                         if (newWorkerId < MaxWorker)
@@ -286,7 +281,6 @@ namespace zero.core.runtime.scheduler
                 }
                 finally
                 {
-                    Interlocked.Exchange(ref s.Processed, 1);
                     s.Task = null;
                     @this._signalHeap.Return(s);
                 }
@@ -321,7 +315,7 @@ namespace zero.core.runtime.scheduler
         /// <param name="queue">The Q o use</param>
         /// <param name="priority">Thread priority</param>
         /// <param name="callback">work handler</param>
-        private void SpawnWorker<T>(string desc, int j, IoBag<T> queue, Task prime = null, ThreadPriority priority = ThreadPriority.Normal, Func<IoZeroScheduler, T, int, bool> callback = null) where T : class
+        private void SpawnWorker<T>(string desc, int j, IoZeroQ<T> queue, Task prime = null, ThreadPriority priority = ThreadPriority.Normal, Func<IoZeroScheduler, T, int, bool> callback = null) where T : class
         {
             //Thread.CurrentThread.Priority = priority;
 #if !DEBUG
@@ -343,7 +337,7 @@ var d = 0;
                 try
                 {
                     var (@this, queue, desc, workerId, prime, callback, priority) =
-                        (ValueTuple<IoZeroScheduler, IoBag<T>, string, int, Task, Func<IoZeroScheduler, T, int, bool>, ThreadPriority>)state;
+                        (ValueTuple<IoZeroScheduler, IoZeroQ<T>, string, int, Task, Func<IoZeroScheduler, T, int, bool>, ThreadPriority>)state;
 
                     //if (priority >= ThreadPriority.AboveNormal)
                     //    ExecutionContext.SuppressFlow();

@@ -36,7 +36,7 @@ namespace zero.core.patterns.heap
         public IoHeap(string description, int capacity, bool autoScale = false, TContext context = null)
         {
             _description = description;
-            _ioHeapBuf = new IoBag<TItem>($"{nameof(_ioHeapBuf)}: {description}", capacity, autoScale);
+            _ioHeapBuf = new IoZeroQ<TItem>($"{nameof(_ioHeapBuf)}: {description}", capacity, autoScale);
             Context = context;
             Malloc = default;
         }
@@ -74,7 +74,7 @@ namespace zero.core.patterns.heap
         /// <summary>
         /// The heap buffer space
         /// </summary>
-        private IoBag<TItem> _ioHeapBuf;
+        private IoZeroQ<TItem> _ioHeapBuf;
 
         /// <summary>
         /// The current WorkHeap size

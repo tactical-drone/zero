@@ -2,11 +2,11 @@
 
 namespace zero.core.runtime.scheduler
 {
-    public class ZeroWorker
+    public class IoZeroWorker
     {
         private readonly TaskScheduler _scheduler;
 
-        public ZeroWorker(TaskScheduler scheduler)
+        public IoZeroWorker(TaskScheduler scheduler)
         {
             _scheduler = scheduler;
         }
