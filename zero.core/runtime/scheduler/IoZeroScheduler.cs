@@ -81,11 +81,7 @@ namespace zero.core.runtime.scheduler
                 {
                     try
                     {
-                        var fuckingValue = @this._lastWorkerDispatched.ElapsedMs();
-                        var omfg1 = @this._workQueue.Count > 0;
-                        var omfg2 = fuckingValue > WorkerSpawnRate;
-                        var omfg = omfg1 && omfg2;
-                        if ( /*@this.Blocked.Count() == _workerCount &&*/ omfg)
+                        if (@this._workQueue.Count > 0 && @this._lastWorkerDispatched.ElapsedMs() > WorkerSpawnRate)
                         {
                             //int newWorkerId;
 
@@ -145,7 +141,7 @@ namespace zero.core.runtime.scheduler
         }
 
         private static readonly int SlowWorkerThreshold = 5000;
-        private static readonly int WorkerSpawnRate = 16*100;
+        private static readonly int WorkerSpawnRate = 16*10;
         private static readonly int WorkerExpireThreshold = 10;
         private static readonly int MaxLoad = Environment.ProcessorCount * 10;
 
@@ -170,7 +166,7 @@ namespace zero.core.runtime.scheduler
         //private int _qload;
         private long _completedWorkItemCount;
         private long _completedQItemCount;
-        private volatile int _lastSpawnedWorker;
+        private volatile int _lastSpawnedWorker = Environment.TickCount;
 
         public IEnumerable<int> Active => _workerPunchCards?.Take(_workerCount).Where(t => t >= 0);
         public IEnumerable<int> Blocked => Active?.Where(t => t != 0);
@@ -226,36 +222,36 @@ namespace zero.core.runtime.scheduler
                     return;
                 }
 
-                for(var i = @this._workerCount; i -- > 0;)
+                if (@this.Blocked.Count() < @this._workerCount)
                 {
-                    try
+                    for (var i = @this._workerCount; i-- > 0;)
                     {
-                        if (@this._workerPunchCards[i] == 0)
+                        try
                         {
-                            @this._pollWorker[i].SetResult(true);
-                            Interlocked.Exchange(ref s.Processed, 1);
+                            if (@this._workerPunchCards[i] == 0)
+                            {
+                                @this._pollWorker[i].SetResult(true);
+                                Interlocked.Exchange(ref s.Processed, 1);
 #if _TRACE_
                             Console.WriteLine($"Polled worker {i} from queen {workerId}, for task {s.Task!.Id}");
 #endif
-                            //return mem
-                            s.Task = null;
-                            @this._signalHeap.Return(s);
-                            return;
+                                //return mem
+                                s.Task = null;
+                                @this._signalHeap.Return(s);
+                                return;
+                            }
+                        }
+                        catch
+                        {
+                            // ignored
                         }
                     }
-                    catch
-                    {
-                        // ignored
-                    }
                 }
+                
                 Interlocked.Exchange(ref s.Processed, 1);
                 try
                 {
-                    //if there is nothing in the Q we don't have to spawn
-                    if (@this._workQueue.Count == 0 || s.Task!.Status >= TaskStatus.WaitingToRun)
-                        return;
-
-                    if (s.Task != null && @this._lastSpawnedWorker.ElapsedMs() > WorkerSpawnRate && s.Task.Status <= TaskStatus.WaitingToRun)
+                    if (@this._lastSpawnedWorker.ElapsedMs() > WorkerSpawnRate)
                     {
                         var newWorkerId = Interlocked.Increment(ref @this._workerCount) - 1;
                         if (newWorkerId < MaxWorker)
@@ -289,7 +285,7 @@ namespace zero.core.runtime.scheduler
 
             var d = ts.ElapsedMs();
             if(d > 0)
-                Console.WriteLine($"QUEEN SPEED => {d} ms");
+                Console.WriteLine($"QUEEN SLOW => {d} ms");
             return true;
         }
 
@@ -318,8 +314,8 @@ namespace zero.core.runtime.scheduler
         private void SpawnWorker<T>(string desc, int j, IoZeroQ<T> queue, Task prime = null, ThreadPriority priority = ThreadPriority.Normal, Func<IoZeroScheduler, T, int, bool> callback = null) where T : class
         {
             //Thread.CurrentThread.Priority = priority;
-#if !DEBUG
-#if !__TRACE__
+#if DEBUG
+#if __TRACE__
 var d = 0;
             if (Active.Any())
             {
@@ -640,7 +636,7 @@ var d = 0;
         private bool PollQueen(Task task)
         {
             //if there is a queen to be polled
-            if (_queenCount - QBlocked.Count() <= 0)
+            if (_queenCount - QBlocked.Count() <= 0)//TODO: what is going on here?
                 return false;
 
             ZeroSignal zeroSignal = null;
