@@ -23,13 +23,13 @@ namespace zero.core.runtime.scheduler
     /// </summary>
     public class IoZeroScheduler : TaskScheduler
     {
-        public static bool Enabled = true;
+        public static bool Enabled = false;
         static IoZeroScheduler()
         {
             Zero = new IoZeroScheduler();
-            ZeroDefault = Zero;
+            //ZeroDefault = Zero;
 
-            //ZeroDefault = Default; //TODO: for now we use default which is still much better
+            ZeroDefault = Default; //TODO: for now we use default which is still much better
         }
         public IoZeroScheduler(CancellationTokenSource asyncTasks = null)
         {
