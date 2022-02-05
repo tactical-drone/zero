@@ -85,7 +85,7 @@ namespace zero.core.patterns.heap
         /// <summary>
         /// The maximum heap size
         /// </summary>
-        public int Capacity => _ioHeapBuf.Capacity;
+        public int Capacity => (int)_ioHeapBuf.Capacity;
 
         /// <summary>
         /// The number of outstanding references

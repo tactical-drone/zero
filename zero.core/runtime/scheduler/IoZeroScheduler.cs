@@ -308,7 +308,7 @@ namespace zero.core.runtime.scheduler
         public long CompletedQItemCount => _completedWorkItemCount;
         public double LoadFactor => (double) Load / _workerCount;
         public double QLoadFactor => (double) QLoad / _queenCount;
-        public int Capacity => _workQueue.Capacity;
+        public long Capacity => _workQueue.Capacity;
 
         static IoManualResetValueTaskSource<bool> MallocWorkTaskCore => new IoManualResetValueTaskSource<bool>(runContinuationsAsynchronously: false, runContinuationsNatively: true);
         static IoManualResetValueTaskSource<bool> MallocQueenTaskCore => new IoManualResetValueTaskSource<bool>(runContinuationsAsynchronously: false, runContinuationsNatively: false);
@@ -527,6 +527,7 @@ var d = 0;
 #if !_TRACE_
                                         Console.WriteLine($"Queen {workerId} unblocking... FAILED! version = {(short)taskCore.Version}");
 #endif
+                                        taskCore.Reset();
                                         continue;
                                     }
                                 }
@@ -538,6 +539,7 @@ var d = 0;
 #if !_TRACE_
                                         Console.WriteLine($"Worker {workerId} unblocking... FAILED! version = {(short)taskCore.Version}");
 #endif
+                                        taskCore.Reset();
                                         continue;
                                     }
                                 }

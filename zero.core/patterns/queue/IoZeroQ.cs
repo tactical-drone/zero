@@ -101,7 +101,7 @@ namespace zero.core.patterns.queue
         /// <summary>
         /// Capacity
         /// </summary>
-        public int Capacity => IsAutoScaling ? _capacity * ((1 << (_virility + 1)) - 1) : _capacity;
+        public long Capacity => IsAutoScaling ? unchecked(_capacity * ((1 << (_virility + 1)) - 1)) : _capacity;
 
         /// <summary>
         /// Whether we are auto scaling
@@ -209,7 +209,7 @@ namespace zero.core.patterns.queue
 #if DEBUG
                 Interlocked.Increment(ref _addsAttempted);
 #endif
-                int insaneScale;
+                long insaneScale;
                 long tailIdx;
 
                 var result = Sentinel;
@@ -225,6 +225,18 @@ namespace zero.core.patterns.queue
                     }
                     else if (c > 10000000)
                     {
+                        //TODO: bugs? Attempt to recover...
+                        if (_count == Tail - Head)
+                        {
+                            Interlocked.Increment(ref _tail);
+                            Interlocked.Increment(ref _count);
+                        }
+                        else//TODO: unrecoverable bug?
+                        {
+                            Console.WriteLine($"[{c}] 3 [CRITICAL LOCK FAILURE!!!] latch[{tailMod}]~[{Tail % insaneScale}] bad = {result != null}({result != Sentinel}), overflow = {tailIdx >= Head + insaneScale}, has space = {_count < insaneScale}, scale failure = {insaneScale != Capacity}, {Description}");
+                            break;
+                        }
+
                         Thread.Yield();
                     }
 
@@ -311,7 +323,7 @@ namespace zero.core.patterns.queue
 #if DEBUG
                 Interlocked.Increment(ref _takesAttempted);
 #endif
-                int insaneScale;
+                long insaneScale;
                 long headLatch;
                 long latchMod;
                 
@@ -336,6 +348,7 @@ namespace zero.core.patterns.queue
                         else//TODO: unrecoverable bug?
                         {
                             Console.WriteLine($"[{c}] 4 [CRITICAL LOCK FAILURE!!!] latch[{latchMod}] bad = {latch != result}({latch == null}), overflow = {headLatch > Tail}, scale failure = {insaneScale != Capacity}, {Description}");
+                            break;
                         }
                             
                         Thread.Yield();

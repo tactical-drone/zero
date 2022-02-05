@@ -31,7 +31,7 @@ namespace zero.test.core.patterns.queue
                 bag.TryEnqueue(i);
             }
 
-            Assert.True(bag.Contains(bag.Capacity / 2));
+            Assert.True(bag.Contains((IoInt32)(bag.Capacity / 2)));
 
             var sb = new StringBuilder();
 

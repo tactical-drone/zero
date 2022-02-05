@@ -801,7 +801,7 @@ namespace zero.core.patterns.semaphore.core
                 long headLatch = 0;
                 long headMod = 0;
                 var c = 0;
-                var latch = _signalAwaiter[headMod = (headLatch = Head) % _maxBlockers];//TODO: bug
+                var latch = Volatile.Read(ref _signalAwaiter[headMod = (headLatch = Head) % _maxBlockers]);
                 while (
                     _curWaitCount > 0 &&
                     (
@@ -827,7 +827,7 @@ namespace zero.core.patterns.semaphore.core
                     if (_curSignalCount == 0)
                         bestEffort = true;
 
-                    latch = _signalAwaiter[headMod = (headLatch = Head) % _maxBlockers];
+                    latch = Volatile.Read(ref _signalAwaiter[headMod = (headLatch = Head) % _maxBlockers]);
                 }
 
                 if (worker.Continuation != latch || latch == ZeroSentinel || latch == null)

@@ -78,15 +78,15 @@ namespace zero.core.patterns.semaphore.core
         {
             if (reset)
             {
-                if (_continuation != ManualResetValueTaskSourceCoreShared.SSentinel && _continuation != null)
+                if (_completed || _continuation != ManualResetValueTaskSourceCoreShared.SSentinel && _continuation != null)
                 {
                     Reset();
                     return true;
                 }
 
-                return _continuation != ManualResetValueTaskSourceCoreShared.SSentinel && GetStatus((short)Version) == ValueTaskSourceStatus.Pending;
+                return _continuation != ManualResetValueTaskSourceCoreShared.SSentinel;// && GetStatus((short)Version) == ValueTaskSourceStatus.Pending;
             }
-            return _continuation != null && _continuation != ManualResetValueTaskSourceCoreShared.SSentinel && !_completed && GetStatus((short)Version) == ValueTaskSourceStatus.Pending;
+            return _continuation != null && _continuation != ManualResetValueTaskSourceCoreShared.SSentinel && !_completed;// && GetStatus((short)Version) == ValueTaskSourceStatus.Pending;
         }
 
         /// <summary>Completes with a successful result.</summary>
