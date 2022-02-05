@@ -84,9 +84,9 @@ namespace zero.core.patterns.semaphore.core
                     return true;
                 }
 
-                return _continuation != ManualResetValueTaskSourceCoreShared.SSentinel;
+                return _continuation != ManualResetValueTaskSourceCoreShared.SSentinel && GetStatus((short)Version) == ValueTaskSourceStatus.Pending;
             }
-            return _continuation != null && _continuation != ManualResetValueTaskSourceCoreShared.SSentinel;
+            return _continuation != null && _continuation != ManualResetValueTaskSourceCoreShared.SSentinel && !_completed && GetStatus((short)Version) == ValueTaskSourceStatus.Pending;
         }
 
         /// <summary>Completes with a successful result.</summary>

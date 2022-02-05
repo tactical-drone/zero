@@ -5,11 +5,13 @@ using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
 using NLog;
 using zero.core.patterns.misc;
 using zero.core.patterns.queue.enumerator;
+using zero.@unsafe.core.math;
 
 namespace zero.core.patterns.queue
 {
@@ -39,7 +41,7 @@ namespace zero.core.patterns.queue
                 _storage = new T[32][];
                 _storage[0] = new T[_capacity];
 
-                var v = Log2((ulong)capacity) - 1;
+                var v = IoMath.Log2((ulong)capacity) - 1;
                 var scaled = false;
                 for (var i = 0; i < v; i++)
                 {
@@ -66,13 +68,15 @@ namespace zero.core.patterns.queue
         private volatile T[][] _storage;
 
         private readonly object _syncRoot = new();
+        // ReSharper disable once StaticMemberInGenericType
+        private static readonly object Sentinel = new();
         private volatile int _capacity;
         private volatile int _virility;
         private long _hwm;
         private volatile int _count;
-        public long Tail => _tail;
+        public long Tail => Interlocked.Read(ref _tail);
         private long _tail;
-        public long Head => _head;
+        public long Head => Interlocked.Read(ref _head);
         private long _head;
 
         private volatile IoQEnumerator<T> _curEnumerator;
@@ -87,7 +91,7 @@ namespace zero.core.patterns.queue
         /// <summary>
         /// Description
         /// </summary>
-        public string Description => $"{nameof(IoZeroQ<T>)}: {nameof(Count)} = {_count}/{_capacity}, s = {IsAutoScaling}, h = {_head}/{_tail} (d:{_tail - _head}), desc = {_description}";
+        public string Description => $"{nameof(IoZeroQ<T>)}: {nameof(Count)} = {_count}/{Capacity}, s = {IsAutoScaling}, h = {Head}/{Tail} (d:{Tail - Head}), desc = {_description}";
 
         /// <summary>
         /// Current number of items in the bag
@@ -105,7 +109,7 @@ namespace zero.core.patterns.queue
         public bool IsAutoScaling => _autoScale;
 
         /// <summary>
-        /// Bag item by index
+        /// Q item by index
         /// </summary>
         /// <param name="idx">index</param>
         /// <returns>Object stored at index</returns>
@@ -114,11 +118,10 @@ namespace zero.core.patterns.queue
             get
             {
                 Debug.Assert(idx >= 0);
-                if (!IsAutoScaling || idx < _capacity) return _storage[0][idx];
+                if (!IsAutoScaling || idx < _capacity) return Volatile.Read(ref _storage[0][idx]);
 
-                var f = idx / _capacity;
-                var i = Log2((ulong)f + 1);
-                return _storage[i][idx - ((1 << i) - 1) * _capacity];
+                var i = IoMath.Log2((ulong)idx + 1);
+                return Volatile.Read(ref _storage[i][idx - ((1 << i) - 1)]);
             }
             protected set
             {
@@ -129,9 +132,8 @@ namespace zero.core.patterns.queue
                     return;
                 }
 
-                var f = idx / _capacity;
-                var i = Log2((ulong)f + 1);
-                _storage[i][idx - ((1 << i) - 1) * _capacity] = value;
+                var i = IoMath.Log2((ulong)idx + 1);
+                _storage[i][idx - ((1 << i) - 1)] = value;
             }
         }
 
@@ -148,7 +150,7 @@ namespace zero.core.patterns.queue
             {
                 if (_count >= Capacity || force)
                 {
-                    var hwm = (1 << _virility + 1) * _capacity;
+                    var hwm = 1 << (_virility + 1);
                     _storage[_virility + 1] = new T[hwm];
                     Interlocked.Add(ref _hwm, hwm);
                     Interlocked.Increment(ref _virility);
@@ -158,16 +160,6 @@ namespace zero.core.patterns.queue
             }
         }
 
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static int Log2(ulong value)
-        {
-            int i;
-            for (i = -1; value != 0; i++)
-                value >>= 1;
-
-            return (i == -1) ? 0 : i;
-        }
-
         /// <summary>
         /// Wraps Interlocked.CompareExchange that copes with horizontal scaling
         /// </summary>
@@ -175,14 +167,14 @@ namespace zero.core.patterns.queue
         /// <param name="value">The new value</param>
         /// <param name="compare">The compare value</param>
         /// <returns>The previous value</returns>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private T CompareExchange(long idx, T value, T compare)
         {
             if (!IsAutoScaling || idx < _capacity)
                 return Interlocked.CompareExchange(ref _storage[0][idx], value, compare);
 
-            var f = idx / _capacity;
-            var i = Log2((ulong)f + 1);
-            return Interlocked.CompareExchange(ref _storage[i][idx - ((1 << i) - 1) * _capacity], value, compare);
+            var i = IoMath.Log2((ulong)idx + 1);
+            return Interlocked.CompareExchange(ref _storage[i][idx - ((1 << i) - 1)], value, compare);
         }
 
 #if DEBUG
@@ -219,18 +211,17 @@ namespace zero.core.patterns.queue
 #endif
                 int insaneScale;
                 long tailIdx;
-                var tailMod = (tailIdx = _tail) % (insaneScale = Capacity);
-                T slot = null;
-                
+
+                var result = Sentinel;
                 var c = 0;
+                var tailMod = (tailIdx = Tail) % (insaneScale = Capacity);
                 while (
                     _count < insaneScale && 
-                    (tailIdx > _head + insaneScale || insaneScale == Capacity && (slot = CompareExchange(tailMod, item, null)) != null))
+                    (tailIdx > Head + insaneScale || insaneScale == Capacity && (result = CompareExchange(tailMod, item, null)) != null))
                 {
                     if (++c == 10000000)
                     {
-                        Console.WriteLine(
-                            $"[{c}] 3 latch[{tailMod}]~[{_tail % insaneScale}] bad = {slot != null}, overflow = {tailIdx >= _head + insaneScale}, has space = {_count < insaneScale}, {Description}");
+                        Console.WriteLine($"[{c}] 3 latch[{tailMod}]~[{Tail % insaneScale}] bad = {result != null}({result != Sentinel}), overflow = {tailIdx >= Head + insaneScale}, has space = {_count < insaneScale}, scale failure = {insaneScale != Capacity}, {Description}");
                     }
                     else if (c > 10000000)
                     {
@@ -240,9 +231,8 @@ namespace zero.core.patterns.queue
                     if (Zeroed)
                         break;
 
-                    slot = null;
-
-                    tailMod = (tailIdx = _tail) % (insaneScale = Capacity);
+                    result = Sentinel;
+                    tailMod = (tailIdx = Tail) % (insaneScale = Capacity);
                 }
                 
                 //retry on scaling
@@ -252,7 +242,7 @@ namespace zero.core.patterns.queue
                 }
 
                 //if success
-                if (slot == null)
+                if (result == null)
                 {
                     Interlocked.Increment(ref _count);//count first
                     Interlocked.Increment(ref _tail);
@@ -262,8 +252,6 @@ namespace zero.core.patterns.queue
 #endif
                     return (int)tailIdx;
                 }
-
-                Interlocked.Decrement(ref _tail);
 
                 if (Zeroed)
                     return -1;
@@ -307,7 +295,7 @@ namespace zero.core.patterns.queue
 #endif
 
         /// <summary>
-        /// Try take from the bag, round robin
+        /// Try take from the Q, round robin
         /// </summary>
         /// <param name="result">The item to be fetched</param>
         /// <returns>True if an item was found and returned, false otherwise</returns>
@@ -323,23 +311,33 @@ namespace zero.core.patterns.queue
 #if DEBUG
                 Interlocked.Increment(ref _takesAttempted);
 #endif
-
                 int insaneScale;
                 long headLatch;
                 long latchMod;
-                var latch = this[latchMod = (headLatch = _head) % (insaneScale = Capacity)];//TODO: s?
-
+                
                 var c = 0;
+                var latch = this[latchMod = (headLatch = Head) % (insaneScale = Capacity)];//TODO: s?
                 while (_count > 0 && 
                     insaneScale == Capacity &&
-                    (headLatch > _tail || latch == null || (result = CompareExchange(latchMod, null, latch)) != latch))
+                    (headLatch > Tail || latch == null || (result = CompareExchange(latchMod, null, latch)) != latch))
                 {
                     if (++c == 10000000)
                     {
-                        Console.WriteLine($"[{c}] 4  latch[{latchMod}] bad = {latch != result}({latch == null}), overflow = {headLatch > _tail}, scale = {insaneScale != Capacity}, {Description}");
+                        Console.WriteLine($"[{c}] 4  latch[{latchMod}] bad = {latch != result}({latch == null}), overflow = {headLatch > Tail}, scale failure = {insaneScale != Capacity}, {Description}");
                     }
                     else if (c > 10000000)
                     {
+                        //TODO: bugs? Attempt to recover...
+                        if (_count == Tail - Head)
+                        {
+                            Interlocked.Increment(ref _head);
+                            Interlocked.Decrement(ref _count);
+                        }
+                        else//TODO: unrecoverable bug?
+                        {
+                            Console.WriteLine($"[{c}] 4 [CRITICAL LOCK FAILURE!!!] latch[{latchMod}] bad = {latch != result}({latch == null}), overflow = {headLatch > Tail}, scale failure = {insaneScale != Capacity}, {Description}");
+                        }
+                            
                         Thread.Yield();
                     }
 
@@ -347,29 +345,36 @@ namespace zero.core.patterns.queue
                         break;
                     result = null;
 
-                    latch = this[latchMod = (headLatch = _head) % (insaneScale = Capacity)];
+                    //Thread.Yield();
+                    latch = this[latchMod = (headLatch = Head) % (insaneScale = Capacity)];
                 }
                 
                 if (insaneScale != Capacity)
                 {
+                    if (result == latch)
+                    {
+                        if (CompareExchange(latchMod, result, null) != null)
+                            LogManager.GetCurrentClassLogger().Error($"{nameof(TryDequeue)}: Could not restore latch state!");
+                    }
                     return TryDequeue(out result);
                 }
 
                 if (result != latch || result == null)
                 {
+                    if (c > 10000000)
+                        Console.WriteLine($"[{c}] 4 [RECOVERED!!!] latch[{latchMod}] bad = {latch != result}, overflow = {headLatch > Tail}, scale = {insaneScale != Capacity}, {Description}");
                     result = null;
                     return false;
                 }
 
                 Interlocked.Decrement(ref _count); //count first
                 Interlocked.Increment(ref _head);
-
 #if DEBUG
                 Interlocked.Increment(ref _takes);       
 #endif
 
                 if (c > 10000000)
-                    Console.WriteLine($"[{c}] 4  (R) latch[{latchMod}] bad = {latch != result}, overflow = {headLatch > _tail}, scale = {insaneScale != Capacity}, {Description}");
+                    Console.WriteLine($"[{c}] 4  (R) latch[{latchMod}] bad = {latch != result}, overflow = {headLatch > Tail}, scale = {insaneScale != Capacity}, {Description}");
 
                 return true;
             }
@@ -389,7 +394,7 @@ namespace zero.core.patterns.queue
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public bool TryPeek([MaybeNullWhen(false)] out T result)
         {
-            return (result = this[_head % Capacity]) != null;
+            return (result = this[Head % Capacity]) != null;
         }
 
         /// <summary>
@@ -479,9 +484,9 @@ namespace zero.core.patterns.queue
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public IEnumerator<T> GetEnumerator()
         {
-            //_curEnumerator = (IoQEnumerator<T>)_curEnumerator.Reuse(this, b => new IoQEnumerator<T>((IoZeroQ<T>)b));
-            //return _curEnumerator;
-            return _curEnumerator = new IoQEnumerator<T>(this);
+            _curEnumerator = (IoQEnumerator<T>)_curEnumerator.Reuse(this, b => new IoQEnumerator<T>((IoZeroQ<T>)b));
+            return _curEnumerator;
+            //return _curEnumerator = new IoQEnumerator<T>(this);
         }
 
         /// <summary>

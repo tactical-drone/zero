@@ -2,14 +2,8 @@
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
-using System.Runtime.CompilerServices;
-using System.Runtime.InteropServices.ComTypes;
-using System.Security.Cryptography;
 using System.Threading;
 using System.Threading.Tasks;
-using System.Threading.Tasks.Sources;
-using NLog;
-using NLog.LayoutRenderers;
 using zero.core.misc;
 using zero.core.patterns.heap;
 using zero.core.patterns.misc;
@@ -39,25 +33,37 @@ namespace zero.core.runtime.scheduler
                 return;
             _asyncTasks = asyncTasks?? new CancellationTokenSource();
             _workerCount = Math.Max(Environment.ProcessorCount >> 1, 2);
+            _queenCount = 4;
             var capacity = MaxWorker;
 
-            Volatile.Write(ref _workQueue, new IoZeroQ<Task>(string.Empty, capacity, true));
-            Volatile.Write(ref _queenQueue, new IoZeroQ<ZeroSignal>(string.Empty, capacity, true));
-            Volatile.Write(ref _signalHeap, new IoHeap<ZeroSignal>(string.Empty, capacity, true)
+            _workQueue = new IoZeroQ<Task>(string.Empty, capacity, false);
+            _queenQueue = new IoZeroQ<ZeroSignal>(string.Empty, capacity, false);
+            _signalHeap = new IoHeap<ZeroSignal>(string.Empty, capacity, false)
             {
                 Malloc = (_, _) => new ZeroSignal(),
                 PopAction = (signal, _) =>
                 {
                     signal.Processed = 0;
                 }
-            });
-            Volatile.Write(ref _pollWorker, new IoManualResetValueTaskSource<bool>[MaxWorker]);
-            Volatile.Write(ref _pollQueen, new IoManualResetValueTaskSource<bool>[MaxWorker]);
-            Volatile.Write(ref _workerPunchCards, new int[MaxWorker]);
+            };
+
+            _diagnosticsHeap = new IoHeap<List<int>>(string.Empty, capacity, false)
+            {
+                Malloc = (context, _) => new List<int>((int)context),
+                PopAction = (list, _) =>
+                {
+                    list.Clear();
+                }
+            };
+
+            _pollWorker = new IoManualResetValueTaskSource<bool>[MaxWorker];
+            _pollQueen = new IoManualResetValueTaskSource<bool>[MaxWorker];
+            _workerPunchCards = new int[MaxWorker];
             Array.Fill(_workerPunchCards, -1);
-            Volatile.Write(ref _queenPunchCards, new int[MaxWorker]);
+            _queenPunchCards = new int[MaxWorker];
             Array.Fill(_queenPunchCards, -1);
 
+            //These two functions seem to be blending state after continuations, separating them manually might help?
             var spawnQueen = SpawnWorker<ZeroSignal>;
             var spawnWorker = SpawnWorker<Task>;
 
@@ -65,14 +71,18 @@ namespace zero.core.runtime.scheduler
             {
                 //spawn worker thread
                 Volatile.Write(ref _pollWorker[i], MallocWorkTaskCore);
-                spawnWorker($"zero scheduler worker thread {i}", i, Volatile.Read(ref _workQueue), null, ThreadPriority.Normal, WorkerHandler);
+                spawnWorker($"zero scheduler worker thread {i}", i, _workQueue, null, ThreadPriority.Normal, WorkerHandler);
+            }
 
+            for (var i = 0; i < _queenCount; i++)
+            {
                 //spawn queen thread.
                 Volatile.Write(ref _pollQueen[i], MallocQueenTaskCore);
-                spawnQueen($"zero scheduler queen thread {i}", i, Volatile.Read(ref _queenQueue), null, ThreadPriority.Highest, QueenHandler);
+                spawnQueen($"zero scheduler queen thread {i}", i, _queenQueue, null,
+                    ThreadPriority.Highest, QueenHandler);
             }
-            Interlocked.Exchange(ref _queenCount, _workerCount);
 
+            //TODO: Why does a thread here cause catastrophic failure of code execution?
             //new Thread(
             Task.Factory.StartNew(static state =>
             {
@@ -83,19 +93,15 @@ namespace zero.core.runtime.scheduler
                     {
                         if (@this._workQueue.Count > 0 && @this._lastWorkerDispatched.ElapsedMs() > WorkerSpawnRate)
                         {
-                            //int newWorkerId;
-
-                            //if ((newWorkerId = Interlocked.Increment(ref _workerCount) - 1) < MaxWorker)
+                            _ = Task.Factory.StartNew(static state =>
                             {
-                                //Console.WriteLine($"pre-added zero scheduler (one-shot) worker thread {newWorkerId}, q = {@this._workQueue.Count}");
-                                //Volatile.Write(ref @this._pollWorker[newWorkerId], MallocWorkTaskCore);
-                                //@this.SpawnWorker($"zero scheduler (one-shot) worker thread {newWorkerId}", newWorkerId, queue: Volatile.Read(ref @this._workQueue), callback: WorkerHandler, priority: ThreadPriority.AboveNormal);
-                                _ = Task.Factory.StartNew(static state =>
+                                var @this = (IoZeroScheduler)state;
+                                if (@this._workQueue.TryPeek(out var head))
                                 {
-                                    var @this = (IoZeroScheduler)state;
-                                    if (@this._workQueue.TryPeek(out var head))
+                                    var z = @this.Active;
+                                    try
                                     {
-                                        var w = @this.Active.ToList().FindIndex(t => t == 0);
+                                        var w = z.FindIndex(t => t == 0);
                                         if (w != -1)
                                         {
                                             try
@@ -113,12 +119,12 @@ namespace zero.core.runtime.scheduler
                                                 $"added zero scheduler (one-shot) worker thread task id = {head.Id} , status = {head.Status}");
                                         }
                                     }
-                                }, @this, CancellationToken.None, TaskCreationOptions.DenyChildAttach, Default);
-                            }
-                            //else
-                            //{ 
-                            //    Interlocked.Decrement(ref _workerCount);
-                            //}
+                                    finally
+                                    {
+                                        @this._diagnosticsHeap.Return(z);   
+                                    }
+                                }
+                            }, @this, CancellationToken.None, TaskCreationOptions.DenyChildAttach, Default);
                         }
 
                         Thread.Sleep(WorkerSpawnRate);
@@ -128,7 +134,7 @@ namespace zero.core.runtime.scheduler
                         // ignored
                     }
                 }
-            }, this, CancellationToken.None, TaskCreationOptions.DenyChildAttach, Default);
+            }, this, CancellationToken.None, TaskCreationOptions.LongRunning | TaskCreationOptions.DenyChildAttach, Default);
             //{
             //    IsBackground = true
             //}.Start(this);
@@ -145,39 +151,154 @@ namespace zero.core.runtime.scheduler
         private static readonly int WorkerExpireThreshold = 10;
         private static readonly int MaxLoad = Environment.ProcessorCount * 10;
 
-        private static readonly int MaxWorker = (int)Math.Pow(2, 16);
+        private static readonly int MaxWorker = (int)Math.Pow(2, Math.Max((Environment.ProcessorCount>>1) + 1, 17));
         public static readonly TaskScheduler ZeroDefault;
         public static readonly IoZeroScheduler Zero;
         private CancellationTokenSource _asyncTasks;
-        private volatile IoManualResetValueTaskSource<bool>[] _pollWorker;
-        private volatile IoManualResetValueTaskSource<bool>[] _pollQueen;
-        private volatile int[] _workerPunchCards;
-        private volatile int[] _queenPunchCards;
+        private IoManualResetValueTaskSource<bool>[] _pollWorker;
+        private IoManualResetValueTaskSource<bool>[] _pollQueen;
+        private int[] _workerPunchCards;
+        private int[] _queenPunchCards;
         private volatile int _dropWorker;
-        private volatile IoZeroQ<Task> _workQueue;
-        private volatile IoZeroQ<ZeroSignal> _queenQueue;
-        private volatile IoHeap<ZeroSignal> _signalHeap;
-        
+        private IoZeroQ<Task> _workQueue;
+        private IoZeroQ<ZeroSignal> _queenQueue;
+        private IoHeap<ZeroSignal> _signalHeap;
+        private IoHeap<List<int>> _diagnosticsHeap;
+
         private volatile int _workerCount;
         private volatile int _queenCount;
         private volatile int _lastWorkerDispatched;
-        private int _lastQueenDispatched;
-        //private int _load;
-        //private int _qload;
+        private volatile int _lastQueenDispatched;
         private long _completedWorkItemCount;
         private long _completedQItemCount;
         private volatile int _lastSpawnedWorker = Environment.TickCount;
 
-        public IEnumerable<int> Active => _workerPunchCards?.Take(_workerCount).Where(t => t >= 0);
-        public IEnumerable<int> Blocked => Active?.Where(t => t != 0);
-        public IEnumerable<int> Free => Active?.Where(t => t == 0);
+        public List<int> Active
+        {
+            get
+            {
+                var l = _diagnosticsHeap.Take(_workerCount);
+                if (l == null)
+                    return Array.Empty<int>().ToList();
 
-        public IEnumerable<int> QActive => _queenPunchCards?.Take(_queenCount).Where(t => t >= 0);
-        public IEnumerable<int> QBlocked => QActive?.Where(t => t != 0);
-        public IEnumerable<int> QFree => QActive?.Where(t => t == 0);
+                for (var i = 0; i < _workerCount; i++)
+                {
+                    if(_workerPunchCards[i] >= 0)
+                        l.Add(_workerPunchCards[i]);
+                }
 
-        public int Load => Blocked?.Count()??0;
-        public int QLoad => QBlocked?.Count()??0;
+                return l;
+            }
+        }
+
+        public List<int> Blocked
+        {
+            get
+            {
+                var l = _diagnosticsHeap.Take(_workerCount);
+                if (l == null)
+                    return Array.Empty<int>().ToList();
+
+                for (var i = 0; i < _workerCount; i++)
+                {
+                    if (_workerPunchCards[i] != 0)
+                        l.Add(_workerPunchCards[i]);
+                }
+
+                return l;
+            }
+        }
+        
+        public List<int> Free
+        {
+            get
+            {
+                var l = _diagnosticsHeap.Take(_workerCount);
+                if (l == null)
+                    return Array.Empty<int>().ToList();
+
+                for (var i = 0; i < _workerCount; i++)
+                {
+                    if (_workerPunchCards[i] == 0)
+                        l.Add(_workerPunchCards[i]);
+                }
+
+                return l;
+            }
+        }
+
+        public List<int> QActive
+        {
+            get
+            {
+                var l = _diagnosticsHeap.Take(_queenCount);
+                if (l == null)
+                    return Array.Empty<int>().ToList();
+
+                for (var i = 0; i < _queenCount; i++)
+                {
+                    if (_queenPunchCards[i] >= 0)
+                        l.Add(_queenPunchCards[i]);
+                }
+
+                return l;
+            }
+        }
+        public List<int> QBlocked
+        {
+            get
+            {
+                var l = _diagnosticsHeap.Take(_queenCount);
+                if (l == null)
+                    return Array.Empty<int>().ToList();
+                for (var i = 0; i < _queenCount; i++)
+                {
+                    if (_queenPunchCards[i] != 0)
+                        l.Add(_queenPunchCards[i]);
+                }
+
+                return l;
+            }
+        }
+        public List<int> QFree
+        {
+            get
+            {
+                var l = _diagnosticsHeap.Take(_queenCount);
+                if (l == null)
+                    return Array.Empty<int>().ToList();
+                for (var i = 0; i < _queenCount; i++)
+                {
+                    if (_queenPunchCards[i] == 0)
+                        l.Add(_queenPunchCards[i]);
+                }
+
+                return l;
+            }
+        }
+
+        public int Load
+        {
+            get
+            {
+                var z = Blocked;
+                var c = z.Count;
+                _diagnosticsHeap.Return(z);
+                return c;
+            }
+        }
+
+        public int QLoad
+        {
+            get
+            {
+                var qBlocked = QBlocked;
+                var c = qBlocked.Count;
+                _diagnosticsHeap.Return(qBlocked);
+                return c;
+            }
+        }
+
         public int WLength => _workQueue?.Count??0;
 
         public int QLength => _queenQueue?.Count??0;
@@ -194,98 +315,129 @@ namespace zero.core.runtime.scheduler
 
         /// <summary>
         /// Queens wake worker threads if there is work to be done. For every worker there is a queen managing it
-        ///
+        /// 
         /// This means workers are powered by the threads held by queens in a one to one fashion.
-        ///
+        /// 
         /// Workers in turn are powered by their own threads, doing the work. 
         /// </summary>
-        /// <param name="this"></param>
-        /// <param name="s"></param>
-        /// <returns></returns>
+        /// <param name="this">The scheduler</param>
+        /// <param name="s">The signal to be sent</param>
+        /// <param name="id">The queen id</param>
+        /// <returns>True if successful, false otherwise</returns>
         static bool QueenHandler(IoZeroScheduler @this, ZeroSignal s, int id)
         {
             var ts = Environment.TickCount;
 #if _TRACE_
             Console.WriteLine($"Queen ASYNC handler... POLLING WORKER..."); 
 #endif
-           
-            //poll a worker
-            ThreadPool.UnsafeQueueUserWorkItem(static state =>
-            {
-                var (@this,s,workerId) = (ValueTuple<IoZeroScheduler, ZeroSignal, int>)state;
-               
-                if (@this._workQueue.Count == 0 || s.Task!.Status > TaskStatus.WaitingToRun)
-                {
-                    Interlocked.Exchange(ref s.Processed, 1);
-                    s.Task = null;
-                    @this._signalHeap.Return(s);
-                    return;
-                }
 
-                if (@this.Blocked.Count() < @this._workerCount)
-                {
-                    for (var i = @this._workerCount; i-- > 0;)
+            if (s.Processed == 1 || s.Task.Status > TaskStatus.WaitingToRun)
+                return false;
+
+            //poll a worker
+            try
+            {
+                if (!ThreadPool.UnsafeQueueUserWorkItem(static state =>
                     {
+                        var (@this, s, workerId) = (ValueTuple<IoZeroScheduler, ZeroSignal, int>)state;
+
+                        if (s.Task.Status > TaskStatus.WaitingToRun)
+                        {
+                            Interlocked.Exchange(ref s.Processed, 1);
+                            s.Task = null;
+                            @this._signalHeap.Return(s);
+                            return;
+                        }
+
+                        var blocked = @this.Blocked;
                         try
                         {
-                            if (@this._workerPunchCards[i] == 0)
+                            if (blocked.Count() < @this._workerCount)
                             {
-                                @this._pollWorker[i].SetResult(true);
-                                Interlocked.Exchange(ref s.Processed, 1);
+                                for (var i = @this._workerCount; i-- > 0;)
+                                {
+                                    try
+                                    {
+                                        if (@this._workerPunchCards[i] == 0)
+                                        {
+                                            @this._pollWorker[i].SetResult(true);
+
 #if _TRACE_
                             Console.WriteLine($"Polled worker {i} from queen {workerId}, for task {s.Task!.Id}");
 #endif
-                                //return mem
-                                s.Task = null;
-                                @this._signalHeap.Return(s);
-                                return;
+                                            Interlocked.Exchange(ref s.Processed, 1);
+                                            s.Task = null;
+                                            @this._signalHeap.Return(s);
+                                            return;
+                                        }
+                                    }
+                                    catch
+                                    {
+                                        // ignored
+                                    }
+                                }
                             }
                         }
-                        catch
+                        finally
                         {
-                            // ignored
+                            @this._diagnosticsHeap.Return(blocked);
                         }
-                    }
-                }
-                
-                Interlocked.Exchange(ref s.Processed, 1);
-                try
-                {
-                    if (@this._lastSpawnedWorker.ElapsedMs() > WorkerSpawnRate)
-                    {
-                        var newWorkerId = Interlocked.Increment(ref @this._workerCount) - 1;
-                        if (newWorkerId < MaxWorker)
+
+                        //mark this signal as processed
+                        Interlocked.Exchange(ref s.Processed, 1);
+
+                        //spawn more workers, the ones we have are deadlocked
+                        try
                         {
+                            blocked = @this.Blocked;
+                            try
+                            {
+                                if (blocked.Count() >= @this._workerCount || @this._lastSpawnedWorker.ElapsedMs() > WorkerSpawnRate)
+                                {
+                                    var newWorkerId = Interlocked.Increment(ref @this._workerCount) - 1;
+                                    if (newWorkerId < MaxWorker)
+                                    {
 #if __TRACE__
-                            Console.WriteLine($"spawning more workers q[{newWorkerId}] = {@this._workQueue.Count}, l = {@this.Load}, {@this.Free.Count()}/{@this.Blocked.Count()}/{@this.Active.Count()}");
+                                    Console.WriteLine($"spawning more workers q[{newWorkerId}] = {@this._workQueue.Count}, l = {@this.Load}, {@this.Free.Count()}/{@this.Blocked.Count()}/{@this.Active.Count()}");
 #endif
+                                        Volatile.Write(ref @this._pollWorker[newWorkerId], MallocWorkTaskCore);
+                                        var spawnWorker = @this.SpawnWorker<Task>;
+                                        spawnWorker($"zero scheduler worker thread {newWorkerId}", newWorkerId, @this._workQueue, s.Task,ThreadPriority.Normal, WorkerHandler);
 
-                            Volatile.Write(ref @this._pollWorker[newWorkerId], MallocWorkTaskCore);
-                            @this.SpawnWorker($"zero scheduler worker thread {newWorkerId}", newWorkerId, Volatile.Read(ref @this._workQueue), s.Task, callback: WorkerHandler);
-
-                            var newQueenId = Interlocked.Increment(ref @this._queenCount) - 1;
-                            Volatile.Write(ref @this._pollQueen[newQueenId], MallocQueenTaskCore);
-                            @this.SpawnWorker($"zero scheduler queen thread {newQueenId}", newQueenId, Volatile.Read(ref @this._queenQueue), callback: QueenHandler);
-
-                            @this._lastSpawnedWorker = Environment.TickCount;
+                                        @this._lastSpawnedWorker = Environment.TickCount;
+                                    }
+                                    else
+                                    {
+                                        Interlocked.Decrement(ref @this._workerCount);
+                                    }
+                                }
+                            }
+                            finally
+                            {
+                                @this._diagnosticsHeap.Return(blocked);
+                            }
                         }
-                        else
+                        finally
                         {
-                            Interlocked.Decrement(ref @this._workerCount);
+                            s.Task = null;
+                            @this._signalHeap.Return(s);
                         }
-                    }
-                }
-                finally
-                {
-                    s.Task = null;
-                    @this._signalHeap.Return(s);
-                }
 
-            }, (@this,s, id));
+                    }, (@this, s, id)))
+                {
+                    Console.WriteLine($"Queen[{id}]: Unable to Q signal for task {s.Task.Id}, {ts.ElapsedMs()}ms, OOM");
+                    return false;
+                }
+            }
+            catch (Exception e)
+            {
+                Console.WriteLine(e);
+                return false;
+            }
 
             var d = ts.ElapsedMs();
-            if(d > 0)
-                Console.WriteLine($"QUEEN SLOW => {d} ms");
+            if(d > 1)
+                Console.WriteLine($"QUEEN{id} SLOW => {d}ms, q length = {@this.QLength}");
             return true;
         }
 
@@ -335,11 +487,8 @@ var d = 0;
                     var (@this, queue, desc, workerId, prime, callback, priority) =
                         (ValueTuple<IoZeroScheduler, IoZeroQ<T>, string, int, Task, Func<IoZeroScheduler, T, int, bool>, ThreadPriority>)state;
 
-                    //if (priority >= ThreadPriority.AboveNormal)
-                    //    ExecutionContext.SuppressFlow();
-
-                    //Prime task
-                    if (prime != null)
+                    //fast prime task to unwind current worker dead lockers
+                    if (prime is { Status: <= TaskStatus.WaitingToRun })
                         @this.TryExecuteTask(prime);
 #if DEBUG
                     var jobsProcessed = 0;
@@ -351,7 +500,7 @@ var d = 0;
                     //process tasks
                     while (!@this._asyncTasks.IsCancellationRequested)
                     {
-                        var blocked = false;
+                        var set = false;
                         try
                         {
                             //wait on work q pressure
@@ -368,16 +517,15 @@ var d = 0;
                                 }
 
 #endif
-                                blocked = true;
+                                set = true;
                                 var waitForPollCore = new ValueTask<bool>(taskCore, (short)taskCore.Version);
 
                                 if (priority == ThreadPriority.Highest)
                                 {
-                                    if (!await waitForPollCore.FastPath())
+                                    if (!await waitForPollCore.FastPath().ConfigureAwait(false))
                                     {
 #if !_TRACE_
-                                        Console.WriteLine(
-                                            $"Queen {workerId} unblocking... FAILED! version = {(short)taskCore.Version}");
+                                        Console.WriteLine($"Queen {workerId} unblocking... FAILED! version = {(short)taskCore.Version}");
 #endif
                                         continue;
                                     }
@@ -387,8 +535,9 @@ var d = 0;
                                 {
                                     if (!await waitForPollCore.FastPath())
                                     {
-                                        Console.WriteLine(
-                                            $"Worker {workerId} unblocking... FAILED! version = {(short)taskCore.Version}");
+#if !_TRACE_
+                                        Console.WriteLine($"Worker {workerId} unblocking... FAILED! version = {(short)taskCore.Version}");
+#endif
                                         continue;
                                     }
                                 }
@@ -408,21 +557,36 @@ var d = 0;
                             //congestion control
                             if (priority == ThreadPriority.Highest)
                             {
-                                if (@this.QBlocked.Count() >= MaxLoad)
+                                var qBlocked = @this.QBlocked;
+                                try
                                 {
-                                    await Task.Delay(@this.QLength / @this.QThreadCount * 100);
-                                    continue;
+                                    if (qBlocked.Count() >= MaxLoad)
+                                    {
+                                        await Task.Delay(@this.QLength / @this.QThreadCount * 100);
+                                        continue;
+                                    }
+                                }
+                                finally
+                                {
+                                    @this._diagnosticsHeap.Return(qBlocked);
                                 }
 
                                 @this._lastQueenDispatched = Environment.TickCount;
                             }
                             else
                             {
-
-                                if (@this.Blocked.Count() >= MaxLoad)
+                                var blocked = @this.Blocked;
+                                try
                                 {
-                                    await Task.Delay(@this.WLength / @this.ThreadCount * 100);
-                                    continue;
+                                    if (blocked.Count() >= MaxLoad)
+                                    {
+                                        await Task.Delay(@this.WLength / @this.ThreadCount * 100);
+                                        continue;
+                                    }
+                                }
+                                finally
+                                {
+                                    @this._diagnosticsHeap.Return(blocked);
                                 }
 
                                 @this._lastWorkerDispatched = Environment.TickCount;
@@ -478,6 +642,11 @@ var d = 0;
                             }
                             finally
                             {
+                                if (set)
+                                {
+                                    set = false;
+                                    taskCore.Reset();
+                                }
                                 if (priority == ThreadPriority.Normal)
                                 {
                                     Interlocked.Decrement(ref @this._workerPunchCards[workerId]);
@@ -497,7 +666,7 @@ var d = 0;
                         }
                         finally
                         {
-                            if(blocked)
+                            if(set)
                                 taskCore.Reset();
                         }
 
@@ -506,15 +675,14 @@ var d = 0;
                         {
                             if (Interlocked.Decrement(ref @this._dropWorker) >= 0)
                             {
-                                if (@this._workerPunchCards[workerId] > 0)
-                                {
 #if !__TRACE__
-                                    Console.WriteLine($"!!!! KILLED WORKER THREAD ~> {desc}ZW[{workerId}], processed = {@this.CompletedWorkItemCount}");
+                                Console.WriteLine(
+                                    $"!!!! KILLED WORKER THREAD ~> {desc}ZW[{workerId}], processed = {@this.CompletedWorkItemCount}");
 #endif
-                                }
-
                                 break;
                             }
+
+                            Interlocked.Increment(ref @this._dropWorker);
                         }
 
                         //Oneshot workers end here.
@@ -524,34 +692,17 @@ var d = 0;
                         }
                     }
 
-                    if (priority >= ThreadPriority.Normal)
+                    if (priority == ThreadPriority.Normal)
                     {
-                        Console.WriteLine($"KILLING WORKER THREAD id ={workerId} - has = {desc} -> wants = ({priority})");
-
-                        if (priority == ThreadPriority.Highest)
-                            Volatile.Write(ref @this._queenPunchCards[workerId], -1);
-                        else
-                            Volatile.Write(ref @this._workerPunchCards[workerId], -1);
+                        Console.WriteLine($"KILLING WORKER THREAD id ={workerId} - has = {desc})");
+                        Volatile.Write(ref @this._workerPunchCards[workerId], -1);
 
                         var wTmp = @this._pollWorker[workerId];
-                        var qTmp = @this._pollQueen[workerId];
-                        @this._pollQueen[workerId] = null;
                         @this._pollWorker[workerId] = null;
 
                         try
                         {
-                            qTmp?.SetException(
-                                new ThreadInterruptedException($"Inactive thread queenId = {workerId} was purged"));
-                        }
-                        catch
-                        {
-                            // ignored
-                        }
-
-                        try
-                        {
-                            wTmp.SetException(
-                                new ThreadInterruptedException($"Inactive thread workerId = {workerId} was purged"));
+                            wTmp.SetException(new ThreadInterruptedException($"Inactive thread workerId = {workerId} was purged"));
                         }
                         catch
                         {
@@ -563,7 +714,6 @@ var d = 0;
                 {
                     // ignored
                 }
-
             }
 
             if (priority == ThreadPriority.Highest)
@@ -571,19 +721,12 @@ var d = 0;
             else
                 Volatile.Write(ref _workerPunchCards[j], 0);
 
-            //if (priority >= ThreadPriority.AboveNormal)
+            var t = new Thread(ThreadWorker)
             {
-                var t = new Thread(ThreadWorker)
-                {
-                    IsBackground = true,
-                    Name = $"{desc}"
-                };
-                t.Start((this, queue, desc, j, prime, callback, priority));
-            }
-            //else
-            {
-               // _ = Task.Factory.StartNew(ThreadWorker, (this, queue, desc, j, prime, callback, priority), CancellationToken.None, TaskCreationOptions.None, Default);
-            }
+                IsBackground = true,
+                Name = $"{desc}"
+            };
+            t.Start((this, queue, desc, j, prime, callback, priority));
         }
 
         /// <summary>
@@ -636,8 +779,16 @@ var d = 0;
         private bool PollQueen(Task task)
         {
             //if there is a queen to be polled
-            if (_queenCount - QBlocked.Count() <= 0)//TODO: what is going on here?
-                return false;
+            var qBlocked = QBlocked;
+            try
+            {
+                if (_queenCount - qBlocked.Count() <= 0 || QLength > MaxWorker>>1)//TODO: What is going on here?
+                    return false;
+            }
+            finally
+            {
+                _diagnosticsHeap.Return(qBlocked);
+            }
 
             ZeroSignal zeroSignal = null;
             var polled = false;
@@ -667,12 +818,15 @@ var d = 0;
                         break;
                     }
 
+                    if (_queenPunchCards[qId] == 1)
+                        continue;
+
                     var q = _pollQueen[qId];
                     try
                     {
                         if (tmpSignal.Processed == 0)
                         {
-                            //if (q.Ready())
+                            if (q.Ready())
                             {
                                 q.SetResult(true);
 #if _TRACE_
@@ -692,7 +846,6 @@ var d = 0;
 
                 if (!polled && task.Status <= TaskStatus.WaitingToRun)
                     Console.WriteLine($"Unable to poll any of the {_queenCount} queens. backlog = {_queenQueue.Count}, Load = {QLoad} !!!!!!!!");
-                
             }
             finally
             {
@@ -729,6 +882,15 @@ var d = 0;
             }
 
             return s;
+        }
+
+        /// <summary>
+        /// returns a diagnostic result back into the heap
+        /// </summary>
+        /// <param name="ints"></param>
+        public void Return(List<int> value)
+        {
+            _diagnosticsHeap.Return(value);
         }
     }
 }

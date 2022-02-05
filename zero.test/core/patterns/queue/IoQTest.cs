@@ -11,11 +11,11 @@ using zero.core.patterns.queue;
 
 namespace zero.test.core.patterns.queue
 {
-    public class IoBagTest
+    public class IoQTest
     {
         private readonly ITestOutputHelper _output;
 
-        public IoBagTest(ITestOutputHelper output)
+        public IoQTest(ITestOutputHelper output)
         {
             _output = output;
         }
@@ -81,7 +81,7 @@ namespace zero.test.core.patterns.queue
             {
                 insert.Add(Task.Factory.StartNew(static state =>
                 {
-                    var (@this,_bag, idx) = (ValueTuple<IoBagTest, IoZeroQ<IoInt32>, int>)state!;
+                    var (@this,_bag, idx) = (ValueTuple<IoQTest, IoZeroQ<IoInt32>, int>)state!;
                     _bag.TryEnqueue(Interlocked.Increment(ref idx));
                 }, (this, bag, idx), TaskCreationOptions.DenyChildAttach));
             }
