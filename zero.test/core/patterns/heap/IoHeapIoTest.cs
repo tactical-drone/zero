@@ -12,7 +12,13 @@ namespace zero.test.core.patterns.heap
         [Fact]
         void SpamTest()
         {
-            var h = new IoHeapIo<TestHeapItem, IoHeapIoTest>("test heap", _capacity * _capacity, static (o, @this) => new TestHeapItem(@this._localVar, (int)o), context:this)
+            var h = new IoHeapIo<TestHeapItem, IoHeapIoTest>("test heap", _capacity * _capacity, static (o, @this) =>
+            {
+                //sentinel
+                if (@this == null)
+                    return new TestHeapItem(0, 0);
+                return new TestHeapItem(@this._localVar, (int)o);
+            }, context:this)
             {
                 PopAction = (item, o) =>
                 {
@@ -48,7 +54,13 @@ namespace zero.test.core.patterns.heap
         [Fact]
         async Task ConstructionTestAsync()
         {
-            var h = new IoHeapIo<TestHeapItem, IoHeapIoTest>("test heap", _capacity, static (o, @this) => new TestHeapItem(@this._localVar, (int)o), true, this)
+            var h = new IoHeapIo<TestHeapItem, IoHeapIoTest>("test heap", _capacity, static (o, @this) =>
+            {
+                //sentinel
+                if (@this == null)
+                    return new TestHeapItem(0, 0);
+                return new TestHeapItem(@this._localVar, (int)o);
+            }, true, this)
             {
                 Constructor = (newHeapItem, context) =>
                 {
@@ -87,7 +99,13 @@ namespace zero.test.core.patterns.heap
         async Task DestructionTestAsync()
         {
             var capacity = 16;
-            var h = new IoHeapIo<TestHeapItem, IoHeapIoTest>("test heap", capacity, static (o, @this) => new TestHeapItem(@this._localVar, (int)o), true, this);
+            var h = new IoHeapIo<TestHeapItem, IoHeapIoTest>("test heap", capacity, static (o, @this) =>
+            {
+                //sentinel
+                if (@this == null)
+                    return new TestHeapItem(0, 0);
+                return new TestHeapItem(@this._localVar, (int)o);
+            }, true, this);
             await Task.Yield();
             var i1 = h.Take(0);
             var i2 = h.Take(0);

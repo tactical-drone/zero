@@ -83,8 +83,13 @@ namespace zero.cocoon.models
                 ProtocolConduit = MessageService.CreateConduitOnceAsync(
                     conduitId,
                     channelSource,
-                    static (ioZero, _) => new CcProtocBatchJob<chroniton, CcDiscoveryBatch>(
-                        (IoSource<CcProtocBatchJob<chroniton, CcDiscoveryBatch>>)((IIoConduit)ioZero)?.UpstreamSource, ((IIoConduit)ioZero)?.ZeroConcurrencyLevel()??-1), cc).GetAwaiter().GetResult();
+                    static (ioZero, _) =>
+                    {
+                        if (ioZero == null)
+                            return new CcProtocBatchJob<chroniton, CcDiscoveryBatch>();
+                        return new CcProtocBatchJob<chroniton, CcDiscoveryBatch>(
+                            (IoSource<CcProtocBatchJob<chroniton, CcDiscoveryBatch>>)((IIoConduit)ioZero).UpstreamSource, ((IIoConduit)ioZero).ZeroConcurrencyLevel());
+                    }, cc).GetAwaiter().GetResult();
             }
 
             return ProtocolConduit != null? this: null;

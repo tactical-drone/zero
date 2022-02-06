@@ -194,7 +194,7 @@ namespace zero.core.patterns.queue
             if (_count >= Capacity)
             {
                 if (!_autoScale)
-                    throw new OutOfMemoryException($"{_description}: Ran out of storage space, count = {_count}/{_capacity}");
+                    throw new OutOfMemoryException($"{_description}: Ran out of storage space, count = {_count}/{Capacity}");
 
                 Scale();
             }
@@ -339,7 +339,7 @@ namespace zero.core.patterns.queue
                 long latchMod;
                 
                 var c = 0;
-                var latch = this[latchMod = (headLatch = Head) % (insaneScale = Capacity)];//TODO: s?
+                var latch = this[latchMod = (headLatch = Head) % (insaneScale = Capacity)];
                 while (_count > 0 && 
                     insaneScale == Capacity &&
                     (headLatch > Tail || latch == null || latch == Sentinel || (result = CompareExchange(latchMod, null, latch)) != latch))
@@ -405,7 +405,7 @@ namespace zero.core.patterns.queue
                 if (c > 10000000)
                     Console.WriteLine($"[{c}] 4  (R) latch[{latchMod}] bad = {latch != result}, overflow = {headLatch > Tail}, scale = {insaneScale != Capacity}, {Description}");
 
-                Debug.Assert(Sentinel != null);
+                Debug.Assert(result != null);
                 return true;
             }
             finally

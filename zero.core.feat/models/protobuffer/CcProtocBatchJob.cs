@@ -47,7 +47,15 @@ namespace zero.core.feat.models.protobuffer
         /// The transaction that is ultimately consumed
         /// </summary>
         private volatile TBatch _batch;
-        
+
+        /// <summary>
+        /// sentinel
+        /// </summary>
+        public CcProtocBatchJob()
+        {
+
+        }
+
         /// <summary>
         /// zero unmanaged
         /// </summary>

@@ -23,15 +23,22 @@ namespace zero.core.patterns.bushings.contracts
         public bool Produced => _produced;
         public bool Consumed => _consumed;
 
+        /// <summary>
+        /// sentinel
+        /// </summary>
+        public IoZeroProduct()
+        {
+            
+        }
+
         public IoZeroProduct(string description, IoSource<IoZeroProduct> source, int constructionDelay = 1000) : base($"{nameof(IoZeroProduct)}:{description}", "stub", source, source.ZeroConcurrencyLevel())
         {
             _constructionDelay = constructionDelay;
         }
-
         public override async ValueTask<IoJobMeta.JobState> ProduceAsync<T>(IIoSource.IoZeroCongestion<T> barrier,
             T ioZero)
         {
-            if (!await Source.ProduceAsync(static async (Source, backPressure, state, ioJob) =>
+            if (!await Source.ProduceAsync(static async (source, backPressure, state, ioJob) =>
                 {
                     var job = (IoZeroProduct)ioJob;
 
@@ -44,7 +51,7 @@ namespace zero.core.patterns.bushings.contracts
 
                     job.GenerateJobId();
                     
-                    return job._produced = ((IoZeroSource)Source).Produce();
+                    return job._produced = ((IoZeroSource)source).Produce();
                 }, this, barrier, ioZero).FastPath().ConfigureAwait(Zc))
             {
                 return State = IoJobMeta.JobState.Error;
