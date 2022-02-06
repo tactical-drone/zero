@@ -41,19 +41,22 @@ namespace zero.cocoon.autopeer
     /// </summary>
     public class CcAdjunct : IoNeighbor<CcProtocMessage<chroniton, CcDiscoveryBatch>>
     {
-        public CcAdjunct(CcHub node, IoNetClient<CcProtocMessage<chroniton, CcDiscoveryBatch>> ioNetClient,
-            object extraData = null)
+        public CcAdjunct(CcHub node, IoNetClient<CcProtocMessage<chroniton, CcDiscoveryBatch>> ioNetClient, object extraData = null)
             : base
             (
                 node,
                 ioNetClient,
                 static (ioZero, _) => new CcDiscoveries("discovery msg",
-                    $"{((CcAdjunct)ioZero).Source.Key}",
+                    $"{((CcAdjunct)ioZero)?.Source.Key}",
                     // ReSharper disable once PossibleInvalidCastException
-                    ((CcAdjunct)ioZero).Source, groupByEp: false),
+                    ((CcAdjunct)ioZero)?.Source, groupByEp: false),
                 true, concurrencyLevel:ioNetClient.ZeroConcurrencyLevel()
             )
         {
+            //sentinel
+            if (Source == null)
+                return;
+
             if (Source.Zeroed())
             {
                 return;
@@ -109,17 +112,21 @@ namespace zero.cocoon.autopeer
 #endif
 
             //TODO tuning:
-            _chronitonHeap = new IoHeap<chroniton>(packetHeapDesc, CcCollective.ZeroDrone & !IsProxy? 32: 16, autoScale: true) { Malloc = (_, _) => new chroniton
+            _chronitonHeap = new IoHeap<chroniton, CcAdjunct>(packetHeapDesc, CcCollective.ZeroDrone & !IsProxy ? 32 : 16,
+                static (_, @this) =>
                 {
-                    Header = new z_header { Ip = new net_header() },
-                    PublicKey = UnsafeByteOperations.UnsafeWrap(CcCollective.CcId.PublicKey)
-                }
-            };
+                    //sentinel
+                    if (@this == null)
+                        return new chroniton();
 
-            _sendBuf = new IoHeap<Tuple<byte[],byte[]>>(protoHeapDesc, CcCollective.ZeroDrone & !IsProxy ? 32 : 16,autoScale: true)
-            {
-                Malloc = (_, _) => Tuple.Create(new byte[1492/2], new byte[1492/2])
-            };
+                    return new chroniton
+                    {
+                        Header = new z_header { Ip = new net_header() },
+                        PublicKey = UnsafeByteOperations.UnsafeWrap(@this.CcCollective.CcId.PublicKey)
+                    };
+                }, true, this);
+
+            _sendBuf = new IoHeap<Tuple<byte[],byte[]>>(protoHeapDesc, CcCollective.ZeroDrone & !IsProxy ? 32 : 16, static (_, _) => Tuple.Create(new byte[1492 / 2], new byte[1492 / 2]), autoScale: true);
 
             _stealthy = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() - parm_max_network_latency_ms * 10;
             var nrOfStates = Enum.GetNames(typeof(AdjunctState)).Length;
@@ -225,7 +232,7 @@ namespace zero.cocoon.autopeer
         /// <summary>
         /// Holds all messages
         /// </summary>
-        private IoHeap<chroniton> _chronitonHeap;
+        private IoHeap<chroniton, CcAdjunct> _chronitonHeap;
 
         /// <summary>
         /// Holds all coded outputstreams used for sending messages

@@ -13,6 +13,10 @@ namespace zero.cocoon.models.batches
     {
         public CcDiscoveryBatch(IoHeap<CcDiscoveryBatch, CcDiscoveries> heapRef, int size, bool groupByEp = false)
         {
+            //sentinel
+            if(heapRef == null)
+                return;
+
             _heapRef = heapRef;
             _messages = ArrayPool<CcDiscoveryMessage>.Shared.Rent(size);
             _groupByEpEnabled = groupByEp;

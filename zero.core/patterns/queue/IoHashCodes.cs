@@ -21,6 +21,9 @@ namespace zero.core.patterns.queue
         /// </summary>
         public IoHashCodes(string description, int capacity, bool hotReload = false)
         {
+            if(capacity<=0)
+                throw new ArgumentOutOfRangeException(nameof(capacity));
+
             _description = description;
             _capacity = capacity;
             _storage = new int[_capacity];

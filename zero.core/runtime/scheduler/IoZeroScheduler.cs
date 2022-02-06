@@ -4,6 +4,7 @@ using System.Diagnostics;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using NLog;
 using zero.core.misc;
 using zero.core.patterns.heap;
 using zero.core.patterns.misc;
@@ -33,23 +34,21 @@ namespace zero.core.runtime.scheduler
                 return;
             _asyncTasks = asyncTasks?? new CancellationTokenSource();
             _workerCount = Math.Max(Environment.ProcessorCount >> 1, 2);
-            _queenCount = 4;
+            _queenCount = Math.Max(Environment.ProcessorCount >> 2, 2);
             var capacity = MaxWorker;
 
-            _workQueue = new IoZeroQ<Task>(string.Empty, capacity, false);
-            _queenQueue = new IoZeroQ<ZeroSignal>(string.Empty, capacity, false);
-            _signalHeap = new IoHeap<ZeroSignal>(string.Empty, capacity, false)
+            _workQueue = new IoZeroQ<Task>(string.Empty, capacity, new Task(() => {}), false);
+            _queenQueue = new IoZeroQ<ZeroSignal>(string.Empty, capacity, new ZeroSignal(), false);
+            _signalHeap = new IoHeap<ZeroSignal>(string.Empty, capacity, (_, _) => new ZeroSignal(), false)
             {
-                Malloc = (_, _) => new ZeroSignal(),
                 PopAction = (signal, _) =>
                 {
                     signal.Processed = 0;
                 }
             };
 
-            _diagnosticsHeap = new IoHeap<List<int>>(string.Empty, capacity, false)
+            _diagnosticsHeap = new IoHeap<List<int>>(string.Empty, capacity, (context, _) => new List<int>(context is int i ? i : 0), false)
             {
-                Malloc = (context, _) => new List<int>((int)context),
                 PopAction = (list, _) =>
                 {
                     list.Clear();
@@ -147,7 +146,7 @@ namespace zero.core.runtime.scheduler
         }
 
         private static readonly int SlowWorkerThreshold = 5000;
-        private static readonly int WorkerSpawnRate = 16*10;
+        private static readonly int WorkerSpawnRate = 16*20;
         private static readonly int WorkerExpireThreshold = 10;
         private static readonly int MaxLoad = Environment.ProcessorCount * 10;
 
@@ -331,8 +330,16 @@ namespace zero.core.runtime.scheduler
             Console.WriteLine($"Queen ASYNC handler... POLLING WORKER..."); 
 #endif
 
-            if (s.Processed == 1 || s.Task.Status > TaskStatus.WaitingToRun)
-                return false;
+            try
+            {
+                if (s.Processed == 1 || s.Task.Status > TaskStatus.WaitingToRun)
+                    return false;
+            }
+            catch (Exception e)
+            {
+                Console.WriteLine($"{e.Message}, s = {s}, task = {s?.Task}, status = {s?.Task?.Id}");
+                throw;
+            }
 
             //poll a worker
             try
@@ -392,7 +399,7 @@ namespace zero.core.runtime.scheduler
                             blocked = @this.Blocked;
                             try
                             {
-                                if (blocked.Count() >= @this._workerCount || @this._lastSpawnedWorker.ElapsedMs() > WorkerSpawnRate)
+                                if (@this._lastSpawnedWorker.ElapsedMs() > WorkerSpawnRate /*|| blocked.Count() >= @this._workerCount */)
                                 {
                                     var newWorkerId = Interlocked.Increment(ref @this._workerCount) - 1;
                                     if (newWorkerId < MaxWorker)
@@ -504,7 +511,7 @@ var d = 0;
                         try
                         {
                             //wait on work q pressure
-                            if (queue.Count == 0 && taskCore.Ready(true))
+                            if (queue.Count == 0)
                             {
 #if _TRACE_
                                 if (priority == ThreadPriority.Highest)
@@ -527,7 +534,6 @@ var d = 0;
 #if !_TRACE_
                                         Console.WriteLine($"Queen {workerId} unblocking... FAILED! version = {(short)taskCore.Version}");
 #endif
-                                        taskCore.Reset();
                                         continue;
                                     }
                                 }
@@ -539,7 +545,6 @@ var d = 0;
 #if !_TRACE_
                                         Console.WriteLine($"Worker {workerId} unblocking... FAILED! version = {(short)taskCore.Version}");
 #endif
-                                        taskCore.Reset();
                                         continue;
                                     }
                                 }
@@ -554,6 +559,10 @@ var d = 0;
                                 }
 #endif
                             }
+                            else
+                            {
+                                
+                            }
 
 
                             //congestion control
@@ -562,7 +571,7 @@ var d = 0;
                                 var qBlocked = @this.QBlocked;
                                 try
                                 {
-                                    if (qBlocked.Count() >= MaxLoad)
+                                    if (qBlocked.Count >= MaxLoad)
                                     {
                                         await Task.Delay(@this.QLength / @this.QThreadCount * 100);
                                         continue;
@@ -580,7 +589,7 @@ var d = 0;
                                 var blocked = @this.Blocked;
                                 try
                                 {
-                                    if (blocked.Count() >= MaxLoad)
+                                    if (blocked.Count >= MaxLoad)
                                     {
                                         await Task.Delay(@this.WLength / @this.ThreadCount * 100);
                                         continue;
@@ -641,13 +650,14 @@ var d = 0;
                             catch (Exception e)
                             {
                                 Console.WriteLine(e);
+                                Console.WriteLine($"---> status = {taskCore.GetStatus((short)taskCore.Version)}");
                             }
                             finally
                             {
                                 if (set)
                                 {
-                                    set = false;
                                     taskCore.Reset();
+                                    set = false;
                                 }
                                 if (priority == ThreadPriority.Normal)
                                 {
@@ -828,7 +838,7 @@ var d = 0;
                     {
                         if (tmpSignal.Processed == 0)
                         {
-                            if (q.Ready())
+                            //if (q.Ready())
                             {
                                 q.SetResult(true);
 #if _TRACE_
@@ -841,7 +851,7 @@ var d = 0;
                     }
                     catch
                     {
-                        polled = true;
+                        //polled = true;
                         // ignored
                     }
                 }

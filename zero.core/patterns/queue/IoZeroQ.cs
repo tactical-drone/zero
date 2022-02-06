@@ -24,7 +24,7 @@ namespace zero.core.patterns.queue
         /// <summary>
         /// Constructor
         /// </summary>
-        public IoZeroQ(string description, int capacity, bool autoScale = false)
+        public IoZeroQ(string description, int capacity, T sentinel, bool autoScale = false)
         {
 #if DEBUG
             _description = description;
@@ -34,6 +34,7 @@ namespace zero.core.patterns.queue
             if(autoScale && (capacity & -capacity) != capacity || capacity == 0)
                 throw new ArgumentOutOfRangeException($"{nameof(capacity)} = {capacity} must be a power of 2 when {nameof(autoScale)} is set true");
 
+            Sentinel = sentinel;
             _autoScale = autoScale;
             if (autoScale)
             {
@@ -69,7 +70,7 @@ namespace zero.core.patterns.queue
 
         private readonly object _syncRoot = new();
         // ReSharper disable once StaticMemberInGenericType
-        private static readonly object Sentinel = new();
+        private volatile T Sentinel;
         private volatile int _capacity;
         private volatile int _virility;
         private long _hwm;
@@ -221,15 +222,15 @@ namespace zero.core.patterns.queue
                 {
                     if (++c == 10000000)
                     {
-                        Console.WriteLine($"[{c}] 3 latch[{tailMod}]~[{Tail % insaneScale}] bad = {result != null}({result != Sentinel}), overflow = {tailIdx >= Head + insaneScale}, has space = {_count < insaneScale}, scale failure = {insaneScale != Capacity}, {Description}");
+                        Console.WriteLine($"[{c}] 3 latch[{tailMod}]~[{Tail % insaneScale}] bad = {result != null}({result != Sentinel}), overflow = {tailIdx > Head + insaneScale}, has space = {_count < insaneScale}, scale failure = {insaneScale != Capacity}, {Description}");
                     }
                     else if (c > 10000000)
                     {
                         //TODO: bugs? Attempt to recover...
                         if (_count == Tail - Head)
                         {
-                            Interlocked.Increment(ref _tail);
-                            Interlocked.Increment(ref _count);
+                            Interlocked.Decrement(ref _tail);
+                            //Interlocked.Increment(ref _count);
                         }
                         else//TODO: unrecoverable bug?
                         {
@@ -244,12 +245,18 @@ namespace zero.core.patterns.queue
                         break;
 
                     result = Sentinel;
+                    Thread.Yield();
                     tailMod = (tailIdx = Tail) % (insaneScale = Capacity);
                 }
                 
                 //retry on scaling
                 if (insaneScale != Capacity)
                 {
+                    if (result == null)
+                    {
+                        if (CompareExchange(tailMod, null, result) != result)
+                            LogManager.GetCurrentClassLogger().Error($"{nameof(TryEnqueue)}: Could not restore latch state!");
+                    }
                     return TryEnqueue(item, deDup);
                 }
 
@@ -314,12 +321,16 @@ namespace zero.core.patterns.queue
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public bool TryDequeue([MaybeNullWhen(false)] out T result)
         {
-            result = null;
+            result = Sentinel;
 
             try
             {
                 if (_count <= 0)
+                {
+                    result = null;
                     return false;
+                }
+                    
 #if DEBUG
                 Interlocked.Increment(ref _takesAttempted);
 #endif
@@ -331,7 +342,7 @@ namespace zero.core.patterns.queue
                 var latch = this[latchMod = (headLatch = Head) % (insaneScale = Capacity)];//TODO: s?
                 while (_count > 0 && 
                     insaneScale == Capacity &&
-                    (headLatch > Tail || latch == null || (result = CompareExchange(latchMod, null, latch)) != latch))
+                    (headLatch > Tail || latch == null || latch == Sentinel || (result = CompareExchange(latchMod, null, latch)) != latch))
                 {
                     if (++c == 10000000)
                     {
@@ -343,7 +354,12 @@ namespace zero.core.patterns.queue
                         if (_count == Tail - Head)
                         {
                             Interlocked.Increment(ref _head);
-                            Interlocked.Decrement(ref _count);
+                            if (_count > 0 && Interlocked.Decrement(ref _count) < 0)
+                            {
+                                Thread.Yield();
+                                if (_count < 0)
+                                    Interlocked.Increment(ref _count);
+                            }
                         }
                         else//TODO: unrecoverable bug?
                         {
@@ -356,15 +372,15 @@ namespace zero.core.patterns.queue
 
                     if (Zeroed)
                         break;
-                    result = null;
+                    result = Sentinel;
 
-                    //Thread.Yield();
+                    Thread.Yield();
                     latch = this[latchMod = (headLatch = Head) % (insaneScale = Capacity)];
                 }
                 
                 if (insaneScale != Capacity)
                 {
-                    if (result == latch)
+                    if (result == latch && result != Sentinel && result != null)
                     {
                         if (CompareExchange(latchMod, result, null) != null)
                             LogManager.GetCurrentClassLogger().Error($"{nameof(TryDequeue)}: Could not restore latch state!");
@@ -372,7 +388,7 @@ namespace zero.core.patterns.queue
                     return TryDequeue(out result);
                 }
 
-                if (result != latch || result == null)
+                if (result != latch || result == null || result == Sentinel)
                 {
                     if (c > 10000000)
                         Console.WriteLine($"[{c}] 4 [RECOVERED!!!] latch[{latchMod}] bad = {latch != result}, overflow = {headLatch > Tail}, scale = {insaneScale != Capacity}, {Description}");
@@ -389,6 +405,7 @@ namespace zero.core.patterns.queue
                 if (c > 10000000)
                     Console.WriteLine($"[{c}] 4  (R) latch[{latchMod}] bad = {latch != result}, overflow = {headLatch > Tail}, scale = {insaneScale != Capacity}, {Description}");
 
+                Debug.Assert(Sentinel != null);
                 return true;
             }
             finally

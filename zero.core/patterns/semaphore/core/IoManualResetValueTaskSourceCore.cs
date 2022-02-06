@@ -160,7 +160,14 @@ namespace zero.core.patterns.semaphore.core
                 throw new ArgumentNullException(nameof(continuation));
             }
 
-            ValidateToken(token);   
+            try//TODO: is this a good idea?
+            {
+                ValidateToken(token);
+            }
+            catch
+            {
+                return;
+            }
 #endif
 
             try

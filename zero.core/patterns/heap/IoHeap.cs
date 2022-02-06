@@ -30,15 +30,16 @@ namespace zero.core.patterns.heap
         /// Construct a heap with capacity
         /// </summary>
         /// <param name="description">A description</param>
-        /// <param name="context">dev context</param>
         /// <param name="capacity">Heap  capacity</param>
+        /// <param name="malloc"></param>
         /// <param name="autoScale">Whether this heap capacity grows (exponentially) with demand</param>
-        public IoHeap(string description, int capacity, bool autoScale = false, TContext context = null)
+        /// <param name="context">dev context</param>
+        public IoHeap(string description, int capacity, Func<object, TContext, TItem> malloc, bool autoScale = false, TContext context = null)
         {
             _description = description;
-            _ioHeapBuf = new IoZeroQ<TItem>($"{nameof(_ioHeapBuf)}: {description}", capacity, autoScale);
+            Malloc = malloc;
+            _ioHeapBuf = new IoZeroQ<TItem>($"{nameof(_ioHeapBuf)}: {description}", capacity, Malloc.Invoke(null, null) ,autoScale);
             Context = context;
-            Malloc = default;
         }
 
         /// <summary>
@@ -186,13 +187,9 @@ namespace zero.core.patterns.heap
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public virtual void Return(TItem item, bool zero = false, bool deDup = false)
         {
-#if DEBUG
-             if (item == null)
-                 throw new ArgumentException($"{nameof(item)} cannot be null");
-#else
             if (item == null)
                  return;
-#endif
+
             try
             {
                 if (!zero)
@@ -260,7 +257,8 @@ namespace zero.core.patterns.heap
     public class IoHeap<T2> : IoHeap<T2, object> 
         where T2 : class
     {
-        public IoHeap(string description, int capacity, bool autoScale = false, object context = null) : base(description, capacity, autoScale, context)
+        public IoHeap(string description, int capacity, Func<object, object, T2> malloc, bool autoScale = false,
+            object context = null) : base(description, capacity, malloc, autoScale, context)
         {
         }
     }

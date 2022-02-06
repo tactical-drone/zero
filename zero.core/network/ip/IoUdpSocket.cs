@@ -101,27 +101,33 @@ namespace zero.core.network.ip
         {
             if (recv)
             {
-                _recvArgs = new IoHeap<SocketAsyncEventArgs, IoUdpSocket>($"{nameof(_recvArgs)}: {Description}", concurrencyLevel)
+                _recvArgs = new IoHeap<SocketAsyncEventArgs, IoUdpSocket>($"{nameof(_recvArgs)}: {Description}", concurrencyLevel, static (_, @this) =>
                 {
-                    Malloc = static (_, @this) =>
-                    {
-                        var args = new SocketAsyncEventArgs { RemoteEndPoint = new IPEndPoint(0, 0) };
-                        args.Completed += @this.ZeroCompletion;
-                        args.RemoteEndPoint = new IPEndPoint(IPAddress.Any, 53);
-                        return args;
-                    },
+                    //sentinel
+                    if (@this == null)
+                        return new SocketAsyncEventArgs();
+
+                    var args = new SocketAsyncEventArgs { RemoteEndPoint = new IPEndPoint(0, 0) };
+                    args.Completed += @this.ZeroCompletion;
+                    args.RemoteEndPoint = new IPEndPoint(IPAddress.Any, 53);
+                    return args;
+                })
+                {
                     Context = this
                 };
             }
             
-            _sendArgs = new IoHeap<SocketAsyncEventArgs, IoUdpSocket>($"{nameof(_sendArgs)}: {Description}", concurrencyLevel * 4)
+            _sendArgs = new IoHeap<SocketAsyncEventArgs, IoUdpSocket>($"{nameof(_sendArgs)}: {Description}", concurrencyLevel * 4, static (_, @this) =>
             {
-                Malloc = static (_, @this) =>
-                {
-                    var args = new SocketAsyncEventArgs();
-                    args.Completed += @this.ZeroCompletion;
-                    return args;
-                },
+                //sentinel
+                if (@this == null)
+                    return new SocketAsyncEventArgs();
+
+                var args = new SocketAsyncEventArgs();
+                args.Completed += @this.ZeroCompletion;
+                return args;
+            })
+            {
                 Context = this
             };
         }

@@ -55,9 +55,15 @@ namespace zero.cocoon.models
             string bashDesc = string.Empty;
 #endif
 
-            _batchHeap ??= new IoHeap<CcDiscoveryBatch, CcDiscoveries>(bashDesc, parm_max_msg_batch_size)
+            _batchHeap ??= new IoHeap<CcDiscoveryBatch, CcDiscoveries>(bashDesc, parm_max_msg_batch_size, static (_, @this) =>
             {
-                Malloc = static (_, @this) => new CcDiscoveryBatch(@this._batchHeap, @this.parm_max_msg_batch_size, groupByEp: @this._groupByEp),
+                //sentinel
+                if (@this == null)
+                    return new CcDiscoveryBatch(null, 1);
+
+                return new CcDiscoveryBatch(@this._batchHeap, @this.parm_max_msg_batch_size, @this._groupByEp);
+            })
+            {
                 Context = this
             };
 
@@ -78,7 +84,7 @@ namespace zero.cocoon.models
                     conduitId,
                     channelSource,
                     static (ioZero, _) => new CcProtocBatchJob<chroniton, CcDiscoveryBatch>(
-                        (IoSource<CcProtocBatchJob<chroniton, CcDiscoveryBatch>>)((IIoConduit)ioZero).UpstreamSource, ((IIoConduit)ioZero).ZeroConcurrencyLevel()), cc).GetAwaiter().GetResult();
+                        (IoSource<CcProtocBatchJob<chroniton, CcDiscoveryBatch>>)((IIoConduit)ioZero)?.UpstreamSource, ((IIoConduit)ioZero)?.ZeroConcurrencyLevel()??-1), cc).GetAwaiter().GetResult();
             }
 
             return ProtocolConduit != null? this: null;

@@ -24,8 +24,12 @@ namespace zero.cocoon.models
     {
         public CcWhispers(string sinkDesc, string jobDesc, IoSource<CcProtocMessage<CcWhisperMsg, CcGossipBatch>> source) : base(sinkDesc, jobDesc, source)
         {
+            //sentinel
+            if (Source == null)
+                return;
+
             _m = new CcWhisperMsg() { Data = UnsafeByteOperations.UnsafeWrap(new ReadOnlyMemory<byte>(_vb)) };
-            _sendBuf = new IoHeap<byte[]>($"{nameof(_sendBuf)}: {Description}", 1) { Malloc = (_, _) => new byte[32] };
+            _sendBuf = new IoHeap<byte[]>($"{nameof(_sendBuf)}: {Description}", 1, (_, _) => new byte[32]);
         }
 
         private IoHeap<byte[]> _sendBuf;

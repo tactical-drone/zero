@@ -16,14 +16,15 @@ namespace zero.core.patterns.heap
     {
         /// <summary>
         /// Constructs a new Heap that manages types of <see cref="IIoNanite"/>.
-        ///
+        /// 
         /// For POCO types use the more performant <see cref="IoHeap{TItem,TContext}"/>
         /// </summary>
         /// <param name="description"></param>
         /// <param name="context">dev setup context</param>
         /// <param name="capacity">Total capacity</param>
+        /// <param name="malloc">allocate items callback</param>
         /// <param name="autoScale">Whether to ramp capacity</param>
-        public IoHeapIo(string description, int capacity, bool autoScale = false, TContext context = null) : base(description, capacity, autoScale, context)
+        public IoHeapIo(string description, int capacity, Func<object, TContext, TItem> malloc, bool autoScale = false, TContext context = null) : base(description, capacity, malloc, autoScale, context)
         {
             _logger = LogManager.GetCurrentClassLogger();
         }
@@ -107,7 +108,7 @@ namespace zero.core.patterns.heap
 
     public class IoHeapIo<TItem>: IoHeapIo<TItem, IIoNanite> where TItem : class, IIoHeapItem, IIoNanite
     {
-        public IoHeapIo(string description, int capacity, bool autoScale = false) : base(description, capacity, autoScale: autoScale)
+        public IoHeapIo(string description, int capacity, Func<object, IIoNanite, TItem> malloc, bool autoScale = false) : base(description, capacity, malloc, autoScale: autoScale)
         {
         }
     }

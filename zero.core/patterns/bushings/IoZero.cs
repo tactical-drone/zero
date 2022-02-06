@@ -33,8 +33,12 @@ namespace zero.core.patterns.bushings
         /// <param name="cascadeOnSource">If the source zeroes out, so does this <see cref="IoZero{TJob}"/> instance</param>
         /// <param name="concurrencyLevel"></param>
         protected IoZero(string description, IoSource<TJob> source, Func<object, IIoNanite, IoSink<TJob>> mallocJob,
-            bool enableZeroRecovery, bool cascadeOnSource = true, int concurrencyLevel = 1) : base($"{nameof(IoSink<TJob>)}", concurrencyLevel < 0? source.ZeroConcurrencyLevel() : concurrencyLevel)
+            bool enableZeroRecovery, bool cascadeOnSource = true, int concurrencyLevel = 1) : base($"{nameof(IoSink<TJob>)}", concurrencyLevel < 0? source?.ZeroConcurrencyLevel()??0 : concurrencyLevel)
         {
+            //sentinel
+            if (source == null)
+                return;
+
             _logger = LogManager.GetCurrentClassLogger();
 
             ZeroRecoveryEnabled = enableZeroRecovery;
@@ -72,28 +76,34 @@ namespace zero.core.patterns.bushings
         private async ValueTask ConfigureAsync(string description, IoSource<TJob> source,
             Func<object, IIoNanite, IoSink<TJob>> jobMalloc, bool cascade = false)
         {
-            _description = description;
             
-            Source = source ?? throw new ArgumentNullException($"{nameof(source)}");
 
+            _description = description;
+            Source = source;
             var capacity = (Source.PrefetchSize + 1) * 2;
 
-            if (ZeroRecoveryEnabled)
-                capacity *= 2;
+            try
+            {
+                if (ZeroRecoveryEnabled)
+                    capacity *= 2;
 
-            JobHeap = new IoHeapIo<IoSink<TJob>>($"{nameof(JobHeap)}: {_description}", capacity) {
-                Malloc = jobMalloc, 
-                Constructor = (sink, zero) =>
-                {
-                    sink.IoZero = (IoZero<TJob>)zero;
-                }
-            };
+                //TODO tuning
+                _queue = new IoQueue<IoSink<TJob>>($"zero Q: {_description}", capacity, Source.PrefetchSize, disablePressure: !Source.DisableZero, enableBackPressure: Source.DisableZero);
+
+                JobHeap = new IoHeapIo<IoSink<TJob>>($"{nameof(JobHeap)}: {_description}", capacity, jobMalloc) {
+                    Constructor = (sink, zero) =>
+                    {
+                        sink.IoZero = (IoZero<TJob>)zero;
+                    }
+                };
+            }
+            catch (Exception e)
+            {
+                Console.WriteLine(e);
+            }
 
             if (cascade)
                 await Source.ZeroHiveAsync(this).FastPath().ConfigureAwait(Zc);
-
-            //TODO tuning
-            _queue = new IoQueue<IoSink<TJob>>($"zero Q: {_description}", capacity, Source.PrefetchSize, disablePressure:!Source.DisableZero, enableBackPressure:Source.DisableZero);
 
             //TODO tuning
             if (ZeroRecoveryEnabled)
@@ -318,7 +328,14 @@ namespace zero.core.patterns.bushings
                 //And the consumer is keeping up, which it should
                 try
                 {
-                    nextJob = await JobHeap.TakeAsync(null, this).FastPath().ConfigureAwait(Zc);
+                    try
+                    {
+                        nextJob = await JobHeap.TakeAsync(null, this).FastPath().ConfigureAwait(Zc);
+                    }
+                    catch (Exception e)
+                    {
+                        Console.WriteLine(e);
+                    }
 
                     //Allocate a job from the heap
                     if (nextJob != null)
@@ -555,7 +572,14 @@ namespace zero.core.patterns.bushings
                     return false;
 
                 //A job was produced. Dequeue it and process
-                curJob = await _queue.DequeueAsync().FastPath().ConfigureAwait(Zc);
+                try
+                {
+                    curJob = await _queue.DequeueAsync().FastPath().ConfigureAwait(Zc);
+                }
+                catch (Exception e)
+                {
+                    Console.WriteLine(e);
+                }
 
                 if (curJob is not { State: IoJobMeta.JobState.ProduceTo })
                 {

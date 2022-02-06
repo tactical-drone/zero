@@ -33,13 +33,16 @@ namespace zero.core.patterns.bushings
         /// </summary>
         protected IoJob(string desc, IoSource<TJob> source, int concurrencyLevel = 1) : base($"{nameof(IoJob<TJob>)}: {desc}", concurrencyLevel)
         {
+            //sentinel
+            if(concurrencyLevel == -1)
+                return;
+
             Source = source;
             _jobDesc = desc;
 #if DEBUG
             StateTransitionHistory = new IoQueue<IoStateTransition<IoJobMeta.JobState>>($"{nameof(StateTransitionHistory)}: {desc}", 64, concurrencyLevel, autoScale: true);
-            _stateHeap = new($"{nameof(_stateHeap)}: {desc}", (Enum.GetNames(typeof(IoJobMeta.JobState)).Length * 2))
+            _stateHeap = new($"{nameof(_stateHeap)}: {desc}", (Enum.GetNames(typeof(IoJobMeta.JobState)).Length * 2), static (_, _) => new IoStateTransition<IoJobMeta.JobState>() { FinalState = IoJobMeta.JobState.Halted })
             {
-                Malloc = static (_, _) => new IoStateTransition<IoJobMeta.JobState>() { FinalState = IoJobMeta.JobState.Halted },
                 PopAction = (nextState, context) =>
                 {
                     var (prevState, newStateId) = (ValueTuple<IoStateTransition<IoJobMeta.JobState>, int>)context;

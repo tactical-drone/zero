@@ -24,6 +24,10 @@ namespace zero.core.feat.models.protobuffer
         protected CcProtocMessage(string sinkDesc, string jobDesc, IoSource<CcProtocMessage<TModel, TBatch>> source)
             : base(sinkDesc, jobDesc, source)
         {
+            //sentinel
+            if(Source == null)
+                return;
+
             Debug.Assert(parm_datums_per_buffer >=4);
             var blockSize = 8192;
             DatumSize = blockSize / parm_datums_per_buffer;

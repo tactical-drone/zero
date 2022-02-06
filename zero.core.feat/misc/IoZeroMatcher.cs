@@ -25,15 +25,9 @@ namespace zero.core.feat.misc
 
             _lut = new IoQueue<IoChallenge>($"Matcher: {description}", 32, concurrencyLevel * 2, autoScale: autoscale);
 
-            _valHeap = new IoHeap<IoChallenge>($"{nameof(_valHeap)}: {description}", 32, autoScale: autoscale)
-            {
-                Malloc = static (_,_) => new IoChallenge()
-            };
+            _valHeap = new IoHeap<IoChallenge>($"{nameof(_valHeap)}: {description}", 32, static (_, _) => new IoChallenge(), autoscale);
 
-            _carHeap = new IoHeap<ChallengeAsyncResponse>($"{nameof(_carHeap)}: {description}", 32, autoScale: autoscale)
-            {
-                Malloc = static (_, _) => new ChallengeAsyncResponse()
-            };
+            _carHeap = new IoHeap<ChallengeAsyncResponse>($"{nameof(_carHeap)}: {description}", 32, static (_, _) => new ChallengeAsyncResponse(), autoscale);
 
             _logger = LogManager.GetCurrentClassLogger();
         }

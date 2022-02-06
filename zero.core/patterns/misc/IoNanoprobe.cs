@@ -52,6 +52,13 @@ namespace zero.core.patterns.misc
         /// <param name="concurrencyLevel">Maximum blockers allowed. Consumption: 128 bits per tick.</param>
         protected IoNanoprobe(string description, int concurrencyLevel)
         {
+            //sentinel
+            if (concurrencyLevel == -1)
+            {
+                _zId = -9;
+                return;
+            }
+
             _zId = Interlocked.Increment(ref _uidSeed);
             AsyncTasks = new CancellationTokenSource();
 #if DEBUG

@@ -34,9 +34,13 @@ namespace zero.cocoon
             (
                 node,
                 ioNetClient,
-                static (ioZero, _) => new CcWhispers(string.Empty, string.Empty, ((CcDrone)ioZero).MessageService), true
+                static (ioZero, _) => new CcWhispers(string.Empty, string.Empty, ((CcDrone)ioZero)?.MessageService), true
             )
         {
+            //sentinel
+            if (Source == null)
+                return;
+
             _logger = LogManager.GetCurrentClassLogger();
 
             Adjunct = adjunct;
@@ -64,7 +68,7 @@ namespace zero.cocoon
 
             _m = new CcWhisperMsg() { Data = UnsafeByteOperations.UnsafeWrap(new ReadOnlyMemory<byte>(_vb)) };
 
-            _sendBuf = new IoHeap<byte[]>($"{nameof(_sendBuf)}: {Description}", 1) { Malloc = (_, _) => new byte[32]};
+            _sendBuf = new IoHeap<byte[]>($"{nameof(_sendBuf)}: {Description}", 1, (_, _) => new byte[32]);
         }
 
         /// <summary>

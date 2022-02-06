@@ -24,7 +24,7 @@ namespace zero.test.core.patterns.queue
         void InsertTest()
         {
 
-            var bag = new IoZeroQ<IoInt32>("test", 16, true);
+            var bag = new IoZeroQ<IoInt32>("test", 16, 0,true);
 
             for (int i = 0; i < bag.Capacity - 1; i++)
             {
@@ -67,7 +67,7 @@ namespace zero.test.core.patterns.queue
         public async Task IteratorAsync()
         {
             var threads = 100;
-            var bag = new IoZeroQ<IoInt32>("test", 128, true);
+            var bag = new IoZeroQ<IoInt32>("test", 128, 0,true);
             await Task.Yield();
             var c = 0;
             foreach (var ioInt32 in bag)
@@ -119,7 +119,7 @@ namespace zero.test.core.patterns.queue
         [Fact]
         void AutoScale()
         {
-            var bag = new IoZeroQ<IoInt32>("test", 2, true);
+            var bag = new IoZeroQ<IoInt32>("test", 2, 0,true);
 
             bag.TryEnqueue(0);
             bag.TryEnqueue(1);
@@ -156,7 +156,7 @@ namespace zero.test.core.patterns.queue
         [Fact]
         void ZeroSupport()
         {
-            var bag = new IoZeroQ<IoInt32>("test", 2, true);
+            var bag = new IoZeroQ<IoInt32>("test", 2, 0,true);
 
             bag.TryEnqueue(0);
             bag.TryEnqueue(1);

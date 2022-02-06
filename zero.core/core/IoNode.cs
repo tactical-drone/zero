@@ -457,7 +457,7 @@ namespace zero.core.core
                                 catch when (@this.Zeroed() || newNeighbor.Zeroed())
                                 {
                                 }
-                                catch (Exception e) when (!@this.Zeroed() && newNeighbor.Zeroed())
+                                catch (Exception e) when (!@this.Zeroed() && !newNeighbor.Zeroed())
                                 {
                                     @this._logger.Error(e,$"{nameof(AddOrUpdate)}:");
                                 }

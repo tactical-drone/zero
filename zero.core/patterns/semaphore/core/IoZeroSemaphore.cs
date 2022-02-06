@@ -501,6 +501,7 @@ namespace zero.core.patterns.semaphore.core
                         break;
 
                     slot = ZeroSentinel;
+                    Thread.Yield();
                     tailMod = (tailIdx = Tail) % _maxBlockers;
                 }
 
@@ -793,6 +794,7 @@ namespace zero.core.patterns.semaphore.core
             while (released < releaseCount && _curWaitCount > 0)
             {
                 IoZeroWorker worker = default;
+                worker.Continuation = ZeroSentinel;
                 //Lock
 #if DEBUG
                 ZeroLock();
@@ -827,6 +829,8 @@ namespace zero.core.patterns.semaphore.core
                     if (_curSignalCount == 0)
                         bestEffort = true;
 
+                    worker.Continuation = ZeroSentinel;
+                    Thread.Yield();
                     latch = Volatile.Read(ref _signalAwaiter[headMod = (headLatch = Head) % _maxBlockers]);
                 }
 
@@ -838,7 +842,6 @@ namespace zero.core.patterns.semaphore.core
                     continue;
                 }
 
-                Interlocked.Increment(ref _head);
                 worker.State = _signalAwaiterState[headMod];
                 _signalAwaiterState[headMod] = null;
                 worker.ExecutionContext = _signalExecutionState[headMod];
@@ -847,6 +850,8 @@ namespace zero.core.patterns.semaphore.core
                 _signalCapturedContext[headMod] = null;
                 Thread.MemoryBarrier();
                 _signalAwaiter[headMod] = null;
+                Interlocked.Increment(ref _head);
+
 #if DEBUG
                 //unlock
                 ZeroUnlock();

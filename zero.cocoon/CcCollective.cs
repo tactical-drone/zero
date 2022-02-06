@@ -60,7 +60,10 @@ namespace zero.cocoon
             Services.CcRecord.Endpoints.TryAdd(CcService.Keys.gossip, _gossipAddress);
             Services.CcRecord.Endpoints.TryAdd(CcService.Keys.fpc, fpcAddress);
 
-            _autoPeering =  new CcHub(this, _peerAddress,static (node, client, extraData) => new CcAdjunct((CcHub) node, client, extraData), udpPrefetch, udpConcurrencyLevel);
+            _autoPeering =  new CcHub(this, _peerAddress,static (node, client, extraData) =>
+            {
+                return new CcAdjunct((CcHub)node, client, extraData);
+            }, udpPrefetch, udpConcurrencyLevel);
             _autoPeering.ZeroHiveAsync(this).AsTask().GetAwaiter().GetResult();
             
             DupSyncRoot = new IoZeroSemaphoreSlim(AsyncTasks,  $"Dup checker for {ccDesignation.IdString()}", maxBlockers: Math.Max(MaxDrones * tcpConcurrencyLevel,1), initialCount: 1);
@@ -114,9 +117,15 @@ namespace zero.cocoon
                 throw new ApplicationException($"{nameof(_fuseBufSize)} > {parm_max_handshake_bytes}");
 
             _dupPoolFpsTarget = 1000 * 2;  
-            DupHeap = new IoHeap<IoHashCodes, CcCollective>($"{nameof(DupHeap)}: {_description}", _dupPoolFpsTarget)
+            DupHeap = new IoHeap<IoHashCodes, CcCollective>($"{nameof(DupHeap)}: {_description}", _dupPoolFpsTarget, static (_, @this) =>
             {
-                Malloc = static (_, @this) => new IoHashCodes(null, @this.MaxDrones * 2, true),
+                if (@this == null)
+                {
+                    return new IoHashCodes(string.Empty, 1);
+                }
+                return new IoHashCodes(null, @this.MaxDrones * 2, true);
+            })
+            {
                 PopAction = (popped, endpoint) =>
                 {
                     popped.Add(endpoint.GetHashCode());
