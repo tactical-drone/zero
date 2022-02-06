@@ -194,7 +194,10 @@ namespace zero.core.patterns.queue
             if (_count >= Capacity)
             {
                 if (!_autoScale)
-                    throw new OutOfMemoryException($"{_description}: Ran out of storage space, count = {_count}/{Capacity}");
+                {
+                    //throw new OutOfMemoryException($"{_description}: Ran out of storage space, count = {_count}/{Capacity}");
+                    return -1;
+                }
 
                 Scale();
             }
@@ -220,17 +223,20 @@ namespace zero.core.patterns.queue
                     _count < insaneScale && 
                     (tailIdx > Head + insaneScale || insaneScale == Capacity && (result = CompareExchange(tailMod, item, null)) != null))
                 {
-                    if (++c == 10000000)
+                    if (++c == 100000)
                     {
                         Console.WriteLine($"[{c}] 3 latch[{tailMod}]~[{Tail % insaneScale}] bad = {result != null}({result != Sentinel}), overflow = {tailIdx > Head + insaneScale}, has space = {_count < insaneScale}, scale failure = {insaneScale != Capacity}, {Description}");
                     }
-                    else if (c > 10000000)
+                    else if (c > 100000)
                     {
                         //TODO: bugs? Attempt to recover...
-                        if (_count == Tail - Head)
+                        if (_count == Tail - Head && result != Sentinel)
                         {
-                            Interlocked.Decrement(ref _tail);
-                            //Interlocked.Increment(ref _count);
+                            //Interlocked.Exchange(ref _head, tailIdx);
+                            //Interlocked.Decrement(ref _tail);
+                            
+                            Interlocked.Increment(ref _tail);
+                            Interlocked.Increment(ref _count);
                         }
                         else//TODO: unrecoverable bug?
                         {
@@ -344,11 +350,11 @@ namespace zero.core.patterns.queue
                     insaneScale == Capacity &&
                     (headLatch > Tail || latch == null || latch == Sentinel || (result = CompareExchange(latchMod, null, latch)) != latch))
                 {
-                    if (++c == 10000000)
+                    if (++c == 100000)
                     {
                         Console.WriteLine($"[{c}] 4  latch[{latchMod}] bad = {latch != result}({latch == null}), overflow = {headLatch > Tail}, scale failure = {insaneScale != Capacity}, {Description}");
                     }
-                    else if (c > 10000000)
+                    else if (c > 100000)
                     {
                         //TODO: bugs? Attempt to recover...
                         if (_count == Tail - Head)
@@ -390,7 +396,7 @@ namespace zero.core.patterns.queue
 
                 if (result != latch || result == null || result == Sentinel)
                 {
-                    if (c > 10000000)
+                    if (c > 100000)
                         Console.WriteLine($"[{c}] 4 [RECOVERED!!!] latch[{latchMod}] bad = {latch != result}, overflow = {headLatch > Tail}, scale = {insaneScale != Capacity}, {Description}");
                     result = null;
                     return false;
@@ -402,7 +408,7 @@ namespace zero.core.patterns.queue
                 Interlocked.Increment(ref _takes);       
 #endif
 
-                if (c > 10000000)
+                if (c > 100000)
                     Console.WriteLine($"[{c}] 4  (R) latch[{latchMod}] bad = {latch != result}, overflow = {headLatch > Tail}, scale = {insaneScale != Capacity}, {Description}");
 
                 Debug.Assert(result != null);

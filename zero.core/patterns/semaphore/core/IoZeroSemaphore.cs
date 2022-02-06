@@ -488,11 +488,11 @@ namespace zero.core.patterns.semaphore.core
                     )
                 )
                 {
-                    if (++c == 10000000)
+                    if (++c == 100000)
                     {
                         Console.WriteLine($"[{c}] 1  OnComplete: bad latch[{tailMod}] = {slot != null}({slot != ZeroSentinel}), overflow = {insaneOverflow}, {Description}");
                     }
-                    else if(c > 10000000)
+                    else if(c > 100000)
                     {
                         Thread.Yield();
                     }
@@ -814,11 +814,11 @@ namespace zero.core.patterns.semaphore.core
                     )
                 {
                     
-                    if (++c == 10000000)
+                    if (++c == 100000)
                     {
                         Console.WriteLine($"[{c}] 2 Release: bad latch[{headMod}] = {worker.Continuation != latch}(null = {latch == null}), overflow = {headLatch > Tail}, {Description}");
                     }
-                    else if (c > 10000000)
+                    else if (c > 100000)
                     {
                         Thread.Yield();
                     }
