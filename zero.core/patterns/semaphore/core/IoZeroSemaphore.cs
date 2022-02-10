@@ -476,14 +476,14 @@ namespace zero.core.patterns.semaphore.core
 #endif
 
                 long tailIdx = 0;
-                bool insaneOverflow;
+                bool insaneOverflow = false;
                 var c = 0;
                 var slot = ZeroSentinel;
                 var tailMod = (tailIdx = Tail) % _maxBlockers;
                 while (
                     _curWaitCount <= _maxBlockers &&
                     (
-                        (insaneOverflow = tailIdx > _head + _maxBlockers) ||
+                        /*(insaneOverflow = tailIdx >= _head + _maxBlockers) ||*/
                         (slot = Interlocked.CompareExchange(ref _signalAwaiter[tailMod], ZeroSentinel, null)) != null
                     )
                 )
@@ -503,9 +503,9 @@ namespace zero.core.patterns.semaphore.core
                         break;
 
                     slot = ZeroSentinel;
-                    //Thread.Yield();
-                    tailMod = (tailIdx = Tail) % _maxBlockers;
-                    //Interlocked.MemoryBarrierProcessWide();
+                    Thread.Yield();
+                    tailMod = (tailIdx = _tail) % _maxBlockers;
+                    Interlocked.MemoryBarrierProcessWide();
                 }
 
                 //if unable to latch
@@ -518,9 +518,10 @@ namespace zero.core.patterns.semaphore.core
                     _signalAwaiterState[tailMod] = state;
                     ExtractContext(out _signalExecutionState[tailMod], out _signalCapturedContext[tailMod], flags);
                     
-                    Interlocked.Exchange(ref _signalAwaiter[tailMod], continuation);
+                    //Interlocked.Exchange(ref _signalAwaiter[tailMod], continuation);
                     //Thread.MemoryBarrier();
-                    //_signalAwaiter[tailMod] = continuation;
+                    Interlocked.MemoryBarrierProcessWide();
+                    _signalAwaiter[tailMod] = continuation;
                     Interlocked.Increment(ref _tail);
                     return;
                 }
@@ -826,7 +827,7 @@ namespace zero.core.patterns.semaphore.core
                 while (
                     _curWaitCount > 0 &&
                     (
-                       headLatch > _tail || 
+                       /*headLatch >= _tail || */
                        latch == null || 
                        latch == ZeroSentinel || 
                        (worker.Continuation = Interlocked.CompareExchange(ref _signalAwaiter[headMod], ZeroSentinel, latch)) != latch)
@@ -834,12 +835,15 @@ namespace zero.core.patterns.semaphore.core
                 {
                     if (++c == 1000000)
                     {
-                        Console.WriteLine($"[{c}] 2 Release: bad latch[{headMod}] = {worker.Continuation != latch}(null = {latch == null}), overflow = {headLatch > Tail}, {Description}");
+                        Console.WriteLine($"[{c}] 2 Release: bad latch[{headMod}] = {worker.Continuation != latch}(null = {latch == null}), overflow = {headLatch >= Tail}, {Description}");
                     }
                     else if (c > 1000000)
                     {
                         //Thread.Yield();
                     }
+
+
+                    worker.Continuation = ZeroSentinel;
 
                     if (_zeroed > 0)
                         break;
@@ -847,12 +851,9 @@ namespace zero.core.patterns.semaphore.core
                     if (_curSignalCount == 0)
                         bestEffort = true;
 
-                    worker.Continuation = ZeroSentinel;
-
-                    //Thread.Yield();
-
-                    latch = _signalAwaiter[headMod = (headLatch = Head) % _maxBlockers];
-                    //Interlocked.MemoryBarrierProcessWide();
+                    Thread.Yield();
+                    latch = _signalAwaiter[headMod = (headLatch = _head) % _maxBlockers];
+                    Interlocked.MemoryBarrierProcessWide();
                 }
 
                 if (worker.Continuation != latch || worker.Continuation == null || worker.Continuation == ZeroSentinel || latch == null || latch == ZeroSentinel)
@@ -877,8 +878,9 @@ namespace zero.core.patterns.semaphore.core
                 worker.CapturedContext = _signalCapturedContext[headMod];
                 _signalCapturedContext[headMod] = null;
                 //Thread.MemoryBarrier();
-                Interlocked.Exchange(ref _signalAwaiter[headMod], null);
-                //_signalAwaiter[headMod] = null;
+                //Interlocked.Exchange(ref _signalAwaiter[headMod], null);
+                Interlocked.MemoryBarrierProcessWide();
+                _signalAwaiter[headMod] = null;
                 Interlocked.Increment(ref _head);
 
 #if DEBUG

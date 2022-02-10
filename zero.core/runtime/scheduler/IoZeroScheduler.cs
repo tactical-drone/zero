@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -44,6 +45,7 @@ namespace zero.core.runtime.scheduler
                 PopAction = (signal, _) =>
                 {
                     signal.Processed = 0;
+                    signal.TaskId = -1;
                 }
             };
 
@@ -145,11 +147,12 @@ namespace zero.core.runtime.scheduler
         internal class ZeroSignal
         {
             public volatile Task Task;
-            public volatile int Processed;
+            public volatile int Processed = -1;
+            public volatile int TaskId = -2;
         }
 
         private static readonly int SlowWorkerThreshold = 5000;
-        private static readonly int WorkerSpawnRate = 16*20;
+        private static readonly int WorkerSpawnRate = 16*30;
         private static readonly int WorkerExpireThreshold = 10;
         private static readonly int MaxLoad = Environment.ProcessorCount * 10;
 
@@ -341,7 +344,7 @@ namespace zero.core.runtime.scheduler
             catch when(s.Processed > 0){}
             catch (Exception e) when(s.Processed == 0)
             {
-                Console.WriteLine($"{e.Message}, s = {s}, p = {Volatile.Read(ref s.Processed)}, task = {s?.Task}, status = {s?.Task?.Id}");
+                Console.WriteLine($"{e.Message}, s = {s}, p = {s?.Processed}, task = {s?.Task}, status = {s?.Task?.Id} ({s?.TaskId})");
                 throw;
             }
 
@@ -455,7 +458,6 @@ namespace zero.core.runtime.scheduler
 
         private static bool WorkerHandler(IoZeroScheduler ioZeroScheduler, Task task, int id)
         {
-          //  Debug.Assert(TaskScheduler.Current == ioZeroScheduler);
             var s = task.Status >= TaskStatus.WaitingToRun && ioZeroScheduler.TryExecuteTask(task);
 #if __TRACE__
             if(s)
@@ -515,14 +517,10 @@ var d = 0;
                         var taskCoreUsed = false;
                         try
                         {
-                            var errStr = "";
-                            errStr += taskCore.GetStatus((short)taskCore.Version);
-                            errStr += ", ";
+                            
                             //wait on work q pressure
                             if (queue.Count == 0 && taskCore.Ready(true))
                             {
-                                errStr += taskCore.GetStatus((short)taskCore.Version);
-                                errStr += ", ";
 #if _TRACE_
                                 if (priority == ThreadPriority.Highest)
                                 {
@@ -535,18 +533,14 @@ var d = 0;
 
 #endif
 
-                                errStr += taskCore.GetStatus((short)taskCore.Version);
-                                errStr += ", ";
                                 var waitForPollCore = new ValueTask<bool>(taskCore, (short)taskCore.Version);
-                                errStr += taskCore.GetStatus((short)taskCore.Version);
-                                errStr += ", ";
                                 taskCoreUsed = true;
                                 if (priority == ThreadPriority.Highest)
                                 {
                                     if (!await waitForPollCore.FastPath().ConfigureAwait(false))
                                     {
 #if !_TRACE_
-                                        Console.WriteLine($"Queen {workerId} unblocking... FAILED! status = {taskCore.GetStatus((short)taskCore.Version)}, {errStr}");
+                                        Console.WriteLine($"Queen {workerId} unblocking... FAILED! status = {taskCore.GetStatus((short)taskCore.Version)}");
 #endif
                                         continue;
                                     }
@@ -557,7 +551,7 @@ var d = 0;
                                     if (!await waitForPollCore.FastPath())
                                     {
 #if !_TRACE_
-                                        Console.WriteLine($"Worker {workerId} unblocking... FAILED! version = {taskCore.GetStatus((short)taskCore.Version)}, {errStr}");
+                                        Console.WriteLine($"Worker {workerId} unblocking... FAILED! version = {taskCore.GetStatus((short)taskCore.Version)}");
 #endif
                                         continue;
                                     }
@@ -638,12 +632,13 @@ var d = 0;
                                     Interlocked.Exchange(ref @this._workerPunchCards[workerId], 1);
                                 }
 
-                                while (queue.TryDequeue(out var work))
+                                while (queue.TryDequeue(out var work) /*|| workerId == @this._workerCount*/)
                                 {
-                                    Debug.Assert(work != null);
+                                    //Debug.Assert(work != null);
+                                    //Console.WriteLine(".");
                                     try
                                     {
-                                        if (callback(@this, work, workerId))
+                                        if (work != null && callback(@this, work, workerId))
                                         {
                                             if (priority == ThreadPriority.Highest)
                                                 Interlocked.Increment(ref @this._completedQItemCount);
@@ -798,9 +793,12 @@ var d = 0;
             }
 
             //queue the work for processing
-            _workQueue.TryEnqueue(task);
-
-            PollQueen(task);
+            if( _workQueue.TryEnqueue(task) != -1)
+                PollQueen(task);
+            else
+            {
+                throw new InternalBufferOverflowException($"{nameof(_workQueue)}: count = {_workQueue.Count}, capacity {_workQueue.Capacity}");
+            }
         }
 
         /// <summary>
@@ -815,8 +813,12 @@ var d = 0;
             var qBlocked = QBlocked;
             try
             {
-                if (_queenCount - qBlocked.Count() <= 0 || QLength > MaxWorker>>1)//TODO: What is going on here?
+                if (_queenCount - qBlocked.Count() <= 0 || QLength > MaxWorker >> 1) //TODO: What is going on here?
                     return false;
+            }
+            catch(Exception e)
+            {
+                Console.WriteLine(e);
             }
             finally
             {
@@ -833,13 +835,19 @@ var d = 0;
                 Debug.Assert(zeroSignal != null);
                 Debug.Assert(task != null);
                 //prepare work queen poll signal
+                
                 zeroSignal.Task = task;
+                zeroSignal.TaskId = task.Id;
 
                 if (task.Status <= TaskStatus.WaitingToRun)
                 {
                     if (_queenQueue.TryEnqueue(tmpSignal = zeroSignal) != -1)
                     {
                         zeroSignal = null;
+                    }
+                    else
+                    {
+                        Console.WriteLine("Failed to EQ");
                     }
                 }
                 else
@@ -907,21 +915,22 @@ var d = 0;
         /// <returns>true if executed, false otherwise</returns>
         protected override bool TryExecuteTaskInline(Task task, bool taskWasPreviouslyQueued)
         {
-            var s = TryExecuteTask(task);
-            if (s)
-            {
-#if __TRACE__
-                Console.WriteLine($"task id = {task.Id}, {task.Status} INLINED!");
-#endif
-            }
-            else
-            {
-#if !__TRACE__
-                Console.WriteLine($"task id = {task.Id}, {task.Status} INLINE FAILED!");
-#endif          
-            }
+//            var s = TryExecuteTask(task);
+//            if (s)
+//            {
+//#if __TRACE__
+//                Console.WriteLine($"task id = {task.Id}, {task.Status} INLINED!");
+//#endif
+//            }
+//            else
+//            {
+//#if !__TRACE__
+//                //Console.WriteLine($"task id = {task.Id}, {task.Status} INLINE FAILED!");
+//#endif          
+//            }
 
-            return s;
+//            return s;
+            return TryExecuteTask(task);
         }
 
         /// <summary>

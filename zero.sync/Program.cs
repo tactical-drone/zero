@@ -65,8 +65,13 @@ namespace zero.sync
         static void Main(string[] args)
         {
             Console.WriteLine($"zero ({Environment.OSVersion}: {Environment.MachineName} - dotnet v{Environment.Version}, CPUs = {Environment.ProcessorCount})");
-            //SemTest();
-            //QueueTestAsync();
+
+            //Task.Factory.StartNew(async () =>
+            //{
+            //    await SemTestAsync();
+            //    await QueueTestAsync();
+            //}, CancellationToken.None, TaskCreationOptions.DenyChildAttach, IoZeroScheduler.Default).Unwrap().GetAwaiter().GetResult();
+
             //Tune dotnet for large tests
             ThreadPool.GetMinThreads(out var wt, out var cp);
             ThreadPool.SetMinThreads(wt * 3, cp * 2);
@@ -735,7 +740,7 @@ namespace zero.sync
         /// </summary>
         /// <returns></returns>
         /// <exception cref="Exception"></exception>
-        private static Task QueueTestAsync() //TODO make unit tests
+        private static async Task QueueTestAsync() //TODO make unit tests
         {
 
             IoQueue<int> q = new("test", 300, 400);
@@ -844,7 +849,7 @@ namespace zero.sync
 
             var start = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
             var rounds = 45;
-            var mult = 10000000;
+            var mult = 1000000;
             for (var i = 0; i < rounds; i++)
             {
                 Console.Write(".");
@@ -886,7 +891,7 @@ namespace zero.sync
                         }
                     }
                     Console.Write($"({i3}-{q.Count})");
-                }, new CancellationToken(), TaskCreationOptions.DenyChildAttach, TaskScheduler.Default).Unwrap());
+                }, new CancellationToken(), TaskCreationOptions.DenyChildAttach, IoZeroScheduler.ZeroDefault).Unwrap());
             }
             Task.WhenAll(_concurrentTasks).GetAwaiter().GetResult();
             
@@ -905,7 +910,7 @@ namespace zero.sync
         /// <summary>
         /// Tests the semaphore
         /// </summary>
-        private static void SemTest() //TODO make unit tests
+        private static async Task SemTestAsync() //TODO make unit tests
         {
             var asyncTasks = new CancellationTokenSource();
 
@@ -915,11 +920,11 @@ namespace zero.sync
             //var mutex = new IoZeroRefMut(asyncTasks.Token);
             var mutex = new IoZeroSemaphoreSlim(asyncTasks, "zero slim", maxBlockers: capacity, initialCount: 0, maxAsyncWork: 0, enableAutoScale: false, enableFairQ: false, enableDeadlockDetection: true);
 
-            var releaseCount = 2;
-            var waiters = 3;
-            var releasers = 2;
+            var releaseCount = 1;
+            var waiters = 1;
+            var releasers = 1;
             var targetSleep = (long)0;
-            var logSpam = 40000;//at least 1
+            var logSpam = 500;//at least 1
 
             var targetSleepMult = waiters > 1 ? 2 : 1;
             var sw = new Stopwatch();
@@ -949,7 +954,7 @@ namespace zero.sync
 
             var startTime = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
             
-            var t1 = Task.Factory.StartNew(async o =>
+            var t1 = Task.Factory.StartNew(async () =>
              {
                  try
                  {
@@ -1008,9 +1013,9 @@ namespace zero.sync
                      Console.WriteLine($"[[1]]:{e}");
                      throw;
                  }
-             }, null, options);
+             }, CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Current);
 
-            var t2 = Task.Factory.StartNew(async o =>
+            var t2 = Task.Factory.StartNew(async () =>
            {
                try
                {
@@ -1073,9 +1078,9 @@ namespace zero.sync
                    Console.WriteLine($"[[2]]:{e}");
                    throw;
                }
-           }, null, options);
+           }, CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Current);
             
-            var t3 = Task.Factory.StartNew(async o =>
+            var t3 = Task.Factory.StartNew(async () =>
            {
                try
                {
@@ -1122,7 +1127,7 @@ namespace zero.sync
                    Console.WriteLine($"[[3]]:{e}");
                    throw;
                }
-           }, null, options);
+           }, CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Current);
             
 
            for (int i = 0; i < releasers; i++)

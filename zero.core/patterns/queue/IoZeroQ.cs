@@ -241,6 +241,11 @@ namespace zero.core.patterns.queue
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public long TryEnqueue(T item, bool deDup = false)
         {
+            if (_broken)
+            {
+                return -1;
+            }
+
             Debug.Assert(Sentinel != null);
             Debug.Assert(item != null);
             
@@ -272,15 +277,12 @@ namespace zero.core.patterns.queue
                 var tailIdx = Tail;
                 while (
                     _count < insaneScale && 
-                    (/*latch == Sentinel ||*/ tailIdx > _head + insaneScale || insaneScale == Capacity && (slot = CompareExchange(tailIdx, item, null)) != null)
+                    (/*tailIdx >= _head + insaneScale ||*/ insaneScale == Capacity && (slot = CompareExchange(tailIdx, item, null)) != null)
                     )
                 {
-                    //if(latch == Sentinel)
-                    //    Interlocked.Increment(ref _tail);
-
                     if (++c == 25000)
                     {
-                        Console.WriteLine($"[{c}] eq 3 latch[{tailIdx%Capacity}]~[{Tail % insaneScale}] bad = {slot != null}({slot != Sentinel}), overflow = {tailIdx >= Head + insaneScale}, has space = {_count < insaneScale}, scale failure = {insaneScale != Capacity}, {Description}");
+                        //Console.WriteLine($"[{c}] eq 3 latch[{tailIdx%Capacity}]~[{Tail % insaneScale}] bad = {slot != null} ({slot != Sentinel}), overflow = {tailIdx >= Head + insaneScale}, has space = {_count < insaneScale}, scale failure = {insaneScale != Capacity}, {Description}");
                     }
                     else if (c > 25000)
                     {
@@ -301,6 +303,7 @@ namespace zero.core.patterns.queue
                         //}
 
                         //Thread.Yield();
+                        break;
                     }
 
                     if (Zeroed)
@@ -308,9 +311,9 @@ namespace zero.core.patterns.queue
 
                     slot = Sentinel;
                     insaneScale = Capacity;
-                    //Thread.Yield();
-                    tailIdx = Tail;
-                    //Interlocked.MemoryBarrierProcessWide();
+                    Thread.Yield();
+                    tailIdx = _tail;
+                    Interlocked.MemoryBarrierProcessWide();
                 }
                 
                 //retry on scaling
@@ -374,6 +377,8 @@ namespace zero.core.patterns.queue
         private volatile int _takes;
 #endif
 
+        volatile bool _broken = false;
+        private static object _syncroot = new();
         /// <summary>
         /// Try take from the Q, round robin
         /// </summary>
@@ -382,8 +387,13 @@ namespace zero.core.patterns.queue
         [MethodImpl(MethodImplOptions.NoInlining)]
         public bool TryDequeue([MaybeNullWhen(false)] out T result)
         {
+            if (_broken)
+            {
+                result = null;
+                return false;
+            }
+                
             result = Sentinel;
-
             try
             {
 #if DEBUG
@@ -402,14 +412,38 @@ namespace zero.core.patterns.queue
                 var latch = this[headLatch = Head];
                 while (_count > 0 &&
                        insaneScale == Capacity &&
-                       (headLatch > _tail || latch == null ||
+                       (/*headLatch > _tail ||*/ latch == null ||
                         (result = CompareExchange(headLatch, null, latch)) != latch))
                 {
                     if (++c == 25000)
                     {
-                        Console.WriteLine(
-                            $"[{c}] 4 dq latch[{headLatch % Capacity}] t = {ts.ElapsedMs()}ms. bad = {latch != result} (n = {latch == null}, s = {latch == Sentinel}, r = {(result == Sentinel?null:result?.GetType().Name)}), overflow = {headLatch > Tail}, scale failure = {insaneScale != Capacity}, concurrency = {_takesAttempted}, {Description}");
+                        _broken = true;
+                        lock (_syncRoot)
+                        {
+                            Console.WriteLine($"[{c}] 4 dq latch[{headLatch % Capacity}] t = {ts.ElapsedMs()}ms. bad = {latch != result} (n = {latch == null}, s = {latch == Sentinel}, r = {(result == Sentinel ? null : result?.GetType().Name)}), overflow = {headLatch > Tail}, scale failure = {insaneScale != Capacity}, concurrency = {_takesAttempted}, {Description}");
 
+                            Console.WriteLine();
+                            var d = 0;
+                            for (int i = Math.Max((int)(_head - 10), 0); i < _tail; i++)
+                            {
+                                if (i == headLatch)
+                                    Console.Write($">");
+
+                                if (this[i] == null)
+                                {
+                                    Console.Write($"0, ");
+                                }
+                                else
+                                {
+                                    d++;
+                                    Console.Write($"1, ");
+                                }
+
+                            }
+                            Console.WriteLine($"\nTotal = {d}, c = {_count}, C = {Tail - Head}");
+
+                            Debug.Assert(false);
+                        }
                         //var i = _count/2;
                         //var s = 0;
                         //var hacked = false;
@@ -434,7 +468,7 @@ namespace zero.core.patterns.queue
                     }
                     else if (c > 25000)
                     {
-                        
+
                         ////TODO: bugs? Attempt to recover...
                         //if (result == null && _head < _tail)
                         //{
@@ -457,17 +491,19 @@ namespace zero.core.patterns.queue
                         //    Thread.Yield();
                         //}
 
+                        break;
                         //Thread.Yield();
                     }
+
+                    result = Sentinel;
 
                     if (Zeroed)
                         break;
 
-                    result = Sentinel;
-
                     insaneScale = Capacity;
-                    latch = this[headLatch = Head];
-                    //Interlocked.MemoryBarrierProcessWide();
+                    Thread.Yield();
+                    latch = this[headLatch = _head];
+                    Interlocked.MemoryBarrierProcessWide();
                 }
 
                 if (insaneScale != Capacity)
@@ -482,21 +518,24 @@ namespace zero.core.patterns.queue
                     return TryDequeue(out result);
                 }
 
-                if (result != latch || result == null || result == Sentinel || latch == null)
+                if (result != latch || result == null || latch == null)
                 {
-                    if (c >= 25000)
-                        Console.WriteLine(
-                            $"[{c}] 4 dq [RECOVERED!!!] latch[{headLatch % Capacity}] bad = {latch != result}, overflow = {headLatch > Tail}, scale = {insaneScale != Capacity}, {Description}");
+                    //if (c >= 25000)
+                    //    Console.WriteLine(
+                    //        $"[{c}] 4 dq [RECOVERED!!!] latch[{headLatch % Capacity}] bad = {latch != result}, overflow = {headLatch > Tail}, scale = {insaneScale != Capacity}, {Description}");
                     result = null;
                     return false;
                 }
 
+
                 //this[headLatch] = null;
                 Debug.Assert(result != null);
+                Debug.Assert(result == latch);
                 Debug.Assert(this[headLatch] == null);
                 
                 Interlocked.Decrement(ref _count); //count first
-                Interlocked.Increment(ref _head);
+                var next = Interlocked.Increment(ref _head);
+                Debug.Assert(next - 1 == headLatch);
 #if DEBUG
                 Interlocked.Increment(ref _takes);
 #endif
