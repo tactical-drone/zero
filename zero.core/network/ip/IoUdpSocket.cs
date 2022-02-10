@@ -257,8 +257,8 @@ namespace zero.core.network.ip
                 {
                     await ZeroAsync(static async bootstrapAsync =>
                     {
-                        await Task.Delay(1000).ConfigureAwait(false);
-                        await bootstrapAsync().FastPath().ConfigureAwait(false);
+                        await Task.Delay(1000);
+                        await bootstrapAsync().FastPath();
                     }, bootstrapAsync, TaskCreationOptions.DenyChildAttach).FastPath().ConfigureAwait(Zc);
                 }
                 

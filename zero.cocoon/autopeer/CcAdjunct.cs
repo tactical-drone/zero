@@ -1327,7 +1327,7 @@ namespace zero.cocoon.autopeer
                                 }
 
                                 var j = 0;
-                                while (await preload[j].FastPath().ConfigureAwait(false) && ++j < width) { }
+                                while (await preload[j].FastPath() && ++j < width) { }
 
                                 @this._zeroSync.SetResult(j == width);
 
@@ -1789,26 +1789,12 @@ namespace zero.cocoon.autopeer
                 var newRemoteEp = sweptDrone.Url.GetEndpoint();
                 
                 if (!newRemoteEp.Equals(Router.MessageService.IoNetSocket.NativeSocket.RemoteEndPoint) && 
-                    !await Router.ProbeAsync("DMZ-SYN-SCA", IoNodeAddress.CreateFromEndpoint("udp", newRemoteEp)).FastPath().ConfigureAwait(false))
+                    !await Router.ProbeAsync("DMZ-SYN-SCA", IoNodeAddress.CreateFromEndpoint("udp", newRemoteEp)).FastPath().ConfigureAwait(Zc))
                 {
 #if DEBUG
                     _logger.Trace($"{Description}: Probing swept {newRemoteEp.Address} failed!");
 #endif
                 }
-
-//                await ZeroAsync(static async state =>
-//                {
-//                    var (@this, newRemoteEp) = state;
-//                    await Task.Delay(@this._random.Next(@this.parm_max_network_latency_ms) + @this.parm_max_network_latency_ms, @this.AsyncTasks.Token).ConfigureAwait(@this.Zc);
-
-//                    if (!await @this.Router.ProbeAsync("DMZ-SYN-SCA", dest: IoNodeAddress.CreateFromEndpoint("udp", newRemoteEp)).FastPath().ConfigureAwait(false))
-//                    {
-//#if DEBUG
-//                        @this._logger.Trace($"{@this.Description}: Collecting {newRemoteEp.Address} failed!");
-//#endif
-//                    }
-
-//                }, (this, sweptDrone.Url.GetEndpoint()), TaskCreationOptions.DenyChildAttach).FastPath().ConfigureAwait(Zc);
                 processed++;
             }
 
@@ -1913,19 +1899,6 @@ namespace zero.cocoon.autopeer
 #if DEBUG
                 newAdjunct.DebugAddress = DebugAddress;
 #endif
-                //Start processing
-                //await ZeroAsync(static async state =>
-                //{
-                //    var (@this, newAdjunct) = state;
-                //    await @this.CcCollective.Hub.BlockOnAssimilateAsync(newAdjunct).FastPath().ConfigureAwait(@this.Zc);
-                //}, ValueTuple.Create(this, newAdjunct), TaskCreationOptions.DenyChildAttach).FastPath().ConfigureAwait(false);
-                //if (!await newAdjunct.SeduceAsync("ACK", ignoreZeroDrone: true).FastPath()
-                //        .ConfigureAwait(Zc))
-                //{
-                //    _logger.Error($"{nameof(CollectAsync)}: Failed to send ACK");
-                //    return false;
-                //}
-
                 if (!verified)
                 {
                     //await Task.Delay(parm_max_network_latency_ms / 2 + RandomNumberGenerator.GetInt32(0, parm_max_network_latency_ms), AsyncTasks.Token).ConfigureAwait(Zc);
@@ -2409,7 +2382,7 @@ namespace zero.cocoon.autopeer
                 //Ask drones that we are not connected to, to drop us
                 if (((DroneStatus)response.Status).HasFlag(DroneStatus.Drone) && !IsDroneAttached && UpTime.ElapsedMs() > parm_min_uptime_ms)
                 {
-                    await DeFuseAsync().FastPath().ConfigureAwait(false);
+                    await DeFuseAsync().FastPath().ConfigureAwait(Zc);
                 }
             }
         }

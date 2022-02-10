@@ -276,7 +276,14 @@ namespace zero.core.network.ip
             }
             finally
             {
-                NativeSocket.Blocking = true;
+                try
+                {
+                    NativeSocket.Blocking = true;
+                }
+                catch
+                {
+                    // ignored
+                }
             }
 
             return false;

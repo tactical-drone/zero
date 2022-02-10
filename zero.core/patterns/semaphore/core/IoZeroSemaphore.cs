@@ -118,7 +118,7 @@ namespace zero.core.patterns.semaphore.core
         /// <summary>
         /// A semaphore description
         /// </summary>
-        private string Description => $"{nameof(IoZeroSemaphore)}[{_description}]:  ready = {_curSignalCount}, wait = {_curWaitCount}/{_maxBlockers}, async = {_curAsyncWorkerCount}/{_maxAsyncWorkers}, head = {Head}/{Tail} (D:{Tail - Head})";
+        private string Description => $"{nameof(IoZeroSemaphore)}[{_description}]: z = {_zeroed > 0},  ready = {_curSignalCount}, wait = {_curWaitCount}/{_maxBlockers}, async = {_curAsyncWorkerCount}/{_maxAsyncWorkers}, head = {Head}/{Tail} (D:{Tail - Head})";
 
         /// <summary>
         /// The maximum threads that can be blocked by this semaphore. This blocking takes storage
@@ -461,7 +461,7 @@ namespace zero.core.patterns.semaphore.core
                 //fast path, RACES with SetResult 
                 if (_curSignalCount == 1 && _curWaitCount == 1)
                 {
-                    if(Interlocked.CompareExchange(ref _curSignalCount, 0, 1) == 1)
+                    if (Interlocked.CompareExchange(ref _curSignalCount, 0, 1) == 1)
                     {
                         TaskScheduler cc = null;
                         if (TaskScheduler.Current != TaskScheduler.Default)
@@ -481,48 +481,61 @@ namespace zero.core.patterns.semaphore.core
                 var slot = ZeroSentinel;
                 var tailMod = (tailIdx = Tail) % _maxBlockers;
                 while (
-                    _curWaitCount <= _maxBlockers && 
+                    _curWaitCount <= _maxBlockers &&
                     (
-                       (insaneOverflow = tailIdx > Head + _maxBlockers) || 
-                       (slot = Interlocked.CompareExchange(ref _signalAwaiter[tailMod], ZeroSentinel, null)) != null
+                        (insaneOverflow = tailIdx > _head + _maxBlockers) ||
+                        (slot = Interlocked.CompareExchange(ref _signalAwaiter[tailMod], ZeroSentinel, null)) != null
                     )
                 )
                 {
-                    if (++c == 100000)
+                    
+                    if (++c == 1000000)
                     {
-                        Console.WriteLine($"[{c}] 1  OnComplete: bad latch[{tailMod}] = {slot != null}({slot != ZeroSentinel}), overflow = {insaneOverflow}, {Description}");
+                        Console.WriteLine(
+                            $"[{c}] 1  OnComplete: bad latch[{tailMod}] = {slot != null}({slot != ZeroSentinel}), overflow = {insaneOverflow}, {Description}");
                     }
-                    else if(c > 100000)
+                    else if (c > 1000000)
                     {
-                        Thread.Yield();
+                        //Thread.Yield();
                     }
 
                     if (_zeroed > 0)
                         break;
 
                     slot = ZeroSentinel;
-                    Thread.Yield();
+                    //Thread.Yield();
                     tailMod = (tailIdx = Tail) % _maxBlockers;
+                    //Interlocked.MemoryBarrierProcessWide();
                 }
 
                 //if unable to latch
                 if (slot == null)
                 {
-                    Interlocked.Increment(ref _tail);
+                    if (c > 1000000)
+                        Console.WriteLine(
+                            $"[{c}] 1 [RECOVER] OnComplete: bad latch[{tailMod}] = {slot != null}({slot != ZeroSentinel}), {Description}");
+
                     _signalAwaiterState[tailMod] = state;
                     ExtractContext(out _signalExecutionState[tailMod], out _signalCapturedContext[tailMod], flags);
-                    Thread.MemoryBarrier();
-                    _signalAwaiter[tailMod] = continuation;
+                    
+                    Interlocked.Exchange(ref _signalAwaiter[tailMod], continuation);
+                    //Thread.MemoryBarrier();
+                    //_signalAwaiter[tailMod] = continuation;
+                    Interlocked.Increment(ref _tail);
                     return;
                 }
 
+                if (c > 1000000)
+                    Console.WriteLine(
+                        $"[{c}] 1 [RECOVER] OnComplete: bad latch[{tailMod}] = {slot != null}({slot != ZeroSentinel}), {Description}");
+
 #if !DEBUG
-                if(slot == ZeroSentinel)
+                if (slot == ZeroSentinel)
                     return;
 #endif
 
 #if DEBUG
-                if(!_enableAutoScale && slot == ZeroSentinel)
+                if (!_enableAutoScale && slot == ZeroSentinel)
                     return;
 
                 ZeroUnlock();
@@ -542,15 +555,19 @@ namespace zero.core.patterns.semaphore.core
                     }
                     else
                     {
-                        throw new ZeroValidationException($"{_description}: FATAL!, {nameof(_curWaitCount)} = {_curWaitCount}/{_maxBlockers}, {nameof(_curAsyncWorkerCount)} = {_curAsyncWorkerCount}/{_maxAsyncWorkers}");
+                        throw new ZeroValidationException(
+                            $"{_description}: FATAL!, {nameof(_curWaitCount)} = {_curWaitCount}/{_maxBlockers}, {nameof(_curAsyncWorkerCount)} = {_curAsyncWorkerCount}/{_maxAsyncWorkers}");
                     }
 
                 }
 
-                throw new ZeroValidationException($"{nameof(OnCompleted)}: Invalid state! Concurrency bug. Too many blockers... {Description}");
+                throw new ZeroValidationException(
+                    $"{nameof(OnCompleted)}: Invalid state! Concurrency bug. Too many blockers... {Description}");
 #endif
             }
-            catch when (Zeroed()) { }
+            catch when (Zeroed())
+            {
+            }
             catch (Exception e) when (!Zeroed())
             {
                 LogManager.GetCurrentClassLogger().Error(e, $"{nameof(OnCompleted)}:");
@@ -731,7 +748,7 @@ namespace zero.core.patterns.semaphore.core
 
                 var j = 0;
                 //special zero case
-                if (_head % _maxBlockers != _tail % _maxBlockers || prevZeroState[_head % _maxBlockers] != null && prevZeroQ.Length == 1)
+                if (Head % _maxBlockers != Tail % _maxBlockers || prevZeroState[_head % _maxBlockers] != null && prevZeroQ.Length == 1)
                 {
                     _signalAwaiter[0] = prevZeroQ[0];
                     _signalAwaiterState[0] = prevZeroState[0];
@@ -741,7 +758,7 @@ namespace zero.core.patterns.semaphore.core
                 }
                 else
                 {
-                    for (var i = _head % _maxBlockers; i != _tail % _maxBlockers || prevZeroState[i] != null && j < _maxBlockers; i = (i + 1) % prevZeroQ.Length)
+                    for (var i = Head % _maxBlockers; i != Tail % _maxBlockers || prevZeroState[i] != null && j < _maxBlockers; i = (i + 1) % prevZeroQ.Length)
                     {
                         _signalAwaiter[j] = prevZeroQ[i];
                         _signalAwaiterState[j] = prevZeroState[i];
@@ -790,6 +807,7 @@ namespace zero.core.patterns.semaphore.core
             //lock in return value
             var released = 0;
 
+            var c = 0;
             //release waiters
             while (released < releaseCount && _curWaitCount > 0)
             {
@@ -802,25 +820,25 @@ namespace zero.core.patterns.semaphore.core
                 //latch a chosen head
                 long headLatch = 0;
                 long headMod = 0;
-                var c = 0;
-                var latch = Volatile.Read(ref _signalAwaiter[headMod = (headLatch = Head) % _maxBlockers]);
+                c = 0;
+                
+                var latch = _signalAwaiter[headMod = (headLatch = Head) % _maxBlockers];
                 while (
                     _curWaitCount > 0 &&
                     (
-                       headLatch > Tail || 
+                       headLatch > _tail || 
                        latch == null || 
                        latch == ZeroSentinel || 
                        (worker.Continuation = Interlocked.CompareExchange(ref _signalAwaiter[headMod], ZeroSentinel, latch)) != latch)
                     )
                 {
-                    
-                    if (++c == 100000)
+                    if (++c == 1000000)
                     {
                         Console.WriteLine($"[{c}] 2 Release: bad latch[{headMod}] = {worker.Continuation != latch}(null = {latch == null}), overflow = {headLatch > Tail}, {Description}");
                     }
-                    else if (c > 100000)
+                    else if (c > 1000000)
                     {
-                        Thread.Yield();
+                        //Thread.Yield();
                     }
 
                     if (_zeroed > 0)
@@ -830,17 +848,27 @@ namespace zero.core.patterns.semaphore.core
                         bestEffort = true;
 
                     worker.Continuation = ZeroSentinel;
-                    Thread.Yield();
-                    latch = Volatile.Read(ref _signalAwaiter[headMod = (headLatch = Head) % _maxBlockers]);
+
+                    //Thread.Yield();
+
+                    latch = _signalAwaiter[headMod = (headLatch = Head) % _maxBlockers];
+                    //Interlocked.MemoryBarrierProcessWide();
                 }
 
-                if (worker.Continuation != latch || latch == ZeroSentinel || latch == null)
+                if (worker.Continuation != latch || worker.Continuation == null || worker.Continuation == ZeroSentinel || latch == null || latch == ZeroSentinel)
                 {
                     if (Zeroed())
+                    {
+                        if (c > 1000000)
+                            Console.WriteLine($"[{c}] 2 [RECOVER] Release: bad latch[{headMod}] = {worker.Continuation != latch}(null = {latch == null}), overflow = {headLatch > Tail}, {Description}");
                         break;
-
+                    }
+                    
                     continue;
                 }
+
+                if (c > 1000000)
+                    Console.WriteLine($"[{c}] 2 [RECOVER] Release: bad latch[{headMod}] = {worker.Continuation != latch}(null = {latch == null}), overflow = {headLatch > Tail}, {Description}");
 
                 worker.State = _signalAwaiterState[headMod];
                 _signalAwaiterState[headMod] = null;
@@ -848,8 +876,9 @@ namespace zero.core.patterns.semaphore.core
                 _signalExecutionState[headMod] = null;
                 worker.CapturedContext = _signalCapturedContext[headMod];
                 _signalCapturedContext[headMod] = null;
-                Thread.MemoryBarrier();
-                _signalAwaiter[headMod] = null;
+                //Thread.MemoryBarrier();
+                Interlocked.Exchange(ref _signalAwaiter[headMod], null);
+                //_signalAwaiter[headMod] = null;
                 Interlocked.Increment(ref _head);
 
 #if DEBUG
@@ -871,6 +900,9 @@ namespace zero.core.patterns.semaphore.core
             if (!bestEffort)
                 Interlocked.Add(ref _curSignalCount, releaseCount - released);
 
+            if (c > 1000000)
+                Console.WriteLine($"[{c}] 2 [RECOVER] Release: {Description}");
+
             //return the number of waiters released
             return released;
         }
@@ -885,26 +917,23 @@ namespace zero.core.patterns.semaphore.core
             if (Zeroed())
                 return new ValueTask<bool>(false);
 
-            
-            var latch = _curSignalCount;
-            var prev = 0;
-            while (_curSignalCount > 0 && _curWaitCount == 0 && 
-                   (prev = Interlocked.CompareExchange(ref _curSignalCount, latch - 1, latch)) != latch)
-            {
-                latch = _curSignalCount;
-            }
+            var slot = -1;
+            int latch;
+
+            //grab a signal slot
+            while ((latch = _curSignalCount) > 0 && _curWaitCount == 0 && (slot = Interlocked.CompareExchange(ref _curSignalCount, latch - 1, latch)) != latch)
+                slot = -1;
 
             //fast path
-            if (prev != 0 && prev == latch)//There is a race here with _cureWaitCount going > 0, but I don't think this is an ordering issue as the race was won in the spin lock therefor this waiter must have been first anyway.
+            if (slot == latch && _curWaitCount == 0)//There is a race here with _cureWaitCount going > 0, but I don't think this is an ordering issue as the race was won in the spin lock therefor this waiter must have been first anyway.
                 return new ValueTask<bool>(true);
 
-            //Slow path, Q the waiter
-            if (Interlocked.Increment(ref _curWaitCount) <= _maxBlockers)
-                return new ValueTask<bool>(_zeroRef, 23);
+            //grab a wait slot
+            slot = -1;
+            while ((latch = _curWaitCount) < _maxBlockers && (slot = Interlocked.CompareExchange(ref _curWaitCount, latch + 1, latch)) != latch)
+                slot = -1;
 
-            //capacity reached, bail
-            Interlocked.Decrement(ref _curWaitCount);
-            return new ValueTask<bool>(false);
+            return slot == latch ? new ValueTask<bool>(_zeroRef, 23) : new ValueTask<bool>(false);
         }
 
         /// <summary>Completes with an error.</summary>
@@ -929,7 +958,7 @@ namespace zero.core.patterns.semaphore.core
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public bool Zeroed()
         {
-            return _zeroRef == null || _zeroed > 0 || _asyncTasks.IsCancellationRequested;
+            return _zeroed > 0 || _asyncTasks.IsCancellationRequested;
         }
 
         /// <summary>

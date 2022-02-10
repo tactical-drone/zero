@@ -32,7 +32,7 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "zero.core.feat", "zero.core
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "zero.gauge", "zero.gauge\zero.gauge.csproj", "{9C5A0E2C-1537-4E19-8BD2-2E9F87D221EB}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "zero.unsafe", "zero.unsafe\zero.unsafe.csproj", "{182128CC-3536-4120-B973-558DF16F1E1B}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "zero.unsafe", "zero.unsafe\zero.unsafe.csproj", "{182128CC-3536-4120-B973-558DF16F1E1B}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution

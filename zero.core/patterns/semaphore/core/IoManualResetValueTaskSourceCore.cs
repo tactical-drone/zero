@@ -78,15 +78,12 @@ namespace zero.core.patterns.semaphore.core
         {
             if (reset)
             {
-                if (_completed || _continuation != ManualResetValueTaskSourceCoreShared.SSentinel && _continuation != null)
-                {
+                if (_completed || _continuation != null && _continuation != ManualResetValueTaskSourceCoreShared.SSentinel)
                     Reset();
-                    return true;
-                }
 
-                return _continuation != ManualResetValueTaskSourceCoreShared.SSentinel;// && GetStatus((short)Version) == ValueTaskSourceStatus.Pending;
+                return true;
             }
-            return _continuation != null && _continuation != ManualResetValueTaskSourceCoreShared.SSentinel && !_completed;// && GetStatus((short)Version) == ValueTaskSourceStatus.Pending;
+            return !_completed && _continuation != null && _continuation != ManualResetValueTaskSourceCoreShared.SSentinel;
         }
 
         /// <summary>Completes with a successful result.</summary>
@@ -212,7 +209,7 @@ namespace zero.core.patterns.semaphore.core
                 if (oldContinuation != null)
                 {
                     // Operation already completed, so we need to queue the supplied callback.
-                    if (!ReferenceEquals(oldContinuation, ManualResetValueTaskSourceCoreShared.SSentinel) && RunContinuationsNatively)
+                    if (!ReferenceEquals(oldContinuation, ManualResetValueTaskSourceCoreShared.SSentinel))
                     {
                         throw new InvalidOperationException();
                     }

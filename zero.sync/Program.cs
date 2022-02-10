@@ -844,7 +844,7 @@ namespace zero.sync
 
             var start = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
             var rounds = 45;
-            var mult = 1000000;
+            var mult = 10000000;
             for (var i = 0; i < rounds; i++)
             {
                 Console.Write(".");

@@ -223,7 +223,7 @@ namespace zero.cocoon
 
             var id = Hub.Router?.Designation?.IdString();
             await DupSyncRoot.Zero(this, $"{nameof(ZeroManagedAsync)}: teardown").FastPath().ConfigureAwait(Zc);
-            await DupHeap.ZeroManagedAsync<object>().FastPath().ConfigureAwait(false);
+            await DupHeap.ZeroManagedAsync<object>().FastPath().ConfigureAwait(Zc);
             DupChecker.Clear();
 
             Services?.CcRecord?.Endpoints?.Clear();
@@ -943,7 +943,7 @@ namespace zero.cocoon
                             {
                                 @this._logger.Debug($"+|{drone.Description}");
                             }
-                        }, ValueTuple.Create(this, drone), TaskCreationOptions.DenyChildAttach).FastPath().ConfigureAwait(false);
+                        }, ValueTuple.Create(this, drone), TaskCreationOptions.DenyChildAttach).FastPath().ConfigureAwait(Zc);
 
                         return true;
                     }
