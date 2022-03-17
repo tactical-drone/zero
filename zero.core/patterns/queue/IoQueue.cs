@@ -590,7 +590,7 @@ namespace zero.core.patterns.queue
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Reset()
         {
-            if (_curEnumerator != null)
+            if (_curEnumerator != null && _curEnumerator.Disposed == 0)
             {
                 _curEnumerator.Reset();
                 _curEnumerator.Modified = false;

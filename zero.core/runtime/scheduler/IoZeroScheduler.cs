@@ -25,7 +25,8 @@ namespace zero.core.runtime.scheduler
             Zero = new IoZeroScheduler();
             ZeroDefault = Zero;
 
-            ZeroDefault = Default; //TODO: disabled for now, strange fundamental failures occurring.
+            //TODO 2.0: Now the default scheduler is not working (threads eventually starve). Something strange going on here.
+            //ZeroDefault = Default; //TODO: disabled for now, strange fundamental failures occurring.
         }
         public IoZeroScheduler(CancellationTokenSource asyncTasks = null)
         {
@@ -35,7 +36,7 @@ namespace zero.core.runtime.scheduler
                 return;
             _asyncTasks = asyncTasks?? new CancellationTokenSource();
             _workerCount = Math.Max(Environment.ProcessorCount >> 1, 2);
-            _queenCount = Math.Max(Environment.ProcessorCount >> 1, 2);
+            _queenCount = Math.Max(Environment.ProcessorCount >> 3, 2);
             var capacity = MaxWorker;
 
             _workQueue = new IoZeroQ<Task>(string.Empty, capacity, new Task(() => {}), false);
@@ -46,6 +47,7 @@ namespace zero.core.runtime.scheduler
                 {
                     signal.Processed = 0;
                     signal.TaskId = -1;
+                    signal.Task = null;
                 }
             };
 
@@ -152,7 +154,7 @@ namespace zero.core.runtime.scheduler
         }
 
         private static readonly int SlowWorkerThreshold = 5000;
-        private static readonly int WorkerSpawnRate = 16*30;
+        private static readonly int WorkerSpawnRate = 1000;
         private static readonly int WorkerExpireThreshold = 10;
         private static readonly int MaxLoad = Environment.ProcessorCount * 10;
 
@@ -319,11 +321,9 @@ namespace zero.core.runtime.scheduler
         static IoManualResetValueTaskSource<bool> MallocQueenTaskCore => new IoManualResetValueTaskSource<bool>(runContinuationsAsynchronously: false, runContinuationsNatively: true);
 
         /// <summary>
-        /// Queens wake worker threads if there is work to be done. For every worker there is a queen managing it
-        /// 
-        /// This means workers are powered by the threads held by queens in a one to one fashion.
-        /// 
-        /// Workers in turn are powered by their own threads, doing the work. 
+        /// Queens wake worker threads if there is work to be done.
+        ///
+        /// It starts its way at the most resent worker created working its way down.
         /// </summary>
         /// <param name="this">The scheduler</param>
         /// <param name="s">The signal to be sent</param>
@@ -341,12 +341,20 @@ namespace zero.core.runtime.scheduler
                 if (s.Processed > 0 || s.Task.Status > TaskStatus.WaitingToRun)
                     return false;
             }
-            catch when(s.Processed > 0){}
-            catch (Exception e) when(s.Processed == 0)
+            catch (Exception e)
             {
-                Console.WriteLine($"{e.Message}, s = {s}, p = {s?.Processed}, task = {s?.Task}, status = {s?.Task?.Id} ({s?.TaskId})");
-                throw;
+                Console.WriteLine($"--> ???");
+                Console.WriteLine($"--> {e.Message}, s = {s}, p = {s?.Processed}, task = {s?.Task}, status = {s?.Task?.Id} ({s?.TaskId})");
+                return false;
             }
+            //catch when(s?.Processed > 0){}
+            //catch (Exception e) when(s == null || s.Processed == 0)
+            //{
+            //    Console.WriteLine($"--> ???");
+            //    Console.WriteLine($"--> {e.Message}, s = {s}, p = {s?.Processed}, task = {s?.Task}, status = {s?.Task?.Id} ({s?.TaskId})");
+            //    return false;
+            //    //throw;
+            //}
 
             //poll a worker, or create a new one if none are available
             try
@@ -379,7 +387,7 @@ namespace zero.core.runtime.scheduler
                                     try
                                     {
                                         var w = @this._pollWorker[i];
-                                        if (@this._workerPunchCards[i] == 0 && w.Ready())
+                                        if (Volatile.Read(ref @this._workerPunchCards[i]) == 0 && w.Ready())
                                         {
                                             w.SetResult(true);
 
@@ -452,7 +460,7 @@ namespace zero.core.runtime.scheduler
 
             var d = ts.ElapsedMs();
             if(d > 1)
-                Console.WriteLine($"QUEEN{id} SLOW => {d}ms, q length = {@this.QLength}");
+                Console.WriteLine($"QUEEN[{id}] SLOW => {d}ms, q length = {@this.QLength}");
             return true;
         }
 
@@ -472,12 +480,12 @@ namespace zero.core.runtime.scheduler
         /// Spawn a new worker thread
         /// </summary>
         /// <param name="desc">A Description</param>
-        /// <param name="j">worker id</param>
+        /// <param name="id">worker id</param>
         /// <param name="prime">task to prime this thread with</param>
         /// <param name="queue">The Q o use</param>
         /// <param name="priority">Thread priority</param>
         /// <param name="callback">work handler</param>
-        private void SpawnWorker<T>(string desc, int j, IoZeroQ<T> queue, Task prime = null, ThreadPriority priority = ThreadPriority.Normal, Func<IoZeroScheduler, T, int, bool> callback = null) where T : class
+        private void SpawnWorker<T>(string desc, int id, IoZeroQ<T> queue, Task prime = null, ThreadPriority priority = ThreadPriority.Normal, Func<IoZeroScheduler, T, int, bool> callback = null) where T : class
         {
             //Thread.CurrentThread.Priority = priority;
 #if DEBUG
@@ -489,7 +497,7 @@ var d = 0;
             }
 
             Console.WriteLine("-----------------------------------------------------------------------------------------------------------------------------------------");
-            Console.WriteLine($"spawning {desc}[{j}], t = {ThreadCount}, l = {Load}/{Environment.ProcessorCount}({(double)Load / Environment.ProcessorCount * 100.0:0.0}%) ({LoadFactor * 100:0.0}%), q = {WLength}, z = {d}ms, a = {Active.Count()}, running = {Blocked.Count()}, Free = {Free.Count()}, ({(double)Blocked.Count() / Active.Count() * 100:0.0}%)");
+            Console.WriteLine($"spawning {desc}[{id}], t = {ThreadCount}, l = {Load}/{Environment.ProcessorCount}({(double)Load / Environment.ProcessorCount * 100.0:0.0}%) ({LoadFactor * 100:0.0}%), q = {WLength}, z = {d}ms, a = {Active.Count()}, running = {Blocked.Count()}, Free = {Free.Count()}, ({(double)Blocked.Count() / Active.Count() * 100:0.0}%)");
 #endif
 
 #endif
@@ -498,26 +506,25 @@ var d = 0;
             {
                 try
                 {
-                    var (@this, queue, desc, workerId, prime, callback, priority) =
+                    var (@this, queue, desc, xId, prime, callback, priority) =
                         (ValueTuple<IoZeroScheduler, IoZeroQ<T>, string, int, Task, Func<IoZeroScheduler, T, int, bool>, ThreadPriority>)state;
 
+                    bool isWorker = priority != ThreadPriority.Highest;
                     //fast prime task to unwind current worker dead lockers
                     if (prime is { Status: <= TaskStatus.WaitingToRun })
                         @this.TryExecuteTask(prime);
 #if DEBUG
                     var jobsProcessed = 0;
 #endif
-
-                    var taskCore = priority == ThreadPriority.Highest
-                        ? Volatile.Read(ref @this._pollQueen[workerId])
-                        : Volatile.Read(ref @this._pollWorker[workerId]);
+                    var taskCore = !isWorker
+                        ? Volatile.Read(ref @this._pollQueen[xId])
+                        : Volatile.Read(ref @this._pollWorker[xId]);
                     //process tasks
                     while (!@this._asyncTasks.IsCancellationRequested)
                     {
                         var taskCoreUsed = false;
                         try
                         {
-                            
                             //wait on work q pressure
                             if (queue.Count == 0 && taskCore.Ready(true))
                             {
@@ -532,26 +539,25 @@ var d = 0;
                                 }
 
 #endif
-
                                 var waitForPollCore = new ValueTask<bool>(taskCore, (short)taskCore.Version);
                                 taskCoreUsed = true;
-                                if (priority == ThreadPriority.Highest)
+                                if (!isWorker)
                                 {
                                     if (!await waitForPollCore.FastPath().ConfigureAwait(false))
                                     {
 #if !_TRACE_
-                                        Console.WriteLine($"Queen {workerId} unblocking... FAILED! status = {taskCore.GetStatus((short)taskCore.Version)}");
+                                        Console.WriteLine($"Queen {xId} unblocking... FAILED! status = {taskCore.GetStatus((short)taskCore.Version)}");
 #endif
                                         continue;
                                     }
                                 }
 
-                                if (priority <= ThreadPriority.AboveNormal)
+                                if (isWorker)
                                 {
                                     if (!await waitForPollCore.FastPath())
                                     {
 #if !_TRACE_
-                                        Console.WriteLine($"Worker {workerId} unblocking... FAILED! version = {taskCore.GetStatus((short)taskCore.Version)}");
+                                        Console.WriteLine($"Worker {xId} unblocking... FAILED! version = {taskCore.GetStatus((short)taskCore.Version)}");
 #endif
                                         continue;
                                     }
@@ -567,11 +573,7 @@ var d = 0;
                                 }
 #endif
                             }
-                            else
-                            {
-                                
-                            }
-
+                            
 
                             ////congestion control
                             //if (priority == ThreadPriority.Highest)
@@ -620,27 +622,32 @@ var d = 0;
                             try
                             {
 //Service the Q
-                                if (priority == ThreadPriority.Highest)
+                                if (!isWorker)
                                 {
-                                    Interlocked.Exchange(ref @this._queenPunchCards[workerId], 1);
+                                    Interlocked.Exchange(ref @this._queenPunchCards[xId], 1);
 #if __TRACE__
                                 Console.WriteLine($"[[QUEEN]] CONSUMING FROM Q {workerId},  Q = {queue.Count}/{@this.Active.Count()} - total jobs process = {@this.CompletedWorkItemCount}");
 #endif
                                 }
                                 else
                                 {
-                                    Interlocked.Exchange(ref @this._workerPunchCards[workerId], 1);
+                                    Interlocked.Exchange(ref @this._workerPunchCards[xId], 1);
+                                    if (Thread.CurrentThread.Priority != ThreadPriority.Normal)
+                                    {
+                                        Console.WriteLine($"worker {xId} stale...");
+                                    }
                                 }
 
                                 while (queue.TryDequeue(out var work) /*|| workerId == @this._workerCount*/)
                                 {
                                     //Debug.Assert(work != null);
-                                    //Console.WriteLine(".");
+                                    //Console.WriteLine(".");  
+
                                     try
                                     {
-                                        if (work != null && callback(@this, work, workerId))
+                                        if (work != null && callback(@this, work, xId))
                                         {
-                                            if (priority == ThreadPriority.Highest)
+                                            if (!isWorker)
                                                 Interlocked.Increment(ref @this._completedQItemCount);
                                             else
                                                 Interlocked.Increment(ref @this._completedWorkItemCount);
@@ -653,7 +660,7 @@ var d = 0;
                                     {
 #if DEBUG
                                         LogManager.GetCurrentClassLogger().Error(e,
-                                            $"{nameof(IoZeroScheduler)}: wId = {workerId}/{@this._workerCount}, this = {@this}, wq = {@this?._workQueue}, work = {work}, q = {taskCore}");
+                                            $"{nameof(IoZeroScheduler)}: wId = {xId}/{@this._workerCount}, this = {@this}, wq = {@this?._workQueue}, work = {work}, q = {taskCore}");
 #endif
                                     }
                                 }
@@ -667,20 +674,21 @@ var d = 0;
                             {
                                 if (taskCoreUsed)
                                 {
-                                    taskCoreUsed = false;
                                     taskCore.Reset();
+                                    taskCoreUsed = false;
                                 }
                                 else
                                 {
                                     taskCoreUsed = true;
                                 }
-                                if (priority == ThreadPriority.Normal)
+
+                                if (isWorker)
                                 {
-                                    Interlocked.Exchange(ref @this._workerPunchCards[workerId], 0);
+                                    Interlocked.Exchange(ref @this._workerPunchCards[xId], 0);
                                 }
-                                else if (priority == ThreadPriority.Highest)
+                                else
                                 {
-                                    Interlocked.Exchange(ref @this._queenPunchCards[workerId], 0);
+                                    Interlocked.Exchange(ref @this._queenPunchCards[xId], 0);
                                 }
                             }
                         }
@@ -688,7 +696,7 @@ var d = 0;
                         {
 #if DEBUG
                             LogManager.GetCurrentClassLogger().Error(e,
-                                $"{nameof(IoZeroScheduler)}: wId = {workerId}/{@this._workerCount}, this = {@this != null}, wq = {@this?._workQueue}, q = {taskCore != null}");
+                                $"{nameof(IoZeroScheduler)}: wId = {xId}/{@this._workerCount}, this = {@this != null}, wq = {@this?._workQueue}, q = {taskCore != null}");
 #endif
                         }
                         finally
@@ -698,13 +706,13 @@ var d = 0;
                         }
 
                         //drop zombie workers
-                        if (priority == ThreadPriority.Normal && workerId == @this._workerCount && @this._dropWorker > 0)
+                        if (isWorker && xId == @this._workerCount && @this._dropWorker > 0)
                         {
                             if (Interlocked.Decrement(ref @this._dropWorker) >= 0)
                             {
 #if !__TRACE__
                                 Console.WriteLine(
-                                    $"!!!! KILLED WORKER THREAD ~> {desc}ZW[{workerId}], processed = {@this.CompletedWorkItemCount}");
+                                    $"!!!! KILLED WORKER THREAD ~> {desc}ZW[{xId}], processed = {@this.CompletedWorkItemCount}");
 #endif
                                 break;
                             }
@@ -719,17 +727,17 @@ var d = 0;
                         }
                     }
 
-                    if (priority == ThreadPriority.Normal)
+                    if (isWorker)
                     {
-                        Console.WriteLine($"KILLING WORKER THREAD id ={workerId} - has = {desc})");
-                        Volatile.Write(ref @this._workerPunchCards[workerId], -1);
+                        Console.WriteLine($"KILLING WORKER THREAD id ={xId} - has = {desc})");
+                        Volatile.Write(ref @this._workerPunchCards[xId], -1);
 
-                        var wTmp = @this._pollWorker[workerId];
-                        @this._pollWorker[workerId] = null;
+                        var wTmp = @this._pollWorker[xId];
+                        @this._pollWorker[xId] = null;
 
                         try
                         {
-                            wTmp.SetException(new ThreadInterruptedException($"Inactive thread workerId = {workerId} was purged"));
+                            wTmp.SetException(new ThreadInterruptedException($"Inactive thread workerId = {xId} was purged"));
                         }
                         catch
                         {
@@ -744,16 +752,20 @@ var d = 0;
             }
 
             if (priority == ThreadPriority.Highest)
-                Volatile.Write(ref _queenPunchCards[j], 0);
+                Volatile.Write(ref _queenPunchCards[id], 0);
             else
-                Volatile.Write(ref _workerPunchCards[j], 0);
+                Volatile.Write(ref _workerPunchCards[id], 0);
 
             var t = new Thread(ThreadWorker)
             {
                 IsBackground = true,
-                Name = $"{desc}"
+                Name = $"{desc}[{id}]",
             };
-            t.Start((this, queue, desc, j, prime, callback, priority));
+
+            if (priority == ThreadPriority.Highest)
+                t.Priority = ThreadPriority.AboveNormal;
+
+            t.Start((this, queue, desc, id, prime, callback, priority));
         }
 
         /// <summary>

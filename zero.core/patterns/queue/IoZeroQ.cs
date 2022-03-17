@@ -3,6 +3,7 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
+using System.IO;
 using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
@@ -36,13 +37,13 @@ namespace zero.core.patterns.queue
             if(autoScale && (capacity & -capacity) != capacity || capacity == 0)
                 throw new ArgumentOutOfRangeException($"{nameof(capacity)} = {capacity} must be a power of 2 when {nameof(autoScale)} is set true");
 
-            Sentinel = sentinel;
+            _sentinel = sentinel;
             _autoScale = autoScale;
             if (autoScale)
             {
                 _hwm = _capacity = 1;
                 _storage = new T[32][];
-                _storage[0] = new T[_capacity];
+                _storage[0] = _fastStorage = new T[_capacity];
 
                 var v = IoMath.Log2((ulong)capacity) - 1;
                 var scaled = false;
@@ -58,7 +59,7 @@ namespace zero.core.patterns.queue
             {
                 _hwm = _capacity = capacity;
                 _storage = new T[1][];
-                _storage[0] = new T[_capacity];
+                _storage[0] = _fastStorage = new T[_capacity];
             }
 
             _curEnumerator = new IoQEnumerator<T>(this);
@@ -68,15 +69,16 @@ namespace zero.core.patterns.queue
         private readonly bool _zc = IoNanoprobe.ContinueOnCapturedContext;
         private readonly string _description;
 
-        private volatile T[][] _storage;
+        private T[][] _storage;
+        private readonly T[] _fastStorage;
 
         private readonly object _syncRoot = new();
         // ReSharper disable once StaticMemberInGenericType
-        private volatile T Sentinel;
+        private readonly T _sentinel;
         private volatile int _capacity;
         private volatile int _virility;
         private long _hwm;
-        private volatile int _count;
+        
         public long Tail => Interlocked.Read(ref _tail);
         private long _tail;
         public long Head => Interlocked.Read(ref _head);
@@ -84,6 +86,7 @@ namespace zero.core.patterns.queue
 
         private volatile IoQEnumerator<T> _curEnumerator;
 
+        private volatile int _count;
         private volatile bool _autoScale;
 
         /// <summary>
@@ -122,8 +125,8 @@ namespace zero.core.patterns.queue
             {
                 Debug.Assert(idx >= 0);
                 
-                if (!IsAutoScaling) return Volatile.Read(ref _storage[0][idx % _capacity]);
-                if (idx < _capacity) return Volatile.Read(ref _storage[0][idx]);
+                if (!IsAutoScaling) return Volatile.Read(ref _fastStorage[idx % _capacity]);
+                if (idx < _capacity) return Volatile.Read(ref _fastStorage[idx]);
 
                 idx %= Capacity;
                 var i = IoMath.Log2((ulong) idx + 1);
@@ -135,13 +138,13 @@ namespace zero.core.patterns.queue
                 Debug.Assert(idx >= 0);
                 if (!IsAutoScaling)
                 {
-                    _storage[0][idx % _capacity] = value;
+                    _fastStorage[idx % _capacity] = value;
                     return;
                 }
 
                 if (idx < _capacity)
                 {
-                    _storage[0][idx] = value;
+                    _fastStorage[idx] = value;
                     return;
                 }
                 idx %= Capacity;
@@ -157,7 +160,7 @@ namespace zero.core.patterns.queue
             //Debug.Assert(idx >= 0);
 
             //if (!IsAutoScaling) return Interlocked.Exchange(ref _storage[0][idx % _capacity], Sentinel);
-            return Interlocked.Exchange(ref _storage[0][idx % _capacity], next);
+            return Interlocked.Exchange(ref _fastStorage[idx % _capacity], next);
             //if (idx < _capacity) return Interlocked.Exchange(ref _storage[0][idx], Sentinel);
 
             //idx %= Capacity;
@@ -219,12 +222,12 @@ namespace zero.core.patterns.queue
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private T CompareExchange(long idx, T value, T compare)
         {
-            if (!IsAutoScaling) return Interlocked.CompareExchange(ref _storage[0][idx % _capacity], value, compare);
+            if (!IsAutoScaling) return Interlocked.CompareExchange(ref _fastStorage[idx % _capacity], value, compare);
             if (idx < _capacity) 
-                return Interlocked.CompareExchange(ref _storage[0][idx], value, compare);
+                return Interlocked.CompareExchange(ref _fastStorage[idx], value, compare);
 
             idx %= Capacity;
-            var i = IoMath.Log2((ulong)(idx) + 1);
+            var i = IoMath.Log2((ulong)idx + 1);
             return Interlocked.CompareExchange(ref _storage[i][idx - ((1 << i) - 1)], value, compare);
         }
 
@@ -241,12 +244,14 @@ namespace zero.core.patterns.queue
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public long TryEnqueue(T item, bool deDup = false)
         {
+#if DEBUG
             if (_broken)
             {
                 return -1;
             }
+#endif
 
-            Debug.Assert(Sentinel != null);
+            Debug.Assert(_sentinel != null);
             Debug.Assert(item != null);
             
             if (_count >= Capacity)
@@ -271,73 +276,77 @@ namespace zero.core.patterns.queue
 #if DEBUG
                 Interlocked.Increment(ref _addsAttempted);
 #endif
-                var slot = Sentinel;
+                var slot = _sentinel;
                 var c = 0;
-                var insaneScale = Capacity;
-                var tailIdx = Tail;
-                while (
+                
+                //if success
+                //lock (_syncRoot)
+                {
+                    Interlocked.MemoryBarrier();
+                    var insaneScale = Capacity;
+                    var tailIdx = Tail;
+                    while (
                     _count < insaneScale && 
                     (/*tailIdx >= _head + insaneScale ||*/ insaneScale == Capacity && (slot = CompareExchange(tailIdx, item, null)) != null)
                     )
-                {
-                    if (++c == 25000)
                     {
-                        //Console.WriteLine($"[{c}] eq 3 latch[{tailIdx%Capacity}]~[{Tail % insaneScale}] bad = {slot != null} ({slot != Sentinel}), overflow = {tailIdx >= Head + insaneScale}, has space = {_count < insaneScale}, scale failure = {insaneScale != Capacity}, {Description}");
+#if DEBUG
+                        if (++c == 50000)
+                        {
+                            Console.WriteLine($"[{c}] eq 3 latch[{tailIdx%Capacity}]~[{Tail % insaneScale}] bad = {slot != null} ({slot != _sentinel}), overflow = {tailIdx >= Head + insaneScale}, has space = {_count < insaneScale}, scale failure = {insaneScale != Capacity}, {Description}");
+                        }
+                        else if (c > 50000)
+                        {
+                            
+                        }
+#endif
+
+                        slot = _sentinel;
+
+                        if (Zeroed)
+                            break;
+
+                        Interlocked.MemoryBarrierProcessWide();
+                        insaneScale = Capacity;
+                        tailIdx = Tail;
                     }
-                    else if (c > 25000)
-                    {
-                        //TODO: bugs? Attempt to recover...
-                        //if (slot != Sentinel && slot != null)
-                        ////if (slot != null)
-                        //{
-                        //    //Interlocked.Exchange(ref _head, tailIdx);
-                        //    //Interlocked.Decrement(ref _tail);
-
-                        //    Interlocked.Increment(ref _tail);
-                        //    //Interlocked.Increment(ref _count);
-                        //    c /= 2;
-                        //}
-                        //else//TODO: unrecoverable bug?
-                        //{
-                        //    Console.WriteLine($"[{c}] 3 [CRITICAL LOCK FAILURE!!!] latch[{tailIdx%Capacity}]~[{Tail % insaneScale}] bad = {slot != null}({slot != Sentinel}), overflow = {tailIdx >= Head + insaneScale}, has space = {_count < insaneScale}, scale failure = {insaneScale != Capacity}, {Description}");
-                        //}
-
-                        //Thread.Yield();
-                        break;
-                    }
-
-                    if (Zeroed)
-                        break;
-
-                    slot = Sentinel;
-                    insaneScale = Capacity;
-                    Thread.Yield();
-                    tailIdx = _tail;
-                    Interlocked.MemoryBarrierProcessWide();
-                }
                 
-                //retry on scaling
-                if (insaneScale != Capacity)
-                {
+                    //retry on scaling
+                    if (insaneScale != Capacity)
+                    {
+                        Console.WriteLine("---------------------------------------------------");
+                        if (slot == null)
+                        {
+                            if (CompareExchange(tailIdx, null, item) != item)
+                                LogManager.GetCurrentClassLogger().Error($"{nameof(TryEnqueue)}: Could not restore latch state!");
+                        }
+                        return TryEnqueue(item, deDup);
+                    }
+
+                
                     if (slot == null)
                     {
-                        if (CompareExchange(tailIdx, null, item) != item)
-                            LogManager.GetCurrentClassLogger().Error($"{nameof(TryEnqueue)}: Could not restore latch state!");
-                    }
-                    return TryEnqueue(item, deDup);
-                }
+                        //_prevEqObj = item;
 
-                //if success
-                if (slot == null)
-                {
-                    Debug.Assert(this[tailIdx] != null);
-                    Interlocked.Increment(ref _count);//count first
-                    Interlocked.Increment(ref _tail);
-                    _curEnumerator.IncIteratorCount(); //TODO: is this a good idea?
+                        Debug.Assert(tailIdx == Tail);
+                        Debug.Assert(item != null);
+                        //TODO:Invalid asserts
+                        //Debug.Assert(this[tailIdx] != null);
+                        //Debug.Assert(this[Tail] != null);
+
+
+                        Interlocked.Increment(ref _tail);
+                        Interlocked.MemoryBarrier();
+                        Interlocked.Increment(ref _count);
+
+                        //Interlocked.MemoryBarrierProcessWide();
+                        //Interlocked.MemoryBarrier();
+                        _curEnumerator.IncIteratorCount(); //TODO: is this a good idea?
 #if DEBUG
-                    Interlocked.Increment(ref _adds);
+                        Interlocked.Increment(ref _adds);
 #endif
-                    return tailIdx;
+                        return tailIdx;
+                    }
                 }
 
                 if (Zeroed)
@@ -372,19 +381,22 @@ namespace zero.core.patterns.queue
             return -1;
         }
 
-        private volatile int _takesAttempted;
+
 #if DEBUG
+        private volatile int _takesAttempted;
         private volatile int _takes;
 #endif
 
         volatile bool _broken = false;
-        private static object _syncroot = new();
+        //private long _prevDq = 0;
+        //private volatile object _prevDqObj;
+        //private volatile object _prevEqObj;
         /// <summary>
         /// Try take from the Q, round robin
         /// </summary>
         /// <param name="result">The item to be fetched</param>
         /// <returns>True if an item was found and returned, false otherwise</returns>
-        [MethodImpl(MethodImplOptions.NoInlining)]
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public bool TryDequeue([MaybeNullWhen(false)] out T result)
         {
             if (_broken)
@@ -393,7 +405,7 @@ namespace zero.core.patterns.queue
                 return false;
             }
                 
-            result = Sentinel;
+            result = _sentinel;
             try
             {
 #if DEBUG
@@ -408,143 +420,89 @@ namespace zero.core.patterns.queue
                 long headLatch;
                 var ts = Environment.TickCount;
                 var c = 0;
-                var insaneScale = Capacity;
-                var latch = this[headLatch = Head];
-                while (_count > 0 &&
-                       insaneScale == Capacity &&
-                       (/*headLatch > _tail ||*/ latch == null ||
-                        (result = CompareExchange(headLatch, null, latch)) != latch))
-                {
-                    if (++c == 25000)
-                    {
-                        _broken = true;
-                        lock (_syncRoot)
-                        {
-                            Console.WriteLine($"[{c}] 4 dq latch[{headLatch % Capacity}] t = {ts.ElapsedMs()}ms. bad = {latch != result} (n = {latch == null}, s = {latch == Sentinel}, r = {(result == Sentinel ? null : result?.GetType().Name)}), overflow = {headLatch > Tail}, scale failure = {insaneScale != Capacity}, concurrency = {_takesAttempted}, {Description}");
-
-                            Console.WriteLine();
-                            var d = 0;
-                            for (int i = Math.Max((int)(_head - 10), 0); i < _tail; i++)
-                            {
-                                if (i == headLatch)
-                                    Console.Write($">");
-
-                                if (this[i] == null)
-                                {
-                                    Console.Write($"0, ");
-                                }
-                                else
-                                {
-                                    d++;
-                                    Console.Write($"1, ");
-                                }
-
-                            }
-                            Console.WriteLine($"\nTotal = {d}, c = {_count}, C = {Tail - Head}");
-
-                            Debug.Assert(false);
-                        }
-                        //var i = _count/2;
-                        //var s = 0;
-                        //var hacked = false;
-                        //while (i -- > 0)
-                        //{
-                        //    var h = Get(headLatch - i);
-                        //    if (h != null && h != Sentinel)
-                        //    {
-                        //        Console.WriteLine($"!!!!!! id = {(h as IoZeroScheduler.ZeroSignal)?.Task.Id} -->{s} / {_takesAttempted}, ");
-                        //        this[headLatch] = h;
-                        //        hacked = true;
-                        //        break;
-                        //    }
-
-                        //    s++;
-                        //}
-
-                        //if (!hacked)
-                        //    Interlocked.Increment(ref _head);
-
-                        //c /= 2;
-                    }
-                    else if (c > 25000)
-                    {
-
-                        ////TODO: bugs? Attempt to recover...
-                        //if (result == null && _head < _tail)
-                        //{
-                        //    Interlocked.Increment(ref _head);
-                        //    Console.WriteLine("Compensate...");
-                        //    //if (_count > 0 && Interlocked.Decrement(ref _count) < 0)
-                        //    //{
-                        //    //    Thread.Yield();
-                        //    //    if (_count < 0)
-                        //    //        Interlocked.Increment(ref _count);
-                        //    //}
-
-                        //    c /= 2;
-                        //}
-                        //else //TODO: unrecoverable bug?
-                        //{
-                        //    //if (Tail - Head == 0 && _count < 10)
-                        //    //    Interlocked.Exchange(ref _count, (int)(Tail - Head));
-                        //    //Console.WriteLine($"[{c}] 4 [CRITICAL LOCK FAILURE!!!] latch[{headLatch%Capacity}] bad = {latch != Sentinel && latch != result}(n = {latch == null}, s = {latch == Sentinel}, r = {(result == Sentinel ? null : result?.GetType().Name)}), overflow = {headLatch > Tail}, scale failure = {insaneScale != Capacity}, {Description}");
-                        //    Thread.Yield();
-                        //}
-
-                        break;
-                        //Thread.Yield();
-                    }
-
-                    result = Sentinel;
-
-                    if (Zeroed)
-                        break;
-
-                    insaneScale = Capacity;
-                    Thread.Yield();
-                    latch = this[headLatch = _head];
-                    Interlocked.MemoryBarrierProcessWide();
-                }
-
-                if (insaneScale != Capacity)
-                {
-                    if (result == latch && result != Sentinel && result != null)
-                    {
-                        if (CompareExchange(headLatch, result, null) != null)
-                            LogManager.GetCurrentClassLogger()
-                                .Error($"{nameof(TryDequeue)}: Could not restore latch state!");
-                    }
-
-                    return TryDequeue(out result);
-                }
-
-                if (result != latch || result == null || latch == null)
-                {
-                    //if (c >= 25000)
-                    //    Console.WriteLine(
-                    //        $"[{c}] 4 dq [RECOVERED!!!] latch[{headLatch % Capacity}] bad = {latch != result}, overflow = {headLatch > Tail}, scale = {insaneScale != Capacity}, {Description}");
-                    result = null;
-                    return false;
-                }
-
-
-                //this[headLatch] = null;
-                Debug.Assert(result != null);
-                Debug.Assert(result == latch);
-                Debug.Assert(this[headLatch] == null);
                 
-                Interlocked.Decrement(ref _count); //count first
-                var next = Interlocked.Increment(ref _head);
-                Debug.Assert(next - 1 == headLatch);
+                //lock (_syncRoot)
+                {
+                    Interlocked.MemoryBarrier();
+                    var insaneScale = Capacity;
+                    var latch = this[headLatch = Head];
+
+                    while (_count > 0 &&
+                           insaneScale == Capacity &&
+                           (/*headLatch > _tail ||*/ latch == null ||
+                                                     (result = CompareExchange(headLatch, null, latch)) != latch))
+                    {
 #if DEBUG
-                Interlocked.Increment(ref _takes);
+                        if (++c == 50000)
+                        {
+                        
+                        }
+                        else if (c > 50000)
+                        {
+
+                        }
+#endif
+                        result = _sentinel;
+
+                        if (Zeroed)
+                            break;
+
+                        Interlocked.MemoryBarrierProcessWide();
+                        insaneScale = Capacity;
+                        latch = this[headLatch = Head];
+                    }
+
+                    if (insaneScale != Capacity)
+                    {
+                        if (result == latch && result != _sentinel && result != null)
+                        {
+                            if (CompareExchange(headLatch, result, null) != null)
+                                LogManager.GetCurrentClassLogger()
+                                    .Error($"{nameof(TryDequeue)}: Could not restore latch state!");
+                        }
+
+                        return TryDequeue(out result);
+                    }
+
+                    if (_count == 0 || result != latch || result == null || latch == null )
+                    {
+#if DEBUG
+                        if (c >= 50000) 
+                            Console.WriteLine(
+                                $"[{c}] 4 dq [RECOVERED!!!] latch[{headLatch % Capacity}] bad = {latch != result}, overflow = {headLatch > Tail}, scale = {insaneScale != Capacity}, {Description}");
+#endif
+                        result = null;
+                        return false;
+                    }
+
+                    Debug.Assert(result != null);
+                    Debug.Assert(result == latch);
+                    Debug.Assert(_count > 0);
+                    Debug.Assert(this[headLatch] == null);
+
+                    //backup
+                    //this[headLatch] = null;
+                    var next = Interlocked.Increment(ref _head);
+                    Interlocked.MemoryBarrier();
+                    Interlocked.Decrement(ref _count); //count first;
+                    //Interlocked.MemoryBarrier();
+                    //Interlocked.MemoryBarrierProcessWide();
+
+                    Debug.Assert(next - 1 == headLatch);
+
+                    //_prevDq = headLatch;
+                    //_prevEqObj = Interlocked.Decrement(ref _count); //count first;
+                    //_prevDqObj = result.GetType();
+#if DEBUG
+                    Interlocked.Increment(ref _takes);
+
+                    if (c >= 50000)
+                        Console.WriteLine(
+                            $"[{c}] 4 dq (R) latch[{headLatch % Capacity}] bad = {latch != result}, overflow = {headLatch > Tail}, scale = {insaneScale != Capacity}, {Description}");
 #endif
 
-                if (c >= 25000)
-                    Console.WriteLine(
-                        $"[{c}] 4 dq (R) latch[{headLatch % Capacity}] bad = {latch != result}, overflow = {headLatch > Tail}, scale = {insaneScale != Capacity}, {Description}");
-
-                return true;
+                    return true;
+                }
             }
             catch (Exception e)
             {

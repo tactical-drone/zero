@@ -61,7 +61,7 @@ namespace zero.cocoon.autopeer
             {
                 return;
             }
-
+            
             _random = new CryptoRandomSource(true);
 
             _logger = LogManager.GetCurrentClassLogger();

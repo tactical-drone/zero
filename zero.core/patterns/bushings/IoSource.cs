@@ -46,7 +46,7 @@ namespace zero.core.patterns.bushings
             }
             else
             {
-                PrefetchEnabled = prefetchSize > 0;
+                PrefetchEnabled = prefetchSize > 1;
             }
 
             PrefetchSize = prefetchSize;
@@ -54,13 +54,15 @@ namespace zero.core.patterns.bushings
             AsyncEnabled = MaxAsyncSources > 0;
 
             Proxy = proxy;
-            
+
+            var maxBlockers = PrefetchEnabled ? PrefetchSize : concurrencyLevel;
+
             try
             {
                 if (PressureEnabled)
                 {
                     _pressure = new IoZeroSemaphoreSlim(AsyncTasks, $"{nameof(_pressure)}: {description}",
-                        maxBlockers: PrefetchSize, 
+                        maxBlockers: maxBlockers, 
                         0, 
                         maxAsyncWork: 0); //TODO Prefetch - 1 or not?
                 }
@@ -68,7 +70,7 @@ namespace zero.core.patterns.bushings
                 if (BackPressureEnabled)
                 {
                     _backPressure = new IoZeroSemaphoreSlim(AsyncTasks, $"{nameof(_backPressure)}: {description}",
-                        maxBlockers: PrefetchSize,
+                        maxBlockers: maxBlockers,
                         initialCount: concurrencyLevel,
                         maxAsyncWork: 0); //TODO Prefetch - 1 or not?
                 }
@@ -76,7 +78,7 @@ namespace zero.core.patterns.bushings
                 if (PrefetchEnabled)
                 {
                     _prefetchPressure = new IoZeroSemaphoreSlim(AsyncTasks, $"{nameof(_prefetchPressure)}: {description}", 
-                        maxBlockers: PrefetchSize,
+                        maxBlockers: maxBlockers,
                         initialCount: PrefetchSize,
                         maxAsyncWork: 0);
                 }

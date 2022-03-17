@@ -68,9 +68,9 @@ namespace zero.sync
 
             //Task.Factory.StartNew(async () =>
             //{
-            //    await SemTestAsync();
+            //    //await SemTestAsync();
             //    await QueueTestAsync();
-            //}, CancellationToken.None, TaskCreationOptions.DenyChildAttach, IoZeroScheduler.Default).Unwrap().GetAwaiter().GetResult();
+            //}, CancellationToken.None, TaskCreationOptions.DenyChildAttach, IoZeroScheduler.ZeroDefault).Unwrap().GetAwaiter().GetResult();
 
             //Tune dotnet for large tests
             ThreadPool.GetMinThreads(out var wt, out var cp);
@@ -742,7 +742,7 @@ namespace zero.sync
         /// <exception cref="Exception"></exception>
         private static async Task QueueTestAsync() //TODO make unit tests
         {
-
+            await Task.Delay(1000);
             IoQueue<int> q = new("test", 300, 400);
             var head = q.PushBackAsync(2).FastPath().ConfigureAwait(Zc).GetAwaiter().GetResult();
             q.PushBackAsync(1).FastPath().ConfigureAwait(Zc).GetAwaiter();
@@ -850,6 +850,8 @@ namespace zero.sync
             var start = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
             var rounds = 45;
             var mult = 1000000;
+            //var rounds = 5;
+            //var mult = 1000;
             for (var i = 0; i < rounds; i++)
             {
                 Console.Write(".");
@@ -912,6 +914,7 @@ namespace zero.sync
         /// </summary>
         private static async Task SemTestAsync() //TODO make unit tests
         {
+            await Task.Delay(1000);
             var asyncTasks = new CancellationTokenSource();
 
             var capacity = 3;
@@ -921,10 +924,10 @@ namespace zero.sync
             var mutex = new IoZeroSemaphoreSlim(asyncTasks, "zero slim", maxBlockers: capacity, initialCount: 0, maxAsyncWork: 0, enableAutoScale: false, enableFairQ: false, enableDeadlockDetection: true);
 
             var releaseCount = 1;
-            var waiters = 1;
-            var releasers = 1;
+            var waiters = 3;
+            var releasers = 2;
             var targetSleep = (long)0;
-            var logSpam = 500;//at least 1
+            var logSpam = 40000;//at least 1
 
             var targetSleepMult = waiters > 1 ? 2 : 1;
             var sw = new Stopwatch();

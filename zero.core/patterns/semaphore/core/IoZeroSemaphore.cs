@@ -183,11 +183,6 @@ namespace zero.core.patterns.semaphore.core
         private volatile IIoZeroSemaphore _zeroRef;
 
         /// <summary>
-        /// The cancellation token  
-        /// </summary>
-        private CancellationTokenSource _asyncTasks;
-
-        /// <summary>
         /// A queue of waiting continuations. The queue has strong order guarantees, FIFO
         /// </summary>
         private Action<object>[] _signalAwaiter;
@@ -235,9 +230,14 @@ namespace zero.core.patterns.semaphore.core
         /// </summary>
         private ExceptionDispatchInfo _error;
 
-#endregion
+        /// <summary>
+        /// The cancellation token  
+        /// </summary>
+        private CancellationTokenSource _asyncTasks;
 
-#region core
+        #endregion
+
+        #region core
         /// <summary>
         /// Validation failed exception
         /// </summary>
@@ -458,28 +458,17 @@ namespace zero.core.patterns.semaphore.core
 #endif
             try
             {
-                //fast path, RACES with SetResult 
-                if (_curSignalCount == 1 && _curWaitCount == 1)
-                {
-                    if (Interlocked.CompareExchange(ref _curSignalCount, 0, 1) == 1)
-                    {
-                        TaskScheduler cc = null;
-                        if (TaskScheduler.Current != TaskScheduler.Default)
-                            cc = TaskScheduler.Current;
-
-                        InvokeContinuation(continuation, state, cc, false);
-                        return;
-                    }
-                }
 #if DEBUG
                 ZeroLock();
 #endif
-
-                long tailIdx = 0;
+                //long tailIdx = 0;
                 bool insaneOverflow = false;
                 var c = 0;
                 var slot = ZeroSentinel;
-                var tailMod = (tailIdx = Tail) % _maxBlockers;
+                //var tailMod = (tailIdx = Tail) % _maxBlockers;
+                //Interlocked.MemoryBarrierProcessWide();
+                Interlocked.MemoryBarrier();
+                var tailMod = Tail % _maxBlockers;
                 while (
                     _curWaitCount <= _maxBlockers &&
                     (
@@ -488,47 +477,64 @@ namespace zero.core.patterns.semaphore.core
                     )
                 )
                 {
-                    
+#if DEBUG
                     if (++c == 1000000)
                     {
-                        Console.WriteLine(
-                            $"[{c}] 1  OnComplete: bad latch[{tailMod}] = {slot != null}({slot != ZeroSentinel}), overflow = {insaneOverflow}, {Description}");
+                        Console.WriteLine($"[{c}] 1  OnComplete: bad latch[{tailMod}] = {slot != null}, isSentinel = ({slot == ZeroSentinel}), overflow = {insaneOverflow}, {Description}");
+                        Console.WriteLine($"[{c}] 1  OnComplete: {_signalAwaiter[0]},{_signalAwaiter[1]},{_signalAwaiter[2]}, {_signalAwaiter[0] == ZeroSentinel},{_signalAwaiter[1] == ZeroSentinel},{_signalAwaiter[2] == ZeroSentinel}");
                     }
                     else if (c > 1000000)
                     {
                         //Thread.Yield();
                     }
+#endif
 
                     if (_zeroed > 0)
                         break;
 
                     slot = ZeroSentinel;
-                    Thread.Yield();
-                    tailMod = (tailIdx = _tail) % _maxBlockers;
+                    //tailMod = (tailIdx = _tail) % _maxBlockers;
                     Interlocked.MemoryBarrierProcessWide();
+                    tailMod = Tail % _maxBlockers;
                 }
 
-                //if unable to latch
                 if (slot == null)
                 {
+                    //fast path, RACES with SetResult 
+                    if (_curSignalCount == 1 && _curWaitCount == 1)
+                    {
+                        if (Interlocked.CompareExchange(ref _curSignalCount, 0, 1) == 1)
+                        {
+                            TaskScheduler cc = null;
+                            if (TaskScheduler.Current != TaskScheduler.Default)
+                                cc = TaskScheduler.Current;
+
+                            Interlocked.Exchange(ref _signalAwaiter[tailMod], null);
+                            InvokeContinuation(continuation, state, cc, false);
+                            return;
+                        }
+                    }
+
+#if DEBUG
                     if (c > 1000000)
                         Console.WriteLine(
                             $"[{c}] 1 [RECOVER] OnComplete: bad latch[{tailMod}] = {slot != null}({slot != ZeroSentinel}), {Description}");
+#endif
 
                     _signalAwaiterState[tailMod] = state;
                     ExtractContext(out _signalExecutionState[tailMod], out _signalCapturedContext[tailMod], flags);
-                    
-                    //Interlocked.Exchange(ref _signalAwaiter[tailMod], continuation);
-                    //Thread.MemoryBarrier();
-                    Interlocked.MemoryBarrierProcessWide();
                     _signalAwaiter[tailMod] = continuation;
+                    Interlocked.MemoryBarrier();
                     Interlocked.Increment(ref _tail);
+                    //Interlocked.MemoryBarrier();
                     return;
                 }
 
+#if DEBUG
                 if (c > 1000000)
                     Console.WriteLine(
                         $"[{c}] 1 [RECOVER] OnComplete: bad latch[{tailMod}] = {slot != null}({slot != ZeroSentinel}), {Description}");
+#endif
 
 #if !DEBUG
                 if (slot == ZeroSentinel)
@@ -540,7 +546,7 @@ namespace zero.core.patterns.semaphore.core
                     return;
 
                 ZeroUnlock();
-                Interlocked.Decrement(ref _tail);
+
                 if (_enableAutoScale) //EXPERIMENTAL: double concurrent capacity
                 {
                     //release lock
@@ -822,7 +828,9 @@ namespace zero.core.patterns.semaphore.core
                 long headLatch = 0;
                 long headMod = 0;
                 c = 0;
-                
+
+                //Interlocked.MemoryBarrierProcessWide();
+                Interlocked.MemoryBarrier();
                 var latch = _signalAwaiter[headMod = (headLatch = Head) % _maxBlockers];
                 while (
                     _curWaitCount > 0 &&
@@ -835,7 +843,13 @@ namespace zero.core.patterns.semaphore.core
                 {
                     if (++c == 1000000)
                     {
-                        Console.WriteLine($"[{c}] 2 Release: bad latch[{headMod}] = {worker.Continuation != latch}(null = {latch == null}), overflow = {headLatch >= Tail}, {Description}");
+                        Console.WriteLine($"[{c}] 2 Release: bad latch[{headMod}] = {worker.Continuation != latch}(null = {latch == null}), overflow = {headLatch >= Tail}, locked = {headLatch != Head}, {Description}");
+
+                        //TODO: wtf?
+                        Interlocked.Increment(ref _head);
+                        //Interlocked.Increment(ref _tail);
+                        Interlocked.MemoryBarrierProcessWide();
+                        c /= 2;
                     }
                     else if (c > 1000000)
                     {
@@ -851,43 +865,39 @@ namespace zero.core.patterns.semaphore.core
                     if (_curSignalCount == 0)
                         bestEffort = true;
 
-                    Thread.Yield();
-                    latch = _signalAwaiter[headMod = (headLatch = _head) % _maxBlockers];
                     Interlocked.MemoryBarrierProcessWide();
+                    latch = _signalAwaiter[headMod = (headLatch = Head) % _maxBlockers];
                 }
 
-                if (worker.Continuation != latch || worker.Continuation == null || worker.Continuation == ZeroSentinel || latch == null || latch == ZeroSentinel)
+                if (worker.Continuation != latch || worker.Continuation == null || worker.Continuation == ZeroSentinel || latch == null || latch == ZeroSentinel )
                 {
                     if (Zeroed())
                     {
                         if (c > 1000000)
-                            Console.WriteLine($"[{c}] 2 [RECOVER] Release: bad latch[{headMod}] = {worker.Continuation != latch}(null = {latch == null}), overflow = {headLatch > Tail}, {Description}");
+                            Console.WriteLine($"[{c}] 2 [RECOVER] Release: bad latch[{headMod}] = {worker.Continuation != latch}(null = {latch == null}), overflow = {headLatch > Tail}, locked = {headLatch != Head}, {Description}");
                         break;
                     }
                     
                     continue;
                 }
 
+#if DEBUG
                 if (c > 1000000)
-                    Console.WriteLine($"[{c}] 2 [RECOVER] Release: bad latch[{headMod}] = {worker.Continuation != latch}(null = {latch == null}), overflow = {headLatch > Tail}, {Description}");
+                    Console.WriteLine($"[{c}] 2 [RECOVER] Release: bad latch[{headMod}] = {worker.Continuation != latch}(null = {latch == null}), overflow = {headLatch > Tail}, locked = {headLatch != Head}, {Description}");
+#endif
 
-                worker.State = _signalAwaiterState[headMod];
-                _signalAwaiterState[headMod] = null;
-                worker.ExecutionContext = _signalExecutionState[headMod];
-                _signalExecutionState[headMod] = null;
-                worker.CapturedContext = _signalCapturedContext[headMod];
-                _signalCapturedContext[headMod] = null;
-                //Thread.MemoryBarrier();
-                //Interlocked.Exchange(ref _signalAwaiter[headMod], null);
-                Interlocked.MemoryBarrierProcessWide();
-                _signalAwaiter[headMod] = null;
+                worker.State = Interlocked.Exchange(ref _signalAwaiterState[headMod], null);
+                worker.ExecutionContext = Interlocked.Exchange(ref _signalExecutionState[headMod], null);
+                worker.CapturedContext = Interlocked.Exchange(ref _signalCapturedContext[headMod], null);
+                _ = Interlocked.Exchange(ref _signalAwaiter[headMod], null);
+
+                Interlocked.MemoryBarrier();
                 Interlocked.Increment(ref _head);
-
 #if DEBUG
                 //unlock
                 ZeroUnlock();
 #endif
-                if (!ZeroComply(worker.Continuation, worker.State, worker.ExecutionContext, worker.CapturedContext, Zeroed() || Zeroed() || worker.State is IIoNanite nanite && nanite.Zeroed(),bestEffort))
+                if (!ZeroComply(worker.Continuation, worker.State, worker.ExecutionContext, worker.CapturedContext, Zeroed() || worker.State is IIoNanite nanite && nanite.Zeroed(),bestEffort))
                 {
                     if (!bestEffort)
                         Interlocked.Add(ref _curSignalCount, releaseCount - released);

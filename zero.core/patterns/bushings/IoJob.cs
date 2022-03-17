@@ -192,7 +192,7 @@ namespace zero.core.patterns.bushings
         {
             base.ZeroUnmanaged();
 #if DEBUG
-            _stateHeap.ZeroUnmanaged();
+            _stateHeap?.ZeroUnmanaged();
 #endif
 
 #if SAFE_RELEASE
@@ -322,7 +322,7 @@ namespace zero.core.patterns.bushings
         /// state heap
         /// </summary>
         //TODO
-        private IoHeap<IoStateTransition<IoJobMeta.JobState>> _stateHeap;
+        private volatile IoHeap<IoStateTransition<IoJobMeta.JobState>> _stateHeap;
 #endif
         /// <summary>
         /// Final state

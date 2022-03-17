@@ -78,7 +78,7 @@ namespace zero.core.patterns.semaphore.core
         {
             if (reset)
             {
-                if (_completed || _continuation != null && _continuation != ManualResetValueTaskSourceCoreShared.SSentinel)
+                if (_completed || _continuation != null)
                     Reset();
 
                 return true;

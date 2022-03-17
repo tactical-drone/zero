@@ -10,7 +10,7 @@ namespace zero.core.patterns.queue.enumerator
     {
         protected volatile IEnumerable<T> Collection;
 
-        protected volatile int Disposed;
+        public volatile int Disposed;
 
         protected IoEnumBase(IEnumerable<T> collection)
         {
