@@ -212,6 +212,18 @@ namespace zero.core.patterns.queue
             }
         }
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private T Exchange(long idx, T value)
+        {
+            if (!IsAutoScaling) return Interlocked.Exchange(ref _fastStorage[idx % _capacity], value);
+            if (idx < _capacity)
+                return Interlocked.Exchange(ref _fastStorage[idx], value);
+
+            idx %= Capacity;
+            var i = IoMath.Log2((ulong)idx + 1);
+            return Interlocked.Exchange(ref _storage[i][idx - ((1 << i) - 1)], value);
+        }
+
         /// <summary>
         /// Wraps Interlocked.CompareExchange that copes with horizontal scaling
         /// </summary>
@@ -279,8 +291,8 @@ namespace zero.core.patterns.queue
                     var insaneScale = Capacity;
                     var tailIdx = Tail;
                     while (
-                    _count < insaneScale && 
-                    (/*tailIdx >= _head + insaneScale ||*/ insaneScale == Capacity && (slot = CompareExchange(tailIdx, item, null)) != null)
+                        _count < insaneScale && 
+                        (/*tailIdx >= _head + insaneScale ||*/ insaneScale == Capacity && (slot = CompareExchange(tailIdx, item, null)) != null)
                     )
                     {
 #if DEBUG
@@ -366,14 +378,6 @@ namespace zero.core.patterns.queue
         }
 
 
-#if DEBUG
-        private volatile int _takesAttempted;
-        private volatile int _takes;
-#endif
-
-        //private long _prevDq = 0;
-        //private volatile object _prevDqObj;
-        //private volatile object _prevEqObj;
         /// <summary>
         /// Try take from the Q, round robin
         /// </summary>
@@ -385,37 +389,24 @@ namespace zero.core.patterns.queue
             result = _sentinel;
             try
             {
-#if DEBUG
-                Interlocked.Increment(ref _takesAttempted);
-#endif
                 if (_count == 0)
                 {
                     result = null;
                     return false;
                 }
 
-                long headLatch;
-                var ts = Environment.TickCount;
-                
                 //lock (_syncRoot)
                 {
                     Interlocked.MemoryBarrier();
                     var insaneScale = Capacity;
+                    long headLatch;
                     var latch = this[headLatch = Head];
 
-                    while (_count > 0 &&
-                           insaneScale == Capacity &&
-                           (/*headLatch > _tail ||*/ latch == null ||
-                                                     (result = CompareExchange(headLatch, null, latch)) != latch))
+                    if (latch == null || (result = Exchange(headLatch, null)) != latch)
                     {
-                        result = _sentinel;
-
-                        if (Zeroed)
-                            break;
-
-                        Interlocked.MemoryBarrierProcessWide();
-                        insaneScale = Capacity;
-                        latch = this[headLatch = Head];
+                        Interlocked.MemoryBarrier();
+                        result = null;
+                        return false;
                     }
 
                     if (insaneScale != Capacity)
@@ -441,22 +432,10 @@ namespace zero.core.patterns.queue
                     Debug.Assert(_count > 0);
                     Debug.Assert(this[headLatch] == null);
 
-                    //backup
-                    //this[headLatch] = null;
                     var next = Interlocked.Increment(ref _head);
                     Interlocked.MemoryBarrier();
-                    Interlocked.Decrement(ref _count); //count first;
-                    //Interlocked.MemoryBarrier();
-                    //Interlocked.MemoryBarrierProcessWide();
-
+                    Interlocked.Decrement(ref _count);
                     Debug.Assert(next - 1 == headLatch);
-
-                    //_prevDq = headLatch;
-                    //_prevEqObj = Interlocked.Decrement(ref _count); //count first;
-                    //_prevDqObj = result.GetType();
-#if DEBUG
-                    Interlocked.Increment(ref _takes);
-#endif
 
                     return true;
                 }
@@ -464,12 +443,6 @@ namespace zero.core.patterns.queue
             catch (Exception e)
             {
                 Console.WriteLine(e);
-            }
-            finally
-            {
-#if DEBUG
-                Interlocked.Decrement(ref _takesAttempted);
-#endif
             }
 
             return false;
