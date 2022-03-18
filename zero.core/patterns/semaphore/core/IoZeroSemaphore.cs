@@ -526,7 +526,6 @@ namespace zero.core.patterns.semaphore.core
                     _signalAwaiter[tailMod] = continuation;
                     Interlocked.MemoryBarrier();
                     Interlocked.Increment(ref _tail);
-                    //Interlocked.MemoryBarrier();
                     return;
                 }
 
@@ -805,12 +804,14 @@ namespace zero.core.patterns.semaphore.core
         /// <param name="bestEffort">Whether this originates from <see cref="OnCompleted"/></param>
         /// <returns>The number of waiters released, -1 on failure</returns>
         /// <exception cref="SemaphoreFullException">Fails when maximum waiters reached</exception>
-        public int Release(int releaseCount = 1, bool bestEffort = false)
+        public int Release(int releaseCount = 1)
         {
             //preconditions that reject overflow because every overflowing signal will spin seeking its waiter
-            if (Zeroed() || !bestEffort && (releaseCount < 1 || releaseCount + _curSignalCount > _maxBlockers))
+            if (Zeroed() || releaseCount < 1 || releaseCount + _curSignalCount > _maxBlockers)
+            {
                 return -1;
-
+            }
+            
             //lock in return value
             var released = 0;
 
@@ -841,6 +842,7 @@ namespace zero.core.patterns.semaphore.core
                        (worker.Continuation = Interlocked.CompareExchange(ref _signalAwaiter[headMod], ZeroSentinel, latch)) != latch)
                     )
                 {
+#if DEBUG
                     if (++c == 1000000)
                     {
                         Console.WriteLine($"[{c}] 2 Release: bad latch[{headMod}] = {worker.Continuation != latch}(null = {latch == null}), overflow = {headLatch >= Tail}, locked = {headLatch != Head}, {Description}");
@@ -855,17 +857,13 @@ namespace zero.core.patterns.semaphore.core
                     {
                         //Thread.Yield();
                     }
-
-
+#endif
                     worker.Continuation = ZeroSentinel;
 
                     if (_zeroed > 0)
                         break;
 
-                    if (_curSignalCount == 0)
-                        bestEffort = true;
-
-                    Interlocked.MemoryBarrierProcessWide();
+                    Interlocked.MemoryBarrierProcessWide(); 
                     latch = _signalAwaiter[headMod = (headLatch = Head) % _maxBlockers];
                 }
 
@@ -873,8 +871,10 @@ namespace zero.core.patterns.semaphore.core
                 {
                     if (Zeroed())
                     {
+#if DEBUG
                         if (c > 1000000)
                             Console.WriteLine($"[{c}] 2 [RECOVER] Release: bad latch[{headMod}] = {worker.Continuation != latch}(null = {latch == null}), overflow = {headLatch > Tail}, locked = {headLatch != Head}, {Description}");
+#endif
                         break;
                     }
                     
@@ -897,11 +897,9 @@ namespace zero.core.patterns.semaphore.core
                 //unlock
                 ZeroUnlock();
 #endif
-                if (!ZeroComply(worker.Continuation, worker.State, worker.ExecutionContext, worker.CapturedContext, Zeroed() || worker.State is IIoNanite nanite && nanite.Zeroed(),bestEffort))
+                if (!ZeroComply(worker.Continuation, worker.State, worker.ExecutionContext, worker.CapturedContext, Zeroed() || worker.State is IIoNanite nanite && nanite.Zeroed()))
                 {
-                    if (!bestEffort)
-                        Interlocked.Add(ref _curSignalCount, releaseCount - released);
-
+                    Interlocked.Add(ref _curSignalCount, releaseCount - released);
                     return -1;
                 }
 
@@ -909,11 +907,12 @@ namespace zero.core.patterns.semaphore.core
                 released++;
             }
 
-            if (!bestEffort)
-                Interlocked.Add(ref _curSignalCount, releaseCount - released);
+            Interlocked.Add(ref _curSignalCount, releaseCount - released);
 
+#if DEBUG
             if (c > 1000000)
                 Console.WriteLine($"[{c}] 2 [RECOVER] Release: {Description}");
+#endif
 
             //return the number of waiters released
             return released;

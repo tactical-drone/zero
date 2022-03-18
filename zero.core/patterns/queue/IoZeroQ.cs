@@ -244,13 +244,6 @@ namespace zero.core.patterns.queue
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public long TryEnqueue(T item, bool deDup = false)
         {
-#if DEBUG
-            if (_broken)
-            {
-                return -1;
-            }
-#endif
-
             Debug.Assert(_sentinel != null);
             Debug.Assert(item != null);
             
@@ -314,7 +307,6 @@ namespace zero.core.patterns.queue
                     //retry on scaling
                     if (insaneScale != Capacity)
                     {
-                        Console.WriteLine("---------------------------------------------------");
                         if (slot == null)
                         {
                             if (CompareExchange(tailIdx, null, item) != item)
@@ -323,24 +315,16 @@ namespace zero.core.patterns.queue
                         return TryEnqueue(item, deDup);
                     }
 
-                
-                    if (slot == null)
+                    if (slot == null)//TODO
                     {
-                        //_prevEqObj = item;
-
+                        Debug.Assert(this[tailIdx] == item);
                         Debug.Assert(tailIdx == Tail);
                         Debug.Assert(item != null);
-                        //TODO:Invalid asserts
-                        //Debug.Assert(this[tailIdx] != null);
-                        //Debug.Assert(this[Tail] != null);
 
-
-                        Interlocked.Increment(ref _tail);
-                        Interlocked.MemoryBarrier();
                         Interlocked.Increment(ref _count);
+                        Interlocked.MemoryBarrier();
+                        Interlocked.Increment(ref _tail);
 
-                        //Interlocked.MemoryBarrierProcessWide();
-                        //Interlocked.MemoryBarrier();
                         _curEnumerator.IncIteratorCount(); //TODO: is this a good idea?
 #if DEBUG
                         Interlocked.Increment(ref _adds);
@@ -387,7 +371,6 @@ namespace zero.core.patterns.queue
         private volatile int _takes;
 #endif
 
-        volatile bool _broken = false;
         //private long _prevDq = 0;
         //private volatile object _prevDqObj;
         //private volatile object _prevEqObj;
@@ -399,12 +382,6 @@ namespace zero.core.patterns.queue
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public bool TryDequeue([MaybeNullWhen(false)] out T result)
         {
-            if (_broken)
-            {
-                result = null;
-                return false;
-            }
-                
             result = _sentinel;
             try
             {
@@ -419,7 +396,6 @@ namespace zero.core.patterns.queue
 
                 long headLatch;
                 var ts = Environment.TickCount;
-                var c = 0;
                 
                 //lock (_syncRoot)
                 {
@@ -432,16 +408,6 @@ namespace zero.core.patterns.queue
                            (/*headLatch > _tail ||*/ latch == null ||
                                                      (result = CompareExchange(headLatch, null, latch)) != latch))
                     {
-#if DEBUG
-                        if (++c == 50000)
-                        {
-                        
-                        }
-                        else if (c > 50000)
-                        {
-
-                        }
-#endif
                         result = _sentinel;
 
                         if (Zeroed)
@@ -466,11 +432,6 @@ namespace zero.core.patterns.queue
 
                     if (_count == 0 || result != latch || result == null || latch == null )
                     {
-#if DEBUG
-                        if (c >= 50000) 
-                            Console.WriteLine(
-                                $"[{c}] 4 dq [RECOVERED!!!] latch[{headLatch % Capacity}] bad = {latch != result}, overflow = {headLatch > Tail}, scale = {insaneScale != Capacity}, {Description}");
-#endif
                         result = null;
                         return false;
                     }
@@ -495,10 +456,6 @@ namespace zero.core.patterns.queue
                     //_prevDqObj = result.GetType();
 #if DEBUG
                     Interlocked.Increment(ref _takes);
-
-                    if (c >= 50000)
-                        Console.WriteLine(
-                            $"[{c}] 4 dq (R) latch[{headLatch % Capacity}] bad = {latch != result}, overflow = {headLatch > Tail}, scale = {insaneScale != Capacity}, {Description}");
 #endif
 
                     return true;

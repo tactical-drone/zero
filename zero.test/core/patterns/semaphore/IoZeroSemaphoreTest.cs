@@ -249,11 +249,11 @@ namespace zero.test.core.patterns.semaphore
 
                     //_output.WriteLine($"s -> {v.GetStatus(v.Version)}[{v.Version}] \t- {DateTimeOffset.UtcNow.Ticks} - {i}/{count} - {Thread.CurrentThread.ManagedThreadId}");
 
-                    while (v.Release(bestEffort: true) != 1)
+                    while (v.Release() != 1)
                     {
                         //if(c++ %10000 ==0)
                         //_output.WriteLine(".");
-                        //Thread.Sleep(0);
+                        Thread.Sleep(1);
                     }
                     //_output.WriteLine($"s <- {v.GetStatus(v.Version)}[{v.Version}] \t- {DateTimeOffset.UtcNow.Ticks} - {i}/{count} - {Thread.CurrentThread.ManagedThreadId}");
                 }
@@ -271,8 +271,8 @@ namespace zero.test.core.patterns.semaphore
                 Assert.True(await v.WaitAsync().FastPath().ConfigureAwait(Zc));
                 Assert.InRange(ts.ElapsedMs(), 0, 20000);
 
-                version = v.Version;
-                status = v.GetStatus((short)version);
+                //version = v.Version;
+                //status = v.GetStatus((short)version);
                 //_output.WriteLine($"w <- {status}[{version}] \t- {DateTimeOffset.UtcNow.Ticks} - {i}/{count} - {Thread.CurrentThread.ManagedThreadId}");
             }
 
@@ -327,7 +327,7 @@ namespace zero.test.core.patterns.semaphore
             {
                 for (var i = 0; i < count - 1; i++)
                 {
-                    while (v.Release(bestEffort: true) != 1) {}
+                    while (v.Release() != 1) {}
                 }
             });
 

@@ -57,9 +57,9 @@ namespace zero.core.patterns.semaphore
         public void ZeroRef(ref IIoZeroSemaphore @ref) => _semaphore.ZeroRef(ref @ref);
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public int Release(int releaseCount = 1, bool bestEffort = false)
+        public int Release(int releaseCount = 1)
         {
-            return _semaphore.Release(releaseCount, bestEffort);
+            return _semaphore.Release(releaseCount);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]

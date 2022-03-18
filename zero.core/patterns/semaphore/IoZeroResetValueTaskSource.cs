@@ -23,6 +23,8 @@ namespace zero.core.patterns.semaphore
         public int Version => _zeroCore.Version;
         public void Reset() => _zeroCore.Reset();
         public void SetResult(T result) => _zeroCore.SetResult(result);
+        public void SetException(Exception exception) => _zeroCore.SetException(exception);
+        public bool Ready(bool reset = false) => _zeroCore.Set(reset);
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public T GetResult(short token)
@@ -40,30 +42,12 @@ namespace zero.core.patterns.semaphore
 
         public ValueTaskSourceStatus GetStatus(short token) => _zeroCore.GetStatus(token);
 
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        ValueTaskSourceStatus IValueTaskSource.GetStatus(short token)
-        {
-            return GetStatus(token);
-        }
+        ValueTaskSourceStatus IValueTaskSource.GetStatus(short token) => GetStatus(token);
+        
+        ValueTaskSourceStatus IValueTaskSource<T>.GetStatus(short token) => GetStatus(token);
+        
+        public void OnCompleted(Action<object> continuation, object state, short token, ValueTaskSourceOnCompletedFlags flags) => _zeroCore.OnCompleted(continuation, state, token, flags);
 
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        ValueTaskSourceStatus IValueTaskSource<T>.GetStatus(short token)
-        {
-            return GetStatus(token);
-        }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public void OnCompleted(Action<object> continuation, object state, short token, ValueTaskSourceOnCompletedFlags flags)
-        {
-            _zeroCore.OnCompleted(continuation, state, token, flags);
-        }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public ValueTask<T> WaitAsync()
-        {
-            if (_zeroCore.GetStatus((short)_zeroCore.Version) != ValueTaskSourceStatus.Succeeded)
-                return new ValueTask<T>(this, (short)_zeroCore.Version);
-            return new ValueTask<T>(GetResult((short)Version));
-        }
+        public ValueTask<T> WaitAsync() => _zeroCore.GetStatus((short)_zeroCore.Version) != ValueTaskSourceStatus.Succeeded ? new ValueTask<T>(this, (short)_zeroCore.Version) : new ValueTask<T>(GetResult((short)Version));
     }
 }

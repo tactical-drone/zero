@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
@@ -56,21 +57,18 @@ namespace zero.core.patterns.semaphore
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public int Release(int releaseCount = 1, bool bestEffort = false)
+        public int Release(int releaseCount = 1)
         {
+            Debug.Assert(releaseCount == 1);
             try
             {
                 _pressure.SetResult(true);
-                return 1;
             }
-            catch when (!bestEffort)
+            catch
             {
-                throw;
+                return -1;
             }
-            catch when (bestEffort)
-            {
-                return 0;
-            }
+            return releaseCount;
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]

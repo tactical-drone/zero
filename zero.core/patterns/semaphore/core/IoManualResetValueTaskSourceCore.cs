@@ -254,6 +254,7 @@ namespace zero.core.patterns.semaphore.core
 #endif
 
         /// <summary>Signals that the operation has completed.  Invoked after the result or error has been set.</summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private void SignalCompletion()
         {
             if (_completed)
