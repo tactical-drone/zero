@@ -923,11 +923,11 @@ namespace zero.sync
             //var mutex = new IoZeroRefMut(asyncTasks.Token);
             var mutex = new IoZeroSemaphoreSlim(asyncTasks, "zero slim", maxBlockers: capacity, initialCount: 0, maxAsyncWork: 0, enableAutoScale: false, enableFairQ: false, enableDeadlockDetection: true);
 
-            var releaseCount = 1;
+            var releaseCount = 2;
             var waiters = 3;
             var releasers = 2;
             var targetSleep = (long)0;
-            var logSpam = 40000;//at least 1
+            var logSpam = 50000;//at least 1
 
             var targetSleepMult = waiters > 1 ? 2 : 1;
             var sw = new Stopwatch();
@@ -964,7 +964,7 @@ namespace zero.sync
                      while (waiters>0)
                      {
                          sw.Restart();
-                         if (await mutex.WaitAsync().ConfigureAwait(Zc))
+                         if (await mutex.WaitAsync().FastPath().ConfigureAwait(Zc))
                          {
                              var tt = sw.ElapsedMilliseconds;
                              Interlocked.Increment(ref eq1);
@@ -1030,7 +1030,7 @@ namespace zero.sync
                         //     break;
            
                         sw2.Restart();
-                       if (await mutex.WaitAsync().ConfigureAwait(Zc))
+                       if (await mutex.WaitAsync().FastPath().ConfigureAwait(Zc))
                        {
                            var tt = sw2.ElapsedMilliseconds;
                            Interlocked.Increment(ref eq2);
@@ -1071,6 +1071,7 @@ namespace zero.sync
                        }
                        else
                        {
+                           
                            //break;
                        }
            
@@ -1095,7 +1096,7 @@ namespace zero.sync
                         //     break;
            
                         sw2.Restart();
-                       if (await mutex.WaitAsync().ConfigureAwait(Zc))
+                       if (await mutex.WaitAsync().FastPath().ConfigureAwait(Zc))
                        {
                            var tt = sw2.ElapsedMilliseconds;
                            Interlocked.Increment(ref eq3);
@@ -1144,9 +1145,6 @@ namespace zero.sync
                        
                        while (releasers > 0)
                        {
-                           if (targetSleep > 0)
-                               await Task.Delay((int)targetSleep, asyncTasks.Token).ConfigureAwait(Zc);
-
                            try
                            {
                                if ((curCount = mutex.Release(releaseCount)) > 0)
@@ -1165,7 +1163,7 @@ namespace zero.sync
                            catch (SemaphoreFullException)
                            {
 
-                               
+
                            }
                            catch (TaskCanceledException)
                            {
@@ -1174,6 +1172,11 @@ namespace zero.sync
                            catch (Exception e)
                            {
                                Console.WriteLine($"Failed... {e.Message}");
+                           }
+                           finally
+                           {
+                               if (targetSleep > 0)
+                                   await Task.Delay((int)targetSleep, asyncTasks.Token).ConfigureAwait(Zc);
                            }
                        }
                        

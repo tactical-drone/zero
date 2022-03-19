@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
-using System.Runtime.InteropServices.ComTypes;
 using System.Threading;
 using System.Threading.Tasks;
 using NLog;
@@ -12,7 +11,6 @@ using zero.core.patterns.heap;
 using zero.core.patterns.misc;
 using zero.core.patterns.queue;
 using zero.core.patterns.semaphore;
-using zero.core.patterns.semaphore.core;
 
 namespace zero.core.runtime.scheduler
 {
@@ -38,7 +36,7 @@ namespace zero.core.runtime.scheduler
                 return;
             _asyncTasks = asyncTasks?? new CancellationTokenSource();
             _workerCount = Math.Max(Environment.ProcessorCount >> 1, 2);
-            _queenCount = Math.Max(Environment.ProcessorCount >> 4, 1);
+            _queenCount = Math.Max(Environment.ProcessorCount >> 4, 1) + 1;
             var capacity = MaxWorker;
 
             _workQueue = new IoZeroQ<Task>(string.Empty, capacity, new Task(() => {}), false);
@@ -95,7 +93,7 @@ namespace zero.core.runtime.scheduler
             public volatile int TaskId = -2;
         }
 
-        private static readonly int WorkerSpawnRate = 1000;
+        private static readonly int WorkerSpawnRate = 200;
         private static readonly int MaxWorker = (int)Math.Pow(2, Math.Max((Environment.ProcessorCount>>1) + 1, 17));
         public static readonly TaskScheduler ZeroDefault;
         public static readonly IoZeroScheduler Zero;
@@ -275,7 +273,7 @@ namespace zero.core.runtime.scheduler
             try
             {
                 if (s.Processed > 0 || s.Task.Status > TaskStatus.WaitingToRun)
-                    return false;
+                    return true;
             }
             catch (Exception e)
             {
@@ -295,8 +293,7 @@ namespace zero.core.runtime.scheduler
             //poll a worker, or create a new one if none are available
             try
             {
-                if (!ThreadPool.UnsafeQueueUserWorkItem(static state =>
-                    {
+                if (!ThreadPool.UnsafeQueueUserWorkItem(static state => {
                         var (@this, s, workerId) = (ValueTuple<IoZeroScheduler, ZeroSignal, int>)state;
 
                         if (s.Processed > 0)
@@ -386,7 +383,7 @@ namespace zero.core.runtime.scheduler
                     return false;
                 }
             }
-            catch when (s.Processed > 1) { return false;}
+            catch when (s.Processed > 1) { return true;}
             catch (Exception e)
             {
                 Console.WriteLine(e);
@@ -401,7 +398,7 @@ namespace zero.core.runtime.scheduler
 
         private static bool WorkerHandler(IoZeroScheduler ioZeroScheduler, Task task, int id)
         {
-            var s = task.Status >= TaskStatus.WaitingToRun && ioZeroScheduler.TryExecuteTask(task);
+            var s = task.Status == TaskStatus.WaitingToRun && ioZeroScheduler.TryExecuteTask(task);
 #if __TRACE__
             if(s)
                 Console.WriteLine($"--> Processed task id = {task.Id}, q = {ioZeroScheduler.WLength}, good scheduler = {Current == ioZeroScheduler}");
@@ -455,6 +452,10 @@ var d = 0;
                         ? Volatile.Read(ref @this._pollQueen[xId])
                         : Volatile.Read(ref @this._pollWorker[xId]);
 
+                    //if (!isWorker)
+                    //{
+                    //    Thread.CurrentThread.Priority = ThreadPriority.Highest;
+                    //}
                     //process tasks
                     while (!@this._asyncTasks.IsCancellationRequested)
                     {
@@ -483,9 +484,9 @@ var d = 0;
 #endif
                                         continue;
                                     }
+                                    //Thread.CurrentThread.Priority = ThreadPriority.Highest;
                                 }
-
-                                if (isWorker)
+                                else
                                 {
                                     if (!await syncRoot.WaitAsync().FastPath())
                                     {
@@ -494,6 +495,7 @@ var d = 0;
 #endif
                                         continue;
                                     }
+                                    //Thread.CurrentThread.Priority = ThreadPriority.Normal;
                                 }
 #if _TRACE_
                                 if (priority == ThreadPriority.Highest)
@@ -518,6 +520,11 @@ var d = 0;
                                 if (!isWorker)
                                 {
                                     Interlocked.Exchange(ref @this._queenPunchCards[xId], 1);
+
+                                    //if (Thread.CurrentThread.Priority != ThreadPriority.Highest)
+                                    //{
+                                    //    Console.WriteLine($"Queen[{xId}],  priority = {Thread.CurrentThread.Priority}  stale...");
+                                    //}
 #if __TRACE__
                                 Console.WriteLine($"[[QUEEN]] CONSUMING FROM Q {workerId},  Q = {queue.Count}/{@this.Active.Count()} - total jobs process = {@this.CompletedWorkItemCount}");
 #endif
@@ -525,17 +532,17 @@ var d = 0;
                                 else
                                 {
                                     Interlocked.Exchange(ref @this._workerPunchCards[xId], 1);
-                                    if (Thread.CurrentThread.Priority != ThreadPriority.Normal)
-                                    {
-                                        Console.WriteLine($"worker {xId} stale...");
-                                    }
+                                    //if (Thread.CurrentThread.Priority != ThreadPriority.Normal)
+                                    //{
+                                    //    Console.WriteLine($"Worker[{xId}],  priority = {Thread.CurrentThread.Priority}  stale...");
+                                    //}
                                 }
 
                                 while (queue.TryDequeue(out var work) /*|| workerId == @this._workerCount*/)
                                 {
                                     try
                                     {
-                                        if (work != null && callback(@this, work, xId))
+                                        if (callback(@this, work, xId))
                                         {
                                             if (!isWorker)
                                                 Interlocked.Increment(ref @this._completedQItemCount);
@@ -552,6 +559,10 @@ var d = 0;
                                         LogManager.GetCurrentClassLogger().Error(e,
                                             $"{nameof(IoZeroScheduler)}: wId = {xId}/{@this._workerCount}, this = {@this}, wq = {@this?._workQueue}, work = {work}, q = {syncRoot}");
 #endif
+                                    }
+                                    finally
+                                    {
+                                        work = null;
                                     }
                                 }
                             }
@@ -628,20 +639,26 @@ var d = 0;
             }
 
             if (priority == ThreadPriority.Highest)
-                Volatile.Write(ref _queenPunchCards[id], 0);
-            else
-                Volatile.Write(ref _workerPunchCards[id], 0);
-
-            var t = new Thread(ThreadWorker)
             {
-                IsBackground = true,
-                Name = $"{desc}[{id}]",
-            };
+                Volatile.Write(ref _queenPunchCards[id], 0);
+                Task.Factory.StartNew(ThreadWorker, (this, queue, desc, id, prime, callback, priority), _asyncTasks.Token, TaskCreationOptions.DenyChildAttach  | TaskCreationOptions.HideScheduler, Default);
+            }
+            else
+            {
+                Volatile.Write(ref _queenPunchCards[id], 0);
+                Task.Factory.StartNew(ThreadWorker, (this, queue, desc, id, prime, callback, priority), _asyncTasks.Token, TaskCreationOptions.DenyChildAttach | TaskCreationOptions.PreferFairness | TaskCreationOptions.HideScheduler, Default);
+            }
+                
 
-            if (priority == ThreadPriority.Highest)
-                t.Priority = ThreadPriority.AboveNormal;
+            //var t = new Thread(ThreadWorker)
+            //{
+            //    IsBackground = true,
+            //    Name = $"{desc}[{id}]",
+            //};
 
-            t.Start((this, queue, desc, id, prime, callback, priority));
+
+            //t.Start((this, queue, desc, id, prime, callback, priority));
+
         }
 
         /// <summary>
@@ -666,22 +683,22 @@ var d = 0;
             if (task.Status > TaskStatus.WaitingToRun)
                 return;
 
-            if (task.CreationOptions.HasFlag(TaskCreationOptions.LongRunning))
-            {
-                new Thread(state =>
-                {
-                    var (@this, t) = (ValueTuple<IoZeroScheduler, Task>)state;
-                    @this.TryExecuteTask(t);
-                })
-                {
-                    IsBackground = true,
-                    Name = ".Zero LongRunning Thread"
-                }.Start((this, task));
-                return;
-            }
+            //if (task.CreationOptions.HasFlag(TaskCreationOptions.LongRunning))
+            //{
+            //    new Thread(state =>
+            //    {
+            //        var (@this, t) = (ValueTuple<IoZeroScheduler, Task>)state;
+            //        @this.TryExecuteTask(t);
+            //    })
+            //    {
+            //        IsBackground = true,
+            //        Name = ".Zero LongRunning Thread"
+            //    }.Start((this, task));
+            //    return;
+            //}
 
             //queue the work for processing
-            if( _workQueue.TryEnqueue(task) != -1)
+            if ( _workQueue.TryEnqueue(task) != -1)
                 PollQueen(task);
             else
             {

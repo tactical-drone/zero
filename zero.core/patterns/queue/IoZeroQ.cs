@@ -74,7 +74,7 @@ namespace zero.core.patterns.queue
 
         private readonly object _syncRoot = new();
         // ReSharper disable once StaticMemberInGenericType
-        private readonly T _sentinel;
+        private volatile T _sentinel;
         private volatile int _capacity;
         private volatile int _virility;
         private long _hwm;
@@ -253,7 +253,7 @@ namespace zero.core.patterns.queue
         /// <param name="item">The item to be added</param>
         /// <param name="deDup">Whether to de-dup this item from the bag</param>
         /// <exception cref="OutOfMemoryException">Thrown if we are internally OOM</exception>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        [MethodImpl(MethodImplOptions.NoInlining)]
         public long TryEnqueue(T item, bool deDup = false)
         {
             Debug.Assert(_sentinel != null);
@@ -286,14 +286,13 @@ namespace zero.core.patterns.queue
                 
                 //if success
                 //lock (_syncRoot)
+                do
                 {
+                    Debug.Assert(slot != null && slot == _sentinel);
                     Interlocked.MemoryBarrier();
                     var insaneScale = Capacity;
                     var tailIdx = Tail;
-                    while (
-                        _count < insaneScale && 
-                        (/*tailIdx >= _head + insaneScale ||*/ insaneScale == Capacity && (slot = CompareExchange(tailIdx, item, null)) != null)
-                    )
+                    while (_count < insaneScale && (insaneScale == Capacity && (slot = CompareExchange(tailIdx, item, null)) != null || tailIdx != Tail))
                     {
 #if DEBUG
                         if (++c == 50000)
@@ -315,35 +314,45 @@ namespace zero.core.patterns.queue
                         insaneScale = Capacity;
                         tailIdx = Tail;
                     }
-                
+
                     //retry on scaling
                     if (insaneScale != Capacity)
                     {
                         if (slot == null)
                         {
                             if (CompareExchange(tailIdx, null, item) != item)
-                                LogManager.GetCurrentClassLogger().Error($"{nameof(TryEnqueue)}: Could not restore latch state!");
+                                LogManager.GetCurrentClassLogger()
+                                    .Error($"{nameof(TryEnqueue)}: Could not restore latch state!");
                         }
+
                         return TryEnqueue(item, deDup);
                     }
 
-                    if (slot == null)//TODO
+                    if (slot == null && tailIdx == Tail) //TODO
                     {
                         Debug.Assert(this[tailIdx] == item);
                         Debug.Assert(tailIdx == Tail);
                         Debug.Assert(item != null);
+                        var latch = Tail;
 
-                        Interlocked.Increment(ref _count);
                         Interlocked.MemoryBarrier();
-                        Interlocked.Increment(ref _tail);
+                        //TODO: It is not clear why this double redundant second race is needed, but it solves many problems. 
+                        if (tailIdx == Tail && Interlocked.CompareExchange(ref _tail, latch + 1, latch) == latch)
+                        {
+                            Interlocked.Increment(ref _count);
+                            Interlocked.MemoryBarrier();
+                            //Interlocked.Increment(ref _tail);
 
-                        _curEnumerator.IncIteratorCount(); //TODO: is this a good idea?
+                            _curEnumerator.IncIteratorCount(); //TODO: is this a good idea?
 #if DEBUG
-                        Interlocked.Increment(ref _adds);
+                            Interlocked.Increment(ref _adds);
 #endif
-                        return tailIdx;
+                            return tailIdx;
+                        }
+
+                        return -1;
                     }
-                }
+                } while (_count < Capacity && !Zeroed);
 
                 if (Zeroed)
                     return -1;
@@ -383,10 +392,11 @@ namespace zero.core.patterns.queue
         /// </summary>
         /// <param name="result">The item to be fetched</param>
         /// <returns>True if an item was found and returned, false otherwise</returns>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        [MethodImpl(MethodImplOptions.NoInlining)]
         public bool TryDequeue([MaybeNullWhen(false)] out T result)
         {
             result = _sentinel;
+            Interlocked.MemoryBarrier();
             try
             {
                 if (_count == 0)
@@ -399,19 +409,45 @@ namespace zero.core.patterns.queue
                 {
                     Interlocked.MemoryBarrier();
                     var insaneScale = Capacity;
-                    long headLatch;
-                    var latch = this[headLatch = Head];
-
-                    if (latch == null || (result = Exchange(headLatch, null)) != latch)
+                    
+                    long headLatch = -1;
+                    
+                    if ((headLatch = Head) == Tail || (result = Exchange(headLatch, null)) == null)
                     {
                         Interlocked.MemoryBarrier();
                         result = null;
                         return false;
                     }
 
+#if DEBUG
+                    var tmp = result;
+                    if (tmp == null || tmp == _sentinel)
+                    {
+                        result = null;
+                        return false;
+                    }
+
+                    Debug.Assert(result != null && result != _sentinel);
+#else
+                    if (result == null || result == _sentinel)
+                    {
+                        result = null;
+                        return false;
+                    }
+#endif
+
+                    //if (result == null || result == _sentinel)
+                    //{
+                    //    result = null;
+                    //    return false;
+                    //}
+
+                    //Debug.Assert(result != null && result != _sentinel);
+
+
                     if (insaneScale != Capacity)
                     {
-                        if (result == latch && result != _sentinel && result != null)
+                        if (result != _sentinel)
                         {
                             if (CompareExchange(headLatch, result, null) != null)
                                 LogManager.GetCurrentClassLogger()
@@ -421,14 +457,8 @@ namespace zero.core.patterns.queue
                         return TryDequeue(out result);
                     }
 
-                    if (_count == 0 || result != latch || result == null || latch == null )
-                    {
-                        result = null;
-                        return false;
-                    }
 
-                    Debug.Assert(result != null);
-                    Debug.Assert(result == latch);
+                    Debug.Assert(result != null && result != _sentinel);
                     Debug.Assert(_count > 0);
                     Debug.Assert(this[headLatch] == null);
 
@@ -442,7 +472,7 @@ namespace zero.core.patterns.queue
             }
             catch (Exception e)
             {
-                Console.WriteLine(e);
+                LogManager.LogFactory.GetCurrentClassLogger().Error(e, $"{nameof(TryDequeue)} failed!");
             }
 
             return false;
