@@ -518,7 +518,6 @@ namespace zero.core.patterns.semaphore.core
                                 $"[{c}] 1 [RECOVER] OnComplete: bad latch[{tailMod}] = {slot != null}({slot != ZeroSentinel}), {Description}");
 #endif
 
-                        //TODO: It is not clear why this double redundant second race is needed, but it solves many problems. 
                         if (tail == Tail &&
                             Interlocked.CompareExchange(ref _signalAwaiterState[tailMod], state, null) == null)
                         {

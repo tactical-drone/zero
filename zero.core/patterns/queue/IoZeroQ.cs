@@ -253,7 +253,7 @@ namespace zero.core.patterns.queue
         /// <param name="item">The item to be added</param>
         /// <param name="deDup">Whether to de-dup this item from the bag</param>
         /// <exception cref="OutOfMemoryException">Thrown if we are internally OOM</exception>
-        [MethodImpl(MethodImplOptions.NoInlining)]
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public long TryEnqueue(T item, bool deDup = false)
         {
             Debug.Assert(_sentinel != null);
@@ -290,29 +290,27 @@ namespace zero.core.patterns.queue
                 {
                     Debug.Assert(slot != null && slot == _sentinel);
                     Interlocked.MemoryBarrier();
-                    var insaneScale = Capacity;
-                    var tailIdx = Tail;
-                    while (_count < insaneScale && (insaneScale == Capacity && (slot = CompareExchange(tailIdx, item, null)) != null || tailIdx != Tail))
+                    long insaneScale;
+                    long tail = 0;
+                    while (_count < (insaneScale = Capacity) && (insaneScale == Capacity && (slot = CompareExchange(tail = Tail, item, null)) != null || tail != Tail))
                     {
 #if DEBUG
                         if (++c == 50000)
                         {
-                            Console.WriteLine($"[{c}] eq 3 latch[{tailIdx%Capacity}]~[{Tail % insaneScale}] bad = {slot != null} ({slot != _sentinel}), overflow = {tailIdx >= Head + insaneScale}, has space = {_count < insaneScale}, scale failure = {insaneScale != Capacity}, {Description}");
+                            Console.WriteLine($"[{c}] eq 3 latch[{tail%Capacity}]~[{Tail % insaneScale}] bad = {slot != null} ({slot != _sentinel}), overflow = {tail >= Head + insaneScale}, has space = {_count < insaneScale}, scale failure = {insaneScale != Capacity}, {Description}");
                         }
                         else if (c > 50000)
                         {
                             
                         }
 #endif
-
+                            
                         slot = _sentinel;
 
                         if (Zeroed)
                             break;
 
                         Interlocked.MemoryBarrierProcessWide();
-                        insaneScale = Capacity;
-                        tailIdx = Tail;
                     }
 
                     //retry on scaling
@@ -320,7 +318,7 @@ namespace zero.core.patterns.queue
                     {
                         if (slot == null)
                         {
-                            if (CompareExchange(tailIdx, null, item) != item)
+                            if (CompareExchange(tail, null, item) != item)
                                 LogManager.GetCurrentClassLogger()
                                     .Error($"{nameof(TryEnqueue)}: Could not restore latch state!");
                         }
@@ -328,26 +326,23 @@ namespace zero.core.patterns.queue
                         return TryEnqueue(item, deDup);
                     }
 
-                    if (slot == null && tailIdx == Tail) //TODO
+                    if (slot == null && tail == Tail) //TODO
                     {
-                        Debug.Assert(this[tailIdx] == item);
-                        Debug.Assert(tailIdx == Tail);
+                        Debug.Assert(this[tail] == item);
+                        Debug.Assert(tail == Tail);
                         Debug.Assert(item != null);
-                        var latch = Tail;
-
+                        
                         Interlocked.MemoryBarrier();
-                        //TODO: It is not clear why this double redundant second race is needed, but it solves many problems. 
-                        if (tailIdx == Tail && Interlocked.CompareExchange(ref _tail, latch + 1, latch) == latch)
+                        if (tail == Tail && Interlocked.CompareExchange(ref _tail, tail + 1, tail) == tail)
                         {
-                            Interlocked.Increment(ref _count);
                             Interlocked.MemoryBarrier();
-                            //Interlocked.Increment(ref _tail);
+                            Interlocked.Increment(ref _count);
 
                             _curEnumerator.IncIteratorCount(); //TODO: is this a good idea?
 #if DEBUG
                             Interlocked.Increment(ref _adds);
 #endif
-                            return tailIdx;
+                            return tail;
                         }
 
                         return -1;
@@ -392,7 +387,7 @@ namespace zero.core.patterns.queue
         /// </summary>
         /// <param name="result">The item to be fetched</param>
         /// <returns>True if an item was found and returned, false otherwise</returns>
-        [MethodImpl(MethodImplOptions.NoInlining)]
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public bool TryDequeue([MaybeNullWhen(false)] out T result)
         {
             result = _sentinel;
