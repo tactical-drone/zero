@@ -23,7 +23,7 @@ namespace zero.test.core.patterns.bushings
         {
             var concurrencyLevel = 1;
             var count = 20;
-            var s1 = new IoZeroSource("zero source 1", false, 3, concurrencyLevel, 0, disableZero:true);
+            var s1 = new IoZeroSource("zero source 1", false, concurrencyLevel + 1, concurrencyLevel, 0, disableZero:true);
             var c1 = new IoConduit<IoZeroProduct>("conduit smoke test 1", s1, static (ioZero, _) =>
             {
                 //sentinel
@@ -35,11 +35,12 @@ namespace zero.test.core.patterns.bushings
             var z1 = Task.Factory.StartNew(async () => await c1.BlockOnReplicateAsync(), TaskCreationOptions.DenyChildAttach).Unwrap();
 
             var ts = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+            var totalTime = count * 100;
             while (!z1.IsCompleted)
             {
                 try
                 {
-                    if (c1.EventCount > count || ts.ElapsedMs() > 10000)
+                    if (c1.EventCount > count || ts.ElapsedMs() > totalTime * 3)
                     {
                         await c1.Zero(null, "test done").FastPath().ConfigureAwait(Zc);
                     }
@@ -52,14 +53,14 @@ namespace zero.test.core.patterns.bushings
                     throw;
                 }
             }
-            await z1.WaitAsync(TimeSpan.FromSeconds(5)).ConfigureAwait(false);
+            await z1.WaitAsync(TimeSpan.FromMilliseconds(totalTime * 4)).ConfigureAwait(false);
 
-            Assert.InRange(ts.ElapsedMs(), 1400, 2000);
-            _output.WriteLine($"{ts.ElapsedMs()}ms ~ 1500");
+            Assert.InRange(ts.ElapsedMs(), totalTime/2, totalTime*2);
+            _output.WriteLine($"{ts.ElapsedMs()}ms ~ {totalTime}ms");
 
             await Task.Delay(100).ConfigureAwait(false);
-            Assert.InRange(c1.EventCount, 10,200);
-            _output.WriteLine($"#event = {c1.EventCount} ~ 10");
+            Assert.InRange(c1.EventCount, count, count*2);
+            _output.WriteLine($"#event = {c1.EventCount} ~ {count}");
         }
 
         [Fact]
@@ -68,7 +69,7 @@ namespace zero.test.core.patterns.bushings
             var concurrencyLevel = 2;
             var count = 50;
             
-            var s1 = new IoZeroSource("zero source 1", false, 3, concurrencyLevel, 0, disableZero:true);
+            var s1 = new IoZeroSource("zero source 1", false, concurrencyLevel + 1, concurrencyLevel, 0, disableZero:true);
             var c1 = new IoConduit<IoZeroProduct>("conduit smoke test 1", s1, static (ioZero, _) =>
             {
                 if (ioZero == null)
@@ -82,25 +83,26 @@ namespace zero.test.core.patterns.bushings
             }, TaskCreationOptions.DenyChildAttach).Unwrap();
 
             var ts = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+
+            var targetTime = count * 100 / concurrencyLevel;
+
             while (!z1.IsCompleted)
             {
-                if (c1.EventCount > count || ts.ElapsedMs() > 10000000)
+                if (c1.EventCount > count || ts.ElapsedMs() > targetTime * 3)
                 {
                     await c1.Zero(null, "test done").FastPath().ConfigureAwait(Zc);
                 }
                 _output.WriteLine($"{c1.EventCount}/{count}");
                 await Task.Delay(500).ConfigureAwait(true);
             }
-            await z1.WaitAsync(TimeSpan.FromSeconds(5)).ConfigureAwait(false);
+            await z1.WaitAsync(TimeSpan.FromMilliseconds(targetTime * 4)).ConfigureAwait(false);
 
-            var targetTime = count * 100 / concurrencyLevel;
-
-            Assert.InRange(ts.ElapsedMs(), targetTime, targetTime * 2);
+            Assert.InRange(ts.ElapsedMs(), targetTime/2, targetTime * 2);
             _output.WriteLine($"{ts.ElapsedMs()}ms ~ {targetTime}");
 
             await Task.Delay(100).ConfigureAwait(false);
-            Assert.InRange(c1.EventCount, count, count + concurrencyLevel * 2);
-            _output.WriteLine($"#event = {c1.EventCount} ~ 20");
+            Assert.InRange(c1.EventCount, count, count*2);
+            _output.WriteLine($"#event = {c1.EventCount} ~ {count}");
         }
 
         [Fact]
@@ -108,7 +110,7 @@ namespace zero.test.core.patterns.bushings
         {
             var count = 200000;
             var concurrencyLevel = 10;
-            var s1 = new IoZeroSource("zero source 1", false, 3, concurrencyLevel, 0, true);
+            var s1 = new IoZeroSource("zero source 1", false, concurrencyLevel + 1, concurrencyLevel, 0, true);
             var c1 = new IoConduit<IoZeroProduct>("conduit smoke test 1", s1, static (ioZero, _) =>
             {
                 if (ioZero == null)
@@ -119,25 +121,27 @@ namespace zero.test.core.patterns.bushings
             var z1 = Task.Factory.StartNew(async () => await c1.BlockOnReplicateAsync(), TaskCreationOptions.DenyChildAttach).Unwrap();
 
             var ts = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+            var expectedFps = 5;
+            var targetTime = count / (concurrencyLevel * expectedFps);
             while (!z1.IsCompleted)
             {
-                if (c1.EventCount > count || ts.ElapsedMs() > 10000)
+                if (c1.EventCount > count || ts.ElapsedMs() > targetTime * 3)
                 {
                     await c1.Zero(null, "test done").FastPath().ConfigureAwait(Zc);
                 }
                 _output.WriteLine($"{c1.EventCount}/{count}");
                 await Task.Delay(500).ConfigureAwait(false);
             }
-            await z1.WaitAsync(TimeSpan.FromSeconds(5)).ConfigureAwait(false);
+            await z1.WaitAsync(TimeSpan.FromMilliseconds(targetTime * 4)).ConfigureAwait(false);
 
             var fpses = count * 1000 / ts.ElapsedMs() / 1000;
 
             Assert.InRange(fpses, 10, int.MaxValue);
-            _output.WriteLine($"FPSes = {fpses} kub/s, {ts.ElapsedMs()}ms ~ 1000ms");
+            _output.WriteLine($"FPSes = {fpses} kub/s, {ts.ElapsedMs()}ms ~ {targetTime}ms");
 
             await Task.Delay(100);
             Assert.InRange(c1.EventCount, count, count * 2);
-            _output.WriteLine($"#event = {c1.EventCount} < {count * 2}");
+            _output.WriteLine($"#event = {c1.EventCount} ~ {count}");
         }
 
         //TODO
@@ -147,7 +151,7 @@ namespace zero.test.core.patterns.bushings
             var count = 200;
             var totalTimeMs = count * 100;
             var concurrencyLevel = 8;
-            var s1 = new IoZeroSource("zero source 1", false, concurrencyLevel, concurrencyLevel, 0, true);
+            var s1 = new IoZeroSource("zero source 1", false, concurrencyLevel + 1, concurrencyLevel, 0, true);
             var c1 = new IoConduit<IoZeroProduct>("conduit smoke test 1", s1, static (ioZero, _) =>
             {
                 if (ioZero == null)
@@ -158,19 +162,27 @@ namespace zero.test.core.patterns.bushings
             var z1 = Task.Factory.StartNew(async () => await c1.BlockOnReplicateAsync(), TaskCreationOptions.DenyChildAttach).Unwrap();
 
             var ts = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+            long last = -1;
             while (!z1.IsCompleted)
             {
-                if (c1.EventCount > count || ts.ElapsedMs() > 10000)
+                if (c1.EventCount > count || ts.ElapsedMs() > totalTimeMs / concurrencyLevel * 3)
                 {
                     await c1.Zero(null, "test done").FastPath().ConfigureAwait(Zc);
+                    break;
                 }
-                _output.WriteLine(c1.EventCount.ToString());
+
+                if (last == c1.EventCount && last > 0 && last < count)
+                {
+                    //Assert.Fail($"Producer stalled at {c1.EventCount}");
+                    _output.WriteLine($"Producer stalled at {c1.EventCount}");
+                }
+                _output.WriteLine((last = c1.EventCount).ToString());
                 await Task.Delay(500).ConfigureAwait(false);
             }
 
-            await z1.WaitAsync(TimeSpan.FromSeconds(5)).ConfigureAwait(false);
+            await z1.WaitAsync(TimeSpan.FromMilliseconds(totalTimeMs / (double)concurrencyLevel) * 4).ConfigureAwait(false);
 
-            Assert.InRange(ts.ElapsedMs(), totalTimeMs / concurrencyLevel / 2, totalTimeMs / concurrencyLevel * 1.5);
+            Assert.InRange(ts.ElapsedMs(), totalTimeMs / concurrencyLevel, totalTimeMs / concurrencyLevel * 2);
             _output.WriteLine($"{ts.ElapsedMs()}ms ~ {totalTimeMs / concurrencyLevel}ms");
 
             await Task.Delay(100);

@@ -927,7 +927,7 @@ namespace zero.sync
             var waiters = 3;
             var releasers = 2;
             var targetSleep = (long)0;
-            var logSpam = 50000;//at least 1
+            var logSpam = 40000;//at least 1
 
             var targetSleepMult = waiters > 1 ? 2 : 1;
             var sw = new Stopwatch();

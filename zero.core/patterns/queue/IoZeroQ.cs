@@ -243,10 +243,6 @@ namespace zero.core.patterns.queue
             return Interlocked.CompareExchange(ref _storage[i][idx - ((1 << i) - 1)], value, compare);
         }
 
-#if DEBUG
-        private volatile int _addsAttempted;
-        private volatile int _adds;
-#endif
         /// <summary>
         /// Add item to the bag
         /// </summary>
@@ -278,30 +274,22 @@ namespace zero.core.patterns.queue
 
             try
             {
-#if DEBUG
-                Interlocked.Increment(ref _addsAttempted);
-#endif
-                var slot = _sentinel;
                 var c = 0;
-                
-                //if success
-                //lock (_syncRoot)
                 do
                 {
-                    Debug.Assert(slot != null && slot == _sentinel);
-                    Interlocked.MemoryBarrier();
+                    var slot = _sentinel;
                     long insaneScale;
                     long tail = 0;
-                    while (_count < (insaneScale = Capacity) && (insaneScale == Capacity && (slot = CompareExchange(tail = Tail, item, null)) != null || tail != Tail))
+                    while (_count < (insaneScale = Capacity) && ( (slot = CompareExchange(tail = Tail, item, null)) != null || tail != Tail))
                     {
 #if DEBUG
-                        if (++c == 50000)
+                        if (++c == 500000)
                         {
                             Console.WriteLine($"[{c}] eq 3 latch[{tail%Capacity}]~[{Tail % insaneScale}] bad = {slot != null} ({slot != _sentinel}), overflow = {tail >= Head + insaneScale}, has space = {_count < insaneScale}, scale failure = {insaneScale != Capacity}, {Description}");
                         }
-                        else if (c > 50000)
+                        else if (c > 500000)
                         {
-                            
+                            Debug.Assert(false);
                         }
 #endif
                             
@@ -331,23 +319,20 @@ namespace zero.core.patterns.queue
                         Debug.Assert(this[tail] == item);
                         Debug.Assert(tail == Tail);
                         Debug.Assert(item != null);
+
+                        //if (tail == Tail && Interlocked.CompareExchange(ref _tail, tail + 1, tail) == tail)
+                        //{
+                        //    Interlocked.Increment(ref _count);
+                        //    _curEnumerator.IncIteratorCount(); //TODO: is this a good idea?
+                        //    return tail;
+                        //}
                         
-                        Interlocked.MemoryBarrier();
-                        if (tail == Tail && Interlocked.CompareExchange(ref _tail, tail + 1, tail) == tail)
-                        {
-                            Interlocked.MemoryBarrier();
-                            Interlocked.Increment(ref _count);
-
-                            _curEnumerator.IncIteratorCount(); //TODO: is this a good idea?
-#if DEBUG
-                            Interlocked.Increment(ref _adds);
-#endif
-                            return tail;
-                        }
-
-                        return -1;
+                        Interlocked.Increment(ref _tail);
+                        Interlocked.Increment(ref _count);
+                        _curEnumerator.IncIteratorCount(); //TODO: is this a good idea?
+                        return tail;
                     }
-                } while (_count < Capacity && !Zeroed);
+                } while (_count < Capacity && !Zeroed);//TODO: many hacks!
 
                 if (Zeroed)
                     return -1;
@@ -371,12 +356,6 @@ namespace zero.core.patterns.queue
             {
                 LogManager.GetCurrentClassLogger().Error(e);
             }
-            finally
-            {
-#if DEBUG
-                Interlocked.Decrement(ref _addsAttempted);
-#endif
-            }
 
             return -1;
         }
@@ -385,91 +364,53 @@ namespace zero.core.patterns.queue
         /// <summary>
         /// Try take from the Q, round robin
         /// </summary>
-        /// <param name="result">The item to be fetched</param>
+        /// <param name="returnValue">The item to be fetched</param>
         /// <returns>True if an item was found and returned, false otherwise</returns>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public bool TryDequeue([MaybeNullWhen(false)] out T result)
+        public bool TryDequeue([MaybeNullWhen(false)] out T returnValue)
         {
-            result = _sentinel;
-            Interlocked.MemoryBarrier();
             try
             {
                 if (_count == 0)
                 {
-                    result = null;
+                    returnValue = null;
                     return false;
                 }
 
-                //lock (_syncRoot)
+                var insaneScale = Capacity;
+                long headLatch;
+                T result;
+                if ((headLatch = Head) == Tail || (result = Exchange(headLatch, null)) == null)
                 {
-                    Interlocked.MemoryBarrier();
-                    var insaneScale = Capacity;
-                    
-                    long headLatch = -1;
-                    
-                    if ((headLatch = Head) == Tail || (result = Exchange(headLatch, null)) == null)
-                    {
-                        Interlocked.MemoryBarrier();
-                        result = null;
-                        return false;
-                    }
-
-#if DEBUG
-                    var tmp = result;
-                    if (tmp == null || tmp == _sentinel)
-                    {
-                        result = null;
-                        return false;
-                    }
-
-                    Debug.Assert(result != null && result != _sentinel);
-#else
-                    if (result == null || result == _sentinel)
-                    {
-                        result = null;
-                        return false;
-                    }
-#endif
-
-                    //if (result == null || result == _sentinel)
-                    //{
-                    //    result = null;
-                    //    return false;
-                    //}
-
-                    //Debug.Assert(result != null && result != _sentinel);
-
-
-                    if (insaneScale != Capacity)
-                    {
-                        if (result != _sentinel)
-                        {
-                            if (CompareExchange(headLatch, result, null) != null)
-                                LogManager.GetCurrentClassLogger()
-                                    .Error($"{nameof(TryDequeue)}: Could not restore latch state!");
-                        }
-
-                        return TryDequeue(out result);
-                    }
-
-
-                    Debug.Assert(result != null && result != _sentinel);
-                    Debug.Assert(_count > 0);
-                    Debug.Assert(this[headLatch] == null);
-
-                    var next = Interlocked.Increment(ref _head);
-                    Interlocked.MemoryBarrier();
-                    Interlocked.Decrement(ref _count);
-                    Debug.Assert(next - 1 == headLatch);
-
-                    return true;
+                    returnValue = null;
+                    return false;
                 }
+
+                if (insaneScale != Capacity)
+                {
+                    if (CompareExchange(headLatch, result, null) != null)
+                        LogManager.GetCurrentClassLogger()
+                            .Error($"{nameof(TryDequeue)}: Could not restore latch state!");
+
+                    return TryDequeue(out returnValue);
+                }
+
+                Debug.Assert(result != null);
+                Debug.Assert(_count > 0);
+                Debug.Assert(this[headLatch] == null);
+
+                Interlocked.Increment(ref _head);
+                Interlocked.Decrement(ref _count);
+
+                returnValue = result;
+                return true;
             }
             catch (Exception e)
             {
                 LogManager.LogFactory.GetCurrentClassLogger().Error(e, $"{nameof(TryDequeue)} failed!");
             }
 
+            returnValue = null;
             return false;
         }
 

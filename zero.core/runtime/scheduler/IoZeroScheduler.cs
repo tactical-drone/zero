@@ -24,9 +24,8 @@ namespace zero.core.runtime.scheduler
         {
             Zero = new IoZeroScheduler();
             ZeroDefault = Zero;
-
-            //TODO 2.0: Now the default scheduler is not working (threads eventually starve). Something strange going on here.
-            ZeroDefault = Default; //TODO: disabled for now, strange fundamental failures occurring.
+            //TODO: Enable for default .NET scheduler
+            ZeroDefault = Default; 
         }
         public IoZeroScheduler(CancellationTokenSource asyncTasks = null)
         {

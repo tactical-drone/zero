@@ -48,7 +48,7 @@ namespace zero.core.patterns.queue
                 }
             };
 
-            _syncRoot = new IoZeroSemaphore(desc, maxBlockers: concurrencyLevel, initialCount: 1, asyncWorkerCount: 0, cancellationTokenSource:_asyncTasks);
+            _syncRoot = new IoZeroSemaphore(desc, maxBlockers: concurrencyLevel, initialCount: 1, asyncWorkerCount: 0,enableDeadlockDetection:true, cancellationTokenSource:_asyncTasks);
             _syncRoot.ZeroRef(ref _syncRoot);
 
             var c = Math.Max(prefetch + 1, concurrencyLevel);

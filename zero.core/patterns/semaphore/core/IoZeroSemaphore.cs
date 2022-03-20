@@ -64,10 +64,9 @@ namespace zero.core.patterns.semaphore.core
 #if DEBUG
             _useMemoryBarrier = enableFairQ;
             _enableAutoScale = enableAutoScale;
-            if(_enableAutoScale)
-                _lock = new SpinLock(enableDeadlockDetection);
+            _lock = new SpinLock(enableDeadlockDetection);
 #endif
-
+            _enableDeadlockPrevention = enableDeadlockDetection;
             _signalAwaiter = new Action<object>[_maxBlockers];
             _signalAwaiterState = new object[_maxBlockers];
             _signalExecutionState = new ExecutionContext[_maxBlockers];
@@ -361,8 +360,9 @@ namespace zero.core.patterns.semaphore.core
         /// </summary>
         private readonly bool _enableAutoScale;
 #endif
+        private bool _enableDeadlockPrevention;
 
-#endregion
+        #endregion
 
         /// <summary>
         /// Returns true if exit is clean, false otherwise
@@ -468,12 +468,11 @@ namespace zero.core.patterns.semaphore.core
                 {
                     Debug.Assert(slot != null && slot == ZeroSentinel);
 
-                    Interlocked.MemoryBarrier();
                     long tail;
                     var tailMod = (tail = Tail) % _maxBlockers;
                     while (_curWaitCount <= _maxBlockers &&
-                           (slot = Interlocked.CompareExchange(ref _signalAwaiter[tailMod], ZeroSentinel, null)) !=
-                           null || slot == ZeroSentinel || tail != Tail)
+                           (slot = Interlocked.CompareExchange(ref _signalAwaiter[tailMod], ZeroSentinel, null)) != null || 
+                           slot == ZeroSentinel || tail != Tail)
                     {
 #if DEBUG
                         if (++c == 1000000)
@@ -500,15 +499,21 @@ namespace zero.core.patterns.semaphore.core
                         //fast path, RACES with SetResult 
                         if (_curSignalCount == 1 && _curWaitCount == 1)
                         {
-                            if (Interlocked.CompareExchange(ref _curSignalCount, 0, 1) == 1)
+                            if (Interlocked.CompareExchange(ref _curWaitCount, 0, 1) == 1)
                             {
-                                TaskScheduler cc = null;
-                                if (TaskScheduler.Current != TaskScheduler.Default)
-                                    cc = TaskScheduler.Current;
+                                if (Interlocked.CompareExchange(ref _curSignalCount, 0, 1) == 1)
+                                {
+                                    
+                                    TaskScheduler cc = null;
+                                    if (TaskScheduler.Current != TaskScheduler.Default)
+                                        cc = TaskScheduler.Current;
 
-                                Interlocked.Exchange(ref _signalAwaiter[tailMod], null);
-                                InvokeContinuation(continuation, state, cc, false);
-                                return;
+                                    Interlocked.Exchange(ref _signalAwaiter[tailMod], null);
+                                    InvokeContinuation(continuation, state, cc, false);
+                                    return;
+                                }
+
+                                Interlocked.Increment(ref _curWaitCount);
                             }
                         }
 
@@ -517,14 +522,12 @@ namespace zero.core.patterns.semaphore.core
                             Console.WriteLine(
                                 $"[{c}] 1 [RECOVER] OnComplete: bad latch[{tailMod}] = {slot != null}({slot != ZeroSentinel}), {Description}");
 #endif
-
+                        //Race against sentinel 
                         if (tail == Tail &&
                             Interlocked.CompareExchange(ref _signalAwaiterState[tailMod], state, null) == null)
                         {
-                            ExtractContext(out _signalExecutionState[tailMod], out _signalCapturedContext[tailMod],
-                                flags);
+                            ExtractContext(out _signalExecutionState[tailMod], out _signalCapturedContext[tailMod], flags);
                             Interlocked.Exchange(ref _signalAwaiter[tailMod], continuation);
-                            Interlocked.MemoryBarrier();
                             Interlocked.Increment(ref _tail);
                             return;
                         }
@@ -647,7 +650,6 @@ namespace zero.core.patterns.semaphore.core
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private void InvokeContinuation(Action<object> callback, object state, object capturedContext, bool forceAsync)
         {
-            Interlocked.Decrement(ref _curWaitCount);
             switch (capturedContext)
             {
                 case null:
@@ -802,7 +804,6 @@ namespace zero.core.patterns.semaphore.core
         /// Allow waiter(s) to enter the semaphore
         /// </summary>
         /// <param name="releaseCount">The number of waiters to enter</param>
-        /// <param name="bestEffort">Whether this originates from <see cref="OnCompleted"/></param>
         /// <returns>The number of waiters released, -1 on failure</returns>
         /// <exception cref="SemaphoreFullException">Fails when maximum waiters reached</exception>
         public int Release(int releaseCount = 1)
@@ -812,72 +813,59 @@ namespace zero.core.patterns.semaphore.core
             {
                 return -1;
             }
-            
+
             //lock in return value
             var released = 0;
-            long headMod = -1;
 
+            var slot = -1;
             //release waiters
-            while (released < releaseCount && _curWaitCount > 0)
+            while (released < releaseCount)
             {
+                //race for a waiter
+                int latch;
+                while (slot == -1 && (latch = _curWaitCount) > 0 && (slot = Interlocked.CompareExchange(ref _curWaitCount, latch - 1, latch)) != latch)
+                    slot = -1;
+
+                if (slot <= 0)
+                    break;
+
                 IoZeroWorker worker = default;
-                //worker.Continuation = ZeroSentinel;
-                //Lock
 #if DEBUG
                 ZeroLock();
 #endif
-                Interlocked.MemoryBarrier();
-                long head = -1;
-                //headMod = (head = Head) % _maxBlockers;
-
-                if ((head = Head) == Tail || (worker.Continuation = Interlocked.Exchange(ref _signalAwaiter[headMod = head % _maxBlockers], null)) == null || worker.Continuation == ZeroSentinel)
+                long head;
+                long headMod;
+                if ((head = Head) == Tail ||
+                    (worker.Continuation = Interlocked.Exchange(ref _signalAwaiter[headMod = head % _maxBlockers], null)) == null ||
+                    worker.Continuation == ZeroSentinel)
                 {
-                    if (Zeroed()) 
+                    if (Zeroed())
                         break;
 
                     Interlocked.MemoryBarrierProcessWide();
                     continue;
                 }
 
-                //var latch = _signalAwaiter[headMod = Head % _maxBlockers];
-
-                //if (latch == null || latch == ZeroSentinel || (worker.Continuation = Interlocked.Exchange(ref _signalAwaiter[headMod], ZeroSentinel)) != latch)
-                //{
-                //    Interlocked.MemoryBarrierProcessWide();
-                //    continue;
-                //}
-
-                //if (worker.Continuation != latch || worker.Continuation == ZeroSentinel || latch == ZeroSentinel )
-                //{
-                //    if (Zeroed())
-                //        break;
-
-                //    continue;
-                //}
-
                 worker.State = Interlocked.Exchange(ref _signalAwaiterState[headMod], null);
                 worker.ExecutionContext = Interlocked.Exchange(ref _signalExecutionState[headMod], null);
                 worker.CapturedContext = Interlocked.Exchange(ref _signalCapturedContext[headMod], null);
-                //_ = Interlocked.Exchange(ref _signalAwaiter[headMod], null);
 
-                Interlocked.MemoryBarrier();
                 Interlocked.Increment(ref _head);
 #if DEBUG
                 //unlock
                 ZeroUnlock();
 #endif
-                if (!ZeroComply(worker.Continuation, worker.State, worker.ExecutionContext, worker.CapturedContext, Zeroed() || worker.State is IIoNanite nanite && nanite.Zeroed()))
+                if (!ZeroComply(worker.Continuation, worker.State, worker.ExecutionContext, worker.CapturedContext,
+                        Zeroed() || worker.State is IIoNanite nanite && nanite.Zeroed()))
                 {
                     Interlocked.Add(ref _curSignalCount, releaseCount - released);
                     return -1;
                 }
 
+                slot = -1;
                 //count the number of waiters released
                 released++;
             }
-
-            //if(headMod != -1)//TODO: risky?
-            //    Interlocked.CompareExchange(ref _signalAwaiter[headMod], null, ZeroSentinel);
 
             Interlocked.Add(ref _curSignalCount, releaseCount - released);
 
@@ -896,21 +884,21 @@ namespace zero.core.patterns.semaphore.core
                 return new ValueTask<bool>(false);
 
             var slot = -1;
-            int latch;
+            var latch = -2;
 
             //grab a signal slot
-            while ((latch = _curSignalCount) > 0 && _curWaitCount == 0 && (slot = Interlocked.CompareExchange(ref _curSignalCount, latch - 1, latch)) != latch)
+            while (!Zeroed() && (latch = _curSignalCount) > 0 && _curWaitCount == 0 && (slot = Interlocked.CompareExchange(ref _curSignalCount, latch - 1, latch)) != latch)
                 slot = -1;
 
             //fast path
-            if (slot == latch && _curWaitCount == 0)//There is a race here with _cureWaitCount going > 0, but I don't think this is an ordering issue as the race was won in the spin lock therefor this waiter must have been first anyway.
+            if (slot == latch)//There is a race here with _cureWaitCount going > 0, but I don't think this is an ordering issue as the race was won in the spin lock therefor this waiter must have been first anyway.
                 return new ValueTask<bool>(true);
 
             //grab a wait slot
             slot = -1;
-            while ((latch = _curWaitCount) < _maxBlockers && (slot = Interlocked.CompareExchange(ref _curWaitCount, latch + 1, latch)) != latch)
+            while (!Zeroed() && (latch = _curWaitCount) < _maxBlockers && (slot = Interlocked.CompareExchange(ref _curWaitCount, latch + 1, latch)) != latch)
                 slot = -1;
-
+            
             return slot == latch ? new ValueTask<bool>(_zeroRef, 23) : new ValueTask<bool>(false);
         }
 
