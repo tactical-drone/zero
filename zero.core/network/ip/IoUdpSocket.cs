@@ -481,7 +481,6 @@ namespace zero.core.network.ip
         public override async ValueTask<int> ReadAsync(Memory<byte> buffer, int offset, int length, byte[] remoteEp,
             int timeout = 0)
         {
-            Debug.Assert(remoteEp != null);
             try
             {
                 if (!IsConnected())
