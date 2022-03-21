@@ -379,8 +379,6 @@ namespace zero.core.network.ip
         public override async ValueTask<int> SendAsync(ReadOnlyMemory<byte> buffer, int offset, int length,
             EndPoint endPoint, int timeout = 0)
         {
-            Debug.Assert(endPoint != null);
-
             //#if DEBUG
             //                if (_sendSync.CurNrOfBlockers >= _sendArgs.Capacity / 2)
             //                    _logger.Warn(
