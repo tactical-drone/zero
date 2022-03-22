@@ -252,9 +252,11 @@ namespace zero.core.patterns.queue
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public long TryEnqueue(T item, bool deDup = false)
         {
-            Debug.Assert(_sentinel != null);
-            Debug.Assert(item != null);
-            
+            if (Zeroed)
+                return -1;
+
+            Debug.Assert(Zeroed || item != null);
+
             if (_count >= Capacity)
             {
                 if (!_autoScale)
@@ -275,19 +277,18 @@ namespace zero.core.patterns.queue
             try
             {
                 var c = 0;
-                do
-                {
+                
                     var slot = _sentinel;
                     long insaneScale;
                     long tail = 0;
-                    while (_count < (insaneScale = Capacity) && ( (slot = CompareExchange(tail = Tail, item, null)) != null || tail != Tail))
+                    while (_count < (insaneScale = Capacity) && (slot = CompareExchange(tail = Tail, item, null)) != null)
                     {
 #if DEBUG
-                        if (++c == 500000)
+                        if (++c == 5000000)
                         {
-                            Console.WriteLine($"[{c}] eq 3 latch[{tail%Capacity}]~[{Tail % insaneScale}] bad = {slot != null} ({slot != _sentinel}), overflow = {tail >= Head + insaneScale}, has space = {_count < insaneScale}, scale failure = {insaneScale != Capacity}, {Description}");
+                            Console.WriteLine($"[{c}] eq 3 latch[{tail%Capacity}]~[{Tail % insaneScale}] ({slot != _sentinel}), overflow = {tail >= Head + insaneScale}, has space = {_count < insaneScale}, scale failure = {insaneScale != Capacity}, {Description}");
                         }
-                        else if (c > 500000)
+                        else if (c > 5000000)
                         {
                             Debug.Assert(false);
                         }
@@ -314,11 +315,11 @@ namespace zero.core.patterns.queue
                         return TryEnqueue(item, deDup);
                     }
 
-                    if (slot == null && tail == Tail) //TODO
+                    if (slot == null)
                     {
-                        Debug.Assert(this[tail] == item);
-                        Debug.Assert(tail == Tail);
-                        Debug.Assert(item != null);
+                        Debug.Assert(Zeroed || this[tail] == item);
+                        Debug.Assert(Zeroed || tail == Tail);
+                        Debug.Assert(Zeroed || item != null);
 
                         //if (tail == Tail && Interlocked.CompareExchange(ref _tail, tail + 1, tail) == tail)
                         //{
@@ -332,7 +333,7 @@ namespace zero.core.patterns.queue
                         _curEnumerator.IncIteratorCount(); //TODO: is this a good idea?
                         return tail;
                     }
-                } while (_count < Capacity && !Zeroed);//TODO: many hacks!
+                
 
                 if (Zeroed)
                     return -1;
@@ -371,7 +372,7 @@ namespace zero.core.patterns.queue
         {
             try
             {
-                if (_count == 0)
+                if (_count == 0 || Zeroed)
                 {
                     returnValue = null;
                     return false;
