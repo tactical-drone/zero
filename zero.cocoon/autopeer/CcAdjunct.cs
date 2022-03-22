@@ -1721,7 +1721,6 @@ namespace zero.cocoon.autopeer
                         packet.Data = ByteString.Empty;
                         packet.Signature = ByteString.Empty;
                         packet.Header.Ip.Dst = ByteString.Empty;
-                        Thread.MemoryBarrier();
                         _chronitonHeap.Return(packet);
                     }
                 }
@@ -1923,9 +1922,6 @@ namespace zero.cocoon.autopeer
                     NatAddress = IoNodeAddress.CreateFromEndpoint("udp", newRemoteEp);
 
                     Verified = true;
-                    Thread.MemoryBarrier();
-
-
 #if DEBUG
                     if (CcCollective.ZeroDrone)
                         _logger.Warn($"Verified with queen `{newRemoteEp}' ~> {MessageService.IoNetSocket.LocalAddress} ");
@@ -2343,7 +2339,6 @@ namespace zero.cocoon.autopeer
                 NatAddress = IoNodeAddress.CreateFromEndpoint("udp", src);
 #endif
                 Verified = true;
-                Thread.MemoryBarrier();
 
                 AdjunctState oldState;
                 if ((oldState = CompareAndEnterState(AdjunctState.Verified, AdjunctState.Unverified)) != AdjunctState.Unverified)
