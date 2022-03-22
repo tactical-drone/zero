@@ -397,7 +397,7 @@ namespace zero.core.patterns.queue
                 }
 
                 Debug.Assert(result != null);
-                Debug.Assert(_count > 0);
+                Debug.Assert(_count >= 0);
                 Debug.Assert(this[headLatch] == null);
 
                 Interlocked.Increment(ref _head);
