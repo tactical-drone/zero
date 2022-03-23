@@ -277,23 +277,30 @@ namespace zero.core.patterns.queue
             try
             {
                 var c = 0;
-                
-                    var slot = _sentinel;
-                    long insaneScale;
+
+                var slot = _sentinel;
+                do
+                {
+                    if (slot != _sentinel)
+                        CompareExchange(Tail, null, item);
+
                     long tail = 0;
-                    while (_count < (insaneScale = Capacity) && (slot = CompareExchange(tail = Tail, item, null)) != null)
+                    var insaneScale = Capacity;
+                    while (_count < insaneScale &&
+                           (slot = CompareExchange(tail = Tail, item, null)) != null || tail != Tail)
                     {
 #if DEBUG
                         if (++c == 5000000)
                         {
-                            Console.WriteLine($"[{c}] eq 3 latch[{tail%Capacity}]~[{Tail % insaneScale}] ({slot != _sentinel}), overflow = {tail >= Head + insaneScale}, has space = {_count < insaneScale}, scale failure = {insaneScale != Capacity}, {Description}");
+                            Console.WriteLine(
+                                $"[{c}] eq 3 latch[{tail % Capacity}]~[{Tail % insaneScale}] ({slot != _sentinel}), overflow = {tail >= Head + insaneScale}, has space = {_count < insaneScale}, scale failure = {insaneScale != Capacity}, {Description}");
                         }
                         else if (c > 5000000)
                         {
                             Debug.Assert(false);
                         }
 #endif
-                            
+
                         slot = _sentinel;
 
                         if (Zeroed)
@@ -315,7 +322,7 @@ namespace zero.core.patterns.queue
                         return TryEnqueue(item, deDup);
                     }
 
-                    if (slot == null)
+                    if (slot == null && tail == Tail)
                     {
                         Debug.Assert(Zeroed || this[tail] == item);
                         Debug.Assert(Zeroed || tail == Tail);
@@ -327,13 +334,13 @@ namespace zero.core.patterns.queue
                         //    _curEnumerator.IncIteratorCount(); //TODO: is this a good idea?
                         //    return tail;
                         //}
-                        
+
                         Interlocked.Increment(ref _tail);
                         Interlocked.Increment(ref _count);
                         _curEnumerator.IncIteratorCount(); //TODO: is this a good idea?
                         return tail;
                     }
-                
+                } while (!Zeroed);//TODO: Hacks!
 
                 if (Zeroed)
                     return -1;

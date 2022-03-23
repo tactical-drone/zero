@@ -30,7 +30,7 @@
 		<PackageReference Include="Microsoft.VisualStudio.Threading" Version="17.1.46" />
 		<PackageReference Include="System.Text.Json" Version="7.0.0-preview.2.22152.2" />
 		<PackageReference Include="NLog" Version="5.0.0-rc2" />
-		<PackageReference Include="Grpc.Tools" Version="2.45.0-pre1">
+		<PackageReference Include="Grpc.Tools" Version="2.45.0">
 			<PrivateAssets>all</PrivateAssets>
 			<IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
 		</PackageReference>
