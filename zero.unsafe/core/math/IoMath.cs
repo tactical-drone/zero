@@ -1,19 +1,16 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Runtime.CompilerServices;
-using System.Text;
+﻿using System.Runtime.CompilerServices;
 
 namespace zero.@unsafe.core.math
 {
     public static class IoMath
     {
+        const int Fp64Prec = 53;
+
         public static unsafe int ByPtr754_64(ulong bits)
         {
             var fp = (double)bits;
-            return ((int)(*(ulong*)&fp >> 52) & 2047) - 1023;
+            return ((int)(*(ulong*)&fp >> (Fp64Prec - 1)) & 2047) - 1023;
         }
-
-        const int Fp64Prec = 53;
 
         static int[] CreateTableMix()
         {

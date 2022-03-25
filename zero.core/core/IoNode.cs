@@ -472,7 +472,7 @@ namespace zero.core.core
                     }
                     else if(newNeighbor != null)
                     {
-                        _logger.Debug($"Neighbor with id = {newNeighbor?.Key} already exists! Closing connection from {newClient.IoNetSocket.RemoteNodeAddress} ...");
+                        _logger.Debug($"Neighbor with id = {newNeighbor.Key} already exists! Closing connection from {newClient.IoNetSocket.RemoteNodeAddress} ...");
                         await newNeighbor.Zero(this, "Dropped, connection already exists").FastPath().ConfigureAwait(Zc);
                     }
                 }

@@ -129,7 +129,7 @@ namespace zero.core.patterns.queue
                 if (idx < _capacity) return Volatile.Read(ref _fastStorage[idx]);
 
                 idx %= Capacity;
-                var i = IoMath.Log2((ulong) idx + 1);
+                var i = IoMath.Log2(unchecked((ulong) idx + 1));
 
                 return Volatile.Read(ref _storage[i][idx - ((1 << i) - 1)]);
             }
@@ -148,25 +148,20 @@ namespace zero.core.patterns.queue
                     return;
                 }
                 idx %= Capacity;
-                var i = IoMath.Log2((ulong)(idx) + 1);
+                var i = IoMath.Log2(unchecked((ulong)(idx) + 1));
                 Volatile.Write(ref _storage[i][idx - ((1 << i) - 1)], value);
-                //_storage[i][idx - ((1 << i) - 1)] = value;
             }
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public T Get(long idx, T next = null)
         {
-            //Debug.Assert(idx >= 0);
+            if (!IsAutoScaling) return Interlocked.Exchange(ref _storage[0][idx % _capacity], next);
+            if (idx < _capacity) return Interlocked.Exchange(ref _storage[0][idx], next);
+            idx %= Capacity;
+            var i = IoMath.Log2((ulong)idx + 1);
 
-            //if (!IsAutoScaling) return Interlocked.Exchange(ref _storage[0][idx % _capacity], Sentinel);
-            return Interlocked.Exchange(ref _fastStorage[idx % _capacity], next);
-            //if (idx < _capacity) return Interlocked.Exchange(ref _storage[0][idx], Sentinel);
-
-            //idx %= Capacity;
-            //var i = IoMath.Log2((ulong)idx + 1);
-
-            //return Interlocked.Exchange(ref _storage[i][idx - ((1 << i) - 1)], Sentinel);
+            return Interlocked.Exchange(ref _storage[i][idx - ((1 << i) - 1)], next);
         }
         //public T Set(long idx)
         //{
@@ -212,16 +207,29 @@ namespace zero.core.patterns.queue
             }
         }
 
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        [MethodImpl(MethodImplOptions.NoInlining)]
         private T Exchange(long idx, T value)
         {
-            if (!IsAutoScaling) return Interlocked.Exchange(ref _fastStorage[idx % _capacity], value);
-            if (idx < _capacity)
-                return Interlocked.Exchange(ref _fastStorage[idx], value);
+            var i = 0;
+            try
+            {
+                if (!IsAutoScaling) return Interlocked.Exchange(ref _fastStorage[idx % _capacity], value);
 
-            idx %= Capacity;
-            var i = IoMath.Log2((ulong)idx + 1);
-            return Interlocked.Exchange(ref _storage[i][idx - ((1 << i) - 1)], value);
+                if (idx < _capacity)
+                    return Interlocked.Exchange(ref _fastStorage[idx], value);
+
+                idx %= Capacity;
+                i = IoMath.Log2(unchecked((ulong)idx + 1));
+                return Interlocked.Exchange(ref _storage[i][idx - ((1 << i) - 1)], value);
+            }
+            finally
+            {
+                if (!IsAutoScaling)
+                    Debug.Assert(Volatile.Read(ref _fastStorage[idx % _capacity]) == value);
+                else
+                    Debug.Assert(Volatile.Read(ref _storage[i][idx - ((1 << i) - 1)]) == value);
+                
+            }
         }
 
         /// <summary>
@@ -235,11 +243,11 @@ namespace zero.core.patterns.queue
         private T CompareExchange(long idx, T value, T compare)
         {
             if (!IsAutoScaling) return Interlocked.CompareExchange(ref _fastStorage[idx % _capacity], value, compare);
-            if (idx < _capacity) 
+            if (idx < _capacity)
                 return Interlocked.CompareExchange(ref _fastStorage[idx], value, compare);
 
             idx %= Capacity;
-            var i = IoMath.Log2((ulong)idx + 1);
+            var i = IoMath.Log2(unchecked((ulong)idx + 1));
             return Interlocked.CompareExchange(ref _storage[i][idx - ((1 << i) - 1)], value, compare);
         }
 
@@ -271,7 +279,7 @@ namespace zero.core.patterns.queue
             if (deDup)
             {
                 if (Contains(item))
-                    return 0;
+                    return -1;
             }
 
             try
@@ -282,7 +290,10 @@ namespace zero.core.patterns.queue
                 do
                 {
                     if (slot != _sentinel)
+                    {
                         CompareExchange(Tail, null, item);
+                        slot = _sentinel;
+                    }
 
                     long tail = 0;
                     var insaneScale = Capacity;
@@ -292,8 +303,7 @@ namespace zero.core.patterns.queue
 #if DEBUG
                         if (++c == 5000000)
                         {
-                            Console.WriteLine(
-                                $"[{c}] eq 3 latch[{tail % Capacity}]~[{Tail % insaneScale}] ({slot != _sentinel}), overflow = {tail >= Head + insaneScale}, has space = {_count < insaneScale}, scale failure = {insaneScale != Capacity}, {Description}");
+                            Console.WriteLine($"[{c}] eq 3 latch[{tail % Capacity}] ~ [{Tail % insaneScale}] ({slot != _sentinel}), overflow = {tail >= Head + insaneScale}, has space = {_count < insaneScale}, scale failure = {insaneScale != Capacity}, {Description}");
                         }
                         else if (c > 5000000)
                         {
