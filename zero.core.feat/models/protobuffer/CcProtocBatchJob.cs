@@ -71,8 +71,8 @@ namespace zero.core.feat.models.protobuffer
         /// <returns></returns>
         public override async ValueTask ZeroManagedAsync()
         {
-            await base.ZeroManagedAsync().FastPath().ConfigureAwait(Zc);
-            await ClearAsync().FastPath().ConfigureAwait(Zc);
+            await base.ZeroManagedAsync().FastPath();
+            await ClearAsync().FastPath();
         }
 
         protected override void AddRecoveryBits()
@@ -104,7 +104,7 @@ namespace zero.core.feat.models.protobuffer
         public async ValueTask SetAsync(TBatch batch)
         {
             if (_batch != null)
-                await ClearAsync().FastPath().ConfigureAwait(Zc);
+                await ClearAsync().FastPath();
                     
             _batch = batch;
         }
@@ -142,7 +142,7 @@ namespace zero.core.feat.models.protobuffer
                     }
                 
                     return job._batch != null;
-                }, this, barrier, ioZero).FastPath().ConfigureAwait(Zc))
+                }, this, barrier, ioZero).FastPath())
             {
                 return State = IoJobMeta.JobState.Error;
             }

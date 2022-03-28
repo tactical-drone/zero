@@ -228,7 +228,6 @@ namespace zero.core.patterns.queue
                     Debug.Assert(Volatile.Read(ref _fastStorage[idx % _capacity]) == value);
                 else
                     Debug.Assert(Volatile.Read(ref _storage[i][idx - ((1 << i) - 1)]) == value);
-                
             }
         }
 
@@ -264,7 +263,6 @@ namespace zero.core.patterns.queue
                 return -1;
 
             Debug.Assert(Zeroed || item != null);
-
             if (_count >= Capacity)
             {
                 if (!_autoScale)
@@ -285,72 +283,65 @@ namespace zero.core.patterns.queue
             try
             {
                 var c = 0;
-
                 var slot = _sentinel;
-                do
+                long tail = 0;
+                long insaneScale;
+                while ((tail = Tail) == Head + (insaneScale = Capacity) || _count < insaneScale &&
+                       (slot = CompareExchange(tail, item, null)) != null)
                 {
-                    if (slot != _sentinel)
-                    {
-                        CompareExchange(Tail, null, item);
-                        slot = _sentinel;
-                    }
-
-                    long tail = 0;
-                    var insaneScale = Capacity;
-                    while (_count < insaneScale &&
-                           (slot = CompareExchange(tail = Tail, item, null)) != null || tail != Tail)
-                    {
 #if DEBUG
-                        if (++c == 5000000)
+                    if (++c == 5000000)
+                    {
+                        Console.WriteLine($"[{c}] eq 3 latch[{tail % Capacity}] ~ [{Tail % insaneScale}] ({slot != _sentinel}), overflow = {tail >= Head + insaneScale}, has space = {_count < insaneScale}, scale failure = {insaneScale != Capacity}, {Description}");
+                    }
+                    else if (c > 5000000)
+                    {
+                        Console.WriteLine(slot);
+                        try
                         {
-                            Console.WriteLine($"[{c}] eq 3 latch[{tail % Capacity}] ~ [{Tail % insaneScale}] ({slot != _sentinel}), overflow = {tail >= Head + insaneScale}, has space = {_count < insaneScale}, scale failure = {insaneScale != Capacity}, {Description}");
+                            var t = Unsafe.As<Tuple<byte, byte>>(slot);
+                            Console.WriteLine("{0},{1}", t.Item1, t.Item2);
                         }
-                        else if (c > 5000000)
+                        catch 
                         {
-                            Debug.Assert(false);
+                            
                         }
+                        Debug.Assert(false);
+                    }
 #endif
 
-                        slot = _sentinel;
+                    slot = _sentinel;
 
-                        if (Zeroed)
-                            break;
+                    if (Zeroed)
+                        break;
 
-                        Interlocked.MemoryBarrierProcessWide();
-                    }
+                    Interlocked.MemoryBarrierProcessWide();
+                }
 
-                    //retry on scaling
-                    if (insaneScale != Capacity)
+                //retry on scaling
+                if (insaneScale != Capacity)
+                {
+                    if (slot == null)
                     {
-                        if (slot == null)
-                        {
-                            if (CompareExchange(tail, null, item) != item)
-                                LogManager.GetCurrentClassLogger()
-                                    .Error($"{nameof(TryEnqueue)}: Could not restore latch state!");
-                        }
-
-                        return TryEnqueue(item, deDup);
+                        if (CompareExchange(tail, null, item) != item)
+                            LogManager.GetCurrentClassLogger()
+                                .Error($"{nameof(TryEnqueue)}: Could not restore latch state!");
                     }
 
-                    if (slot == null && tail == Tail)
-                    {
-                        Debug.Assert(Zeroed || this[tail] == item);
-                        Debug.Assert(Zeroed || tail == Tail);
-                        Debug.Assert(Zeroed || item != null);
+                    return TryEnqueue(item, deDup);
+                }
 
-                        //if (tail == Tail && Interlocked.CompareExchange(ref _tail, tail + 1, tail) == tail)
-                        //{
-                        //    Interlocked.Increment(ref _count);
-                        //    _curEnumerator.IncIteratorCount(); //TODO: is this a good idea?
-                        //    return tail;
-                        //}
+                if (slot == null)
+                {
+                    Debug.Assert(Zeroed || this[tail] == item);
+                    Debug.Assert(Zeroed || tail == Tail);
+                    Debug.Assert(Zeroed || item != null);
 
-                        Interlocked.Increment(ref _tail);
-                        Interlocked.Increment(ref _count);
-                        _curEnumerator.IncIteratorCount(); //TODO: is this a good idea?
-                        return tail;
-                    }
-                } while (!Zeroed);//TODO: Hacks!
+                   Interlocked.Increment(ref _tail);
+                    Interlocked.Increment(ref _count);
+                    _curEnumerator.IncIteratorCount(); //TODO: is this a good idea?
+                    return tail;
+                }
 
                 if (Zeroed)
                     return -1;
@@ -401,6 +392,7 @@ namespace zero.core.patterns.queue
                 if ((headLatch = Head) == Tail || (result = Exchange(headLatch, null)) == null)
                 {
                     returnValue = null;
+                    Interlocked.MemoryBarrierProcessWide();
                     return false;
                 }
 
@@ -414,7 +406,7 @@ namespace zero.core.patterns.queue
                 }
 
                 Debug.Assert(result != null);
-                Debug.Assert(_count >= 0);
+                Debug.Assert(_count > 0);
                 Debug.Assert(this[headLatch] == null);
 
                 Interlocked.Increment(ref _head);

@@ -175,7 +175,6 @@ namespace zero.test.core.patterns.queue{
         [Fact]
         async Task SpamTestAsync()
         {
-            await Task.Delay(1000);
             var concurrentTasks = new List<Task>();
 #if DEBUG
             var rounds = 2;
@@ -232,7 +231,7 @@ namespace zero.test.core.patterns.queue{
                     //@this._output.WriteLine($"({@this.context.Q.Count})");
                 },this, TaskCreationOptions.DenyChildAttach).Unwrap());
             }
-            await Task.WhenAll(concurrentTasks).WaitAsync(TimeSpan.FromSeconds(10)).ConfigureAwait(false);
+            await Task.WhenAll(concurrentTasks).WaitAsync(TimeSpan.FromSeconds(10));
 
             _output.WriteLine($"count = {context.Q.Count}, Head = {context.Q?.Tail?.Value}, tail = {context.Q?.Head?.Value}, time = {DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() - start}ms, {rounds * mult * 6 / (DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() - start)} kOPS");
 
@@ -264,7 +263,6 @@ namespace zero.test.core.patterns.queue{
         [Fact]
         public async Task IteratorAsync()
         {
-            await Task.Delay(500);
 #if DEBUG
             var threads = 2;
             var itemsPerThread = 1000;
@@ -304,13 +302,13 @@ namespace zero.test.core.patterns.queue{
                 }, (this, q, idx, itemsPerThread), TaskCreationOptions.DenyChildAttach).Unwrap());
             }
 
-            await Task.WhenAll(insert).WaitAsync(TimeSpan.FromSeconds(10)).ConfigureAwait(false);
+            await Task.WhenAll(insert).WaitAsync(TimeSpan.FromSeconds(10));
 
             Assert.Equal(capacity, _inserted);
 
-            await q.DequeueAsync().FastPath().ConfigureAwait(false);
-            await q.DequeueAsync().FastPath().ConfigureAwait(false);
-            await q.DequeueAsync().FastPath().ConfigureAwait(false);
+            await q.DequeueAsync().FastPath();
+            await q.DequeueAsync().FastPath();
+            await q.DequeueAsync().FastPath();
 
             Assert.Equal(capacity - 3, q.Count);
 
@@ -323,8 +321,8 @@ namespace zero.test.core.patterns.queue{
             Assert.Equal(capacity - 3, c);
 
             //while (q.Count > 0)
-            //    await q.DequeueAsync().FastPath().ConfigureAwait(Zc);
-            await q.ZeroManagedAsync<object>(zero:true).FastPath().ConfigureAwait(false);
+            //    await q.DequeueAsync().FastPath();
+            await q.ZeroManagedAsync<object>(zero:true).FastPath();
 
             Assert.Equal(0, q.Count);
             Assert.Null(q.Head);
@@ -574,15 +572,15 @@ namespace zero.test.core.patterns.queue{
             public Context()
             {
                 Q = new IoQueue<int>("test Q", 2000, 1000);
-                Q.EnqueueAsync(2).FastPath().ConfigureAwait(Zc).GetAwaiter().GetResult();
-                Q.EnqueueAsync(3).FastPath().ConfigureAwait(Zc).GetAwaiter();
-                Head = Q.PushBackAsync(1).FastPath().ConfigureAwait(Zc).GetAwaiter().GetResult();
-                Q.EnqueueAsync(4).FastPath().ConfigureAwait(Zc).GetAwaiter();
-                Middle = Q.EnqueueAsync(5).FastPath().ConfigureAwait(Zc).GetAwaiter().GetResult();
-                Q.EnqueueAsync(6).FastPath().ConfigureAwait(Zc).GetAwaiter();
-                Q.EnqueueAsync(7).FastPath().ConfigureAwait(Zc).GetAwaiter();
-                Q.EnqueueAsync(8).FastPath().ConfigureAwait(Zc).GetAwaiter();
-                Tail = Q.EnqueueAsync(9).FastPath().ConfigureAwait(Zc).GetAwaiter().GetResult();
+                Q.EnqueueAsync(2).FastPath().GetAwaiter().GetResult();
+                Q.EnqueueAsync(3).FastPath().GetAwaiter();
+                Head = Q.PushBackAsync(1).FastPath().GetAwaiter().GetResult();
+                Q.EnqueueAsync(4).FastPath().GetAwaiter();
+                Middle = Q.EnqueueAsync(5).FastPath().GetAwaiter().GetResult();
+                Q.EnqueueAsync(6).FastPath().GetAwaiter();
+                Q.EnqueueAsync(7).FastPath().GetAwaiter();
+                Q.EnqueueAsync(8).FastPath().GetAwaiter();
+                Tail = Q.EnqueueAsync(9).FastPath().GetAwaiter().GetResult();
             }
 
             private readonly bool Zc = IoNanoprobe.ContinueOnCapturedContext;

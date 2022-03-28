@@ -135,7 +135,7 @@ namespace zero.core.network.ip
             var connected = false;
             try
             {
-                connected = await ioNetClient!.ConnectAsync(remoteAddress, timeout).FastPath().ConfigureAwait(Zc);
+                connected = await ioNetClient!.ConnectAsync(remoteAddress, timeout).FastPath();
                 if (connected && ioNetClient.IsOperational())
                 {
                     //Check things
@@ -148,7 +148,7 @@ namespace zero.core.network.ip
                     //    connected = false;
                     //}
 
-                    if (!(await ZeroHiveAsync(ioNetClient).FastPath().ConfigureAwait(Zc)).success)
+                    if (!(await ZeroHiveAsync(ioNetClient).FastPath()).success)
                     {
                         _logger.Trace($"{Description}: {nameof(ConnectAsync)} [FAILED], unable to ensure ownership!");
                         //REJECT
@@ -176,7 +176,7 @@ namespace zero.core.network.ip
                 if (!connected)
                 {
                     var errMsg = $"{Description}: {nameof(ConnectAsync)} to {remoteAddress.Key} [FAILED]";
-                    await ioNetClient!.Zero(this, errMsg).FastPath().ConfigureAwait(Zc);
+                    await ioNetClient!.Zero(this, errMsg).FastPath();
 
                     if (!Zeroed())
                         _logger.Error(errMsg);
@@ -211,7 +211,7 @@ namespace zero.core.network.ip
         /// </summary>
         public override async ValueTask ZeroManagedAsync()
         {
-            await base.ZeroManagedAsync().FastPath().ConfigureAwait(Zc);
+            await base.ZeroManagedAsync().FastPath();
             _connectionAttempts.Clear();
         }
 

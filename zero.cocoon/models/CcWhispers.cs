@@ -42,9 +42,9 @@ namespace zero.cocoon.models
         /// <returns></returns>
         public override async ValueTask ZeroManagedAsync()
         {
-            await base.ZeroManagedAsync().FastPath().ConfigureAwait(Zc);
+            await base.ZeroManagedAsync().FastPath();
 
-            await _sendBuf.ZeroManagedAsync<object>().FastPath().ConfigureAwait(Zc);
+            await _sendBuf.ZeroManagedAsync<object>().FastPath();
             //if (_protocolMsgBatch != null)
             //    _arrayPool.ReturnAsync(_protocolMsgBatch, true);
 
@@ -55,7 +55,7 @@ namespace zero.cocoon.models
             //    batchMsg.RemoteEndPoint = null;
             //});
 
-            //await _dupHeap.ClearAsync().FastPath().ConfigureAwait(Zc);
+            //await _dupHeap.ClearAsync().FastPath();
 
         }
 
@@ -170,7 +170,7 @@ namespace zero.cocoon.models
                     //dup check memory management
                     try
                     {
-                        if (!await CcCollective.DupSyncRoot.WaitAsync().FastPath().ConfigureAwait(Zc))
+                        if (!await CcCollective.DupSyncRoot.WaitAsync().FastPath())
                         {
                             State = IoJobMeta.JobState.ConsumeErr;
                             break;
@@ -257,7 +257,7 @@ namespace zero.cocoon.models
                         continue;
                     }
 #endif
-                    //await Task.Delay(1000).ConfigureAwait(Zc);
+                    //await Task.Delay(1000);
                     //Console.WriteLine(".");
                     IoZero.IncEventCounter();
                     CcCollective.IncEventCounter();
@@ -283,9 +283,9 @@ namespace zero.cocoon.models
                             if (source.IoNetSocket.RemoteAddress == endpoint || dupEndpoints != null && dupEndpoints.Contains(source.IoNetSocket.RemoteAddress.GetHashCode()))
                                 continue;
 #endif
-                            if (await source.IsOperational().FastPath().ConfigureAwait(Zc) && await source.IoNetSocket.SendAsync(Buffer, BufferOffset - read, read).FastPath().ConfigureAwait(Zc) <= 0)
+                            if (await source.IsOperational().FastPath() && await source.IoNetSocket.SendAsync(Buffer, BufferOffset - read, read).FastPath() <= 0)
                             {
-                                if(await source.IsOperational().FastPath().ConfigureAwait(Zc))
+                                if(await source.IsOperational().FastPath())
                                     _logger.Trace($"Failed to forward new msg message to {drone.Description}");
                             }
                             else
@@ -300,7 +300,7 @@ namespace zero.cocoon.models
                                             Id = drone.Adjunct.Designation.IdString(),
                                             Type = $"gossip{Id % 6}"
                                         }
-                                    }).FastPath().ConfigureAwait(Zc);
+                                    }).FastPath();
                             }
                         }
                         catch when(Zeroed() || CcCollective == null || CcCollective.Zeroed() || CcCollective.DupSyncRoot == null) {}
@@ -356,7 +356,7 @@ namespace zero.cocoon.models
                         else
                         {
                             var prevJobTask = new ValueTask<bool>(prevJob, (short)prevJob.Version);
-                            if (await prevJobTask.FastPath().ConfigureAwait(Zc))
+                            if (await prevJobTask.FastPath())
                                 AddRecoveryBits();
                         }
                     }
@@ -436,10 +436,10 @@ namespace zero.cocoon.models
                     }
 
                     //if(Id % 5 != 0)
-                    //await Task.Delay(1000/64).ConfigureAwait(Zc);
-                    await Task.Delay(10).ConfigureAwait(Zc);
-                    //await Task.Delay(1).ConfigureAwait(Zc);
-                    //await Task.Delay(1000).ConfigureAwait(Zc);
+                    //await Task.Delay(1000/64);
+                    await Task.Delay(10);
+                    //await Task.Delay(1);
+                    //await Task.Delay(1000);
                     //await Task.Yield();
 
                     IoZero.IncEventCounter();
@@ -495,7 +495,7 @@ namespace zero.cocoon.models
                             if (source.IoNetSocket.RemoteAddress == endpoint || dupEndpoints != null && dupEndpoints.Contains(source.IoNetSocket.RemoteAddress.GetHashCode()))
                                 continue;
 #endif
-                                    if (source == null || await source.IoNetSocket.SendAsync(socketBuf, 0, (int)compressed + sizeof(ulong)).FastPath().ConfigureAwait(Zc) <= 0) continue;
+                                    if (source == null || await source.IoNetSocket.SendAsync(socketBuf, 0, (int)compressed + sizeof(ulong)).FastPath() <= 0) continue;
                                     {
                                         if (AutoPeeringEventService.Operational)
                                             await AutoPeeringEventService.AddEventAsync(new AutoPeerEvent
@@ -507,7 +507,7 @@ namespace zero.cocoon.models
                                                     Id = drone.Adjunct.Designation.IdString(),
                                                     Type = $"gossip{Id % 6}"
                                                 }
-                                            }).FastPath().ConfigureAwait(Zc);
+                                            }).FastPath();
                                     }
                                 }
                                 catch when (Zeroed() || CcCollective == null || CcCollective.Zeroed() || CcCollective.DupSyncRoot == null) { }
@@ -529,7 +529,7 @@ namespace zero.cocoon.models
                 //if (_currentBatch.Count > _batchHeap.Capacity * 3 / 2)
                 //    _logger.Warn($"{nameof(_batchHeap)} running lean {_currentBatch.Count}/{_batchHeap.Capacity}, {_batchHeap}, {_batchHeap.Description}");
                 ////Release a waiter
-                //await ZeroBatchAsync().FastPath().ConfigureAwait(Zc);
+                //await ZeroBatchAsync().FastPath();
             }
             catch when (Zeroed()) { State = IoJobMeta.JobState.ConsumeErr; }
             catch (Exception e) when (!Zeroed())
@@ -554,7 +554,7 @@ namespace zero.cocoon.models
                     if (IoZero.ZeroRecoveryEnabled && !Zeroed() && !zeroRecovery && !fastPath && BytesLeftToProcess > 0 && PreviousJob != null)
                     {
                         State = IoJobMeta.JobState.ZeroRecovery;
-                        State = await ConsumeAsync().FastPath().ConfigureAwait(Zc);
+                        State = await ConsumeAsync().FastPath();
                     }
 
                     //else
@@ -570,7 +570,7 @@ namespace zero.cocoon.models
                     if (IoZero.ZeroRecoveryEnabled && !Zeroed() && !zeroRecovery && !fastPath && BytesLeftToProcess > 0 && PreviousJob != null)
                     {
                         State = IoJobMeta.JobState.ZeroRecovery;
-                        State = await ConsumeAsync().FastPath().ConfigureAwait(Zc);
+                        State = await ConsumeAsync().FastPath();
                     }
                 }
                 catch when (Zeroed()) { State = IoJobMeta.JobState.ConsumeErr; }
@@ -585,7 +585,7 @@ namespace zero.cocoon.models
             //if (IoZero.ZeroRecoveryEnabled && !Zeroed() && !zeroRecovery && !fastPath && BytesLeftToProcess > 0 && PreviousJob != null)
             //{
             //    State = IoJobMeta.JobState.ZeroRecovery;
-            //    return await ConsumeAsync().FastPath().ConfigureAwait(Zc);
+            //    return await ConsumeAsync().FastPath();
             //}
 
             return State;

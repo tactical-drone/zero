@@ -52,14 +52,14 @@ namespace zero.cocoon
             {
                 while (!@this.Zeroed())
                 {
-                    await Task.Delay(@this.parm_insane_checks_delay_s * 1000, @this.AsyncTasks.Token).ConfigureAwait(@this.Zc);
+                    await Task.Delay(@this.parm_insane_checks_delay_s * 1000, @this.AsyncTasks.Token);
                     if (!@this.Zeroed() && @this.Adjunct == null || @this.Adjunct?.Direction == CcAdjunct.Heading.Undefined || @this.Adjunct?.State < CcAdjunct.AdjunctState.Connected && @this.Adjunct?.Direction != CcAdjunct.Heading.Undefined && @this.Adjunct.IsDroneConnected)
                     {
                         if (!@this.Zeroed() && @this.Adjunct == null)
                         {
                             @this._logger.Debug($"! {@this.Description} - n = {@this.Adjunct}, d = {@this.Adjunct?.Direction}, s = {@this.Adjunct?.State} (wants {CcAdjunct.AdjunctState.Connected}), {@this.Adjunct?.MetaDesc}");
                         }
-                        await @this.Zero(@this, $"Invalid state after {@this.parm_insane_checks_delay_s}: s = {@this.Adjunct?.State}, wants = {CcAdjunct.AdjunctState.Connected}), {@this.Adjunct?.MetaDesc}").FastPath().ConfigureAwait(@this.Zc);
+                        await @this.Zero(@this, $"Invalid state after {@this.parm_insane_checks_delay_s}: s = {@this.Adjunct?.State}, wants = {CcAdjunct.AdjunctState.Connected}), {@this.Adjunct?.MetaDesc}").FastPath();
                     }
                     else if (@this.Adjunct != null && @this.MessageService.IsOperational()) 
                         @this.Adjunct.WasAttached = true;
@@ -192,10 +192,10 @@ namespace zero.cocoon
         /// </summary>
         public override async ValueTask ZeroManagedAsync()
         {
-            await base.ZeroManagedAsync().FastPath().ConfigureAwait(Zc);
+            await base.ZeroManagedAsync().FastPath();
             try
             {
-                await DropAdjunctAsync().FastPath().ConfigureAwait(Zc);
+                await DropAdjunctAsync().FastPath();
             }
             catch (Exception e)
             {
@@ -207,7 +207,7 @@ namespace zero.cocoon
                 if ((Adjunct?.Assimilated??false) && UpTime.ElapsedMs() > parm_min_uptime_ms)
                     _logger.Info($"- {Description}, from: {ZeroedFrom?.Description}");
 
-                await _sendBuf.ZeroManagedAsync<object>().FastPath().ConfigureAwait(Zc);
+                await _sendBuf.ZeroManagedAsync<object>().FastPath();
             }
             catch
             {
@@ -240,7 +240,7 @@ namespace zero.cocoon
                     
 
                 //Attach the other way
-                var attached = await Adjunct.AttachDroneAsync(this, direction).FastPath().ConfigureAwait(Zc);
+                var attached = await Adjunct.AttachDroneAsync(this, direction).FastPath();
 
                 if (attached)
                 {
@@ -269,7 +269,7 @@ namespace zero.cocoon
         {
             var latch = _adjunct;
             if (latch != null && Interlocked.CompareExchange(ref _adjunct, null, latch) == latch)
-                await latch.DetachDroneAsync().FastPath().ConfigureAwait(Zc);
+                await latch.DetachDroneAsync().FastPath();
         }
 
         /// <summary>
@@ -323,7 +323,7 @@ namespace zero.cocoon
                         Adjunct.CcCollective.IncEventCounter();
 
                         var socket = MessageService.IoNetSocket;
-                        if (await socket.SendAsync(socketBuf, 0, (int)compressed + sizeof(ulong), timeout: 20).FastPath().ConfigureAwait(Zc) > 0)
+                        if (await socket.SendAsync(socketBuf, 0, (int)compressed + sizeof(ulong), timeout: 20).FastPath() > 0)
                         {
                             if (AutoPeeringEventService.Operational)
                                 await AutoPeeringEventService.AddEventAsync(new AutoPeerEvent
@@ -335,7 +335,7 @@ namespace zero.cocoon
                                         Id = Adjunct.Designation.IdString(),
                                         Type = "gossip"
                                     }
-                                }).FastPath().ConfigureAwait(Zc);
+                                }).FastPath();
                         }
                     }
                 }

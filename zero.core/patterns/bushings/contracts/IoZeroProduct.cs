@@ -52,7 +52,7 @@ namespace zero.core.patterns.bushings.contracts
                     job.GenerateJobId();
                     
                     return job._produced = ((IoZeroSource)source).Produce();
-                }, this, barrier, ioZero).FastPath().ConfigureAwait(Zc))
+                }, this, barrier, ioZero).FastPath())
             {
                 return State = IoJobMeta.JobState.Error;
             }

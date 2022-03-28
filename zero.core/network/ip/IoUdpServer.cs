@@ -44,7 +44,7 @@ namespace zero.core.network.ip
             T context = default,
             Func<ValueTask> bootstrapAsync = null)
         {
-            await base.ListenAsync(connectionReceivedAction, context,bootstrapAsync).FastPath().ConfigureAwait(Zc);
+            await base.ListenAsync(connectionReceivedAction, context,bootstrapAsync).FastPath();
 
             while (!Zeroed())
             {
@@ -62,20 +62,20 @@ namespace zero.core.network.ip
                                 .ZeroHiveAsync(new IoUdpClient<TJob>(
                                     $"{nameof(IoUdpClient<TJob>)} ~> {@this.Description}", ioSocket,
                                     @this.Prefetch, @this.ConcurrencyLevel)).FastPath()
-                                .ConfigureAwait(@this.Zc)).target).FastPath().ConfigureAwait(@this.Zc);
+                                ).target).FastPath();
                     }
                     catch (Exception e)
                     {
                         @this._logger.Error(e, $"Accept udp connection failed: {@this.Description}");
 
-                        await ioSocket.Zero(@this, $"{nameof(ZeroManagedAsync)}: teardown").FastPath().ConfigureAwait(@this.Zc);
+                        await ioSocket.Zero(@this, $"{nameof(ZeroManagedAsync)}: teardown").FastPath();
                     }
-                },ValueTuple.Create(this,context, connectionReceivedAction), bootstrapAsync).ConfigureAwait(Zc);
+                },ValueTuple.Create(this,context, connectionReceivedAction), bootstrapAsync);
 
                 if(!Zeroed())
                     _logger.Warn($"Listener stopped, restarting: {Description}");
 
-                await IoListenSocket.Zero(this, $"{nameof(ZeroManagedAsync)}: teardown").FastPath().ConfigureAwait(Zc);
+                await IoListenSocket.Zero(this, $"{nameof(ZeroManagedAsync)}: teardown").FastPath();
             }
         }
 

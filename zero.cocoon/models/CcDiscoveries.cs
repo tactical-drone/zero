@@ -112,7 +112,7 @@ namespace zero.cocoon.models
         /// </summary>
         public override async ValueTask ZeroManagedAsync()
         {
-            await base.ZeroManagedAsync().FastPath().ConfigureAwait(Zc);
+            await base.ZeroManagedAsync().FastPath();
 
             _currentBatch?.Dispose();
             
@@ -120,7 +120,7 @@ namespace zero.cocoon.models
             {
                 batch.Dispose();
                 return default;
-            }).FastPath().ConfigureAwait(Zc);
+            }).FastPath();
         }
 
         /// <summary>
@@ -220,7 +220,7 @@ namespace zero.cocoon.models
                         else
                         {
                             var prevJobTask = new ValueTask<bool>(prevJob, (short)prevJob.Version);
-                            if (await prevJobTask.FastPath().ConfigureAwait(Zc))
+                            if (await prevJobTask.FastPath())
                                 AddRecoveryBits();
                         }
                         if (zeroRecovery)
@@ -317,25 +317,25 @@ namespace zero.cocoon.models
                     switch ((MessageTypes)packet.Type)
                     {
                         case MessageTypes.Probe:
-                            await ZeroBatchRequestAsync(packet, CcProbeMessage.Parser).FastPath().ConfigureAwait(Zc);
+                            await ZeroBatchRequestAsync(packet, CcProbeMessage.Parser).FastPath();
                             break;
                         case MessageTypes.Probed:
-                            await ZeroBatchRequestAsync(packet, CcProbeResponse.Parser).FastPath().ConfigureAwait(Zc);
+                            await ZeroBatchRequestAsync(packet, CcProbeResponse.Parser).FastPath();
                             break;
                         case MessageTypes.Scan:
-                            await ZeroBatchRequestAsync(packet, CcScanRequest.Parser).FastPath().ConfigureAwait(Zc);
+                            await ZeroBatchRequestAsync(packet, CcScanRequest.Parser).FastPath();
                             break;
                         case MessageTypes.Adjuncts:
-                            await ZeroBatchRequestAsync(packet, CcAdjunctResponse.Parser).FastPath().ConfigureAwait(Zc);
+                            await ZeroBatchRequestAsync(packet, CcAdjunctResponse.Parser).FastPath();
                             break;
                         case MessageTypes.Fuse:
-                            await ZeroBatchRequestAsync(packet, CcFuseRequest.Parser).FastPath().ConfigureAwait(Zc);
+                            await ZeroBatchRequestAsync(packet, CcFuseRequest.Parser).FastPath();
                             break;
                         case MessageTypes.Fused:
-                            await ZeroBatchRequestAsync(packet, CcFuseResponse.Parser).FastPath().ConfigureAwait(Zc);
+                            await ZeroBatchRequestAsync(packet, CcFuseResponse.Parser).FastPath();
                             break;
                         case MessageTypes.Defuse:
-                            await ZeroBatchRequestAsync(packet, CcDefuseRequest.Parser).FastPath().ConfigureAwait(Zc);
+                            await ZeroBatchRequestAsync(packet, CcDefuseRequest.Parser).FastPath();
                             break;
                         default:
                             _logger.Debug($"Unknown auto peer msg type = {packet.Type}");
@@ -349,7 +349,7 @@ namespace zero.cocoon.models
                 if (_currentBatch.Count > _batchHeap.Capacity * 3 / 2)
                     _logger.Warn($"{nameof(_batchHeap)} running lean {_currentBatch.Count}/{_batchHeap.Capacity}, {_batchHeap}, {_batchHeap.Description}");
                 //Release a waiter
-                await ZeroBatchAsync().FastPath().ConfigureAwait(Zc);
+                await ZeroBatchAsync().FastPath();
             }
             catch when(Zeroed()){State = IoJobMeta.JobState.ConsumeErr;}
             catch (Exception e) when (!Zeroed())
@@ -395,7 +395,7 @@ namespace zero.cocoon.models
             if (IoZero.ZeroRecoveryEnabled && !Zeroed() && !fastPath && !zeroRecovery && BytesLeftToProcess > 0 && PreviousJob != null)
             {
                 State = IoJobMeta.JobState.ZeroRecovery;
-                return await ConsumeAsync().FastPath().ConfigureAwait(Zc);
+                return await ConsumeAsync().FastPath();
             }
 
             return State;
@@ -441,7 +441,7 @@ namespace zero.cocoon.models
 
                     if (_currentBatch.Count >= parm_max_msg_batch_size)
                     {
-                        await ZeroBatchAsync().FastPath().ConfigureAwait(Zc);
+                        await ZeroBatchAsync().FastPath();
                     }
 
                 }
@@ -472,7 +472,7 @@ namespace zero.cocoon.models
 
                         try
                         {
-                            if (source == null || !await ((CcProtocBatchSource<chroniton, CcDiscoveryBatch>)source).EnqueueAsync(@this._currentBatch).FastPath().ConfigureAwait(@this.Zc))
+                            if (source == null || !await ((CcProtocBatchSource<chroniton, CcDiscoveryBatch>)source).EnqueueAsync(@this._currentBatch).FastPath())
                             {
                                 if (source != null && !((CcProtocBatchSource<chroniton, CcDiscoveryBatch>)source).Zeroed())
                                 {
@@ -496,7 +496,7 @@ namespace zero.cocoon.models
                         }
 
                         return false;
-                    }, this, null, default).FastPath().ConfigureAwait(Zc))
+                    }, this, null, default).FastPath())
                 {
                     if(!Zeroed())
                         _logger.Debug($"{nameof(ZeroBatchAsync)} - {Description}: Failed to produce jobs from {ProtocolConduit.Description}");

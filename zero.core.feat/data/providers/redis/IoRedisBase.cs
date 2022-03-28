@@ -76,7 +76,7 @@ namespace zero.core.feat.data.providers.redis
             try
             {
                 _connectionAttempts++;
-                _redis = await ConnectionMultiplexer.ConnectAsync(hostsStringDesc).ConfigureAwait(Zc);
+                _redis = await ConnectionMultiplexer.ConnectAsync(hostsStringDesc);
             }
             catch (Exception e)
             {
@@ -101,12 +101,12 @@ namespace zero.core.feat.data.providers.redis
 
             if (_redis != null)
             {
-                await _redis.CloseAsync().ConfigureAwait(Zc);
+                await _redis.CloseAsync();
                 _redis = null;
                 _db = null;
             }
                 
-            return await ConnectAsync(_hosts).ConfigureAwait(Zc);
+            return await ConnectAsync(_hosts);
         }
     }
 }

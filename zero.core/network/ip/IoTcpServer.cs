@@ -40,9 +40,9 @@ namespace zero.core.network.ip
         /// <returns>True on success, false otherwise</returns>
         public override async ValueTask ListenAsync<T>(Func<T, IoNetClient<TJob>, ValueTask> connectionReceivedAction, T context = default, Func<ValueTask> bootstrapAsync = null)
         {
-            await base.ListenAsync(connectionReceivedAction, context, bootstrapAsync).FastPath().ConfigureAwait(Zc);
+            await base.ListenAsync(connectionReceivedAction, context, bootstrapAsync).FastPath();
 
-            IoListenSocket = (await ZeroHiveAsync(new IoTcpSocket(ZeroConcurrencyLevel()), true).FastPath().ConfigureAwait(Zc)).target;
+            IoListenSocket = (await ZeroHiveAsync(new IoTcpSocket(ZeroConcurrencyLevel()), true).FastPath()).target;
 
             await IoListenSocket.BlockOnListenAsync(ListeningAddress, static async (newConnectionSocket, state) =>
             {
@@ -57,17 +57,17 @@ namespace zero.core.network.ip
                                     $"{nameof(IoTcpClient<TJob>)} ~> {@this.Description}", 
                                     (IoNetSocket) newConnectionSocket, 
                                     @this.Prefetch,
-                                    @this.ConcurrencyLevel)).FastPath().ConfigureAwait(@this.Zc)
+                                    @this.ConcurrencyLevel)).FastPath()
                             ).target
-                        ).FastPath().ConfigureAwait(@this.Zc);
+                        ).FastPath();
                 }
                 catch (Exception e)
                 {
                     var errMsg = $"{@this.Description} Connection received handler returned with errors:";
                     @this._logger.Error(e, errMsg);
-                    await newConnectionSocket.Zero(@this, errMsg).FastPath().ConfigureAwait(@this.Zc);
+                    await newConnectionSocket.Zero(@this, errMsg).FastPath();
                 }
-            }, ValueTuple.Create(this, context, connectionReceivedAction), bootstrapAsync).FastPath().ConfigureAwait(Zc);
+            }, ValueTuple.Create(this, context, connectionReceivedAction), bootstrapAsync).FastPath();
         }
 
         /// <summary>

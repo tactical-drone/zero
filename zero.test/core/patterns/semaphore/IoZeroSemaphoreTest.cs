@@ -34,7 +34,7 @@ namespace zero.test.core.patterns.semaphore
 
             await Task.Yield();
 
-            Assert.True(await m.WaitAsync().FastPath().ConfigureAwait(Zc));
+            Assert.True(await m.WaitAsync().FastPath());
 
             var t = Task.Factory.StartNew(static async state =>
             {
@@ -51,7 +51,7 @@ namespace zero.test.core.patterns.semaphore
             while (c++ < loopCount)
             {
                 var s = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-                Assert.True(await m.WaitAsync().FastPath().ConfigureAwait(Zc));
+                Assert.True(await m.WaitAsync().FastPath());
                 var delta = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() - s;
                 ave += delta;
                 _output.WriteLine($"d = {delta}");
@@ -78,14 +78,14 @@ namespace zero.test.core.patterns.semaphore
 
             var ts = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
             Assert.Equal(3, m.ReadyCount);
-            await m.WaitAsync().FastPath().ConfigureAwait(Zc);
+            await m.WaitAsync().FastPath();
             Assert.Equal(0, m.CurNrOfBlockers);
-            await m.WaitAsync().FastPath().ConfigureAwait(Zc);
+            await m.WaitAsync().FastPath();
             Assert.Equal(0, m.CurNrOfBlockers);
-            await m.WaitAsync().FastPath().ConfigureAwait(Zc);
+            await m.WaitAsync().FastPath();
             Assert.Equal(0, m.CurNrOfBlockers);
             Assert.InRange(ts.ElapsedMs(), 0, 50);
-            await m.WaitAsync().FastPath().ConfigureAwait(Zc);
+            await m.WaitAsync().FastPath();
             Assert.InRange(ts.ElapsedMs(),400, 2000);
             Assert.Equal(0, m.CurNrOfBlockers);
         }
@@ -105,14 +105,14 @@ namespace zero.test.core.patterns.semaphore
 
             var ts = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
             
-            await m.WaitAsync().FastPath().ConfigureAwait(Zc);
-            await m.WaitAsync().FastPath().ConfigureAwait(Zc);
-            await m.WaitAsync().FastPath().ConfigureAwait(Zc);
-            await m.WaitAsync().FastPath().ConfigureAwait(Zc);
-            await m.WaitAsync().FastPath().ConfigureAwait(Zc);
+            await m.WaitAsync().FastPath();
+            await m.WaitAsync().FastPath();
+            await m.WaitAsync().FastPath();
+            await m.WaitAsync().FastPath();
+            await m.WaitAsync().FastPath();
 
             Assert.InRange(ts.ElapsedMs(), 0, 50);
-            await m.WaitAsync().FastPath().ConfigureAwait(Zc);
+            await m.WaitAsync().FastPath();
             _output.WriteLine($"6 {m.Tail} -> {m.Head}");
             Assert.InRange(ts.ElapsedMs(), 400, 2000);
         }
@@ -148,7 +148,7 @@ namespace zero.test.core.patterns.semaphore
             {
                 while (running)
                 {
-                    Assert.True(await m.WaitAsync().FastPath().ConfigureAwait(Zc));
+                    Assert.True(await m.WaitAsync().FastPath());
                     waits++;
                 }
 
@@ -193,14 +193,14 @@ namespace zero.test.core.patterns.semaphore
             }).Unwrap();
 
             var ts = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-            Assert.True(await v.WaitAsync().FastPath().ConfigureAwait(Zc));
+            Assert.True(await v.WaitAsync().FastPath());
             Assert.InRange(ts.ElapsedMs(), minDelay/2, minDelay * 2);
 
             for (var i = 0; i < count - 1; i++)
             {
                 ts = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
                 _output.WriteLine("_*");
-                Assert.True(await v.WaitAsync().FastPath().ConfigureAwait(Zc));
+                Assert.True(await v.WaitAsync().FastPath());
                 Assert.InRange(ts.ElapsedMs(), minDelay / 2, 2000);
                 _output.WriteLine("*");
             }
@@ -223,13 +223,13 @@ namespace zero.test.core.patterns.semaphore
             }).Unwrap();
 
             var ts = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-            Assert.True(await v.WaitAsync().FastPath().ConfigureAwait(Zc));
+            Assert.True(await v.WaitAsync().FastPath());
             Assert.InRange(ts.ElapsedMs(), 0, 2);
 
             for (var i = 0; i < count - 1; i++)
             {
                 ts = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-                Assert.True(await v.WaitAsync().FastPath().ConfigureAwait(Zc));
+                Assert.True(await v.WaitAsync().FastPath());
                 Assert.InRange(ts.ElapsedMs(), minDelay / 2, 2000);
             }
         }
@@ -268,7 +268,7 @@ namespace zero.test.core.patterns.semaphore
                 var status = v.GetStatus((short)version);
                 //_output.WriteLine($"w -> {status}[{version}] \t- {DateTimeOffset.UtcNow.Ticks} - {i}/{count} - {Thread.CurrentThread.ManagedThreadId}");
 
-                Assert.True(await v.WaitAsync().FastPath().ConfigureAwait(Zc));
+                Assert.True(await v.WaitAsync().FastPath());
                 Assert.InRange(ts.ElapsedMs(), 0, 20000);
 
                 //version = v.Version;
@@ -299,13 +299,13 @@ namespace zero.test.core.patterns.semaphore
             }).Unwrap();
 
             var ts = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-            Assert.True(await v.WaitAsync().FastPath().ConfigureAwait(Zc));
+            Assert.True(await v.WaitAsync().FastPath());
             Assert.InRange(ts.ElapsedMs(), 0, 2);
 
             for (var i = 0; i < count; i++)
             {
                 ts = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-                Assert.True(await v.WaitAsync().FastPath().ConfigureAwait(Zc));
+                Assert.True(await v.WaitAsync().FastPath());
                 Assert.InRange(ts.ElapsedMs(), minDelay / 2, 2000);
             }
         }
@@ -336,7 +336,7 @@ namespace zero.test.core.patterns.semaphore
             for (i = 0; i < count; i++)
             {
                 var ts = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-                Assert.True(await v.WaitAsync().FastPath().ConfigureAwait(Zc));
+                Assert.True(await v.WaitAsync().FastPath());
                 ave += ts.ElapsedMs();
             }
 
@@ -344,7 +344,7 @@ namespace zero.test.core.patterns.semaphore
 
             try
             {
-                await t.WaitAsync(TimeSpan.FromSeconds(15)).ConfigureAwait(false);
+                await t.WaitAsync(TimeSpan.FromSeconds(15));
             }
             catch (Exception)
             {

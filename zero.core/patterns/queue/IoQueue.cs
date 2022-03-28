@@ -115,7 +115,7 @@ namespace zero.core.patterns.queue
 
             try
             {
-                if (!await _syncRoot.WaitAsync().FastPath().ConfigureAwait(Zc))
+                if (!await _syncRoot.WaitAsync().FastPath())
                 {
                     return false;
                 }
@@ -132,11 +132,11 @@ namespace zero.core.patterns.queue
                     try
                     {
                         if (op != null)
-                            await op(cur.Value, nanite).FastPath().ConfigureAwait(Zc);
+                            await op(cur.Value, nanite).FastPath();
                         if (cur.Value is IIoNanite ioNanite)
                         {
                             if (!ioNanite.Zeroed())
-                                await ioNanite.Zero(nanite as IIoNanite, string.Empty).FastPath().ConfigureAwait(Zc);
+                                await ioNanite.Zero(nanite as IIoNanite, string.Empty).FastPath();
                         }
                     }
                     catch when(Zeroed){}
@@ -159,8 +159,8 @@ namespace zero.core.patterns.queue
 
                 if (zero)
                 {
-                    await ClearAsync().FastPath().ConfigureAwait(Zc); //TODO perf: can these two steps be combined?
-                    await _nodeHeap.ZeroManagedAsync<object>().FastPath().ConfigureAwait(Zc);
+                    await ClearAsync().FastPath(); //TODO perf: can these two steps be combined?
+                    await _nodeHeap.ZeroManagedAsync<object>().FastPath();
 
                     _nodeHeap = null;
                     _count = 0;
@@ -216,7 +216,7 @@ namespace zero.core.patterns.queue
             try
             {
                 //wait on back pressure
-                if (_backPressure != null && !await _backPressure.WaitAsync().FastPath().ConfigureAwait(Zc) || _zeroed > 0)
+                if (_backPressure != null && !await _backPressure.WaitAsync().FastPath() || _zeroed > 0)
                 {
                     if(_zeroed == 0 && (!_backPressure?.Zeroed()??true))
                         LogManager.GetCurrentClassLogger().Fatal($"{nameof(EnqueueAsync)}{nameof(_backPressure.WaitAsync)}: back pressure failure ~> {_backPressure}");
@@ -230,7 +230,7 @@ namespace zero.core.patterns.queue
                 node.Value = item;
                 
                 // ReSharper disable once ConditionIsAlwaysTrueOrFalse
-                if (!await _syncRoot.WaitAsync().FastPath().ConfigureAwait(Zc))
+                if (!await _syncRoot.WaitAsync().FastPath())
                 {
                     _nodeHeap.Return(node);
                     return null;
@@ -264,7 +264,7 @@ namespace zero.core.patterns.queue
                         try
                         {
                             if (onAtomicAdd != null)
-                                await onAtomicAdd.Invoke(context).FastPath().ConfigureAwait(Zc);
+                                await onAtomicAdd.Invoke(context).FastPath();
                         }
                         catch when (Zeroed)
                         {
@@ -309,7 +309,7 @@ namespace zero.core.patterns.queue
             try
             {
                 //wait on back pressure
-                if (_backPressure != null && !await _backPressure.WaitAsync().FastPath().ConfigureAwait(Zc) || _zeroed > 0)
+                if (_backPressure != null && !await _backPressure.WaitAsync().FastPath() || _zeroed > 0)
                 {
                     if (_zeroed == 0 && (!_backPressure?.Zeroed()??true))
                         LogManager.GetCurrentClassLogger().Fatal($"{nameof(PushBackAsync)}{nameof(_backPressure.WaitAsync)}: back pressure failure ~> {_backPressure}");
@@ -323,7 +323,7 @@ namespace zero.core.patterns.queue
                 node.Value = item;
 
                 // ReSharper disable once ConditionIsAlwaysTrueOrFalse
-                if (!await _syncRoot.WaitAsync().FastPath().ConfigureAwait(Zc))
+                if (!await _syncRoot.WaitAsync().FastPath())
                 {
                     _nodeHeap.Return(node);
                     LogManager.GetCurrentClassLogger().Fatal($"{nameof(PushBackAsync)}: _syncRoot failure ~> {_syncRoot}");
@@ -375,10 +375,10 @@ namespace zero.core.patterns.queue
             var entered = false;
             try
             {
-                if (_pressure != null && !await _pressure.WaitAsync().FastPath().ConfigureAwait(Zc) || _zeroed > 0)
+                if (_pressure != null && !await _pressure.WaitAsync().FastPath() || _zeroed > 0)
                     return default;
 
-                if (!await _syncRoot.WaitAsync().FastPath().ConfigureAwait(Zc))
+                if (!await _syncRoot.WaitAsync().FastPath())
                 {
                     return default;
                 }
@@ -454,7 +454,7 @@ namespace zero.core.patterns.queue
             var deDup = true;
             try
             {
-                if (!await _syncRoot.WaitAsync().FastPath().ConfigureAwait(Zc))
+                if (!await _syncRoot.WaitAsync().FastPath())
                 {
                     return false;
                 }
@@ -529,7 +529,7 @@ namespace zero.core.patterns.queue
         {
             try
             {
-                if (!await _syncRoot.WaitAsync().FastPath().ConfigureAwait(Zc))
+                if (!await _syncRoot.WaitAsync().FastPath())
                     return;
 
                 var insane = _count * 2;
@@ -561,7 +561,7 @@ namespace zero.core.patterns.queue
         {
             try
             {
-                if (!await _syncRoot.WaitAsync().FastPath().ConfigureAwait(Zc))
+                if (!await _syncRoot.WaitAsync().FastPath())
                     return;
 
                 var cur = _head;

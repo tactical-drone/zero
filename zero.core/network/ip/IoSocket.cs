@@ -184,7 +184,7 @@ namespace zero.core.network.ip
         /// </summary>
         public override async ValueTask ZeroManagedAsync()
         {
-            await base.ZeroManagedAsync().FastPath().ConfigureAwait(Zc);
+            await base.ZeroManagedAsync().FastPath();
 
             Close();
 #if DEBUG
@@ -198,7 +198,7 @@ namespace zero.core.network.ip
         /// <returns>The task</returns>
         public override async ValueTask ZeroPrimeAsync()
         {
-            await base.ZeroPrimeAsync().FastPath().ConfigureAwait(Zc);
+            await base.ZeroPrimeAsync().FastPath();
             if (!Proxy)
             {
                 try
@@ -384,7 +384,7 @@ namespace zero.core.network.ip
         public async ValueTask<bool> ReconnectAsync()
         {
             ResetSocket();
-            return await ConnectAsync(RemoteNodeAddress).FastPath().ConfigureAwait(Zc);
+            return await ConnectAsync(RemoteNodeAddress).FastPath();
         }
     }
 }

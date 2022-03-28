@@ -85,13 +85,13 @@ namespace zero.core.feat.models.protobuffer.sources
         /// </summary>
         public override async ValueTask ZeroManagedAsync()
         {
-            await base.ZeroManagedAsync().FastPath().ConfigureAwait(Zc);
+            await base.ZeroManagedAsync().FastPath();
 
             await BatchQueue.ZeroManagedAsync(static (msgBatch,_) =>
             {
                 msgBatch.Dispose();
                 return default;
-            },this, zero:true).FastPath().ConfigureAwait(Zc);
+            },this, zero:true).FastPath();
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -109,7 +109,7 @@ namespace zero.core.feat.models.protobuffer.sources
         {
             try
             {
-                return await BatchQueue.EnqueueAsync(item).FastPath().ConfigureAwait(Zc) != null;
+                return await BatchQueue.EnqueueAsync(item).FastPath() != null;
             }
             catch (Exception e)
             {
@@ -127,7 +127,7 @@ namespace zero.core.feat.models.protobuffer.sources
         {
             try
             {
-                return await BatchQueue.DequeueAsync().FastPath().ConfigureAwait(Zc);
+                return await BatchQueue.DequeueAsync().FastPath();
             }
             catch when (Zeroed()){}
             catch (Exception e)when (!Zeroed())

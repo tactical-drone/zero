@@ -49,7 +49,7 @@ namespace zero.core.patterns.heap
                     return null;
 
                 //init for use
-                if (await next.HeapPopAsync(userData).FastPath().ConfigureAwait(Zc) == null)
+                if (await next.HeapPopAsync(userData).FastPath() == null)
                 {
                     Return(next);
                     return null;
@@ -58,7 +58,7 @@ namespace zero.core.patterns.heap
                 //Custom reuse
                 if (localReuse != null)
                 {
-                    if (await localReuse.Invoke(next, userData).FastPath().ConfigureAwait(Zc) == null)
+                    if (await localReuse.Invoke(next, userData).FastPath() == null)
                     {
                         Return(next);
                         return null;

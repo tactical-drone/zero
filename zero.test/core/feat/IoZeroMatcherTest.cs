@@ -54,7 +54,7 @@ namespace zero.test.core.feat
                 }, BitConverter.GetBytes(i), TaskCreationOptions.DenyChildAttach));
             }
 
-            await Task.WhenAll(oneShotTasks).ConfigureAwait(false);
+            await Task.WhenAll(oneShotTasks);
             Assert.Equal(0,m.Count);
 
         }
@@ -94,7 +94,7 @@ namespace zero.test.core.feat
                 }, BitConverter.GetBytes(i), TaskCreationOptions.DenyChildAttach));
             }
 
-            await Task.WhenAll(oneShotTasks).WaitAsync(TimeSpan.FromSeconds(10)).ConfigureAwait(false);
+            await Task.WhenAll(oneShotTasks).WaitAsync(TimeSpan.FromSeconds(10));
             Assert.Equal(0, m.Count);
 
         }
@@ -138,7 +138,7 @@ namespace zero.test.core.feat
                 }, BitConverter.GetBytes(i), TaskCreationOptions.DenyChildAttach));
             }
 
-            await Task.WhenAll(oneShotTasks).ConfigureAwait(false);
+            await Task.WhenAll(oneShotTasks);
             Assert.Equal(0, m.Count);
         }
     }

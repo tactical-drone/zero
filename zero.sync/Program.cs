@@ -589,14 +589,14 @@ namespace zero.sync
                                 gossipTasks.Add(Task.Factory.StartNew(async () =>
                                 {
                                     while (!_startAccounting)
-                                        await Task.Delay(1000).ConfigureAwait(Zc);
+                                        await Task.Delay(1000);
                                     Console.WriteLine($"Starting accounting... {tasks.Count}");
-                                    await Task.Delay(random.Next(1000 / threads) * i1).ConfigureAwait(Zc);
+                                    await Task.Delay(random.Next(1000 / threads) * i1);
                                     while (_running)
                                     {
                                         if (!_startAccounting)
                                         {
-                                            await Task.Delay(1000).ConfigureAwait(Zc);
+                                            await Task.Delay(1000);
                                             continue;
                                         }
 
@@ -606,7 +606,7 @@ namespace zero.sync
                                                 break;
                                             var ts2 = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
                                             if (!await ((CcCollective)t.AsyncState)!.BootAsync(Interlocked.Increment(ref v)).FastPath()
-                                                    .ConfigureAwait(Zc))
+                                                    )
                                             {
                                                 if (_verboseGossip)
                                                     Console.WriteLine($"* - {ts2.ElapsedMs()}ms");
@@ -744,15 +744,15 @@ namespace zero.sync
         {
             await Task.Delay(1000);
             IoQueue<int> q = new("test", 300, 400);
-            var head = q.PushBackAsync(2).FastPath().ConfigureAwait(Zc).GetAwaiter().GetResult();
-            q.PushBackAsync(1).FastPath().ConfigureAwait(Zc).GetAwaiter();
-            q.EnqueueAsync(3).FastPath().ConfigureAwait(Zc).GetAwaiter();
-            q.EnqueueAsync(4).FastPath().ConfigureAwait(Zc).GetAwaiter();
-            var five = q.PushBackAsync(5).FastPath().ConfigureAwait(Zc).GetAwaiter().GetResult();
-            q.EnqueueAsync(6).FastPath().ConfigureAwait(Zc).GetAwaiter();
-            q.EnqueueAsync(7).FastPath().ConfigureAwait(Zc).GetAwaiter();
-            q.EnqueueAsync(8).FastPath().ConfigureAwait(Zc).GetAwaiter();
-            var tail = q.EnqueueAsync(9).FastPath().ConfigureAwait(Zc).GetAwaiter().GetResult();
+            var head = q.PushBackAsync(2).FastPath().GetAwaiter().GetResult();
+            q.PushBackAsync(1).FastPath().GetAwaiter();
+            q.EnqueueAsync(3).FastPath().GetAwaiter();
+            q.EnqueueAsync(4).FastPath().GetAwaiter();
+            var five = q.PushBackAsync(5).FastPath().GetAwaiter().GetResult();
+            q.EnqueueAsync(6).FastPath().GetAwaiter();
+            q.EnqueueAsync(7).FastPath().GetAwaiter();
+            q.EnqueueAsync(8).FastPath().GetAwaiter();
+            var tail = q.EnqueueAsync(9).FastPath().GetAwaiter().GetResult();
 
             Console.WriteLine("Init");
             foreach (var ioZNode in q)
@@ -760,7 +760,7 @@ namespace zero.sync
                 Console.Write(ioZNode.Value);
             }
             Console.WriteLine("\nDQ mid");
-            q.RemoveAsync(five).FastPath().ConfigureAwait(Zc).GetAwaiter();
+            q.RemoveAsync(five).FastPath().GetAwaiter();
             foreach (var ioZNode in q)
             {
                 Console.Write(ioZNode.Value);
@@ -775,7 +775,7 @@ namespace zero.sync
             }
             
             Console.WriteLine("\nDQ head");
-            q.RemoveAsync(q.Head).FastPath().ConfigureAwait(Zc).GetAwaiter();
+            q.RemoveAsync(q.Head).FastPath().GetAwaiter();
             foreach (var ioZNode in q)
             {
                 Console.Write(ioZNode.Value);
@@ -790,7 +790,7 @@ namespace zero.sync
             }
             
             Console.WriteLine("\nDQ tail");
-            q.RemoveAsync(q.Tail).FastPath().ConfigureAwait(Zc).GetAwaiter();
+            q.RemoveAsync(q.Tail).FastPath().GetAwaiter();
             foreach (var ioZNode in q)
             {
                 Console.Write(ioZNode.Value);
@@ -806,10 +806,10 @@ namespace zero.sync
             
 
             Console.WriteLine("\nDQ second last prime");
-            q.DequeueAsync().FastPath().ConfigureAwait(Zc).GetAwaiter();
-            q.RemoveAsync(q.Head).FastPath().ConfigureAwait(Zc).GetAwaiter();
-            q.RemoveAsync(q.Head).FastPath().ConfigureAwait(Zc).GetAwaiter();
-            q.DequeueAsync().FastPath().ConfigureAwait(Zc).GetAwaiter();
+            q.DequeueAsync().FastPath().GetAwaiter();
+            q.RemoveAsync(q.Head).FastPath().GetAwaiter();
+            q.RemoveAsync(q.Head).FastPath().GetAwaiter();
+            q.DequeueAsync().FastPath().GetAwaiter();
 
             foreach (var ioZNode in q)
             {
@@ -828,8 +828,8 @@ namespace zero.sync
 
             if (true)
             {
-                q.RemoveAsync(q.Head).FastPath().ConfigureAwait(Zc).GetAwaiter();
-                q.RemoveAsync(q.Head).FastPath().ConfigureAwait(Zc).GetAwaiter();    
+                q.RemoveAsync(q.Head).FastPath().GetAwaiter();
+                q.RemoveAsync(q.Head).FastPath().GetAwaiter();    
             }
 
             foreach (var ioZNode in q)
@@ -964,7 +964,7 @@ namespace zero.sync
                      while (waiters>0)
                      {
                          sw.Restart();
-                         if (await mutex.WaitAsync().FastPath().ConfigureAwait(Zc))
+                         if (await mutex.WaitAsync().FastPath())
                          {
                              var tt = sw.ElapsedMilliseconds;
                              Interlocked.Increment(ref eq1);
@@ -1030,7 +1030,7 @@ namespace zero.sync
                         //     break;
            
                         sw2.Restart();
-                       if (await mutex.WaitAsync().FastPath().ConfigureAwait(Zc))
+                       if (await mutex.WaitAsync().FastPath())
                        {
                            var tt = sw2.ElapsedMilliseconds;
                            Interlocked.Increment(ref eq2);
@@ -1096,7 +1096,7 @@ namespace zero.sync
                         //     break;
            
                         sw2.Restart();
-                       if (await mutex.WaitAsync().FastPath().ConfigureAwait(Zc))
+                       if (await mutex.WaitAsync().FastPath())
                        {
                            var tt = sw2.ElapsedMilliseconds;
                            Interlocked.Increment(ref eq3);
@@ -1156,7 +1156,7 @@ namespace zero.sync
                                else
                                {
                                    var ts = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-                                   await Task.Delay(1, asyncTasks.Token).ConfigureAwait(Zc);
+                                   await Task.Delay(1, asyncTasks.Token);
                                }
 
                            }
@@ -1176,7 +1176,7 @@ namespace zero.sync
                            finally
                            {
                                if (targetSleep > 0)
-                                   await Task.Delay((int)targetSleep, asyncTasks.Token).ConfigureAwait(Zc);
+                                   await Task.Delay((int)targetSleep, asyncTasks.Token);
                            }
                        }
                        
@@ -1200,7 +1200,7 @@ namespace zero.sync
         private static async ValueTask ZeroAsync(int total)
         {
             _running = false;
-            await AutoPeeringEventService.ClearAsync().FastPath().ConfigureAwait(Zc);
+            await AutoPeeringEventService.ClearAsync().FastPath();
             Console.WriteLine("#");
             SemaphoreSlim s = new (10);
             int zeroed = 0;
@@ -1213,7 +1213,7 @@ namespace zero.sync
                     s.Wait();
                     var task = Task.Run(async () =>
                     {
-                        await n.Zero(null,"MAIN TEARDOWN").FastPath().ConfigureAwait(Zc);
+                        await n.Zero(null,"MAIN TEARDOWN").FastPath();
                         Interlocked.Increment(ref zeroed);
                     });
 

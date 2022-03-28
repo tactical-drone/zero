@@ -42,10 +42,10 @@ namespace zero.test.core.patterns.bushings
                 {
                     if (c1.EventCount > count || ts.ElapsedMs() > totalTime * 3)
                     {
-                        await c1.Zero(null, "test done").FastPath().ConfigureAwait(Zc);
+                        await c1.Zero(null, "test done").FastPath();
                     }
                     _output.WriteLine($"{c1.EventCount}/{count}");
-                    await Task.Delay(500).ConfigureAwait(false);
+                    await Task.Delay(500);
                 }
                 catch (Exception e)
                 {
@@ -53,12 +53,12 @@ namespace zero.test.core.patterns.bushings
                     throw;
                 }
             }
-            await z1.WaitAsync(TimeSpan.FromMilliseconds(totalTime * 4)).ConfigureAwait(false);
+            await z1.WaitAsync(TimeSpan.FromMilliseconds(totalTime * 4));
 
             Assert.InRange(ts.ElapsedMs(), totalTime/2, totalTime*2);
             _output.WriteLine($"{ts.ElapsedMs()}ms ~ {totalTime}ms");
 
-            await Task.Delay(100).ConfigureAwait(false);
+            await Task.Delay(100);
             Assert.InRange(c1.EventCount, count, count*2);
             _output.WriteLine($"#event = {c1.EventCount} ~ {count}");
         }
@@ -90,17 +90,17 @@ namespace zero.test.core.patterns.bushings
             {
                 if (c1.EventCount > count || ts.ElapsedMs() > targetTime * 3)
                 {
-                    await c1.Zero(null, "test done").FastPath().ConfigureAwait(Zc);
+                    await c1.Zero(null, "test done").FastPath();
                 }
                 _output.WriteLine($"{c1.EventCount}/{count}");
                 await Task.Delay(500).ConfigureAwait(true);
             }
-            await z1.WaitAsync(TimeSpan.FromMilliseconds(targetTime * 4)).ConfigureAwait(false);
+            await z1.WaitAsync(TimeSpan.FromMilliseconds(targetTime * 4));
 
             Assert.InRange(ts.ElapsedMs(), targetTime/2, targetTime * 2);
             _output.WriteLine($"{ts.ElapsedMs()}ms ~ {targetTime}");
 
-            await Task.Delay(100).ConfigureAwait(false);
+            await Task.Delay(100);
             Assert.InRange(c1.EventCount, count, count*2);
             _output.WriteLine($"#event = {c1.EventCount} ~ {count}");
         }
@@ -127,12 +127,12 @@ namespace zero.test.core.patterns.bushings
             {
                 if (c1.EventCount > count || ts.ElapsedMs() > targetTime * 3)
                 {
-                    await c1.Zero(null, "test done").FastPath().ConfigureAwait(Zc);
+                    await c1.Zero(null, "test done").FastPath();
                 }
                 _output.WriteLine($"{c1.EventCount}/{count}");
-                await Task.Delay(500).ConfigureAwait(false);
+                await Task.Delay(500);
             }
-            await z1.WaitAsync(TimeSpan.FromMilliseconds(targetTime * 4)).ConfigureAwait(false);
+            await z1.WaitAsync(TimeSpan.FromMilliseconds(targetTime * 4));
 
             var fpses = count * 1000 / ts.ElapsedMs() / 1000;
 
@@ -167,7 +167,7 @@ namespace zero.test.core.patterns.bushings
             {
                 if (c1.EventCount > count || ts.ElapsedMs() > totalTimeMs / concurrencyLevel * 3)
                 {
-                    await c1.Zero(null, "test done").FastPath().ConfigureAwait(Zc);
+                    await c1.Zero(null, "test done").FastPath();
                     break;
                 }
 
@@ -177,10 +177,10 @@ namespace zero.test.core.patterns.bushings
                     _output.WriteLine($"Producer stalled at {c1.EventCount}");
                 }
                 _output.WriteLine((last = c1.EventCount).ToString());
-                await Task.Delay(500).ConfigureAwait(false);
+                await Task.Delay(500);
             }
 
-            await z1.WaitAsync(TimeSpan.FromMilliseconds(totalTimeMs / (double)concurrencyLevel) * 4).ConfigureAwait(false);
+            await z1.WaitAsync(TimeSpan.FromMilliseconds(totalTimeMs / (double)concurrencyLevel) * 4);
 
             Assert.InRange(ts.ElapsedMs(), totalTimeMs / concurrencyLevel, totalTimeMs / concurrencyLevel * 2);
             _output.WriteLine($"{ts.ElapsedMs()}ms ~ {totalTimeMs / concurrencyLevel}ms");

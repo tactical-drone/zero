@@ -249,7 +249,7 @@ namespace zero.core.patterns.misc
                 //prime garbage
                 await @this.ZeroPrimeAsync().FastPath().ConfigureAwait(false);
                 await @this.ZeroAsync(true).FastPath().ConfigureAwait(false);
-            }, this, default,TaskCreationOptions.DenyChildAttach, TaskScheduler.Default, filePath:filePath, methodName:methodName, lineNumber:lineNumber).FastPath().ConfigureAwait(Zc);
+            }, this, default,TaskCreationOptions.DenyChildAttach, TaskScheduler.Default, filePath:filePath, methodName:methodName, lineNumber:lineNumber).FastPath();
 #pragma warning restore CS4014
 
             if (Interlocked.Increment(ref _zCount) % 100000 == 0)
@@ -281,7 +281,7 @@ namespace zero.core.patterns.misc
                 foreach (var ioZNode in _zeroHiveMind)
                 {
                     if (!ioZNode.Value.Zeroed())
-                        await ioZNode.Value.ZeroPrimeAsync().FastPath().ConfigureAwait(Zc);
+                        await ioZNode.Value.ZeroPrimeAsync().FastPath();
                 }
             }
         }
@@ -366,7 +366,7 @@ namespace zero.core.patterns.misc
             if (_zeroed > 0 || target == null)
                 return (default, false, null);
 
-            var zNode = await _zeroHiveMind.EnqueueAsync(target).FastPath().ConfigureAwait(Zc);
+            var zNode = await _zeroHiveMind.EnqueueAsync(target).FastPath();
 
             if (zNode == null)
             {
@@ -377,16 +377,16 @@ namespace zero.core.patterns.misc
 
             if (twoWay) //zero
             {
-                var sub = (await target.ZeroHiveAsync(this).FastPath().ConfigureAwait(Zc)).sub;
+                var sub = (await target.ZeroHiveAsync(this).FastPath()).sub;
 
                 if (sub != null)
                 {
                     await ZeroSubAsync(static (_, state) =>
                     {
                         var (@this, target, sub) = state;
-                        target?.ZeroHiveMind()?.RemoveAsync(sub).FastPath().ConfigureAwait(@this.Zc);
+                        target?.ZeroHiveMind()?.RemoveAsync(sub).FastPath();
                         return new ValueTask<bool>(true);
-                    }, (this, target, sub)).FastPath().ConfigureAwait(Zc);
+                    }, (this, target, sub)).FastPath();
                 }
             }
 
@@ -414,11 +414,11 @@ namespace zero.core.patterns.misc
                 if (_zeroHive != null)
                 {
                     IoZeroSub zeroSub;
-                    while((zeroSub = await _zeroHive.DequeueAsync().FastPath().ConfigureAwait(Zc)) != null)
+                    while((zeroSub = await _zeroHive.DequeueAsync().FastPath()) != null)
                     {
                         if(zeroSub.Executed) continue;
                         
-                        if (!await zeroSub.ExecuteAsync(this).FastPath().ConfigureAwait(Zc))
+                        if (!await zeroSub.ExecuteAsync(this).FastPath())
                             _logger.Trace($"{zeroSub.From} - zero sub {((IIoNanite)zeroSub.Target)?.Description} on {Description} returned with errors!");
                     }
                 }
@@ -426,10 +426,10 @@ namespace zero.core.patterns.misc
                 if (_zeroHiveMind != null)
                 {
                     IIoNanite zeroSub;
-                    while ((zeroSub = await _zeroHiveMind.DequeueAsync().FastPath().ConfigureAwait(Zc)) != null)
+                    while ((zeroSub = await _zeroHiveMind.DequeueAsync().FastPath()) != null)
                     {
                         if (zeroSub.Zeroed()) continue;
-                        await zeroSub.Zero(this, $"[ZERO CASCADE] from {desc}").FastPath().ConfigureAwait(Zc);
+                        await zeroSub.Zero(this, $"[ZERO CASCADE] from {desc}").FastPath();
                     }
                 }
                 
@@ -438,7 +438,7 @@ namespace zero.core.patterns.misc
 
                 try
                 {
-                    await ZeroManagedAsync().FastPath().ConfigureAwait(Zc);
+                    await ZeroManagedAsync().FastPath();
                 }
 #if DEBUG
                 catch (Exception e) when(!Zeroed())
@@ -535,8 +535,8 @@ namespace zero.core.patterns.misc
         /// </summary>
         public virtual ValueTask ZeroManagedAsync()
         {
-            _zeroHive.ZeroManagedAsync<object>(zero:true).FastPath().ConfigureAwait(Zc);
-            _zeroHiveMind.ZeroManagedAsync<object>(zero: true).FastPath().ConfigureAwait(Zc);
+            _zeroHive.ZeroManagedAsync<object>(zero:true).FastPath();
+            _zeroHiveMind.ZeroManagedAsync<object>(zero: true).FastPath();
             _zeroRoot.ZeroSem();
 #if DEBUG
             Interlocked.Increment(ref _extracted);
@@ -568,7 +568,7 @@ namespace zero.core.patterns.misc
         {
             try
             {
-                if (!await _zeroRoot.WaitAsync().FastPath().ConfigureAwait(Zc))
+                if (!await _zeroRoot.WaitAsync().FastPath())
                 {
                     return false;
                 }
@@ -583,7 +583,7 @@ namespace zero.core.patterns.misc
                     {
                         try
                         {
-                            return _zeroed == 0 && await ownershipAction(this, userData, disposing).FastPath().ConfigureAwait(Zc);
+                            return _zeroed == 0 && await ownershipAction(this, userData, disposing).FastPath();
                         }
                         catch when (Zeroed())
                         {
@@ -597,7 +597,7 @@ namespace zero.core.patterns.misc
                     }
                     else
                     {
-                        return await ownershipAction(this, userData, disposing).FastPath().ConfigureAwait(Zc);
+                        return await ownershipAction(this, userData, disposing).FastPath();
                     }
                 }
                 catch when (Zeroed())
@@ -655,7 +655,7 @@ namespace zero.core.patterns.misc
                     var nanoprobe = state as IoNanoprobe;
                     try
                     {
-                        return await action(state).FastPath().ConfigureAwait(@this.Zc);
+                        return await action(state).FastPath();
                     }
 #if DEBUG
                     catch (TaskCanceledException e) when ( nanoprobe != null && !nanoprobe.Zeroed() ||
@@ -720,7 +720,7 @@ namespace zero.core.patterns.misc
                     var nanoprobe = state as IoNanoprobe;
                     try
                     {
-                        await action(state).FastPath().ConfigureAwait(@this.Zc);
+                        await action(state).FastPath();
                     }
 #if DEBUG
                     catch (TaskCanceledException e) when ( nanoprobe != null && !nanoprobe.Zeroed() ||
@@ -741,7 +741,7 @@ namespace zero.core.patterns.misc
                 if (unwrap)
                     await zeroAsyncTask.Unwrap();
 
-                await zeroAsyncTask.ConfigureAwait(Zc);
+                await zeroAsyncTask;
             }
             catch (TaskCanceledException e) when (!nanite.Zeroed())
             {

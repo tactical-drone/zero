@@ -1,6 +1,5 @@
-﻿//#define TOKEN //TODO this primitive does not work this way
+﻿
 using System;
-using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using System.Runtime.ExceptionServices;
 using System.Threading;
@@ -40,11 +39,6 @@ namespace zero.core.patterns.semaphore.core
             _description = description;
 #else
             _description = string.Empty;
-#endif
-
-#if TOKEN
-            throw new InvalidOperationException(
-                $"This implementation of {nameof(IValueTaskSource)} is highly specialized and cannot be retrofitted with the TOKEN checks because this primitive does not work that way. I inserted this #define TOKEN stuff to preemptively manage expectations of would be lurkers. You can for example also await this valuetask multiple times etc. Tokens prevent that");
 #endif
 
             //validation
@@ -103,13 +97,6 @@ namespace zero.core.patterns.semaphore.core
         #endregion
 
         #region properties
-
-#if TOKEN
-        /// <summary>
-        /// The current token
-        /// </summary>
-        private volatile int _token;
-#endif
         /// <summary>
         /// A semaphore description
         /// </summary>
@@ -372,12 +359,6 @@ namespace zero.core.patterns.semaphore.core
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public bool GetResult(short token)
         {
-#if TOKEN
-            if (_zeroRef.ZeroToken() != token)
-                throw new ZeroValidationException($"{Description}: Invalid token: wants = {token}, has = {_zeroRef.ZeroToken()}");
-
-            _zeroRef.ZeroTokenBump();
-#endif
             try
             {
                 ZeroThrow();
@@ -397,10 +378,6 @@ namespace zero.core.patterns.semaphore.core
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public ValueTaskSourceStatus GetStatus(short token)
         {
-#if TOKEN
-            if (_zeroRef.ZeroToken() != token)
-                throw new ZeroValidationException($"{Description}: Invalid token: wants = {token}, has = {_token}");
-#endif
             try
             {
                 if (Zeroed())
@@ -453,101 +430,52 @@ namespace zero.core.patterns.semaphore.core
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void OnCompleted(Action<object> continuation, object state, short token, ValueTaskSourceOnCompletedFlags flags)
         {
-#if TOKEN
-            if (_zeroRef.ZeroToken() != token)
-                throw new ZeroValidationException($"{Description}: Invalid token: wants = {token}, has = {_zeroRef.ZeroToken()}");
-#endif
             try
             {
 #if DEBUG
                 ZeroLock();
 #endif
-                var c = 0;
-                var slot = ZeroSentinel;
-                do
+                Action<object> slot;
+                
+                var tailMod = Tail % _maxBlockers;
+                while ((slot = Interlocked.CompareExchange(ref _signalAwaiter[tailMod], continuation, null)) != null)
                 {
-                    Debug.Assert(slot != null && slot == ZeroSentinel);
+                    if (_zeroed > 0)
+                        break;
 
-                    long tail;
-                    var tailMod = (tail = Tail) % _maxBlockers;
-                    while (_curWaitCount <= _maxBlockers &&
-                           (slot = Interlocked.CompareExchange(ref _signalAwaiter[tailMod], ZeroSentinel, null)) != null || 
-                           slot == ZeroSentinel || tail != Tail)
+                    Interlocked.MemoryBarrierProcessWide();
+                    tailMod = Tail % _maxBlockers;
+                }
+
+                if (slot == null)
+                {
+                    //fast path, RACES with SetResult 
+                    if (_curSignalCount == 1 && _curWaitCount == 1)
                     {
-#if DEBUG
-                        if (++c == 1000000)
+                        if (Interlocked.CompareExchange(ref _curWaitCount, 0, 1) == 1)
                         {
-                            Console.WriteLine($"[{c}] 1  OnComplete: bad latch[{tailMod}], isSentinel = ({slot == ZeroSentinel}), {Description}");
-                            Console.WriteLine($"[{c}] 1  OnComplete: {_signalAwaiter[0]},{_signalAwaiter[1]},{_signalAwaiter[2]}, {_signalAwaiter[0] == ZeroSentinel},{_signalAwaiter[1] == ZeroSentinel},{_signalAwaiter[2] == ZeroSentinel}");
-                        }
-                        else if (c > 1000000)
-                        {
-                            //Thread.Yield();
-                        }
-#endif
-
-                        if (_zeroed > 0)
-                            break;
-
-                        slot = ZeroSentinel;
-                        Interlocked.MemoryBarrierProcessWide();
-                        tailMod = (tail = Tail) % _maxBlockers;
-                    }
-
-                    if (slot == null && tail == Tail)
-                    {
-                        //fast path, RACES with SetResult 
-                        if (_curSignalCount == 1 && _curWaitCount == 1)
-                        {
-                            if (Interlocked.CompareExchange(ref _curWaitCount, 0, 1) == 1)
+                            if (Interlocked.CompareExchange(ref _curSignalCount, 0, 1) == 1)
                             {
-                                if (Interlocked.CompareExchange(ref _curSignalCount, 0, 1) == 1)
-                                {
-                                    
-                                    TaskScheduler cc = null;
-                                    if (TaskScheduler.Current != TaskScheduler.Default)
-                                        cc = TaskScheduler.Current;
+                                
+                                TaskScheduler cc = null;
+                                if (TaskScheduler.Current != TaskScheduler.Default)
+                                    cc = TaskScheduler.Current;
 
-                                    Interlocked.Exchange(ref _signalAwaiter[tailMod], null);
-                                    InvokeContinuation(continuation, state, cc, false);
-                                    return;
-                                }
-
-                                Interlocked.Increment(ref _curWaitCount);
+                                Interlocked.Exchange(ref _signalAwaiter[tailMod], null);
+                                InvokeContinuation(continuation, state, cc, false);
+                                return;
                             }
-                        }
 
-#if DEBUG
-                        if (c > 1000000)
-                            Console.WriteLine(
-                                $"[{c}] 1 [RECOVER] OnComplete: bad latch[{tailMod}] = {slot != null}({slot != ZeroSentinel}), {Description}");
-#endif
-                        //Race against sentinel 
-                        if (tail == Tail &&
-                            Interlocked.CompareExchange(ref _signalAwaiterState[tailMod], state, null) == null)
-                        {
-                            ExtractContext(out _signalExecutionState[tailMod], out _signalCapturedContext[tailMod], flags);
-                            Interlocked.Exchange(ref _signalAwaiter[tailMod], continuation);
-                            Interlocked.Increment(ref _tail);
-                            return;
+                            Interlocked.Increment(ref _curWaitCount);
                         }
                     }
-                } while (!Zeroed());
-#if DEBUG
-                //if (c > 1000000)
-                //    Console.WriteLine(
-                //        $"[{c}] 1 [RECOVER] OnComplete: bad latch[{tailMod}], ({slot != ZeroSentinel}), {Description}");
-#endif
 
-#if !DEBUG
-                if (slot == ZeroSentinel)
+                    Interlocked.Exchange(ref _signalAwaiterState[tailMod], state);
+                    ExtractContext(out _signalExecutionState[tailMod], out _signalCapturedContext[tailMod], flags);
+                    Interlocked.Increment(ref _tail);
                     return;
-#endif
-
+                }
 #if DEBUG
-                if (!_enableAutoScale && slot == ZeroSentinel)
-                    return;
-
                 ZeroUnlock();
 
                 if (_enableAutoScale) //EXPERIMENTAL: double concurrent capacity
@@ -556,23 +484,17 @@ namespace zero.core.patterns.semaphore.core
 
                     ZeroUnlock();
 
-
                     //Scale
                     if (_enableAutoScale)
                     {
                         ZeroScale();
                         OnCompleted(continuation, state, token, flags);
-                    }
-                    else
-                    {
-                        throw new ZeroValidationException(
-                            $"{_description}: FATAL!, {nameof(_curWaitCount)} = {_curWaitCount}/{_maxBlockers}, {nameof(_curAsyncWorkerCount)} = {_curAsyncWorkerCount}/{_maxAsyncWorkers}");
+                        return;
                     }
 
+                    throw new ZeroValidationException(
+                        $"{_description}: FATAL!, {nameof(_curWaitCount)} = {_curWaitCount}/{_maxBlockers}, {nameof(_curAsyncWorkerCount)} = {_curAsyncWorkerCount}/{_maxAsyncWorkers}");
                 }
-
-                throw new ZeroValidationException(
-                    $"{nameof(OnCompleted)}: Invalid state! Concurrency bug. Too many blockers... {Description}");
 #endif
             }
             catch when (Zeroed())
@@ -582,6 +504,9 @@ namespace zero.core.patterns.semaphore.core
             {
                 LogManager.GetCurrentClassLogger().Error(e, $"{nameof(OnCompleted)}:");
             }
+
+            throw new ZeroValidationException(
+                $"{nameof(OnCompleted)}: Invalid state! Concurrency bug. Too many blockers... {Description}");
         }
 
         /// <summary>
@@ -817,16 +742,16 @@ namespace zero.core.patterns.semaphore.core
             //lock in return value
             var released = 0;
 
-            var slot = -1;
             //release waiters
             while (released < releaseCount)
             {
                 //race for a waiter
                 int latch;
-                while (slot == -1 && (latch = _curWaitCount) > 0 && (slot = Interlocked.CompareExchange(ref _curWaitCount, latch - 1, latch)) != latch)
+                var slot = -1;
+                while ((latch = _curWaitCount) > 0 && (slot = Interlocked.CompareExchange(ref _curWaitCount, latch - 1, latch)) != latch)
                     slot = -1;
 
-                if (slot <= 0)
+                if (slot < 0)
                     break;
 
                 IoZeroWorker worker = default;
@@ -835,21 +760,21 @@ namespace zero.core.patterns.semaphore.core
 #endif
                 long head;
                 long headMod;
-                if ((head = Head) == Tail ||
-                    (worker.Continuation = Interlocked.Exchange(ref _signalAwaiter[headMod = head % _maxBlockers], null)) == null ||
-                    worker.Continuation == ZeroSentinel)
+                var latched = _signalAwaiter[headMod = (head = Head) % _maxBlockers];
+
+                while (head == Tail || latched == null || (worker.Continuation = Interlocked.CompareExchange(ref _signalAwaiter[headMod],ZeroSentinel, latched)) != latched || worker.Continuation == ZeroSentinel)
                 {
                     if (Zeroed())
                         break;
 
                     Interlocked.MemoryBarrierProcessWide();
-                    continue;
+                    latched = _signalAwaiter[headMod = (head = Head) % _maxBlockers];
                 }
 
                 worker.State = Interlocked.Exchange(ref _signalAwaiterState[headMod], null);
                 worker.ExecutionContext = Interlocked.Exchange(ref _signalExecutionState[headMod], null);
                 worker.CapturedContext = Interlocked.Exchange(ref _signalCapturedContext[headMod], null);
-
+                Interlocked.Exchange(ref _signalAwaiter[headMod], null);
                 Interlocked.Increment(ref _head);
 #if DEBUG
                 //unlock
@@ -862,7 +787,6 @@ namespace zero.core.patterns.semaphore.core
                     return -1;
                 }
 
-                slot = -1;
                 //count the number of waiters released
                 released++;
             }
