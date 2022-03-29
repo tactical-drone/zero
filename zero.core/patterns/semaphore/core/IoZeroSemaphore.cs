@@ -472,7 +472,9 @@ namespace zero.core.patterns.semaphore.core
 
                     Interlocked.Exchange(ref _signalAwaiterState[tailMod], state);
                     ExtractContext(out _signalExecutionState[tailMod], out _signalCapturedContext[tailMod], flags);
+                    Interlocked.MemoryBarrier();
                     Interlocked.Increment(ref _tail);
+                    
                     return;
                 }
 #if DEBUG
@@ -762,7 +764,7 @@ namespace zero.core.patterns.semaphore.core
                 long headMod;
                 var latched = _signalAwaiter[headMod = (head = Head) % _maxBlockers];
 
-                while (head == Tail || latched == null || (worker.Continuation = Interlocked.CompareExchange(ref _signalAwaiter[headMod],ZeroSentinel, latched)) != latched || worker.Continuation == ZeroSentinel)
+                while (head == Tail || latched == null  || latched == ZeroSentinel || (worker.Continuation = Interlocked.CompareExchange(ref _signalAwaiter[headMod],ZeroSentinel, latched)) != latched || worker.Continuation == ZeroSentinel)
                 {
                     if (Zeroed())
                         break;
@@ -775,6 +777,7 @@ namespace zero.core.patterns.semaphore.core
                 worker.ExecutionContext = Interlocked.Exchange(ref _signalExecutionState[headMod], null);
                 worker.CapturedContext = Interlocked.Exchange(ref _signalCapturedContext[headMod], null);
                 Interlocked.Exchange(ref _signalAwaiter[headMod], null);
+                Interlocked.MemoryBarrier();
                 Interlocked.Increment(ref _head);
 #if DEBUG
                 //unlock

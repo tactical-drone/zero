@@ -284,7 +284,7 @@ namespace zero.core.patterns.queue
             {
                 var c = 0;
                 var slot = _sentinel;
-                long tail = 0;
+                long tail;
                 long insaneScale;
                 while ((tail = Tail) == Head + (insaneScale = Capacity) || _count < insaneScale &&
                        (slot = CompareExchange(tail, item, null)) != null)
@@ -333,11 +333,13 @@ namespace zero.core.patterns.queue
 
                 if (slot == null)
                 {
+#if DEBUG
                     Debug.Assert(Zeroed || this[tail] == item);
                     Debug.Assert(Zeroed || tail == Tail);
-                    Debug.Assert(Zeroed || item != null);
-
-                   Interlocked.Increment(ref _tail);
+                    Interlocked.MemoryBarrier();
+#endif
+                    Interlocked.Increment(ref _tail);
+                    Interlocked.MemoryBarrier();
                     Interlocked.Increment(ref _count);
                     _curEnumerator.IncIteratorCount(); //TODO: is this a good idea?
                     return tail;
@@ -387,9 +389,9 @@ namespace zero.core.patterns.queue
                 }
 
                 var insaneScale = Capacity;
-                long headLatch;
+                long head;
                 T result;
-                if ((headLatch = Head) == Tail || (result = Exchange(headLatch, null)) == null)
+                if ((head = Head) == Tail || (result = Exchange(head, null)) == null)
                 {
                     returnValue = null;
                     Interlocked.MemoryBarrierProcessWide();
@@ -398,18 +400,22 @@ namespace zero.core.patterns.queue
 
                 if (insaneScale != Capacity)
                 {
-                    if (CompareExchange(headLatch, result, null) != null)
+                    if (CompareExchange(head, result, null) != null)
                         LogManager.GetCurrentClassLogger()
                             .Error($"{nameof(TryDequeue)}: Could not restore latch state!");
 
                     return TryDequeue(out returnValue);
                 }
 
-                Debug.Assert(result != null);
-                Debug.Assert(_count > 0);
-                Debug.Assert(this[headLatch] == null);
-
+#if DEBUG
+                Debug.Assert(Zeroed || result != null);
+                Debug.Assert(Zeroed || _count > 0);
+                Debug.Assert(Zeroed || this[head] == null);
+                Debug.Assert(Zeroed || head == Head);
+                Interlocked.MemoryBarrier();
+#endif
                 Interlocked.Increment(ref _head);
+                Interlocked.MemoryBarrier();
                 Interlocked.Decrement(ref _count);
 
                 returnValue = result;
