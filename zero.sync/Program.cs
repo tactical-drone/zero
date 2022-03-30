@@ -68,7 +68,7 @@ namespace zero.sync
 
             //Task.Factory.StartNew(async () =>
             //{
-            //    await SemTestAsync();
+            //    //await SemTestAsync();
             //    await QueueTestAsync();
             //}, CancellationToken.None, TaskCreationOptions.DenyChildAttach, IoZeroScheduler.ZeroDefault).Unwrap().GetAwaiter().GetResult();
 

@@ -49,5 +49,6 @@ namespace zero.core.patterns.semaphore
         public void OnCompleted(Action<object> continuation, object state, short token, ValueTaskSourceOnCompletedFlags flags) => _zeroCore.OnCompleted(continuation, state, token, flags);
 
         public ValueTask<T> WaitAsync() => _zeroCore.GetStatus((short)_zeroCore.Version) != ValueTaskSourceStatus.Succeeded ? new ValueTask<T>(this, (short)_zeroCore.Version) : new ValueTask<T>(GetResult((short)Version));
+        //public ValueTask<T> WaitAsync() => new ValueTask<T>(this, (short)_zeroCore.Version);
     }
 }

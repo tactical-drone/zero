@@ -124,7 +124,7 @@ namespace zero.test.core.patterns.semaphore
             var running = true;
             var done = false;
             var waits = 0;
-            var t = Task.Factory.StartNew(async () =>
+            var t1 = Task.Factory.StartNew(async () =>
             {
                 while (running)
                 {
@@ -144,7 +144,7 @@ namespace zero.test.core.patterns.semaphore
                 _output.WriteLine("Release done");
             },TaskCreationOptions.DenyChildAttach);
 
-            await Task.Factory.StartNew(async () =>
+            var t2 = await Task.Factory.StartNew(async () =>
             {
                 while (running)
                 {
@@ -157,18 +157,17 @@ namespace zero.test.core.patterns.semaphore
 
             var ts = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
 
-            while (ts.ElapsedMs() < 1000)
+            try
             {
-                await Task.Delay(100);
+                await Task.WhenAll(t1, t2).WaitAsync(TimeSpan.FromSeconds(5));
+            }
+            catch 
+            {
+
             }
 
             _output.WriteLine($"Test done... {ts.ElapsedMs()}ms");
             running = false;
-
-            while (!done)
-            {
-                await Task.Delay(100);
-            }
 
             Assert.Equal(0, m.CurNrOfBlockers);
             Assert.Equal(1, m.ReadyCount);

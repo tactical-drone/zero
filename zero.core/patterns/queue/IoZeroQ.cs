@@ -5,6 +5,7 @@ using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using System.Linq;
+using System.Net.Http.Headers;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Threading;
@@ -211,24 +212,14 @@ namespace zero.core.patterns.queue
         private T Exchange(long idx, T value)
         {
             var i = 0;
-            try
-            {
-                if (!IsAutoScaling) return Interlocked.Exchange(ref _fastStorage[idx % _capacity], value);
+            if (!IsAutoScaling) return Interlocked.Exchange(ref _fastStorage[idx % _capacity], value);
 
-                if (idx < _capacity)
-                    return Interlocked.Exchange(ref _fastStorage[idx], value);
+            if (idx < _capacity)
+                return Interlocked.Exchange(ref _fastStorage[idx], value);
 
-                idx %= Capacity;
-                i = IoMath.Log2(unchecked((ulong)idx + 1));
-                return Interlocked.Exchange(ref _storage[i][idx - ((1 << i) - 1)], value);
-            }
-            finally
-            {
-                if (!IsAutoScaling)
-                    Debug.Assert(Volatile.Read(ref _fastStorage[idx % _capacity]) == value);
-                else
-                    Debug.Assert(Volatile.Read(ref _storage[i][idx - ((1 << i) - 1)]) == value);
-            }
+            idx %= Capacity;
+            i = IoMath.Log2(unchecked((ulong)idx + 1));
+            return Interlocked.Exchange(ref _storage[i][idx - ((1 << i) - 1)], value);
         }
 
         /// <summary>
@@ -286,29 +277,12 @@ namespace zero.core.patterns.queue
                 var slot = _sentinel;
                 long tail;
                 long insaneScale;
-                while ((tail = Tail) == Head + (insaneScale = Capacity) || _count < insaneScale &&
-                       (slot = CompareExchange(tail, item, null)) != null)
+
+                while ((tail = Tail) == Head + (insaneScale = Capacity) || _count < insaneScale && tail != Tail ||
+                       (slot = CompareExchange(tail, item, null)) != null || tail != Tail)
                 {
-#if DEBUG
-                    if (++c == 5000000)
-                    {
-                        Console.WriteLine($"[{c}] eq 3 latch[{tail % Capacity}] ~ [{Tail % insaneScale}] ({slot != _sentinel}), overflow = {tail >= Head + insaneScale}, has space = {_count < insaneScale}, scale failure = {insaneScale != Capacity}, {Description}");
-                    }
-                    else if (c > 5000000)
-                    {
-                        Console.WriteLine(slot);
-                        try
-                        {
-                            var t = Unsafe.As<Tuple<byte, byte>>(slot);
-                            Console.WriteLine("{0},{1}", t.Item1, t.Item2);
-                        }
-                        catch 
-                        {
-                            
-                        }
-                        Debug.Assert(false);
-                    }
-#endif
+                    if (slot != _sentinel)
+                        CompareExchange(tail, null, item);
 
                     slot = _sentinel;
 
@@ -371,7 +345,6 @@ namespace zero.core.patterns.queue
             return -1;
         }
 
-
         /// <summary>
         /// Try take from the Q, round robin
         /// </summary>
@@ -391,11 +364,14 @@ namespace zero.core.patterns.queue
                 var insaneScale = Capacity;
                 long head;
                 T result;
-                if ((head = Head) == Tail || (result = Exchange(head, null)) == null)
+                while ((head = Head) == Tail || (result = Exchange(head, null)) == null)
                 {
-                    returnValue = null;
                     Interlocked.MemoryBarrierProcessWide();
-                    return false;
+                    if (_count == 0 || Zeroed)
+                    {
+                        returnValue = null;
+                        return false;
+                    }
                 }
 
                 if (insaneScale != Capacity)
@@ -407,18 +383,20 @@ namespace zero.core.patterns.queue
                     return TryDequeue(out returnValue);
                 }
 
+                //Debug.Assert(Zeroed || head != Tail && this[head] == null || head == Tail);//TODO: what about this one? it still fails.
 #if DEBUG
                 Debug.Assert(Zeroed || result != null);
                 Debug.Assert(Zeroed || _count > 0);
-                Debug.Assert(Zeroed || this[head] == null);
                 Debug.Assert(Zeroed || head == Head);
                 Interlocked.MemoryBarrier();
 #endif
+
+                
                 Interlocked.Increment(ref _head);
                 Interlocked.MemoryBarrier();
                 Interlocked.Decrement(ref _count);
-
                 returnValue = result;
+                
                 return true;
             }
             catch (Exception e)

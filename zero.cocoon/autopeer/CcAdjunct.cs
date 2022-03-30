@@ -30,6 +30,7 @@ using zero.core.patterns.bushings.contracts;
 using zero.core.patterns.heap;
 using zero.core.patterns.misc;
 using zero.core.patterns.queue;
+using zero.core.patterns.semaphore;
 using zero.core.patterns.semaphore.core;
 using zero.core.runtime.scheduler;
 using Zero.Models.Protobuf;
@@ -100,7 +101,7 @@ namespace zero.cocoon.autopeer
                 CompareAndEnterState(AdjunctState.Local, AdjunctState.Undefined);
                 _routingTable = new ConcurrentDictionary<string, CcAdjunct>();
 
-                _zeroSync = new IoManualResetValueTaskSource<bool>();
+                _zeroSync = new IoZeroResetValueTaskSource<bool>();
             }
 
 #if DEBUG
@@ -397,7 +398,7 @@ namespace zero.cocoon.autopeer
         /// <summary>
         /// Syncs producer and consumer queues
         /// </summary>
-        private IoManualResetValueTaskSource<bool> _zeroSync;
+        private readonly IoZeroResetValueTaskSource<bool> _zeroSync;
 
         /// <summary>
         /// Seconds since pat
@@ -1180,11 +1181,8 @@ namespace zero.cocoon.autopeer
                                 if (j < width)
                                     break;
 
-                                var waitForConsumer = new ValueTask<bool>(@this._zeroSync, (short)@this._zeroSync.Version);
-                                if(!await waitForConsumer.FastPath())
+                                if(!await @this._zeroSync.WaitAsync().FastPath())
                                     break;
-                                
-                                @this._zeroSync.Reset();
                             }
                         }
                         catch when (@this.Zeroed() || @this.Source.Zeroed() || @this._protocolConduit?.UpstreamSource == null) { }

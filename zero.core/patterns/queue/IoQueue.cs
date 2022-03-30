@@ -382,6 +382,7 @@ namespace zero.core.patterns.queue
                 {
                     return default;
                 }
+                Debug.Assert(_syncRoot.ReadyCount == 0);
                 Interlocked.Increment(ref _entered);
                 entered = true;
                 Debug.Assert(_entered < 2);
@@ -411,7 +412,9 @@ namespace zero.core.patterns.queue
                 if (entered)
                 {
                     Interlocked.Decrement(ref _entered);
+                    Debug.Assert(_syncRoot.ReadyCount == 0);
                     _syncRoot.Release();
+                    
                 }
 
                 //var t = _syncRoot.ReadyCount == 1 || _entered > 0;

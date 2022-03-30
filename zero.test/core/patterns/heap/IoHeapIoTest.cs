@@ -16,7 +16,7 @@ namespace zero.test.core.patterns.heap
             {
                 //sentinel
                 if (@this == null)
-                    return new TestHeapItem(0, 0);
+                    return new TestHeapItem(-1, -1);
                 return new TestHeapItem(@this._localVar, (int)o);
             }, context:this)
             {

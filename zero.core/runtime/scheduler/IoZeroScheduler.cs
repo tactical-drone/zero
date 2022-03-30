@@ -23,8 +23,7 @@ namespace zero.core.runtime.scheduler
         static IoZeroScheduler()
         {
             Zero = new IoZeroScheduler();
-            ZeroDefault = Zero;
-            //TODO: Enable for default .NET scheduler
+            ZeroDefault = Zero; //TODO: Disabled for now, but passes basic smoke and pressure tests
             ZeroDefault = Default; 
         }
         public IoZeroScheduler(CancellationTokenSource asyncTasks = null)
@@ -322,7 +321,6 @@ namespace zero.core.runtime.scheduler
                                         if (Volatile.Read(ref @this._workerPunchCards[i]) == 0 && w.Ready())
                                         {
                                             w.SetResult(true);
-
 #if _TRACE_
                                             Console.WriteLine($"Polled worker {i} from queen {workerId}, for task {s.Task!.Id}");
 #endif
@@ -343,6 +341,7 @@ namespace zero.core.runtime.scheduler
                                 @this._signalHeap.Return(s);
                             }
 
+                            Interlocked.MemoryBarrierProcessWide();
                             //spawn more workers, the ones we have are deadlocked
                             if (blocked.Count >= @this._workerCount && @this._lastSpawnedWorker.ElapsedMs() > WorkerSpawnRate)
                             {
@@ -392,6 +391,7 @@ namespace zero.core.runtime.scheduler
             var d = ts.ElapsedMs();
             if(d > 1)
                 Console.WriteLine($"QUEEN[{id}] SLOW => {d}ms, q length = {@this.QLength}");
+            //Console.WriteLine(".");
             return true;
         }
 
@@ -451,17 +451,13 @@ var d = 0;
                         ? Volatile.Read(ref @this._pollQueen[xId])
                         : Volatile.Read(ref @this._pollWorker[xId]);
 
-                    //if (!isWorker)
-                    //{
-                    //    Thread.CurrentThread.Priority = ThreadPriority.Highest;
-                    //}
                     //process tasks
                     while (!@this._asyncTasks.IsCancellationRequested)
                     {
                         try
                         {
                             //wait on work q pressure
-                            if (queue.Count == 0 && syncRoot.Ready(true))
+                            if (queue.Count == 0 && syncRoot.Ready(true))//TODO: Design flaw
                             {
 #if _TRACE_
                                 if (priority == ThreadPriority.Highest)
@@ -479,18 +475,34 @@ var d = 0;
                                     if (!await syncRoot.WaitAsync().FastPath().ConfigureAwait(false))
                                     {
 #if !_TRACE_
-                                        Console.WriteLine($"Queen {xId} unblocking... FAILED! status = {syncRoot.GetStatus((short)syncRoot.Version)}");
+
+                                        try
+                                        {
+                                            Console.WriteLine($"Queen {xId} unblocking... FAILED!");
+                                            Console.WriteLine($"Queen {xId} unblocking... FAILED! status = {syncRoot.GetStatus((short)syncRoot.Version)}");
+                                        }
+                                        catch
+                                        {
+                                            // ignored
+                                        }
 #endif
                                         continue;
                                     }
-                                    //Thread.CurrentThread.Priority = ThreadPriority.Highest;
                                 }
                                 else
                                 {
                                     if (!await syncRoot.WaitAsync().FastPath())
                                     {
 #if !_TRACE_
-                                        Console.WriteLine($"Worker {xId} unblocking... FAILED! version = {syncRoot.GetStatus((short)syncRoot.Version)}");
+                                        try
+                                        {
+                                            Console.WriteLine($"Worker {xId} unblocking... FAILED!");
+                                            Console.WriteLine($"Worker {xId} unblocking... FAILED! version = {syncRoot.GetStatus((short)syncRoot.Version)}");
+                                        }
+                                        catch
+                                        {
+                                            // ignored
+                                        }
 #endif
                                         continue;
                                     }
@@ -515,26 +527,18 @@ var d = 0;
 
                             try
                             {
-//Service the Q
+                                //Service the Q
                                 if (!isWorker)
                                 {
                                     Interlocked.Exchange(ref @this._queenPunchCards[xId], 1);
-
-                                    //if (Thread.CurrentThread.Priority != ThreadPriority.Highest)
-                                    //{
-                                    //    Console.WriteLine($"Queen[{xId}],  priority = {Thread.CurrentThread.Priority}  stale...");
-                                    //}
 #if __TRACE__
-                                Console.WriteLine($"[[QUEEN]] CONSUMING FROM Q {workerId},  Q = {queue.Count}/{@this.Active.Count()} - total jobs process = {@this.CompletedWorkItemCount}");
+                                    Console.WriteLine($"[[QUEEN]] CONSUMING FROM Q {workerId},  Q = {queue.Count}/{@this.Active.Count()} - total jobs process = {@this.CompletedWorkItemCount}");
 #endif
                                 }
                                 else
                                 {
                                     Interlocked.Exchange(ref @this._workerPunchCards[xId], 1);
-                                    //if (Thread.CurrentThread.Priority != ThreadPriority.Normal)
-                                    //{
-                                    //    Console.WriteLine($"Worker[{xId}],  priority = {Thread.CurrentThread.Priority}  stale...");
-                                    //}
+                                    Interlocked.MemoryBarrier();
                                 }
 
                                 while (queue.TryDequeue(out var work) /*|| workerId == @this._workerCount*/)
@@ -568,7 +572,15 @@ var d = 0;
                             catch (Exception e)
                             {
                                 Console.WriteLine(e);
-                                Console.WriteLine($"---> status = {syncRoot.GetStatus((short)syncRoot.Version)}");
+
+                                try
+                                {
+                                    Console.WriteLine($"---> status = {syncRoot.GetStatus((short)syncRoot.Version)}");
+                                }
+                                catch
+                                {
+                                    // ignored
+                                }
                             }
                             finally
                             {
@@ -580,6 +592,7 @@ var d = 0;
                                 {
                                     Interlocked.Exchange(ref @this._queenPunchCards[xId], 0);
                                 }
+                                Interlocked.MemoryBarrier();
                             }
                         }
                         catch (Exception e)
@@ -644,8 +657,8 @@ var d = 0;
             }
             else
             {
-                Volatile.Write(ref _queenPunchCards[id], 0);
-                Task.Factory.StartNew(ThreadWorker, (this, queue, desc, id, prime, callback, priority), _asyncTasks.Token, TaskCreationOptions.DenyChildAttach | TaskCreationOptions.PreferFairness | TaskCreationOptions.HideScheduler, Default);
+                Volatile.Write(ref _workerPunchCards[id], 0);
+                Task.Factory.StartNew(ThreadWorker, (this, queue, desc, id, prime, callback, priority), _asyncTasks.Token, TaskCreationOptions.DenyChildAttach | TaskCreationOptions.HideScheduler, Default);
             }
                 
 
@@ -784,14 +797,22 @@ var d = 0;
                 {
                     if (tmpSignal.Processed == 0 && _queenPunchCards[qId] == 0)
                     {
-                        if (q.Ready())
+                        if (q.Ready())//TODO: Design flaw
                         {
-                            q.SetResult(true);
+
+                            try
+                            {
+                                q.SetResult(true);
 #if _TRACE_
                             Console.WriteLine($"load = {QLoad}, Polled queen {qId} for task id {task.Id}");
 #endif
-                            polled = true;
-                            break;
+                                polled = true;
+                                break;
+                            }
+                            catch
+                            {
+                                // ignored
+                            }
                         }
                     }
                 }
