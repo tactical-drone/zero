@@ -663,13 +663,13 @@ namespace zero.core.patterns.bushings
                     }
                     finally
                     {
-                        //Consume success?
-                        
-                        curJob.State = curJob.State is IoJobMeta.JobState.Consumed or IoJobMeta.JobState.Fragmented
-                            ? IoJobMeta.JobState.Accept
-                            : IoJobMeta.JobState.Reject;
                         try
                         {
+                            //Consume success?
+                            curJob.State = curJob.State is IoJobMeta.JobState.Consumed or IoJobMeta.JobState.Fragmented
+                                ? IoJobMeta.JobState.Accept
+                                : IoJobMeta.JobState.Reject;
+
                             if (curJob.Id % parm_stats_mod_count == 0 && curJob.Id >= 9999)
                             {
                                 await ZeroAtomic(static (_, state, _) =>
