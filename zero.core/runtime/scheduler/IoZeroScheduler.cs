@@ -388,10 +388,11 @@ namespace zero.core.runtime.scheduler
                 return false;
             }
 
+#if TRACE
             var d = ts.ElapsedMs();
             if(d > 1)
-                Console.WriteLine($"QUEEN[{id}] SLOW => {d}ms, q length = {@this.QLength}");
-            //Console.WriteLine(".");
+                Console.WriteLine($"QUEEN[{id}] SLOW => {d}ms, q length = {@this.QLength}");   
+#endif
             return true;
         }
 
@@ -470,43 +471,50 @@ var d = 0;
                                 }
 
 #endif
-                                if (!isWorker)
+                                try
                                 {
-                                    if (!await syncRoot.WaitAsync().FastPath().ConfigureAwait(false))
+                                    if (!isWorker)
                                     {
-#if !_TRACE_
+                                        if (!await syncRoot.WaitAsync().FastPath().ConfigureAwait(false))
+                                        {
+#if _TRACE_
 
-                                        try
-                                        {
-                                            Console.WriteLine($"Queen {xId} unblocking... FAILED!");
-                                            Console.WriteLine($"Queen {xId} unblocking... FAILED! status = {syncRoot.GetStatus((short)syncRoot.Version)}");
-                                        }
-                                        catch
-                                        {
-                                            // ignored
-                                        }
+                                            try
+                                            {
+                                                Console.WriteLine($"Queen {xId} unblocking... FAILED!");
+                                                Console.WriteLine($"Queen {xId} unblocking... FAILED! status = {syncRoot.GetStatus((short)syncRoot.Version)}");
+                                            }
+                                            catch
+                                            {
+                                                // ignored
+                                            }
 #endif
-                                        continue;
+                                            continue;
+                                        }
+                                    }
+                                    else
+                                    {
+                                        if (!await syncRoot.WaitAsync().FastPath())
+                                        {
+#if _TRACE_
+                                            try
+                                            {
+                                                Console.WriteLine($"Worker {xId} unblocking... FAILED!");
+                                                Console.WriteLine($"Worker {xId} unblocking... FAILED! version = {syncRoot.GetStatus((short)syncRoot.Version)}");
+                                            }
+                                            catch
+                                            {
+                                                // ignored
+                                            }
+#endif
+                                            continue;
+                                        }
+                                        //Thread.CurrentThread.Priority = ThreadPriority.Normal;
                                     }
                                 }
-                                else
+                                catch
                                 {
-                                    if (!await syncRoot.WaitAsync().FastPath())
-                                    {
-#if !_TRACE_
-                                        try
-                                        {
-                                            Console.WriteLine($"Worker {xId} unblocking... FAILED!");
-                                            Console.WriteLine($"Worker {xId} unblocking... FAILED! version = {syncRoot.GetStatus((short)syncRoot.Version)}");
-                                        }
-                                        catch
-                                        {
-                                            // ignored
-                                        }
-#endif
-                                        continue;
-                                    }
-                                    //Thread.CurrentThread.Priority = ThreadPriority.Normal;
+                                    continue;
                                 }
 #if _TRACE_
                                 if (priority == ThreadPriority.Highest)

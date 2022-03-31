@@ -34,6 +34,7 @@ namespace zero.core.patterns.semaphore
             return result;
         }
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         void IValueTaskSource.GetResult(short token)
         {
             _zeroCore.GetResult(token);

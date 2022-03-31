@@ -686,10 +686,10 @@ namespace zero.core.patterns.bushings
                             curJob = null;
                             Source.BackPressure();
                         }
-                        catch when (Zeroed())
+                        catch when (Zeroed() || curJob != null && curJob.Zeroed())
                         {
                         }
-                        catch (Exception e) when (!Zeroed())
+                        catch (Exception e) when (!Zeroed() || curJob != null && !curJob.Zeroed())
                         {
                             _logger?.Fatal(e);
                         }

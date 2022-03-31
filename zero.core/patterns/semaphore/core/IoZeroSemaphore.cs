@@ -255,7 +255,9 @@ namespace zero.core.patterns.semaphore.core
         {
             if(Interlocked.CompareExchange(ref _zeroed, 1, 0) != 0)
                 return;
-            
+
+            Interlocked.Exchange(ref _curSignalCount, int.MinValue);
+            Interlocked.Exchange(ref _curWaitCount, int.MinValue);
             try
             {
 #if NET6_0
@@ -270,25 +272,25 @@ namespace zero.core.patterns.semaphore.core
                 // s
             }
 
-            var i = 0;
-            while (i < _signalAwaiter.Length)
-            {
-                var latch = _signalAwaiter[i];
-                var waiter = Interlocked.CompareExchange(ref _signalAwaiter[i], ZeroSentinel, latch);
-                if (waiter == latch && latch != null)
-                {
-                    try
-                    {
-                        ZeroComply(waiter, _signalAwaiterState[i], _signalExecutionState[i], _signalCapturedContext[i], true, true);
-                        _signalAwaiter[i] = null;
-                    }
-                    catch
-                    {
-                        // ignored
-                    }
-                }
-                i++;
-            }
+            //var i = 0;
+            //while (i < _signalAwaiter.Length)
+            //{
+            //    var latch = _signalAwaiter[i];
+            //    var waiter = Interlocked.CompareExchange(ref _signalAwaiter[i], ZeroSentinel, latch);
+            //    if (waiter == latch && latch != null && latch != ZeroSentinel)
+            //    {
+            //        try
+            //        {
+            //            _signalAwaiter[i] = null;
+            //            ZeroComply(waiter, _signalAwaiterState[i], _signalExecutionState[i], _signalCapturedContext[i], true, true);
+            //        }
+            //        catch
+            //        {
+            //            // ignored
+            //        }
+            //    }
+            //    i++;
+            //}
 
             Array.Clear(_signalAwaiter, 0, _maxBlockers);
             Array.Clear(_signalAwaiterState, 0, _maxBlockers);
@@ -303,6 +305,7 @@ namespace zero.core.patterns.semaphore.core
             _asyncTasks = null;
             _zeroRef = null;
 #endif
+            Interlocked.MemoryBarrierProcessWide();
         }
 
 #if DEBUG
