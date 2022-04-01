@@ -63,10 +63,14 @@ namespace zero.test.core.patterns.queue
             Assert.Equal("0123456789101112130123456789101101234567891011121311", sb.ToString());
         }
 
+
+        private const int InsertsPerThread = 10000;
+
         [Fact]
         public async Task IteratorAsync()
         {
-            var threads = 100;
+            var threads = 32;
+            
             var bag = new IoZeroQ<IoInt32>("test", 128, 0,true);
             await Task.Yield();
             var c = 0;
@@ -81,20 +85,21 @@ namespace zero.test.core.patterns.queue
             {
                 insert.Add(Task.Factory.StartNew(static state =>
                 {
-                    var (@this,_bag, idx) = (ValueTuple<IoQTest, IoZeroQ<IoInt32>, int>)state!;
-                    _bag.TryEnqueue(Interlocked.Increment(ref idx));
+                    var (@this,bag, idx) = (ValueTuple<IoQTest, IoZeroQ<IoInt32>, int>)state!;
+                    for (int i = 0; i < InsertsPerThread; i++) bag.TryEnqueue(Interlocked.Increment(ref idx));
+                    
                 }, (this, bag, idx), TaskCreationOptions.DenyChildAttach));
             }
 
             await Task.WhenAll(insert).WaitAsync(TimeSpan.FromSeconds(10));
 
-            Assert.Equal(threads, bag.Count);
+            Assert.Equal(threads * InsertsPerThread, bag.Count);
 
             bag.TryDequeue(out _);
             bag.TryDequeue(out _);
             bag.TryDequeue(out _);
 
-            Assert.Equal(threads - 3, bag.Count);
+            Assert.Equal(threads * InsertsPerThread - 3, bag.Count);
 
             c = 0;
             foreach (var ioInt32 in bag)
@@ -102,7 +107,7 @@ namespace zero.test.core.patterns.queue
                 c++;
             }
 
-            Assert.Equal(threads - 3, c);
+            Assert.Equal(threads * InsertsPerThread - 3, c);
 
             while (bag.Count > 0)
                 bag.TryDequeue(out _);
@@ -114,6 +119,67 @@ namespace zero.test.core.patterns.queue
                 c++;
 
             Assert.Equal(0, c);
+        }
+
+
+        [Fact]
+        public async Task SpamTestAsync()
+        {
+            var threads = Environment.ProcessorCount * 4;
+            var initialSize = 128;
+            var bag = new IoZeroQ<IoInt32>("test", 128, 0, true);
+            await Task.Yield();
+            var c = 0;
+            foreach (var ioInt32 in bag)
+                c++;
+
+            Assert.Equal(0, c);
+
+            var idx = 0;
+            var spam = new List<Task>();
+            for (var i = 0; i < threads; i++)
+            {
+                spam.Add(Task.Factory.StartNew(static state =>
+                {
+                    var (@this, bag, idx) = (ValueTuple<IoQTest, IoZeroQ<IoInt32>, int>)state!;
+                    for (int i = 0; i < InsertsPerThread; i++) bag.TryEnqueue(Interlocked.Increment(ref idx));
+
+                }, (this, bag, idx), TaskCreationOptions.DenyChildAttach));
+            }
+
+            for (var i = 0; i < threads; i++)
+            {
+                spam.Add(Task.Factory.StartNew(static state =>
+                {
+                    var (@this, bag, idx) = (ValueTuple<IoQTest, IoZeroQ<IoInt32>, int>)state!;
+                    for (int i = 0; i < InsertsPerThread; i++)
+                    {
+                        if (bag.TryDequeue(out var item))
+                        {
+                            Interlocked.Decrement(ref idx);
+                        }
+                    }
+
+                }, (this, bag, idx), TaskCreationOptions.DenyChildAttach));
+            }
+
+            await Task.WhenAll(spam).WaitAsync(TimeSpan.FromSeconds(10));
+
+            Assert.Equal(0, idx);
+            Assert.Equal(0, bag.Count);
+            Assert.Equal(bag.Head, bag.Tail);
+            Assert.True(bag.IsAutoScaling);
+            Assert.True(!bag.Zeroed);
+
+            for (int i = 0; i < bag.Capacity; i++)
+            {
+                Assert.True(bag[i] == null);
+            }
+
+            bag.TryEnqueue(23);
+            await bag.ZeroManagedAsync<object>();
+            Assert.Equal(0, bag.Count);
+            Assert.Equal(bag.Head + 1, bag.Tail);
         }
 
         [Fact]
