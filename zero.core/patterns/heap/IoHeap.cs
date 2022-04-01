@@ -137,7 +137,7 @@ namespace zero.core.patterns.heap
         /// </summary>
         /// <exception cref="InternalBufferOverflowException">Thrown when the max heap size is breached</exception>
         /// <returns>True if the item required malloc, false if popped from the heap otherwise<see cref="TItem"/></returns>
-        [MethodImpl(MethodImplOptions.NoInlining)]
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public TItem Take(object userData = null, Action<TItem, object> customConstructor = null)
         {
             try
@@ -184,7 +184,7 @@ namespace zero.core.patterns.heap
         /// <param name="item">The item to be returned to the heap</param>
         /// <param name="zero">Whether to destroy this object</param>
         /// <param name="deDup"></param>
-        [MethodImpl(MethodImplOptions.NoInlining)]
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public virtual void Return(TItem item, bool zero = false, bool deDup = false)
         {
             if (item == null)

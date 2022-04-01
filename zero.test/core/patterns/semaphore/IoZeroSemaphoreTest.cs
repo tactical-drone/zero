@@ -130,7 +130,11 @@ namespace zero.test.core.patterns.semaphore
                 {
                     try
                     {
-                        Assert.InRange(m.Release(), 0, 1);
+                        int r = m.Release();
+                        Assert.InRange(r, 0, 1);
+
+                        if (r != 1) 
+                            await Task.Delay(1);
                     }
                     catch
                     {
@@ -170,7 +174,6 @@ namespace zero.test.core.patterns.semaphore
             running = false;
 
             Assert.Equal(0, m.CurNrOfBlockers);
-            Assert.Equal(1, m.ReadyCount);
             Assert.InRange(waits, 553624, int.MaxValue);
         }
 
@@ -285,7 +288,7 @@ namespace zero.test.core.patterns.semaphore
         async Task TestIoZeroSemaphoreSlimAsync()
         {
             var count = 50;
-            var minDelay = 25;
+            var minDelay = 16 * 2;
             var v = new IoZeroSemaphoreSlim(new CancellationTokenSource(), string.Empty, 1, 1);
 
             var t = Task.Factory.StartNew(async () =>
@@ -299,13 +302,13 @@ namespace zero.test.core.patterns.semaphore
 
             var ts = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
             Assert.True(await v.WaitAsync().FastPath());
-            Assert.InRange(ts.ElapsedMs(), 0, 2);
+            Assert.InRange(ts.ElapsedMs(), 0, 16 * 2);
 
             for (var i = 0; i < count; i++)
             {
                 ts = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
                 Assert.True(await v.WaitAsync().FastPath());
-                Assert.InRange(ts.ElapsedMs(), minDelay / 2, 2000);
+                Assert.InRange(ts.ElapsedMs(), minDelay / 2, minDelay * 2);
             }
         }
 
@@ -313,7 +316,7 @@ namespace zero.test.core.patterns.semaphore
         async Task TestIoZeroSemaphoreSlimSpamAsync()
         {
 #if DEBUG
-            long count = 100000;
+            long count = 1000;
 #else
             long count = 100000;
 #endif
@@ -322,34 +325,36 @@ namespace zero.test.core.patterns.semaphore
 
             var totalTime = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
 
-            var t = Task.Factory.StartNew(() =>
+            var t = Task.Factory.StartNew(async () =>
             {
-                for (var i = 0; i < count - 1; i++)
+                int i = 0;
+                while (!v.Zeroed())
                 {
-                    while (v.Release() != 1) {}
+                    if (v.Release() != 1)
+                        await Task.Delay(1);
+                    else
+                        i++;
                 }
+            }).Unwrap();
+
+            var t2 = Task.Factory.StartNew(async () =>
+            {
+                long ave = 0;
+                var i = 0;
+                for (i = 0; i < count; i++)
+                {
+                    var ts = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+                    Assert.True(await v.WaitAsync().FastPath());
+                    ave += ts.ElapsedMs();
+                }
+
+                Assert.InRange(ave / count, 0, 16);
             });
 
-            long ave = 0;
-            int i = 0;
-            for (i = 0; i < count; i++)
-            {
-                var ts = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-                Assert.True(await v.WaitAsync().FastPath());
-                ave += ts.ElapsedMs();
-            }
-
-            Assert.InRange(ave/count, 0, 15 * 4);
-
-            try
-            {
-                await t.WaitAsync(TimeSpan.FromSeconds(15));
-            }
-            catch (Exception)
-            {
-                _output.WriteLine($"completed {i}/{count}");
-            }
-
+            
+            await v.ZeroManagedAsync();
+            await Task.WhenAll(t,t2).WaitAsync(TimeSpan.FromSeconds(15));
+            
             var maps = count * 1000 / totalTime.ElapsedMs() / 1000;
             _output.WriteLine($"MAPS = {maps} K/s, t = {totalTime.ElapsedMs()}ms");
             Assert.InRange(maps, 1, int.MaxValue);

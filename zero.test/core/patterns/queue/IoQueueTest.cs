@@ -308,9 +308,9 @@ namespace zero.test.core.patterns.queue{
 
             Assert.Equal(capacity, _inserted);
 
-            await q.DequeueAsync().FastPath();
-            await q.DequeueAsync().FastPath();
-            await q.DequeueAsync().FastPath();
+            await q.DequeueAsync();
+            await q.DequeueAsync();
+            await q.DequeueAsync();
 
             Assert.Equal(capacity - 3, q.Count);
 
@@ -322,9 +322,7 @@ namespace zero.test.core.patterns.queue{
 
             Assert.Equal(capacity - 3, c);
 
-            //while (q.Count > 0)
-            //    await q.DequeueAsync().FastPath();
-            await q.ZeroManagedAsync<object>(zero:true).FastPath();
+            await q.ZeroManagedAsync<object>(zero:true);
 
             Assert.Equal(0, q.Count);
             Assert.Null(q.Head);

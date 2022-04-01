@@ -208,7 +208,7 @@ namespace zero.core.patterns.queue
             }
         }
 
-        [MethodImpl(MethodImplOptions.NoInlining)]
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private T Exchange(long idx, T value)
         {
             var i = 0;
@@ -247,7 +247,7 @@ namespace zero.core.patterns.queue
         /// <param name="item">The item to be added</param>
         /// <param name="deDup">Whether to de-dup this item from the bag</param>
         /// <exception cref="OutOfMemoryException">Thrown if we are internally OOM</exception>
-        [MethodImpl(MethodImplOptions.NoInlining)]
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public long TryEnqueue(T item, bool deDup = false)
         {
             if (Zeroed)
@@ -350,7 +350,7 @@ namespace zero.core.patterns.queue
         /// </summary>
         /// <param name="returnValue">The item to be fetched</param>
         /// <returns>True if an item was found and returned, false otherwise</returns>
-        [MethodImpl(MethodImplOptions.NoInlining)]
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public bool TryDequeue([MaybeNullWhen(false)] out T returnValue)
         {
             try

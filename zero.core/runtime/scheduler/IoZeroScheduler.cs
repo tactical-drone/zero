@@ -23,8 +23,8 @@ namespace zero.core.runtime.scheduler
         static IoZeroScheduler()
         {
             Zero = new IoZeroScheduler();
-            ZeroDefault = Zero; //TODO: Disabled for now, but passes basic smoke and pressure tests
-            ZeroDefault = Default; 
+            ZeroDefault = Zero;
+            //ZeroDefault = Default; //TODO: Uncomment to enable native .net scheduler...
         }
         public IoZeroScheduler(CancellationTokenSource asyncTasks = null)
         {
