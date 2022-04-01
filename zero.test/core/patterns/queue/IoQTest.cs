@@ -178,6 +178,11 @@ namespace zero.test.core.patterns.queue
 
             bag.TryEnqueue(23);
             await bag.ZeroManagedAsync<object>();
+            for (int i = 0; i < bag.Capacity; i++)
+            {
+                Assert.True(bag[i] == null);
+            }
+
             Assert.Equal(0, bag.Count);
             Assert.Equal(bag.Head + 1, bag.Tail);
         }

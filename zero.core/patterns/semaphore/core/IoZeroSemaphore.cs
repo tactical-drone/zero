@@ -272,25 +272,25 @@ namespace zero.core.patterns.semaphore.core
                 // s
             }
 
-            //var i = 0;
-            //while (i < _signalAwaiter.Length)
-            //{
-            //    var latch = _signalAwaiter[i];
-            //    var waiter = Interlocked.CompareExchange(ref _signalAwaiter[i], ZeroSentinel, latch);
-            //    if (waiter == latch && latch != null && latch != ZeroSentinel)
-            //    {
-            //        try
-            //        {
-            //            _signalAwaiter[i] = null;
-            //            ZeroComply(waiter, _signalAwaiterState[i], _signalExecutionState[i], _signalCapturedContext[i], true, true);
-            //        }
-            //        catch
-            //        {
-            //            // ignored
-            //        }
-            //    }
-            //    i++;
-            //}
+            var i = 0;
+            while (i < _signalAwaiter.Length)
+            {
+                var latch = _signalAwaiter[i];
+                var waiter = Interlocked.CompareExchange(ref _signalAwaiter[i], ZeroSentinel, latch);
+                if (waiter == latch && latch != null && latch != ZeroSentinel)
+                {
+                    try
+                    {
+                        _signalAwaiter[i] = null;
+                        ZeroComply(waiter, _signalAwaiterState[i], _signalExecutionState[i], _signalCapturedContext[i], true, true);
+                    }
+                    catch
+                    {
+                        // ignored
+                    }
+                }
+                i++;
+            }
 
             Array.Clear(_signalAwaiter, 0, _maxBlockers);
             Array.Clear(_signalAwaiterState, 0, _maxBlockers);

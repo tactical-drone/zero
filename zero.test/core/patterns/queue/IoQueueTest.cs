@@ -1,9 +1,11 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Runtime.InteropServices.ComTypes;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.VisualStudio.Threading;
 using Xunit;
 using Xunit.Abstractions;
 using zero.core.misc;
@@ -541,30 +543,97 @@ namespace zero.test.core.patterns.queue{
             Assert.True(dequeTask.IsCompletedSuccessfully);
         }
 
+        
+        const int BlockDelay = 100;
+        const int Concurrency = 10;
+        const int NrOfItems = Concurrency * 10;
         [Fact]
         async Task QueueBackPressureBlockingAsync()
         {
+            
             _blockCancellationSignal = new CancellationTokenSource();
-            _queuePressure = new IoQueue<IoInt32>("test Q", 2, 2, disablePressure: false, enableBackPressure: true);
+            _queuePressure = new IoQueue<IoInt32>("test Q", Concurrency, Concurrency, disablePressure: false, enableBackPressure: true);
+            
+            //await Task.Yield();
 
-            await Task.Yield();
+            for (var i = 0; i < Concurrency; i++)
+                await _queuePressure.EnqueueAsync(i);
 
-            await _queuePressure.EnqueueAsync(0);
-
-            var item = await _queuePressure.DequeueAsync().FastPath().ConfigureAwait(_zc);
-            Assert.NotNull(item);
-
-
-            var t = Task.Factory.StartNew(async () =>
+            _output.WriteLine($"Processing {NrOfItems}");
+            var q = Task.Factory.StartNew(async o =>
             {
-                await Task.Delay(500);
-                await _queuePressure.ZeroManagedAsync<object>(zero: true).FastPath().ConfigureAwait(_zc);
-            });
+                var output = (ITestOutputHelper)o;
+                var eqList = new List<Task<IoQueue<IoInt32>.IoZNode>>(Concurrency);
+                long ave = 0;
+                for (var i = 0; i < NrOfItems/Concurrency && !_queuePressure.Zeroed; i++)
+                {
+                    var ts = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+                    
+                    for (int j = 0; j < Concurrency; j++)
+                    {
+                        eqList.Add(_queuePressure.EnqueueAsync(i + j).AsTask());
+                    }
 
-            var ts = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-            var dqBlocking = await _queuePressure.DequeueAsync().FastPath().ConfigureAwait(_zc);
-            Assert.Null(dqBlocking);
-            Assert.InRange(ts.ElapsedMs(), 400, 2000);
+                    await Task.WhenAll(eqList);
+
+                    if (_queuePressure.Zeroed)
+                        break;
+
+                    Assert.InRange(ts.ElapsedMs(), BlockDelay, BlockDelay * 4);
+
+                    foreach (var t in eqList)
+                    {
+                        Assert.NotNull(t.Result);
+                        Assert.True(t.Result.Value < (i + 1) * Concurrency);
+                    }
+
+                    eqList.Clear();
+
+                    output.WriteLine($"Inserted count = { (i + 1) * Concurrency}, t = {ts.ElapsedMs()}ms ~ {BlockDelay}");
+                    ave += ts.ElapsedMs();
+                }
+                Assert.InRange(ave / (NrOfItems / Concurrency), BlockDelay, BlockDelay * 2);
+            },_output).Unwrap();
+
+            var dq = Task.Factory.StartNew(async o =>
+            {
+                var output = (ITestOutputHelper)o;
+                var count = 0;
+                var dqList = new List<Task<IoInt32>>(Concurrency);
+                while (!_queuePressure.Zeroed)
+                {
+                    await Task.Delay(BlockDelay);
+                    
+                    for (int j = 0; j < Concurrency - 1; j++)
+                    {
+                        dqList.Add(_queuePressure.DequeueAsync().AsTask());
+                        //output.WriteLine(".");
+                        count++;
+                    }
+
+                    await Task.WhenAll(dqList);
+
+                    foreach (var t in dqList)
+                    {
+                        Assert.NotNull(t.Result);
+                        Assert.True(t.Result < count + Concurrency);
+                    }
+
+                    dqList.Clear();
+                    
+                    output.WriteLine($"processed count = {count}");
+                    if (++count >= NrOfItems)
+                    {
+                        output.WriteLine($"DONE! count = {count}");
+                        await _queuePressure.ZeroManagedAsync<object>(zero:true);
+                    }
+                }
+                Assert.Equal(NrOfItems, count);
+                
+            }, _output).Unwrap();
+
+            await Task.WhenAll(q,dq).WithTimeout(TimeSpan.FromSeconds(BlockDelay * NrOfItems / Concurrency * 2));
+
         }
 
         public class Context : IDisposable
