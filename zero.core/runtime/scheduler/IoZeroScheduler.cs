@@ -293,7 +293,7 @@ namespace zero.core.runtime.scheduler
             //poll a worker, or create a new one if none are available
             try
             {
-                if (!ThreadPool.QueueUserWorkItem(static state => 
+                if (!ThreadPool.UnsafeQueueUserWorkItem(static state => 
                     {
                         var (@this, s, workerId) = (ValueTuple<IoZeroScheduler, ZeroSignal, int>)state;
 
@@ -802,15 +802,48 @@ var d = 0;
             return polled;
         }
 
-        /// <summary>
-        /// Tries to execute the task inline
-        /// </summary>
-        /// <param name="task">The task the execute</param>
-        /// <param name="taskWasPreviouslyQueued">If the task was previously queued</param>
-        /// <returns>true if executed, false otherwise</returns>
+        /// <summary>Tries to execute the task synchronously on this scheduler.</summary>
+        /// <param name="task">The task to execute.</param>
+        /// <param name="taskWasPreviouslyQueued">Whether the task was previously queued to the scheduler.</param>
+        /// <returns>true if the task could be executed; otherwise, false.</returns>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        protected override bool TryExecuteTaskInline(Task task, bool taskWasPreviouslyQueued) => TryExecuteTask(task);
-        
+        protected override bool TryExecuteTaskInline(Task task, bool taskWasPreviouslyQueued)
+        {
+            if (taskWasPreviouslyQueued && !Thread.CurrentThread.IsThreadPoolThread)
+                return false;
+
+            return (!taskWasPreviouslyQueued) ?
+                TryExecuteTask(task) :
+                TryExecuteTaskInlineOnTargetScheduler(task);
+        }
+
+        /// <summary>
+        /// Implements a reasonable approximation for TryExecuteTaskInline on the underlying scheduler,
+        /// which we can't call directly on the underlying scheduler.
+        /// </summary>
+        /// <param name="task">The task to execute inline if possible.</param>
+        /// <returns>true if the task was inlined successfully; otherwise, false.</returns>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private bool TryExecuteTaskInlineOnTargetScheduler(Task task)
+        {
+            var t = new Task<bool>(s =>
+            {
+                var tuple = (ValueTuple<IoZeroScheduler, Task>)s!;
+                return tuple.Item1.TryExecuteTask(tuple.Item2);
+            }, (this, task));
+            try
+            {
+                t.RunSynchronously(Default);
+                return t.Result;
+            }
+            catch
+            {
+                _ = t.Exception;
+                throw;
+            }
+            finally { t.Dispose(); }
+        }
+
         /// <summary>
         /// returns a diagnostic result back into the heap
         /// </summary>
