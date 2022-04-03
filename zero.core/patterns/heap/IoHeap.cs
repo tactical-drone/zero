@@ -38,7 +38,7 @@ namespace zero.core.patterns.heap
         {
             _description = description;
             Malloc = malloc;
-            _ioHeapBuf = new IoZeroQ<TItem>($"{nameof(_ioHeapBuf)}: {description}", capacity, Malloc.Invoke(null, null) ,autoScale);
+            _ioHeapBuf = new IoZeroQ<TItem>($"{nameof(_ioHeapBuf)}: {description}", capacity,autoScale);
             Context = context;
         }
 
@@ -146,10 +146,8 @@ namespace zero.core.patterns.heap
                 if (!_ioHeapBuf.TryDequeue(out var heapItem))
                 {
                     if (_refCount == _ioHeapBuf.Capacity && !IsAutoScaling)
-                    {
-                        throw new OutOfMemoryException($"{nameof(_ioHeapBuf)}: {_ioHeapBuf.Description}");
-                    }
-                    
+                        throw new OutOfMemoryException($"{nameof(_ioHeapBuf)}: Heap -> {Description}: Q -> {_ioHeapBuf.Description}");
+
                     Interlocked.Increment(ref _refCount);
                     heapItem = Malloc(userData, Context);
 
@@ -168,15 +166,13 @@ namespace zero.core.patterns.heap
             }
             catch when (_zeroed > 0) { }
             catch (Exception) when (_ioHeapBuf.Zeroed) { }
-            catch (Exception e) when(!Zeroed)
+            catch (Exception e) when(!Zeroed && !_ioHeapBuf.Zeroed)
             {
                 _logger.Error(e, $"{GetType().Name}: Failed to malloc {typeof(TItem)}");
             }
             
             return default;
         }
-
-        private static readonly ValueTask<TItem> FromNullTask = new ValueTask<TItem>((TItem) default);
 
         /// <summary>
         /// Returns an item to the heap

@@ -24,7 +24,7 @@ namespace zero.test.core.patterns.queue
         void InsertTest()
         {
 
-            var bag = new IoZeroQ<IoInt32>("test", 16, 0,true);
+            var bag = new IoZeroQ<IoInt32>("test", 16,true);
 
             for (int i = 0; i < bag.Capacity - 1; i++)
             {
@@ -71,7 +71,7 @@ namespace zero.test.core.patterns.queue
         {
             var threads = 32;
             
-            var bag = new IoZeroQ<IoInt32>("test", 128, 0,true);
+            var bag = new IoZeroQ<IoInt32>("test", 128,true);
             await Task.Yield();
             var c = 0;
             foreach (var ioInt32 in bag)
@@ -127,7 +127,7 @@ namespace zero.test.core.patterns.queue
         {
             var threads = Environment.ProcessorCount * 4;
             var initialSize = 128;
-            var bag = new IoZeroQ<IoInt32>("test", 128, 0, true);
+            var bag = new IoZeroQ<IoInt32>("test", 128, true);
             await Task.Yield();
             var c = 0;
             foreach (var ioInt32 in bag)
@@ -152,14 +152,12 @@ namespace zero.test.core.patterns.queue
                 spam.Add(Task.Factory.StartNew(static state =>
                 {
                     var (@this, bag, idx) = (ValueTuple<IoQTest, IoZeroQ<IoInt32>, int>)state!;
-                    for (int i = 0; i < InsertsPerThread; i++)
-                    {
-                        if (bag.TryDequeue(out var item))
-                        {
-                            Interlocked.Decrement(ref idx);
-                        }
-                    }
 
+                    while (bag.Count > 0)
+                    {
+                        if(bag.TryDequeue(out var item))
+                            Interlocked.Decrement(ref idx);
+                    }
                 }, (this, bag, idx), TaskCreationOptions.DenyChildAttach));
             }
 
@@ -190,7 +188,7 @@ namespace zero.test.core.patterns.queue
         [Fact]
         void AutoScale()
         {
-            var bag = new IoZeroQ<IoInt32>("test", 2, 0,true);
+            var bag = new IoZeroQ<IoInt32>("test", 2,true);
 
             bag.TryEnqueue(0);
             bag.TryEnqueue(1);
@@ -227,7 +225,7 @@ namespace zero.test.core.patterns.queue
         [Fact]
         void ZeroSupport()
         {
-            var bag = new IoZeroQ<IoInt32>("test", 2, 0,true);
+            var bag = new IoZeroQ<IoInt32>("test", 2,true);
 
             bag.TryEnqueue(0);
             bag.TryEnqueue(1);

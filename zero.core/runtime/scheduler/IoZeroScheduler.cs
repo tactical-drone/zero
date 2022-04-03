@@ -3,9 +3,11 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
 using NLog;
+using NLog.Config;
 using zero.core.misc;
 using zero.core.patterns.heap;
 using zero.core.patterns.misc;
@@ -37,19 +39,18 @@ namespace zero.core.runtime.scheduler
             _queenCount = Math.Max(Environment.ProcessorCount >> 4, 1) + 1;
             var capacity = MaxWorker;
 
-            _workQueue = new IoZeroQ<Task>(string.Empty, capacity, new Task(() => {}), false);
-            _queenQueue = new IoZeroQ<ZeroSignal>(string.Empty, capacity, new ZeroSignal(), false);
-            _signalHeap = new IoHeap<ZeroSignal>(string.Empty, capacity, (_, _) => new ZeroSignal(), false)
+            _workQueue = new IoZeroQ<Task>(string.Empty, capacity * 2, true);
+            _queenQueue = new IoZeroQ<ZeroSignal>(string.Empty, capacity, true);
+            _signalHeap = new IoHeap<ZeroSignal>(string.Empty, capacity, (_, _) => new ZeroSignal(), true)
             {
                 PopAction = (signal, _) =>
                 {
                     signal.Processed = 0;
-                    signal.TaskId = -1;
                     signal.Task = null;
                 }
             };
 
-            _diagnosticsHeap = new IoHeap<List<int>>(string.Empty, capacity, (context, _) => new List<int>(context is int i ? i : 0), false)
+            _diagnosticsHeap = new IoHeap<List<int>>(string.Empty, capacity, (context, _) => new List<int>(context is int i ? i : 0), true)
             {
                 PopAction = (list, _) =>
                 {
@@ -88,11 +89,11 @@ namespace zero.core.runtime.scheduler
         {
             public volatile Task Task;
             public volatile int Processed = -1;
-            public volatile int TaskId = -2;
         }
 
-        private static readonly int WorkerSpawnRate = 200;
-        private static readonly int MaxWorker = (int)Math.Pow(2, Math.Max((Environment.ProcessorCount>>1) + 1, 17));
+        //The rate at which the scheduler will be allowed to "burst" allowing per tick unchecked new threads to be spawned until one of them spawns
+        private static readonly int WorkerSpawnBurstTimeMs = 100;
+        private static readonly int MaxWorker = (int)Math.Pow(2, Math.Max((Environment.ProcessorCount >> 1) + 1, 17));
         public static readonly TaskScheduler ZeroDefault;
         public static readonly IoZeroScheduler Zero;
         private readonly CancellationTokenSource _asyncTasks;
@@ -261,6 +262,7 @@ namespace zero.core.runtime.scheduler
         /// <param name="s">The signal to be sent</param>
         /// <param name="id">The queen id</param>
         /// <returns>True if successful, false otherwise</returns>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         static bool QueenHandler(IoZeroScheduler @this, ZeroSignal s, int id)
         {
             var ts = Environment.TickCount;
@@ -276,7 +278,7 @@ namespace zero.core.runtime.scheduler
             catch (Exception e)
             {
                 Console.WriteLine($"--> ???");
-                Console.WriteLine($"--> {e.Message}, s = {s}, p = {s?.Processed}, task = {s?.Task}, status = {s?.Task?.Id} ({s?.TaskId})");
+                Console.WriteLine($"--> {e.Message}, s = {s}, p = {s?.Processed}, task = {s?.Task}, status = {s?.Task?.Id}");
                 return false;
             }
             //catch when(s?.Processed > 0){}
@@ -291,7 +293,8 @@ namespace zero.core.runtime.scheduler
             //poll a worker, or create a new one if none are available
             try
             {
-                if (!ThreadPool.UnsafeQueueUserWorkItem(static state => {
+                if (!ThreadPool.QueueUserWorkItem(static state => 
+                    {
                         var (@this, s, workerId) = (ValueTuple<IoZeroScheduler, ZeroSignal, int>)state;
 
                         if (s.Processed > 0)
@@ -343,27 +346,23 @@ namespace zero.core.runtime.scheduler
 
                             Interlocked.MemoryBarrierProcessWide();
                             //spawn more workers, the ones we have are deadlocked
-                            if (blocked.Count >= @this._workerCount && @this._lastSpawnedWorker.ElapsedMs() > WorkerSpawnRate)
+                            if (blocked.Count >= @this._workerCount && @this._lastSpawnedWorker.ElapsedMs() > WorkerSpawnBurstTimeMs)
                             {
                                 var newWorkerId = Interlocked.Increment(ref @this._workerCount) - 1;
                                 if (newWorkerId < MaxWorker)
                                 {
 #if __TRACE__
-                                Console.WriteLine($"spawning more workers q[{newWorkerId}] = {@this._workQueue.Count}, l = {@this.Load}, {@this.Free.Count()}/{@this.Blocked.Count()}/{@this.Active.Count()}");
+                                    Console.WriteLine($"spawning more workers q[{newWorkerId}] = {@this._workQueue.Count}, l = {@this.Load}, {@this.Free.Count()}/{@this.Blocked.Count()}/{@this.Active.Count()}");
 #endif
-                                    @this._lastSpawnedWorker = Environment.TickCount;
-
                                     Volatile.Write(ref @this._pollWorker[newWorkerId], MallocWorkTaskCore);
-                                    var spawnWorker = @this.SpawnWorker<Task>;
-                                    spawnWorker($"zero scheduler worker thread {newWorkerId}", newWorkerId,
-                                        @this._workQueue, s.Task, ThreadPriority.Normal, WorkerHandler);
+                                    @this.SpawnWorker<Task>($"zero scheduler worker thread {newWorkerId}", newWorkerId, @this._workQueue, s.Task, ThreadPriority.Normal, WorkerHandler);
+                                    @this._lastSpawnedWorker = Environment.TickCount;
                                 }
                                 else
                                 {
                                     Interlocked.Decrement(ref @this._workerCount);
                                 }
                             }
-
                         }
                         finally
                         {
@@ -396,6 +395,7 @@ namespace zero.core.runtime.scheduler
             return true;
         }
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private static bool WorkerHandler(IoZeroScheduler ioZeroScheduler, Task task, int id)
         {
             var s = task.Status == TaskStatus.WaitingToRun && ioZeroScheduler.TryExecuteTask(task);
@@ -658,27 +658,18 @@ var d = 0;
                 }
             }
 
+            var t = new Thread(ThreadWorker)
+            {
+                IsBackground = true,
+                Name = $"{desc}[{id}]"
+            };
+
+            t.Start((this, queue, desc, id, prime, callback, priority));
+
             if (priority == ThreadPriority.Highest)
-            {
                 Volatile.Write(ref _queenPunchCards[id], 0);
-                Task.Factory.StartNew(ThreadWorker, (this, queue, desc, id, prime, callback, priority), _asyncTasks.Token, TaskCreationOptions.DenyChildAttach  | TaskCreationOptions.HideScheduler, Default);
-            }
             else
-            {
                 Volatile.Write(ref _workerPunchCards[id], 0);
-                Task.Factory.StartNew(ThreadWorker, (this, queue, desc, id, prime, callback, priority), _asyncTasks.Token, TaskCreationOptions.DenyChildAttach | TaskCreationOptions.HideScheduler, Default);
-            }
-                
-
-            //var t = new Thread(ThreadWorker)
-            //{
-            //    IsBackground = true,
-            //    Name = $"{desc}[{id}]",
-            //};
-
-
-            //t.Start((this, queue, desc, id, prime, callback, priority));
-
         }
 
         /// <summary>
@@ -689,36 +680,33 @@ var d = 0;
         {
             return _workQueue;
         }
-        
+
         /// <summary>
         /// Queue this task to the scheduler
         /// </summary>
         /// <param name="task">The task</param>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         protected override void QueueTask(Task task)
         {
 #if _TRACE_
             Console.WriteLine($"<--- Queueing task id = {task.Id}, {task.Status}");
 #endif
-
-            if (task.Status > TaskStatus.WaitingToRun)
+            if (task.CreationOptions.HasFlag(TaskCreationOptions.LongRunning))
+            {
+                new Thread(state =>
+                {
+                    var (@this, t) = (ValueTuple<IoZeroScheduler, Task>)state;
+                    @this.TryExecuteTask(t);
+                })
+                {
+                    IsBackground = true,
+                    Name = ".Zero LongRunning Thread"
+                }.Start((this, task));
                 return;
-
-            //if (task.CreationOptions.HasFlag(TaskCreationOptions.LongRunning))
-            //{
-            //    new Thread(state =>
-            //    {
-            //        var (@this, t) = (ValueTuple<IoZeroScheduler, Task>)state;
-            //        @this.TryExecuteTask(t);
-            //    })
-            //    {
-            //        IsBackground = true,
-            //        Name = ".Zero LongRunning Thread"
-            //    }.Start((this, task));
-            //    return;
-            //}
+            }
 
             //queue the work for processing
-            if ( _workQueue.TryEnqueue(task) != -1)
+            if (_workQueue.TryEnqueue(task) != -1)
                 PollQueen(task);
             else
             {
@@ -731,24 +719,10 @@ var d = 0;
         /// </summary>
         /// <param name="task">A task associated with this poll</param>
         /// <returns>True if a poll was sent, false otherwise</returns>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private bool PollQueen(Task task)
         {
             Debug.Assert(task != null);
-            //if there is a queen to be polled
-            var qBlocked = QBlocked;
-            try
-            {
-                if (_queenCount - qBlocked.Count() <= 0 || QLength > MaxWorker >> 1) //TODO: What is going on here?
-                    return false;
-            }
-            catch(Exception e)
-            {
-                Console.WriteLine(e);
-            }
-            finally
-            {
-                _diagnosticsHeap.Return(qBlocked);
-            }
 
             ZeroSignal zeroSignal = null;
             ZeroSignal tmpSignal;
@@ -762,7 +736,6 @@ var d = 0;
                 //prepare work queen poll signal
                 
                 zeroSignal.Task = task;
-                zeroSignal.TaskId = task.Id;
 
                 if (task.Status <= TaskStatus.WaitingToRun)
                 {
@@ -772,11 +745,11 @@ var d = 0;
                     }
                     else
                     {
-                        Console.WriteLine("Failed to EQ");
+                        Console.WriteLine($"Failed to EQ: {_queenQueue.Description}");
                     }
                 }
                 else
-                    return true;
+                    return false;
             }
             finally
             {
@@ -787,47 +760,37 @@ var d = 0;
             if (zeroSignal != null)
                 return false;
             
-            //poll a queen that there is work to be done, forever
+            //poll a queen that there is work to be done
             var qId = _queenCount;
             while (!polled && task.Status <= TaskStatus.WaitingToRun && qId-- > 0)
             {
-                if (tmpSignal.Processed > 0)
+                if (tmpSignal.Processed > 0 || Volatile.Read(ref _queenPunchCards[qId]) == 1)
                 {
-                    polled = true;
+                    polled = false;
                     break;
                 }
-
-                if (_queenPunchCards[qId] == 1)
-                    continue;
-
+                
                 var q = _pollQueen[qId];
-                try
+                
+                if (tmpSignal.Processed == 0 && Volatile.Read(ref _queenPunchCards[qId]) == 0)
                 {
-                    if (tmpSignal.Processed == 0 && _queenPunchCards[qId] == 0)
+                    if (q.Ready())//TODO: Design flaw
                     {
-                        if (q.Ready())//TODO: Design flaw
-                        {
 
-                            try
-                            {
-                                q.SetResult(true);
+                        try
+                        {
+                            q.SetResult(true);
 #if _TRACE_
-                            Console.WriteLine($"load = {QLoad}, Polled queen {qId} for task id {task.Id}");
+                        Console.WriteLine($"load = {QLoad}, Polled queen {qId} for task id {task.Id}");
 #endif
-                                polled = true;
-                                break;
-                            }
-                            catch
-                            {
-                                // ignored
-                            }
+                            polled = true;
+                            break;
+                        }
+                        catch
+                        {
+                            // ignored
                         }
                     }
-                }
-                catch
-                {
-                    //polled = true;
-                    // ignored
                 }
             }
 
@@ -836,7 +799,6 @@ var d = 0;
                 Console.WriteLine($"Unable to poll any of the {_queenCount} queens. backlog = {_queenQueue.Count}, Load = {QLoad} !!!!!!!!");
 #endif
             
-
             return polled;
         }
 
@@ -846,30 +808,14 @@ var d = 0;
         /// <param name="task">The task the execute</param>
         /// <param name="taskWasPreviouslyQueued">If the task was previously queued</param>
         /// <returns>true if executed, false otherwise</returns>
-        protected override bool TryExecuteTaskInline(Task task, bool taskWasPreviouslyQueued)
-        {
-//            var s = TryExecuteTask(task);
-//            if (s)
-//            {
-//#if __TRACE__
-//                Console.WriteLine($"task id = {task.Id}, {task.Status} INLINED!");
-//#endif
-//            }
-//            else
-//            {
-//#if !__TRACE__
-//                //Console.WriteLine($"task id = {task.Id}, {task.Status} INLINE FAILED!");
-//#endif          
-//            }
-
-//            return s;
-            return TryExecuteTask(task);
-        }
-
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        protected override bool TryExecuteTaskInline(Task task, bool taskWasPreviouslyQueued) => TryExecuteTask(task);
+        
         /// <summary>
         /// returns a diagnostic result back into the heap
         /// </summary>
         /// <param name="value"></param>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Return(List<int> value)
         {
             _diagnosticsHeap.Return(value);

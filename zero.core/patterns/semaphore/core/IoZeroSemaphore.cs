@@ -1,5 +1,6 @@
 ﻿
 using System;
+using System.IO;
 using System.Runtime.CompilerServices;
 using System.Runtime.ExceptionServices;
 using System.Threading;
@@ -773,11 +774,18 @@ namespace zero.core.patterns.semaphore.core
 
                 if (slot != latch)
                     continue;
-
+#if DEBUG
+                int c = 0;
+#endif
                 //race for a waiter
                 while ((latch = _curWaitCount) > 0 &&
                        (slot = Interlocked.CompareExchange(ref _curWaitCount, latch - 1, latch)) != latch)
                 {
+#if DEBUG
+                    if (c++ > 5000000)
+                        throw new InternalBufferOverflowException($"{Description}");
+#endif
+
                     if (Zeroed())
                         break;
 
