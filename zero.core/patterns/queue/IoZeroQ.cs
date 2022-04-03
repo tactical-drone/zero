@@ -3,18 +3,13 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
-using System.IO;
 using System.Linq;
-using System.Net.Http.Headers;
 using System.Runtime.CompilerServices;
-using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
 using NLog;
-using zero.core.misc;
 using zero.core.patterns.misc;
 using zero.core.patterns.queue.enumerator;
-using zero.core.runtime.scheduler;
 using zero.@unsafe.core.math;
 
 namespace zero.core.patterns.queue
@@ -211,14 +206,13 @@ namespace zero.core.patterns.queue
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private T Exchange(long idx, T value)
         {
-            var i = 0;
             if (!IsAutoScaling) return Interlocked.Exchange(ref _fastStorage[idx % _capacity], value);
 
             if (idx < _capacity)
                 return Interlocked.Exchange(ref _fastStorage[idx], value);
 
             idx %= Capacity;
-            i = IoMath.Log2(unchecked((ulong)idx + 1));
+            var i = IoMath.Log2(unchecked((ulong)idx + 1));
             return Interlocked.Exchange(ref _storage[i][idx - ((1 << i) - 1)], value);
         }
 
@@ -273,19 +267,13 @@ namespace zero.core.patterns.queue
 
             try
             {
-                var c = 0;
-                var slot = _sentinel;
+                T slot = null;
                 long tail;
                 long insaneScale;
 
                 while ((tail = Tail) == Head + (insaneScale = Capacity) || _count < insaneScale && tail != Tail ||
                        (slot = CompareExchange(tail, item, null)) != null || tail != Tail)
                 {
-                    if (slot != _sentinel)
-                        CompareExchange(tail, null, item);
-
-                    slot = _sentinel;
-
                     if (Zeroed)
                         break;
 
