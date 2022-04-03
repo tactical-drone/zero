@@ -459,10 +459,10 @@ namespace zero.core.patterns.semaphore.core
                             break;
 
                         //reserve a signal
-                        if (Interlocked.CompareExchange(ref _curSignalCount, 0, 1) == 1)
+                        if (Interlocked.CompareExchange(ref _curWaitCount, 0, 1) == 1)
                         {
                             //race for a waiter
-                            if (Interlocked.CompareExchange(ref _curWaitCount, 0, 1) == 1)
+                            if (Interlocked.CompareExchange(ref _curSignalCount, 0, 1) == 1)
                             {
 
                                 TaskScheduler cc = null;
@@ -474,7 +474,7 @@ namespace zero.core.patterns.semaphore.core
                                 return;
                             }
 
-                            Interlocked.Increment(ref _curSignalCount); //dine on deadlock
+                            Interlocked.Increment(ref _curWaitCount); //dine on deadlock
                         }
                     }
 
@@ -763,9 +763,16 @@ namespace zero.core.patterns.semaphore.core
                 var slot = -1;
 
                 //reserve a signal
-                while ((latch = _curSignalCount) > 0 &&
-                       (slot = Interlocked.CompareExchange(ref _curSignalCount, latch - 1, latch)) != latch)
+#if DEBUG
+                var c = 0;
+#endif
+                while ((latch = _curWaitCount) > 0 &&
+                       (slot = Interlocked.CompareExchange(ref _curWaitCount, latch - 1, latch)) != latch)
                 {
+#if DEBUG
+                    if (c++ > 5000000)
+                        throw new InternalBufferOverflowException($"{Description}");
+#endif
                     if (Zeroed())
                         break;
 
@@ -775,11 +782,11 @@ namespace zero.core.patterns.semaphore.core
                 if (slot != latch)
                     continue;
 #if DEBUG
-                int c = 0;
+                c = 0;
 #endif
                 //race for a waiter
-                while ((latch = _curWaitCount) > 0 &&
-                       (slot = Interlocked.CompareExchange(ref _curWaitCount, latch - 1, latch)) != latch)
+                while ((latch = _curSignalCount) > 0 &&
+                       (slot = Interlocked.CompareExchange(ref _curSignalCount, latch - 1, latch)) != latch)
                 {
 #if DEBUG
                     if (c++ > 5000000)
@@ -794,7 +801,7 @@ namespace zero.core.patterns.semaphore.core
 
                 if (slot != latch)
                 {
-                    Interlocked.Increment(ref _curSignalCount); //dine on deadlock
+                    Interlocked.Increment(ref _curWaitCount); //dine on deadlock
                     continue;
                 }
 
@@ -807,11 +814,18 @@ namespace zero.core.patterns.semaphore.core
                 long headMod = -1;
                 Action<object> latched;
 
+#if DEBUG
+                c = 0;
+#endif
                 while ((head = Head) == Tail || //buffer overrun
                        (latched = _signalAwaiter[headMod = head % _maxBlockers]) == null || latched == ZeroSentinel || //or bad latches
                        (worker.Continuation = Interlocked.CompareExchange(ref _signalAwaiter[headMod],ZeroSentinel, latched)) != latched || //or race for latch failed
                        worker.Continuation == ZeroSentinel) // or race
                 {
+#if DEBUG
+                    if (c++ > 5000000)
+                        throw new InternalBufferOverflowException($"{Description}");
+#endif
                     if (Zeroed())
                         break;
 
@@ -819,7 +833,7 @@ namespace zero.core.patterns.semaphore.core
                     worker.Continuation = null;//retry
                 }
 
-                //nothing to release, this should never happen
+                //nothing to release, possible teardown state
                 if (worker.Continuation == null)
                     break;
 
@@ -889,19 +903,19 @@ namespace zero.core.patterns.semaphore.core
             if (slot != latch || Zeroed())
                 return new ValueTask<bool>(false);
 
-            //>>> FAST PATH on set
             //race with release after reservation
             while (_curSignalCount == 1 && _curWaitCount == 1)
             {
                 if (Zeroed())
                     break;
 
+                if (Interlocked.CompareExchange(ref _curWaitCount, 0, 1) != 1) continue;
+
+                //>>> FAST PATH on set
                 if (Interlocked.CompareExchange(ref _curSignalCount, 0, 1) == 1)
-                {
-                    if (Interlocked.CompareExchange(ref _curWaitCount, 0, 1) == 1)
-                        return new ValueTask<bool>(!Zeroed());
-                    Interlocked.Increment(ref _curSignalCount);
-                }
+                    return new ValueTask<bool>(!Zeroed());
+
+                Interlocked.Increment(ref _curWaitCount);
             }
 
             //> SLOW PATH

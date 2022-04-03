@@ -26,7 +26,7 @@ namespace zero.core.runtime.scheduler
         {
             Zero = new IoZeroScheduler();
             ZeroDefault = Zero;
-            //ZeroDefault = Default; //TODO: Uncomment to enable native .net scheduler...
+            ZeroDefault = Default; //TODO: Uncomment to enable native .net scheduler...
         }
         public IoZeroScheduler(CancellationTokenSource asyncTasks = null)
         {
@@ -270,25 +270,8 @@ namespace zero.core.runtime.scheduler
             Console.WriteLine($"Queen ASYNC handler... POLLING WORKER..."); 
 #endif
 
-            try
-            {
-                if (s.Processed > 0 || s.Task.Status > TaskStatus.WaitingToRun)
-                    return true;
-            }
-            catch (Exception e)
-            {
-                Console.WriteLine($"--> ???");
-                Console.WriteLine($"--> {e.Message}, s = {s}, p = {s?.Processed}, task = {s?.Task}, status = {s?.Task?.Id}");
+            if (s.Processed > 0 || s.Task.Status > TaskStatus.WaitingToRun)
                 return false;
-            }
-            //catch when(s?.Processed > 0){}
-            //catch (Exception e) when(s == null || s.Processed == 0)
-            //{
-            //    Console.WriteLine($"--> ???");
-            //    Console.WriteLine($"--> {e.Message}, s = {s}, p = {s?.Processed}, task = {s?.Task}, status = {s?.Task?.Id} ({s?.TaskId})");
-            //    return false;
-            //    //throw;
-            //}
 
             //poll a worker, or create a new one if none are available
             try
@@ -549,7 +532,7 @@ var d = 0;
                                     Interlocked.MemoryBarrier();
                                 }
 
-                                while (queue.TryDequeue(out var work) /*|| workerId == @this._workerCount*/)
+                                while (queue.TryDequeue(out var work))
                                 {
                                     try
                                     {
