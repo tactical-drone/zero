@@ -204,9 +204,9 @@ namespace zero.core.patterns.bushings
         [IoParameter]
         // ReSharper disable once InconsistentNaming
 #if DEBUG
-        public int parm_stats_mod_count = 20000;
+        public int parm_stats_mod_count = 50000;
 #else
-        public int parm_stats_mod_count = 10000000;
+        public int parm_stats_mod_count = 1000000;
 #endif
 
         /// <summary>

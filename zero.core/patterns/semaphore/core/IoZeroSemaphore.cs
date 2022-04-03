@@ -454,6 +454,9 @@ namespace zero.core.patterns.semaphore.core
                     //fast path, RACES with SetResult 
                     while (_curSignalCount == 1 && _curWaitCount == 1)
                     {
+                        if (Zeroed())
+                            break;
+
                         //reserve a signal
                         if (Interlocked.CompareExchange(ref _curSignalCount, 0, 1) == 1)
                         {
@@ -882,6 +885,9 @@ namespace zero.core.patterns.semaphore.core
             //race with release after reservation
             while (_curSignalCount == 1 && _curWaitCount == 1)
             {
+                if (Zeroed())
+                    break;
+
                 if (Interlocked.CompareExchange(ref _curSignalCount, 0, 1) == 1)
                 {
                     if (Interlocked.CompareExchange(ref _curWaitCount, 0, 1) == 1)
