@@ -24,6 +24,10 @@ namespace zero.core.patterns.queue
         /// <summary>
         /// Constructor
         /// </summary>
+        /// <param name="description">A description</param>
+        /// <param name="capacity">The initial capacity</param>
+        /// <param name="autoScale">This is pseudo scaling: If set, allows the internal buffers to grow (amortized) if buffer pressure drops below 50% after exceeding it, otherwise scaling is not possible</param>
+        /// <exception cref="ArgumentOutOfRangeException"></exception>
         public IoZeroQ(string description, int capacity, bool autoScale = false)
         {
 #if DEBUG
@@ -37,6 +41,9 @@ namespace zero.core.patterns.queue
             _autoScale = autoScale;
             if (autoScale)
             {
+                //TODO: tuning
+                capacity = Math.Max(Environment.ProcessorCount * 2, capacity);
+                capacity = Math.Max(4, capacity);
                 _hwm = _capacity = 1;
                 _storage = new T[32][];
                 _storage[0] = _fastStorage = new T[_capacity];
@@ -84,6 +91,7 @@ namespace zero.core.patterns.queue
 
         private volatile int _count;
         private volatile bool _autoScale;
+        private volatile int _primedForScale;
 
         /// <summary>
         /// ZeroAsync status
@@ -165,7 +173,16 @@ namespace zero.core.patterns.queue
 
             lock (_syncRoot)
             {
-                if (_count >= Capacity || force)
+                var cap2 = Capacity >> 1;
+
+                if (_primedForScale == 0)
+                {
+                    if (_count >= cap2)
+                        Interlocked.CompareExchange(ref _primedForScale, 1, 0);
+                }
+
+                //Only allow scaling to happen only when the Q dips under 50% capacity & some other factors, otherwise the indexes will corrupt.
+                if (_primedForScale == 1 && Head <= cap2 && Tail <= cap2 && Tail >= Head && Interlocked.CompareExchange(ref _primedForScale, 0, 1) == 1 || force)
                 {
                     var hwm = 1 << (_virility + 1);
                     _storage[_virility + 1] = new T[hwm];
@@ -220,12 +237,13 @@ namespace zero.core.patterns.queue
 
             Debug.Assert(Zeroed || item != null);
             
-            if (_count >= Capacity)
+            if (_primedForScale == 1 || _count >= Capacity>>1 )
             {
                 if (!_autoScale)
                     return -1;
-                
-                Scale();
+
+                if (!Scale() && _count >= Capacity)
+                    return -1;
             }
 
             if (deDup)
@@ -241,20 +259,17 @@ namespace zero.core.patterns.queue
                 int c = 0;
 #endif
 
-                T slot;
+                T slot = null;
                 long cap;
                 bool blocked, race = false;
 
-                while ((blocked = (tail = Tail) >= Head + (cap = Capacity)) || _count >= cap || tail != Tail  || this[tail] != null || (slot = CompareExchange(tail, item, null)) != null || (race = tail != Tail))
+                while ((blocked = (tail = Tail) >= Head + (cap = Capacity)) || _count >= cap || tail != Tail || (slot = CompareExchange(tail, item, null)) != null || (race = tail != Tail))
                 {
                     if (race)
                     {
                         if ((slot = CompareExchange(tail, null, item)) != item)
                         {
-                            if (slot != null && this[tail] != null)
-                            {
-                                LogManager.GetCurrentClassLogger().Warn($"{nameof(TryDequeue)}: Unable to restore lock to null at pos = {tail}, {Description}" );
-                            }
+                            LogManager.GetCurrentClassLogger().Fatal($"{nameof(TryEnqueue)}: Unable to restore lock at tail = {tail}, too {slot}, cur = {this[tail]}");
                         }
                     }
 #if DEBUG
@@ -265,13 +280,13 @@ namespace zero.core.patterns.queue
                     if (Zeroed || !IsAutoScaling && _count >= cap)
                         return -1;
 
-                    Interlocked.MemoryBarrierProcessWide();
-
-                    // ReSharper disable once ConditionIsAlwaysTrueOrFalse
-                    if (blocked)
-                        Thread.Yield();
+                    if(slot != null) 
+                        Interlocked.MemoryBarrierProcessWide();
+                    else
+                        Interlocked.MemoryBarrier();
 
                     race = false;
+                    Thread.Yield();
                 }
 #if DEBUG
                 Debug.Assert(Zeroed || slot == null);
@@ -314,42 +329,58 @@ namespace zero.core.patterns.queue
                 }
 
                 long head;
-                T result;
+                T slot = null;
 #if DEBUG
                 int c = 0;
 #endif
-                T latch;
-                while ((head = Head) >= Tail || (latch = this[head]) == _sentinel || latch == null ||
-                       (result = CompareExchange(head, _sentinel, latch)) != latch)
+                T latch = null;
+                //bool race = false;
+                while ((head = Head) >= Tail || (latch = this[head]) == _sentinel || latch == null || head != Head ||
+                       (slot = CompareExchange(head, _sentinel, latch)) != latch) //|| (race = head != Head))
                 {
+                    //TODO: I don't think this one is needed, overruns can handle because it looks for non null values
+                    //if (race)
+                    //{
+                    //    if ((slot = CompareExchange(head, latch, _sentinel)) != _sentinel)
+                    //    {
+                    //        LogManager.GetCurrentClassLogger().Fatal($"{nameof(TryEnqueue)}: Unable to restore lock at head = {head}, too {latch}, cur = {this[head]}");
+                    //    }
+                    //}
 #if DEBUG
                     if (c++ > 50000)
                         throw new InternalBufferOverflowException($"{Description}");
 #endif
-                    Interlocked.MemoryBarrierProcessWide();
+                    if(slot != null)
+                        Interlocked.MemoryBarrierProcessWide();
+                    else
+                        Interlocked.MemoryBarrier();
+
                     if (_count == 0 || Zeroed)
                     {
                         returnValue = null;
                         return false;
                     }
+
+                    slot = null;
+                    //race = false;
+                    Thread.Yield();
                 }
 
 
 #if DEBUG
                 Debug.Assert(Zeroed || this[head] == _sentinel);
-                Debug.Assert(Zeroed || result != null);
+                Debug.Assert(Zeroed || slot != null);
                 Debug.Assert(Zeroed || _count > 0);
                 Debug.Assert(Zeroed || head == Head);
                 Debug.Assert(Zeroed || head != Tail);
                 Interlocked.MemoryBarrier();
 #endif
                 Interlocked.Decrement(ref _count);
-                Interlocked.MemoryBarrier();
                 this[head] = null;//restore the sentinel
+                Interlocked.MemoryBarrier();
                 Interlocked.Increment(ref _head);
                 
-
-                returnValue = result;
+                returnValue = slot;
                 return true;
             }
             catch (Exception e)

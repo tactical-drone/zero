@@ -454,7 +454,11 @@ namespace zero.core.patterns.semaphore.core
                     if (_zeroed > 0)
                         break;
 
-                    Interlocked.MemoryBarrierProcessWide();
+                    //TODO: What is this?
+                    if (Tail % 2 == 0)
+                        Interlocked.MemoryBarrierProcessWide();
+                    else
+                        Interlocked.MemoryBarrier();
                 }
 
                 if (slot == null)
@@ -782,6 +786,11 @@ namespace zero.core.patterns.semaphore.core
 #endif
                     if (Zeroed())
                         break;
+
+                    if (slot != -1)
+                        Interlocked.MemoryBarrierProcessWide();
+                    else
+                        Interlocked.MemoryBarrier();
 
                     slot = -1;
                 }

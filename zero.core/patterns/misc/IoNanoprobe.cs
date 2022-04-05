@@ -62,12 +62,13 @@ namespace zero.core.patterns.misc
 
             _concurrencyLevel = concurrencyLevel <= 0 ? 1 : concurrencyLevel;
 
+            //TODO: tuning
 #if DEBUG
-            _zeroHive = new IoQueue<IoZeroSub>($"{nameof(_zeroHive)} {description}", 16, _concurrencyLevel, autoScale:true);
-            _zeroHiveMind = new IoQueue<IIoNanite>($"{nameof(_zeroHiveMind)} {description}", 16, _concurrencyLevel, autoScale:true);
+            _zeroHive = new IoQueue<IoZeroSub>($"{nameof(_zeroHive)} {description}", 32, _concurrencyLevel, autoScale:true);
+            _zeroHiveMind = new IoQueue<IIoNanite>($"{nameof(_zeroHiveMind)} {description}", 32, _concurrencyLevel, autoScale:true);
 #else
-            _zeroHive = new IoQueue<IoZeroSub>(string.Empty, 16, _concurrencyLevel, autoScale:true);
-            _zeroHiveMind = new IoQueue<IIoNanite>(string.Empty, 16, _concurrencyLevel, autoScale: true);
+            _zeroHive = new IoQueue<IoZeroSub>(string.Empty, 64, _concurrencyLevel, autoScale:true);
+            _zeroHiveMind = new IoQueue<IIoNanite>(string.Empty, 64, _concurrencyLevel, autoScale: true);
 #endif
             ZeroSyncRoot(concurrencyLevel);
             
@@ -785,7 +786,7 @@ namespace zero.core.patterns.misc
         /// <returns>A ValueTask</returns>
         protected ValueTask ZeroAsync<T>(Func<T, ValueTask> continuation, T state, TaskCreationOptions options, TaskScheduler scheduler = null, bool unwrap = false, [CallerFilePath] string filePath = null, [CallerMemberName] string methodName = null, [CallerLineNumber] int lineNumber = default)
         {
-            return ZeroAsync<T>(continuation, state, AsyncTasks.Token, options, scheduler, unwrap, filePath, methodName: methodName, lineNumber);
+            return ZeroAsync(continuation, state, AsyncTasks.Token, options, scheduler, unwrap, filePath, methodName, lineNumber);
         }
 
         /// <summary>

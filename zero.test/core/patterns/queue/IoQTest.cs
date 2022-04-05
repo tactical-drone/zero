@@ -26,14 +26,15 @@ namespace zero.test.core.patterns.queue
         void InsertTest()
         {
 
+            var cap = 16;
             var bag = new IoZeroQ<IoInt32>("test", 16,true);
 
-            for (int i = 0; i < bag.Capacity - 1; i++)
+            for (int i = 0; i < cap - 1; i++)
             {
                 bag.TryEnqueue(i);
             }
 
-            Assert.True(bag.Contains((IoInt32)(bag.Capacity / 2)));
+            Assert.True(bag.Contains((IoInt32)(cap / 2)));
 
             var sb = new StringBuilder();
 
@@ -42,7 +43,7 @@ namespace zero.test.core.patterns.queue
                 sb.Append($"{i}");
             }
 
-            Assert.Equal("012345678910111213", sb.ToString());
+            Assert.Equal("01234567891011121314", sb.ToString());
 
             foreach (var i in bag)
             {
@@ -54,7 +55,7 @@ namespace zero.test.core.patterns.queue
                     break;
             }
 
-            Assert.Equal("01234567891011121301234567891011", sb.ToString());
+            Assert.Equal("0123456789101112131401234567891011", sb.ToString());
 
             foreach (var i in bag)
             {
@@ -62,16 +63,17 @@ namespace zero.test.core.patterns.queue
                 sb.Append($"{i}");
             }
 
-            Assert.Equal("0123456789101112130123456789101101234567891011121311", sb.ToString());
+            Assert.Equal("01234567891011121314012345678910110123456789101112131411", sb.ToString());
         }
 
 
         [Fact]
         public async Task IteratorAsync()
         {
-            var threads = 32;
-            
-            var bag = new IoZeroQ<IoInt32>("test", 128,true);
+            //var threads = Environment.ProcessorCount;
+            var threads = 1;
+
+            var bag = new IoZeroQ<IoInt32>("test", 8192,true);
             await Task.Yield();
             var c = 0;
             foreach (var ioInt32 in bag)
@@ -83,20 +85,38 @@ namespace zero.test.core.patterns.queue
             var insert = new List<Task>();
             for (var i = 0; i < threads; i++)
             {
+                if(i < threads>>1)
+                    insert.Add(Task.Factory.StartNew(static state =>
+                    {
+                        var (@this, bag, threads) = (ValueTuple<IoQTest, IoZeroQ<IoInt32>, int>)state!;
+                        var c = 0;
+                        while (c < InsertsPerThread)
+                        {
+                            if (bag.TryDequeue(out var _))
+                            {
+                                if (Interlocked.Increment(ref @this.SpamTestAsyncThreadsDone) >=
+                                    threads * InsertsPerThread)
+                                {
+                                    break;
+                                }
+                                c++;
+                            }
+                        }
+                        @this._output.WriteLine($"{c} dq done");
+                    }, (this, bag, threads), TaskCreationOptions.DenyChildAttach));
+
                 insert.Add(Task.Factory.StartNew(static state =>
                 {
-                    var (@this,bag, idx) = (ValueTuple<IoQTest, IoZeroQ<IoInt32>, int>)state!;
+                    var (@this,bag) = (ValueTuple<IoQTest, IoZeroQ<IoInt32>>)state!;
                     var c = 0;
                     while (c < InsertsPerThread)
                     {
-                        if (bag.TryEnqueue(Interlocked.Increment(ref idx)) != -1)
+                        if (bag.TryEnqueue(Interlocked.Increment(ref @this.SpamTestAsyncThreadId)) != -1)
                         {
                             c++;
                         }
                     }
-                        
-                    
-                }, (this, bag, idx), TaskCreationOptions.DenyChildAttach));
+                }, (this, bag), TaskCreationOptions.DenyChildAttach));
             }
 
             await Task.WhenAll(insert).WaitAsync(TimeSpan.FromSeconds(10));
@@ -137,11 +157,11 @@ namespace zero.test.core.patterns.queue
         [Fact]
         public async Task SpamTestAsync()
         {
-            SpamTestAsyncThreadCount = Environment.ProcessorCount * 1;
+            SpamTestAsyncThreadCount = Environment.ProcessorCount * 2;
 
-            var initialSize = 16384 << 2;
+            var initialSize = 16384 <<4;
             //var initialSize = 64;
-            var bag = new IoZeroQ<IoInt32>("test", initialSize, false); //TODO: fix this test with scaling
+            var bag = new IoZeroQ<IoInt32>("test", initialSize, true); //TODO: fix this test with scaling
             
             var c = 0;
             foreach (var ioInt32 in bag)
@@ -155,11 +175,35 @@ namespace zero.test.core.patterns.queue
             Task t = null;
             for (var i = 0; i < SpamTestAsyncThreadCount; i++)
             {
+                if (i < SpamTestAsyncThreadCount/2)
+                    spam.Add(Task.Factory.StartNew(static state =>
+                    {
+                        var (@this, bag) = (ValueTuple<IoQTest, IoZeroQ<IoInt32>>)state!;
+
+                        var tries = 0;
+                        var success = 0;
+                        var ts = Environment.TickCount;
+                        while (!@this.SpamTestAsyncDone || bag.Count > 0)
+                        {
+                            tries++;
+                            if (bag.TryDequeue(out var item))
+                            {
+                                success++;
+                            }
+                            else
+                            {
+                                Thread.Sleep(20);
+                            }
+                        }
+                        @this._output.WriteLine($"left = {success}/{tries} ({success / (tries + 1.0) * 100:0.0}%), {success * 1000 / (ts+1).ElapsedMs()} dq/s, t = {ts.ElapsedMs()}ms");
+                    }, (this, bag), TaskCreationOptions.DenyChildAttach));
+
                 spam.Add(Task.Factory.StartNew(static state =>
                 {
                     var (@this, bag) = (ValueTuple<IoQTest, IoZeroQ<IoInt32>>)state!;
                     var maxIdx = -1;
                     var success = 0;
+                    var ts = Environment.TickCount;
                     while (success < InsertsPerThread)
                     {
                         if (bag.TryEnqueue(Interlocked.Increment(ref @this.SpamTestAsyncThreadId)) != -1)
@@ -171,32 +215,11 @@ namespace zero.test.core.patterns.queue
                     }
 
                     Interlocked.Increment(ref @this.SpamTestAsyncThreadsDone);
-                    @this._output.WriteLine($"Max q size was = {maxIdx}, success ={success}");
-                }, (this, bag), TaskCreationOptions.DenyChildAttach));
-
-
-                spam.Add(Task.Factory.StartNew(static state =>
-                {
-                    var (@this, bag) = (ValueTuple<IoQTest, IoZeroQ<IoInt32>>)state!;
-
-                    var tries = 0;
-                    var success = 0;
-                    while (!@this.SpamTestAsyncDone || bag.Count > 0)
-                    {
-                        tries++;
-                        if (bag.TryDequeue(out var item))
-                        {
-                            success++;
-                        }
-                        else
-                        {
-                            Thread.Sleep(1);
-                        }
-                    }
-                    @this._output.WriteLine($"left = {success}/{tries} ({success / (tries + 1.0) * 100:0.0}%)");
+                    @this._output.WriteLine($"Max q size was = {maxIdx}, success ={success}, {success*1000/(ts+1).ElapsedMs()} q/s, t = {ts.ElapsedMs()}ms");
                 }, (this, bag), TaskCreationOptions.DenyChildAttach));
             }
 
+            
             spam.Add(Task.Factory.StartNew(static state =>
             {
                 var (@this, bag) = (ValueTuple<IoQTest, IoZeroQ<IoInt32>>)state!;
@@ -209,7 +232,7 @@ namespace zero.test.core.patterns.queue
 
             try
             {
-                await Task.WhenAll(spam).WaitAsync(TimeSpan.FromSeconds(10));
+                await Task.WhenAll(spam).WaitAsync(TimeSpan.FromSeconds(15));
             }
             catch (Exception e)
             {
@@ -243,23 +266,22 @@ namespace zero.test.core.patterns.queue
         void AutoScale()
         {
             var bag = new IoZeroQ<IoInt32>("test", 2, true);
+            var count = 64;
 
-            bag.TryEnqueue(0);
-            bag.TryEnqueue(1);
-            bag.TryEnqueue(2);
-            bag.TryEnqueue(3);
-            bag.TryEnqueue(4);
+            for (int i = 0; i < count; i++)
+            {
+                bag.TryEnqueue(i);
+            }
+            
+            Assert.Equal(255, bag.Capacity);
+            Assert.Equal(64, bag.Count);
 
-            Assert.Equal(7, bag.Capacity);
-            Assert.Equal(5, bag.Count);
+            for (int i = count; i < count + 5; i++)
+            {
+                bag.TryEnqueue(i);
+            }
 
-            bag.TryEnqueue(5);
-            bag.TryEnqueue(6);
-            bag.TryEnqueue(7);
-            bag.TryEnqueue(8);
-            bag.TryEnqueue(9);
-
-            Assert.Equal(15, bag.Capacity);
+            Assert.Equal(255, bag.Capacity);
 
             var p = -1;
             var c = bag.Count;
@@ -272,7 +294,7 @@ namespace zero.test.core.patterns.queue
                 }
             }
 
-            Assert.Equal(15, bag.Capacity);
+            Assert.Equal(255, bag.Capacity);
             Assert.Equal(0, bag.Count);
         }
 

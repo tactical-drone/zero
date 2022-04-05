@@ -339,7 +339,7 @@ namespace zero.test.core.patterns.queue{
         async Task AutoScaleAsync()
         {
             await Task.Yield();
-            var q = new IoQueue<int>("test Q", 1, 1, autoScale:true);
+            var q = new IoQueue<int>("test Q", 2, 1, autoScale:true);
 
             await q.EnqueueAsync(0);
             await q.EnqueueAsync(1);
@@ -353,7 +353,7 @@ namespace zero.test.core.patterns.queue{
             await q.DequeueAsync();
             await q.DequeueAsync();
 
-            Assert.Equal(7, q.Capacity);
+            Assert.Equal(63, q.Capacity);
         }
 
         private IoQueue<IoInt32> _queuePressure = null!;
