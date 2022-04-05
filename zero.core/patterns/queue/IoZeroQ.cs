@@ -123,7 +123,7 @@ namespace zero.core.patterns.queue
 
                 if (!IsAutoScaling) return Volatile.Read(ref _fastStorage[idx % _capacity]);
 
-                //idx %= Capacity;
+                idx %= Capacity;
                 var i = IoMath.Log2(unchecked((ulong)idx + 1));
                 return Volatile.Read(ref _storage[i][idx - ((1 << i) - 1)]);
             }
@@ -138,7 +138,7 @@ namespace zero.core.patterns.queue
                     return;
                 }
 
-                //idx %= Capacity;
+                idx %= Capacity;
                 var i = IoMath.Log2(unchecked((ulong)idx + 1));
                 _storage[i][idx - ((1 << i) - 1)] = value;
                 Interlocked.MemoryBarrier();
