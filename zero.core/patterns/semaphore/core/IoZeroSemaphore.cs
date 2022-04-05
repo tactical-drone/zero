@@ -440,10 +440,17 @@ namespace zero.core.patterns.semaphore.core
                 ZeroLock();
 #endif
                 Action<object> slot;
-                
+
+#if DEBUG
+                int c = 0;
+#endif
                 long tailMod;
                 while ((slot = Interlocked.CompareExchange(ref _signalAwaiter[tailMod = Tail % _maxBlockers], ZeroSentinel, null)) != null)
                 {
+#if DEBUG
+                    if (c++ > 500000)
+                        throw new InternalBufferOverflowException($"{Description}");
+#endif
                     if (_zeroed > 0)
                         break;
 
@@ -770,7 +777,7 @@ namespace zero.core.patterns.semaphore.core
                        (slot = Interlocked.CompareExchange(ref _curWaitCount, latch - 1, latch)) != latch)
                 {
 #if DEBUG
-                    if (c++ > 5000000)
+                    if (c++ > 500000)
                         throw new InternalBufferOverflowException($"{Description}");
 #endif
                     if (Zeroed())
@@ -789,7 +796,7 @@ namespace zero.core.patterns.semaphore.core
                        (slot = Interlocked.CompareExchange(ref _curSignalCount, latch - 1, latch)) != latch)
                 {
 #if DEBUG
-                    if (c++ > 5000000)
+                    if (c++ > 500000)
                         throw new InternalBufferOverflowException($"{Description}");
 #endif
 
@@ -823,7 +830,7 @@ namespace zero.core.patterns.semaphore.core
                        worker.Continuation == ZeroSentinel) // or race
                 {
 #if DEBUG
-                    if (c++ > 5000000)
+                    if (c++ > 500000)
                         throw new InternalBufferOverflowException($"{Description}");
 #endif
                     if (Zeroed())

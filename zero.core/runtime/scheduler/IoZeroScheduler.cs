@@ -26,7 +26,7 @@ namespace zero.core.runtime.scheduler
         {
             Zero = new IoZeroScheduler();
             ZeroDefault = Zero;
-            ZeroDefault = Default; //TODO: Uncomment to enable native .net scheduler...
+            //ZeroDefault = Default; //TODO: Uncomment to enable native .net scheduler...
         }
         public IoZeroScheduler(CancellationTokenSource asyncTasks = null)
         {
@@ -40,7 +40,7 @@ namespace zero.core.runtime.scheduler
             var capacity = MaxWorker;
 
             _workQueue = new IoZeroQ<Task>(string.Empty, capacity * 2, true);
-            _queenQueue = new IoZeroQ<ZeroSignal>(string.Empty, capacity, true);
+            _queenQueue = new IoZeroQ<ZeroSignal>(string.Empty, capacity,true);
             _signalHeap = new IoHeap<ZeroSignal>(string.Empty, capacity, (_, _) => new ZeroSignal(), true)
             {
                 PopAction = (signal, _) =>

@@ -59,6 +59,8 @@ namespace zero.core.patterns.queue
             }
 
             _curEnumerator = new IoQEnumerator<T>(this);
+
+            _sentinel = Unsafe.As<T>(new object());
         }
 
         private volatile int _zeroed;
@@ -68,11 +70,11 @@ namespace zero.core.patterns.queue
         private T[][] _storage;
         private readonly T[] _fastStorage;
 
+        private readonly T _sentinel;
         private readonly object _syncRoot = new();
         private volatile int _capacity;
         private volatile int _virility;
         private long _hwm;
-        
         public long Tail => Interlocked.Read(ref _tail);
         private long _tail;
         public long Head => Interlocked.Read(ref _head);
@@ -118,31 +120,28 @@ namespace zero.core.patterns.queue
             get
             {
                 Debug.Assert(idx >= 0);
-                
-                if (!IsAutoScaling) return Volatile.Read(ref _fastStorage[idx % _capacity]);
-                if (idx < _capacity) return Volatile.Read(ref _fastStorage[idx]);
 
-                idx %= Capacity;
-                var i = IoMath.Log2(unchecked((ulong) idx + 1));
+                if (!IsAutoScaling) return Volatile.Read(ref _fastStorage[idx % _capacity]);
+
+                //idx %= Capacity;
+                var i = IoMath.Log2(unchecked((ulong)idx + 1));
                 return Volatile.Read(ref _storage[i][idx - ((1 << i) - 1)]);
             }
             protected set
             {
                 Debug.Assert(idx >= 0);
+
                 if (!IsAutoScaling)
                 {
                     _fastStorage[idx % _capacity] = value;
+                    Interlocked.MemoryBarrier();
                     return;
                 }
 
-                if (idx < _capacity)
-                {
-                    _fastStorage[idx] = value;
-                    return;
-                }
-                idx %= Capacity;
-                var i = IoMath.Log2(unchecked((ulong)(idx) + 1));
+                //idx %= Capacity;
+                var i = IoMath.Log2(unchecked((ulong)idx + 1));
                 _storage[i][idx - ((1 << i) - 1)] = value;
+                Interlocked.MemoryBarrier();
             }
         }
 
@@ -150,33 +149,11 @@ namespace zero.core.patterns.queue
         public T Get(long idx, T next = null)
         {
             if (!IsAutoScaling) return Interlocked.Exchange(ref _storage[0][idx % _capacity], next);
-            if (idx < _capacity) return Interlocked.Exchange(ref _storage[0][idx], next);
             idx %= Capacity;
-            var i = IoMath.Log2((ulong)idx + 1);
-
+            var i = IoMath.Log2(unchecked((ulong)idx + 1));
             return Interlocked.Exchange(ref _storage[i][idx - ((1 << i) - 1)], next);
         }
-        //public T Set(long idx)
-        //{
-
-        //    Debug.Assert(idx >= 0);
-        //    if (!IsAutoScaling)
-        //    {
-        //        _storage[0][idx % _capacity] = value;
-        //        return;
-        //    }
-
-        //    if (idx < _capacity)
-        //    {
-        //        _storage[0][idx] = value;
-        //        return;
-        //    }
-        //    idx %= Capacity;
-        //    var i = IoMath.Log2((ulong)(idx) + 1);
-        //    Volatile.Write(ref _storage[i][idx - ((1 << i) - 1)], value);
-        //    //_storage[i][idx - ((1 << i) - 1)] = value;
-        //}
-
+        
         /// <summary>
         /// Horizontal scale
         /// </summary>
@@ -194,6 +171,7 @@ namespace zero.core.patterns.queue
                     _storage[_virility + 1] = new T[hwm];
                     Interlocked.Add(ref _hwm, hwm);
                     Interlocked.Increment(ref _virility);
+                    Interlocked.MemoryBarrierProcessWide();
                     return true;
                 }
                 return false;
@@ -205,11 +183,9 @@ namespace zero.core.patterns.queue
         {
             if (!IsAutoScaling) return Interlocked.Exchange(ref _fastStorage[idx % _capacity], value);
 
-            if (idx < _capacity)
-                return Interlocked.Exchange(ref _fastStorage[idx], value);
-
             idx %= Capacity;
             var i = IoMath.Log2(unchecked((ulong)idx + 1));
+            
             return Interlocked.Exchange(ref _storage[i][idx - ((1 << i) - 1)], value);
         }
 
@@ -224,8 +200,6 @@ namespace zero.core.patterns.queue
         private T CompareExchange(long idx, T value, T compare)
         {
             if (!IsAutoScaling) return Interlocked.CompareExchange(ref _fastStorage[idx % _capacity], value, compare);
-            if (idx < _capacity)
-                return Interlocked.CompareExchange(ref _fastStorage[idx], value, compare);
 
             idx %= Capacity;
             var i = IoMath.Log2(unchecked((ulong)idx + 1));
@@ -245,6 +219,7 @@ namespace zero.core.patterns.queue
                 return -1;
 
             Debug.Assert(Zeroed || item != null);
+            
             if (_count >= Capacity)
             {
                 if (!_autoScale)
@@ -261,54 +236,55 @@ namespace zero.core.patterns.queue
 
             try
             {
-                T slot = null;
                 long tail;
-                long insaneScale;
 #if DEBUG
                 int c = 0;
 #endif
-                while ((tail = Tail) == Head + (insaneScale = Capacity) || _count < insaneScale && tail != Tail ||
-                       (slot = CompareExchange(tail, item, null)) != null || tail != Tail)
+
+                T slot;
+                long cap;
+                bool blocked, race = false;
+
+                while ((blocked = (tail = Tail) >= Head + (cap = Capacity)) || _count >= cap || tail != Tail  || this[tail] != null || (slot = CompareExchange(tail, item, null)) != null || (race = tail != Tail))
                 {
+                    if (race)
+                    {
+                        if ((slot = CompareExchange(tail, null, item)) != item)
+                        {
+                            if (slot != null && this[tail] != null)
+                            {
+                                LogManager.GetCurrentClassLogger().Warn($"{nameof(TryDequeue)}: Unable to restore lock to null at pos = {tail}, {Description}" );
+                            }
+                        }
+                    }
 #if DEBUG
-                    if (c++ > 5000000)
-                        throw new InternalBufferOverflowException($"{Description}");           
+                    if (!blocked && c++ > 100000)
+                        throw new InternalBufferOverflowException($"{Description}");
 #endif
 
-                    if (Zeroed)
-                        break;
+                    if (Zeroed || !IsAutoScaling && _count >= cap)
+                        return -1;
 
                     Interlocked.MemoryBarrierProcessWide();
-                }
 
-                if (slot == null)
-                {
+                    // ReSharper disable once ConditionIsAlwaysTrueOrFalse
+                    if (blocked)
+                        Thread.Yield();
+
+                    race = false;
+                }
 #if DEBUG
-                    Debug.Assert(Zeroed || this[tail] == item);
-                    Debug.Assert(Zeroed || tail == Tail);
-                    Interlocked.MemoryBarrier();
+                Debug.Assert(Zeroed || slot == null);
+                Debug.Assert(Zeroed || this[tail] == item);
+                Debug.Assert(Zeroed || tail == Tail);
+                Interlocked.MemoryBarrier();
 #endif
-                    Interlocked.Increment(ref _tail);
-                    Interlocked.MemoryBarrier();
-                    Interlocked.Increment(ref _count);
-                    _curEnumerator.IncIteratorCount(); //TODO: is this a good idea?
-                    return tail;
-                }
+                Interlocked.Increment(ref _count);
+                Interlocked.MemoryBarrier();
+                Interlocked.Increment(ref _tail);
 
-                if (Zeroed)
-                    return -1;
-
-                if (IsAutoScaling)
-                {
-                    Scale();
-                    return TryEnqueue(item, deDup);
-                }
-
-                if (!Zeroed)
-                {
-                    throw new OutOfMemoryException(
-                        $"{_description}: Ran out of storage space, count = {_count}/{_capacity}:\n {Environment.StackTrace}");
-                }
+                _curEnumerator.IncIteratorCount(); //TODO: is this a good idea?
+                return tail;
             }
             catch when (Zeroed)
             {
@@ -337,16 +313,17 @@ namespace zero.core.patterns.queue
                     return false;
                 }
 
-                var insaneScale = Capacity;
                 long head;
                 T result;
 #if DEBUG
                 int c = 0;
 #endif
-                while ((head = Head) == Tail || (result = Exchange(head, null)) == null)
+                T latch;
+                while ((head = Head) >= Tail || (latch = this[head]) == _sentinel || latch == null ||
+                       (result = CompareExchange(head, _sentinel, latch)) != latch)
                 {
 #if DEBUG
-                    if (c++ > 5000000)
+                    if (c++ > 50000)
                         throw new InternalBufferOverflowException($"{Description}");
 #endif
                     Interlocked.MemoryBarrierProcessWide();
@@ -357,25 +334,21 @@ namespace zero.core.patterns.queue
                     }
                 }
 
-                if (insaneScale != Capacity)
-                {
-                    if (CompareExchange(head, result, null) != null)
-                        LogManager.GetCurrentClassLogger()
-                            .Error($"{nameof(TryDequeue)}: Could not restore latch state!");
 
-                    return TryDequeue(out returnValue);
-                }
-
-                //Debug.Assert(Zeroed || head != Tail && this[head] == null || head == Tail);//TODO: what about this one? it still fails.
 #if DEBUG
+                Debug.Assert(Zeroed || this[head] == _sentinel);
                 Debug.Assert(Zeroed || result != null);
                 Debug.Assert(Zeroed || _count > 0);
                 Debug.Assert(Zeroed || head == Head);
+                Debug.Assert(Zeroed || head != Tail);
                 Interlocked.MemoryBarrier();
 #endif
-                Interlocked.Increment(ref _head);
-                Interlocked.MemoryBarrier();
                 Interlocked.Decrement(ref _count);
+                Interlocked.MemoryBarrier();
+                this[head] = null;//restore the sentinel
+                Interlocked.Increment(ref _head);
+                
+
                 returnValue = result;
                 return true;
             }
@@ -383,7 +356,7 @@ namespace zero.core.patterns.queue
             {
                 LogManager.LogFactory.GetCurrentClassLogger().Error(e, $"{nameof(TryDequeue)} failed!");
             }
-
+            
             returnValue = null;
             return false;
         }
