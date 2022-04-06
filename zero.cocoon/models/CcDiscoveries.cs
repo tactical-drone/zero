@@ -62,7 +62,7 @@ namespace zero.cocoon.models
                     return new CcDiscoveryBatch(null, 1);
 
                 return new CcDiscoveryBatch(@this._batchHeap, @this.parm_max_msg_batch_size, @this._groupByEp);
-            })
+            }, true)
             {
                 Context = this
             };
@@ -179,7 +179,7 @@ namespace zero.cocoon.models
         /// </summary>
         [IoParameter]
         // ReSharper disable once InconsistentNaming
-        public int parm_max_msg_batch_size = 16;//TODO tuning 4 x MaxAdjuncts
+        public int parm_max_msg_batch_size = 32;//TODO tuning 4 x MaxAdjuncts
 
         /// <summary>
         /// Whether grouping by endpoint is supported
