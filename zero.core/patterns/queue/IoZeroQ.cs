@@ -42,7 +42,6 @@ namespace zero.core.patterns.queue
             if (autoScale)
             {
                 //TODO: tuning
-                capacity = Math.Max(Environment.ProcessorCount * 2, capacity);
                 capacity = Math.Max(4, capacity);
                 _hwm = _capacity = 1;
                 _storage = new T[32][];
