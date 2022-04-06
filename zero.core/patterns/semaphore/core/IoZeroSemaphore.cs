@@ -527,8 +527,8 @@ namespace zero.core.patterns.semaphore.core
                 LogManager.GetCurrentClassLogger().Error(e, $"{nameof(OnCompleted)}:");
             }
 
-            throw new ZeroValidationException(
-                $"{nameof(OnCompleted)}: Invalid state! Concurrency bug. Too many blockers... {Description}");
+            if(!Zeroed())
+                throw new ZeroValidationException($"{nameof(OnCompleted)}: Invalid state! Concurrency bug. Too many blockers... {Description}");
         }
 
         /// <summary>
