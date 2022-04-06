@@ -20,10 +20,10 @@ variables:
 
 steps:
 - task: UseDotNet@2
-  displayName: Use .NET 7.0
   inputs:
     packageType: 'sdk'
     version: '7.0.x'
+    includePreviewVersions: true
 
 - task: DotNetCoreCLI@2
   displayName: Nuget Restore '$(solution)'
