@@ -299,6 +299,7 @@ namespace zero.core.runtime.scheduler
                         {
                             if (blocked.Count < @this._workerCount)
                             {
+                                var ramp = 2;
                                 for (var i = @this._workerCount; i-- > 0;)
                                 {
                                     try
@@ -310,7 +311,8 @@ namespace zero.core.runtime.scheduler
 #if _TRACE_
                                             Console.WriteLine($"Polled worker {i} from queen {workerId}, for task {s.Task!.Id}");
 #endif
-                                            return;
+                                            if(ramp --> 0)
+                                                return;
                                         }
                                     }
                                     catch
@@ -518,6 +520,7 @@ var d = 0;
 
                             try
                             {
+                                var ramp = 3;
                                 //Service the Q
                                 if (!isWorker)
                                 {
@@ -532,7 +535,7 @@ var d = 0;
                                     Interlocked.MemoryBarrier();
                                 }
 
-                                while (queue.TryDequeue(out var work))
+                                while (queue.TryDequeue(out var work) || ramp --> 0)
                                 {
                                     try
                                     {
