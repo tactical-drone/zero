@@ -68,11 +68,12 @@ namespace zero.cocoon.autopeer
             _logger = LogManager.GetCurrentClassLogger();
 
             //TODO tuning
-            var capMult = CcCollective.ZeroDrone ? 100 : 1;
-
-            _probeRequest = new IoZeroMatcher(nameof(_probeRequest), Source.PrefetchSize, parm_max_network_latency_ms * 5, (int)(CcCollective.MaxAdjuncts * parm_max_swept_drones * 2 * capMult));
-            _fuseRequest = new IoZeroMatcher(nameof(_fuseRequest), Source.PrefetchSize, parm_max_network_latency_ms * 5, (int)(CcCollective.MaxAdjuncts* parm_max_swept_drones * 2 * capMult));
-            _scanRequest = new IoZeroMatcher(nameof(_scanRequest), (int)(CcCollective.MaxAdjuncts * parm_max_swept_drones + 1), parm_max_network_latency_ms * 5, (int)(CcCollective.MaxAdjuncts * parm_max_swept_drones * 2));
+            var capMult = CcCollective.ZeroDrone ? 9 : 6;
+            var capBase = 2;
+            _probeRequest = new IoZeroMatcher(nameof(_probeRequest), Source.PrefetchSize,
+                parm_max_network_latency_ms * 5, (int)Math.Pow(capBase, capMult));
+            _fuseRequest = new IoZeroMatcher(nameof(_fuseRequest), Source.PrefetchSize, parm_max_network_latency_ms * 5, (int)Math.Pow(capBase, capMult));
+            _scanRequest = new IoZeroMatcher(nameof(_scanRequest), (int)(CcCollective.MaxAdjuncts * parm_max_swept_drones + 1), parm_max_network_latency_ms * 5, (int)Math.Pow(capBase, capMult));
 
             if (extraData != null)
             {

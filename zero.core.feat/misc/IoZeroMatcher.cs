@@ -17,17 +17,17 @@ namespace zero.core.feat.misc
     /// </summary>
     public class IoZeroMatcher : IoNanoprobe
     {
-        public IoZeroMatcher(string description, int concurrencyLevel, long ttlMs = 2000, int capacity = 10, bool autoscale = true) : base($"{nameof(IoZeroMatcher)}", concurrencyLevel * 2)
+        public IoZeroMatcher(string description, int concurrencyLevel, long ttlMs = 2000, int capacity = 32, bool autoscale = true) : base($"{nameof(IoZeroMatcher)}", concurrencyLevel * 2)
         {
             _capacity = capacity * 2;
             _description = description??$"{GetType()}";
             _ttlMs = ttlMs;
 
-            _lut = new IoQueue<IoChallenge>($"Matcher: {description}", 32, concurrencyLevel * 2, autoScale: autoscale);
+            _lut = new IoQueue<IoChallenge>($"Matcher: {description}", capacity, concurrencyLevel * 2, autoScale: autoscale);
 
-            _valHeap = new IoHeap<IoChallenge>($"{nameof(_valHeap)}: {description}", 32, static (_, _) => new IoChallenge(), autoscale);
+            _valHeap = new IoHeap<IoChallenge>($"{nameof(_valHeap)}: {description}", capacity, static (_, _) => new IoChallenge(), autoscale);
 
-            _carHeap = new IoHeap<ChallengeAsyncResponse>($"{nameof(_carHeap)}: {description}", 32, static (_, _) => new ChallengeAsyncResponse(), autoscale);
+            _carHeap = new IoHeap<ChallengeAsyncResponse>($"{nameof(_carHeap)}: {description}", capacity, static (_, _) => new ChallengeAsyncResponse(), autoscale);
 
             _logger = LogManager.GetCurrentClassLogger();
         }
