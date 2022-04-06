@@ -78,7 +78,7 @@ namespace zero.core.patterns.queue
         private readonly T[] _fastStorage;
 
         private readonly T _sentinel;
-        private readonly object _syncRoot = new();
+        //private readonly object _syncRoot = new();
         private volatile int _capacity;
         private volatile int _virility;
         private long _hwm;
@@ -171,7 +171,7 @@ namespace zero.core.patterns.queue
             if (!IsAutoScaling)
                 return false;
 
-            lock (_syncRoot)
+            //lock (_syncRoot)
             {
                 var cap2 = Capacity >> 1;
 
@@ -182,12 +182,13 @@ namespace zero.core.patterns.queue
                 }
 
                 //Only allow scaling to happen only when the Q dips under 50% capacity & some other factors, otherwise the indexes will corrupt.
-                if (_primedForScale == 1 && Head <= cap2 && Tail <= cap2 && Tail >= Head && Interlocked.CompareExchange(ref _primedForScale, 0, 1) == 1 || force)
+                if (_primedForScale == 1 && Head <= cap2 && Tail <= cap2 && (Tail > Head || Tail == Head && _count < cap2) && Interlocked.CompareExchange(ref _primedForScale, 2, 1) == 1 || force)
                 {
                     var hwm = 1 << (_virility + 1);
                     _storage[_virility + 1] = new T[hwm];
                     Interlocked.Add(ref _hwm, hwm);
                     Interlocked.Increment(ref _virility);
+                    Interlocked.Exchange(ref _primedForScale, 0);
                     Interlocked.MemoryBarrierProcessWide();
                     return true;
                 }
@@ -237,11 +238,8 @@ namespace zero.core.patterns.queue
 
             Debug.Assert(Zeroed || item != null);
             
-            if (_primedForScale == 1 || _count >= Capacity>>1 )
+            if (_autoScale && (_primedForScale == 1 || _count >= Capacity>>1 ))
             {
-                if (!_autoScale)
-                    return -1;
-
                 if (!Scale() && _count >= Capacity)
                     return -1;
             }
@@ -277,7 +275,7 @@ namespace zero.core.patterns.queue
                         throw new InternalBufferOverflowException($"{Description}");
 #endif
 
-                    if (Zeroed || !IsAutoScaling && _count >= cap)
+                    if (Zeroed || !_autoScale && _count >= cap)
                         return -1;
 
                     if(slot != null) 
