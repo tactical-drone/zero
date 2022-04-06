@@ -15,7 +15,7 @@ https://dotnet.microsoft.com/download
 ## Building and running
 
 - Windows & Linux both needs:
-  - **visual studio 2022** or `dotnet cmd line`
+  - **visual studio 2022** or `dotnet cmd line` & .net7 (main), latest at: https://github.com/dotnet/installer/blob/main/README.md#installers-and-binaries
 
 
 
