@@ -490,7 +490,7 @@ namespace zero.test.core.patterns.queue{
                 var s = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
 
                 var item = await @this._queuePressure.DequeueAsync().FastPath().ConfigureAwait(@this._zc);
-                Assert.InRange(s.ElapsedMs(), 100, 2000);
+                Assert.InRange(s.ElapsedMs(), 100 - 16, 2000);
                 Assert.NotNull(item);
 
                 await Task.Delay(100).ConfigureAwait(@this._zc);
@@ -523,7 +523,7 @@ namespace zero.test.core.patterns.queue{
                 //blocking
                 await @this._queuePressure.EnqueueAsync(1).FastPath().ConfigureAwait(@this._zc);
                 await @this._queuePressure.EnqueueAsync(1).FastPath().ConfigureAwait(@this._zc);
-                Assert.InRange(s.ElapsedMs(), 100, 10000);
+                Assert.InRange(s.ElapsedMs(), 100 -16, 10000);
                 //Wait for up to 2 seconds for results
                 await Task.Delay(2000, @this._blockCancellationSignal.Token).ConfigureAwait(@this._zc);
             }, this, TaskCreationOptions.DenyChildAttach).Unwrap().ContinueWith(task =>
@@ -576,7 +576,7 @@ namespace zero.test.core.patterns.queue{
                     if (_queuePressure.Zeroed)
                         break;
 
-                    Assert.InRange(ts.ElapsedMs(), BlockDelay, BlockDelay * 4);
+                    Assert.InRange(ts.ElapsedMs(), BlockDelay - 16, BlockDelay * 4);
 
                     foreach (var t in eqList)
                     {
@@ -589,7 +589,7 @@ namespace zero.test.core.patterns.queue{
                     output.WriteLine($"Inserted count = { (i + 1) * Concurrency}, t = {ts.ElapsedMs()}ms ~ {BlockDelay}");
                     ave += ts.ElapsedMs();
                 }
-                Assert.InRange(ave / (NrOfItems / Concurrency), BlockDelay, BlockDelay * 2);
+                Assert.InRange(ave / (NrOfItems / Concurrency), BlockDelay - 16, BlockDelay * 2);
             },_output).Unwrap();
 
             var dq = Task.Factory.StartNew(async o =>
