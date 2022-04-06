@@ -145,8 +145,8 @@ namespace zero.core.network.ip
                         _logger.Error(e, $"There was an error handling a new connection from {newSocket.RemoteNodeAddress} to `{newSocket.LocalNodeAddress}'");
                     }
                 }
-                catch (ObjectDisposedException e) { _logger.Trace(e, description);}
-                catch (OperationCanceledException e) { _logger.Trace(e, description); }
+                catch (ObjectDisposedException e) when (!Zeroed()) { _logger.Trace(e, description);}
+                catch (OperationCanceledException e) when (!Zeroed()) { _logger.Trace(e, description); }
                 catch when(Zeroed()){}
                 catch (Exception e) when(!Zeroed())
                 {

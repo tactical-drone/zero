@@ -820,7 +820,7 @@ namespace zero.cocoon.autopeer
                 }
                 else
                 {
-                    await ZeroAsync(RoboAsync, this, TaskCreationOptions.DenyChildAttach | TaskCreationOptions.PreferFairness).FastPath();
+                    await ZeroAsync(RoboAsync, this, TaskCreationOptions.LongRunning).FastPath();
                     await AsyncTasks.Token.BlockOnNotCanceledAsync().FastPath();
                 }
             }
