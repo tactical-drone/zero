@@ -81,7 +81,6 @@ namespace zero.test.core.patterns.queue
             
             Assert.Equal(0, c);
 
-            var idx = 0;
             var insert = new List<Task>();
             for (var i = 0; i < threads; i++)
             {
@@ -169,8 +168,6 @@ namespace zero.test.core.patterns.queue
 
             Assert.Equal(0, c);
 
-            var idx = 0;
-            var done = 0;
             var spam = new List<Task>();
             Task t = null;
             for (var i = 0; i < SpamTestAsyncThreadCount; i++)

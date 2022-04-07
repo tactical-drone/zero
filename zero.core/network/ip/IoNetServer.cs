@@ -45,10 +45,6 @@ namespace zero.core.network.ip
         /// </summary>
         public IoNodeAddress ListeningAddress { get; protected set; }
 
-        /// <summary>
-        /// ContinueOnCapturedContext
-        /// </summary>
-        public new bool Zc => ContinueOnCapturedContext;
 
         private string _description;
         /// <summary>

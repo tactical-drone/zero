@@ -497,13 +497,13 @@ namespace zero.core.patterns.bushings
         /// <param name="job">The job to return to the heap</param>
         /// <param name="purge">Purge this job from recovery bits</param>
         /// <returns>The job</returns>
-        private ValueTask ZeroJobAsync(IoSink<TJob> job, bool purge = false)
+        private async ValueTask ZeroJobAsync(IoSink<TJob> job, bool purge = false)
         {
             IoSink<TJob> prevJob = null;
             try
             {
                 if (job == null)
-                    return default;
+                    return;
 
                 if (!ZeroRecoveryEnabled)
                     JobHeap.Return(job, job.FinalState > 0 && job.FinalState != IoJobMeta.JobState.Accept);
@@ -529,7 +529,7 @@ namespace zero.core.patterns.bushings
                     {
                         if (job.PrevJobQHook != null)
                         {
-                            _previousJobFragment.RemoveAsync(job.PrevJobQHook);
+                            await _previousJobFragment.RemoveAsync(job.PrevJobQHook).FastPath();
                             job.PrevJobQHook = null;
                         }
                         JobHeap.Return(job, true);
@@ -541,8 +541,6 @@ namespace zero.core.patterns.bushings
             {
                 _logger.Error(e,$"p = {prevJob}, s = {job?.FinalState}");
             }
-
-            return default;
         }
 
         private ValueTask _producerTask;
