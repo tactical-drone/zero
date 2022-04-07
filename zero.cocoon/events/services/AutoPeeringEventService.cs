@@ -104,7 +104,7 @@ namespace zero.cocoon.events.services
                 var curQ = QueuedEvents[_curIdx % 2];
                 if (_operational > 0 && curQ.Count < EventBatchSize  * TotalBatches)
                 {
-                    newAutoPeerEvent.Timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+                    newAutoPeerEvent.Timestamp = Environment.TickCount;
                     newAutoPeerEvent.Seq = Interlocked.Increment(ref _seq) - 1;
                     await curQ.EnqueueAsync(newAutoPeerEvent).FastPath();
                 }

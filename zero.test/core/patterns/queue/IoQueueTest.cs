@@ -186,7 +186,7 @@ namespace zero.test.core.patterns.queue{
             var mult = 10000;
 #endif
             
-            var start = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+            var start = Environment.TickCount;
 
             for (var i = 0; i < rounds; i++)
             {
@@ -235,13 +235,13 @@ namespace zero.test.core.patterns.queue{
             }
             await Task.WhenAll(concurrentTasks).WaitAsync(TimeSpan.FromSeconds(10));
 
-            _output.WriteLine($"count = {context.Q.Count}, Head = {context.Q?.Tail?.Value}, tail = {context.Q?.Head?.Value}, time = {DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() - start}ms, {rounds * mult * 6 / (DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() - start)} kOPS");
+            _output.WriteLine($"count = {context.Q.Count}, Head = {context.Q?.Tail?.Value}, tail = {context.Q?.Head?.Value}, time = {Environment.TickCount - start}ms, {rounds * mult * 6 / (Environment.TickCount - start)} kOPS");
 
             Assert.Equal(9, context.Q!.Count);
             Assert.NotNull(context.Q.Head);
             Assert.NotNull(context.Q.Tail);
 
-            var kops = rounds * mult * 6 / (DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() - start);
+            var kops = rounds * mult * 6 / (Environment.TickCount - start);
 
 #if DEBUG
             Assert.InRange(kops, 20, int.MaxValue);
@@ -425,7 +425,7 @@ namespace zero.test.core.patterns.queue{
             _queueNoBlockingTask = Task.Factory.StartNew(static async state =>
             {
                 var @this = (IoQueueTest)state!;
-                var s = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+                var s = Environment.TickCount;
                 var item = await @this._queuePressure.DequeueAsync().FastPath().ConfigureAwait(@this._zc);
                 Assert.InRange(s.ElapsedMs(), (100/15)*15, 100 + 15 * 2);
                 Assert.NotNull(item);
@@ -487,7 +487,7 @@ namespace zero.test.core.patterns.queue{
             _queueNoBlockingTask = Task.Factory.StartNew(static async state =>
             {
                 var @this = (IoQueueTest)state!;
-                var s = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+                var s = Environment.TickCount;
 
                 var item = await @this._queuePressure.DequeueAsync().FastPath().ConfigureAwait(@this._zc);
                 Assert.InRange(s.ElapsedMs(), 100 - 16, 2000);
@@ -495,7 +495,7 @@ namespace zero.test.core.patterns.queue{
 
                 await Task.Delay(100).ConfigureAwait(@this._zc);
 
-                s = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+                s = Environment.TickCount;
                 item = await @this._queuePressure.DequeueAsync().FastPath().ConfigureAwait(@this._zc);
                 Assert.InRange(s.ElapsedMs(), 0, 500);
                 Assert.NotNull(item);
@@ -519,7 +519,7 @@ namespace zero.test.core.patterns.queue{
                 await Task.Delay(100, @this._blockCancellationSignal.Token).ConfigureAwait(@this._zc);
                 _ = @this._queuePressure.EnqueueAsync(1).FastPath().ConfigureAwait(@this._zc);
                 _ = @this._queuePressure.EnqueueAsync(1).FastPath().ConfigureAwait(@this._zc);
-                var s = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+                var s = Environment.TickCount;
                 //blocking
                 await @this._queuePressure.EnqueueAsync(1).FastPath().ConfigureAwait(@this._zc);
                 await @this._queuePressure.EnqueueAsync(1).FastPath().ConfigureAwait(@this._zc);
@@ -564,7 +564,7 @@ namespace zero.test.core.patterns.queue{
                 long ave = 0;
                 for (var i = 0; i < NrOfItems/Concurrency && !_queuePressure.Zeroed; i++)
                 {
-                    var ts = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+                    var ts = Environment.TickCount;
                     
                     for (int j = 0; j < Concurrency; j++)
                     {

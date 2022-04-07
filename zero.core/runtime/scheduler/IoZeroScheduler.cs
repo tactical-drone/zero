@@ -262,7 +262,7 @@ namespace zero.core.runtime.scheduler
         /// <param name="s">The signal to be sent</param>
         /// <param name="id">The queen id</param>
         /// <returns>True if successful, false otherwise</returns>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        [MethodImpl(MethodImplOptions.NoInlining)]
         static bool QueenHandler(IoZeroScheduler @this, ZeroSignal s, int id)
         {
             var ts = Environment.TickCount;
@@ -270,8 +270,16 @@ namespace zero.core.runtime.scheduler
             Console.WriteLine($"Queen ASYNC handler... POLLING WORKER..."); 
 #endif
 
-            if (s.Processed > 0 || s.Task.Status > TaskStatus.WaitingToRun)
+            try
+            {
+                if (s.Processed > 0 || s.Task.Status > TaskStatus.WaitingToRun)
+                    return false;
+            }
+            catch (Exception exception)
+            {
+                Console.WriteLine(exception);
                 return false;
+            }
 
             //poll a worker, or create a new one if none are available
             try
@@ -380,7 +388,7 @@ namespace zero.core.runtime.scheduler
             return true;
         }
 
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        [MethodImpl(MethodImplOptions.NoInlining)]
         private static bool WorkerHandler(IoZeroScheduler ioZeroScheduler, Task task, int id)
         {
             var s = task.Status == TaskStatus.WaitingToRun && ioZeroScheduler.TryExecuteTask(task);
@@ -539,7 +547,7 @@ var d = 0;
                                 {
                                     try
                                     {
-                                        if (callback(@this, work, xId))
+                                        if (work != null && callback(@this, work, xId))
                                         {
                                             if (!isWorker)
                                                 Interlocked.Increment(ref @this._completedQItemCount);
@@ -812,7 +820,7 @@ var d = 0;
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private bool TryExecuteTaskInlineOnTargetScheduler(Task task)
         {
-            var t = new Task<bool>(s =>
+            var t = new Task<bool>(static s =>
             {
                 var tuple = (ValueTuple<IoZeroScheduler, Task>)s!;
                 return tuple.Item1.TryExecuteTask(tuple.Item2);

@@ -146,7 +146,7 @@ namespace zero.core.network.ip
             //fail fast
             if (Zeroed())
                 return false;
-            var ts = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+            var ts = Environment.TickCount;
             var connected = await IoNetSocket.ConnectAsync(remoteAddress, timeout).FastPath();
 
             if (connected)
@@ -160,7 +160,7 @@ namespace zero.core.network.ip
         /// <summary>
         /// Rate limit socket health checks
         /// </summary>
-        private long _lastSocketHealthCheck = (DateTimeOffset.UtcNow + TimeSpan.FromDays(1)).ToUnixTimeMilliseconds();
+        private long _lastSocketHealthCheck = Environment.TickCount;
         
         /// <summary>
         /// Detects socket drops
@@ -181,7 +181,7 @@ namespace zero.core.network.ip
                     if (_lastSocketHealthCheck.ElapsedMs() < 5000)
                         return IoNetSocket.NativeSocket.Connected && IoNetSocket.NativeSocket.IsBound;
 
-                    _lastSocketHealthCheck = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+                    _lastSocketHealthCheck = Environment.TickCount;
                     //TODO more checks?
                     if (!IoNetSocket.IsConnected())
                     {

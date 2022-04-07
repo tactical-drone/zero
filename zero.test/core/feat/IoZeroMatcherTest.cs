@@ -43,9 +43,12 @@ namespace zero.test.core.feat
                     await Task.Factory.StartNew(static async state =>
                     {
                         var (k, hash, matcher) = (ValueTuple<string, byte[], IoZeroMatcher>)state;
+                        
                         var dud = new byte[hash.Length];
                         hash.CopyTo(dud, 0);
                         dud[0] = dud[1];
+                        dud[^1] = dud[^2];
+                        dud[dud.Length>>1] = dud[(dud.Length >> 1) - 1];
 
                         Assert.False(await matcher.ResponseAsync(k, UnsafeByteOperations.UnsafeWrap(dud)).FastPath());
                         Assert.True(await matcher.ResponseAsync(k, UnsafeByteOperations.UnsafeWrap(hash)).FastPath());
@@ -56,7 +59,6 @@ namespace zero.test.core.feat
 
             await Task.WhenAll(oneShotTasks).WaitAsync(TimeSpan.FromSeconds(10));
             Assert.Equal(0,m.Count);
-
         }
 
         [Fact]

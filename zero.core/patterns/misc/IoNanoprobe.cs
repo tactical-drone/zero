@@ -72,7 +72,7 @@ namespace zero.core.patterns.misc
 #endif
             ZeroSyncRoot(concurrencyLevel);
             
-            UpTime = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+            UpTime = Environment.TickCount;
         }
 
         /// <summary>

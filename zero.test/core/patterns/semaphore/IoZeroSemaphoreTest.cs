@@ -50,9 +50,9 @@ namespace zero.test.core.patterns.semaphore
             long ave = 0;
             while (c++ < loopCount)
             {
-                var s = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+                var s = Environment.TickCount;
                 Assert.True(await m.WaitAsync().FastPath());
-                var delta = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() - s;
+                var delta = Environment.TickCount - s;
                 ave += delta;
                 _output.WriteLine($"d = {delta}");
                 if (delta < targetSleep * targetSleep || c > 1)//gitlab glitches on c == 0
@@ -76,7 +76,7 @@ namespace zero.test.core.patterns.semaphore
                 m.Release();
             });
 
-            var ts = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+            var ts = Environment.TickCount;
             Assert.Equal(3, m.ReadyCount);
             await m.WaitAsync().FastPath();
             Assert.Equal(0, m.CurNrOfBlockers);
@@ -103,7 +103,7 @@ namespace zero.test.core.patterns.semaphore
                 m.Release();
             });
 
-            var ts = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+            var ts = Environment.TickCount;
             
             await m.WaitAsync().FastPath();
             await m.WaitAsync().FastPath();
@@ -159,7 +159,7 @@ namespace zero.test.core.patterns.semaphore
                 _output.WriteLine($"Wait done {waits/1000000}M");
             });
 
-            var ts = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+            var ts = Environment.TickCount;
 
             try
             {
@@ -194,13 +194,13 @@ namespace zero.test.core.patterns.semaphore
                 }
             }).Unwrap();
 
-            var ts = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+            var ts = Environment.TickCount;
             Assert.True(await v.WaitAsync().FastPath());
             Assert.InRange(ts.ElapsedMs(), minDelay/2, minDelay * 2);
 
             for (var i = 0; i < count - 1; i++)
             {
-                ts = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+                ts = Environment.TickCount;
                 _output.WriteLine("_*");
                 Assert.True(await v.WaitAsync().FastPath());
                 Assert.InRange(ts.ElapsedMs(), minDelay / 2, 2000);
@@ -224,13 +224,13 @@ namespace zero.test.core.patterns.semaphore
                 }
             }).Unwrap();
 
-            var ts = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+            var ts = Environment.TickCount;
             Assert.True(await v.WaitAsync().FastPath());
             Assert.InRange(ts.ElapsedMs(), 0, 2);
 
             for (var i = 0; i < count - 1; i++)
             {
-                ts = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+                ts = Environment.TickCount;
                 Assert.True(await v.WaitAsync().FastPath());
                 Assert.InRange(ts.ElapsedMs(), minDelay / 2, 2000);
             }
@@ -242,7 +242,7 @@ namespace zero.test.core.patterns.semaphore
             var count = (long)2000000;
             var v = new IoZeroResetEvent();
 
-            var totalTime = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+            var totalTime = Environment.TickCount;
 
             var t = Task.Factory.StartNew(() =>
             {
@@ -264,7 +264,7 @@ namespace zero.test.core.patterns.semaphore
 
             for (var i = 0; i < count; i++)
             {
-                var ts = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+                var ts = Environment.TickCount;
 
                 var version = v.Version;
                 var status = v.GetStatus((short)version);
@@ -300,13 +300,13 @@ namespace zero.test.core.patterns.semaphore
                 }
             }).Unwrap();
 
-            var ts = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+            var ts = Environment.TickCount;
             Assert.True(await v.WaitAsync().FastPath());
             Assert.InRange(ts.ElapsedMs(), 0, 16 * 2);
 
             for (var i = 0; i < count; i++)
             {
-                ts = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+                ts = Environment.TickCount;
                 Assert.True(await v.WaitAsync().FastPath());
                 Assert.InRange(ts.ElapsedMs(), minDelay / 2, minDelay * 2);
             }
@@ -323,7 +323,7 @@ namespace zero.test.core.patterns.semaphore
 
             var v = new IoZeroSemaphoreSlim(new CancellationTokenSource(), string.Empty, 1, 1);
 
-            var totalTime = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+            var totalTime = Environment.TickCount;
 
             var t = Task.Factory.StartNew(async () =>
             {
@@ -343,7 +343,7 @@ namespace zero.test.core.patterns.semaphore
                 var i = 0;
                 for (i = 0; i < count; i++)
                 {
-                    var ts = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+                    var ts = Environment.TickCount;
                     Assert.True(await v.WaitAsync().FastPath());
                     ave += ts.ElapsedMs();
                 }

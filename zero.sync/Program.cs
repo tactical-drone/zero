@@ -316,7 +316,7 @@ namespace zero.sync
                                 uptime += ioCcNode.Hub.Neighbors.Values.Select(static n =>
                                 {
                                     if (((CcAdjunct)n).IsDroneConnected && ((CcAdjunct)n).AttachTimestamp > 0)
-                                        return ((CcAdjunct)n).AttachTimestamp.Elapsed();
+                                        return ((CcAdjunct)n).AttachTimestamp.ElapsedUtc();
                                 
                                     return 0;
                                 }).Sum();

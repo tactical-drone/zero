@@ -166,13 +166,11 @@ namespace zero.core.feat.misc
 
                                 throw new OutOfMemoryException($"{@this.Description}: {nameof(_valHeap)} - heapSize = {@this._valHeap.Count}, ref = {@this._valHeap.ReferenceCount}, ave Ttl = {ave/aveCounter}ms / {@this._ttlMs}ms, (c = {aveCounter})");
                             }
-                            
                         }
 
                         if (!Sha256.TryComputeHash(response.Body, challenge.Hash, out var bytesWritten))
                         {
-                            LogManager.GetCurrentClassLogger()
-                                .Fatal($"{@this._description}: Unable to compute hash");
+                            LogManager.GetCurrentClassLogger().Fatal($"{@this._description}: Unable to compute hash");
                             return false;
                         }
 

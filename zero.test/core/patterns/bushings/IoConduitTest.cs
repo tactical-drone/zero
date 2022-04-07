@@ -34,7 +34,7 @@ namespace zero.test.core.patterns.bushings
 
             var z1 = Task.Factory.StartNew(async () => await c1.BlockOnReplicateAsync(), TaskCreationOptions.DenyChildAttach).Unwrap();
 
-            var ts = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+            var ts = Environment.TickCount;
             var totalTime = count * 100;
             while (!z1.IsCompleted)
             {
@@ -82,7 +82,7 @@ namespace zero.test.core.patterns.bushings
                 await c1.BlockOnReplicateAsync();
             }, TaskCreationOptions.DenyChildAttach).Unwrap();
 
-            var ts = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+            var ts = Environment.TickCount;
 
             var targetTime = count * 100 / concurrencyLevel;
 
@@ -120,7 +120,7 @@ namespace zero.test.core.patterns.bushings
 
             var z1 = Task.Factory.StartNew(async () => await c1.BlockOnReplicateAsync(), TaskCreationOptions.DenyChildAttach).Unwrap();
 
-            var ts = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+            var ts = Environment.TickCount;
             var expectedFps = 5;
             var targetTime = count / (concurrencyLevel * expectedFps);
             while (!z1.IsCompleted)
@@ -161,7 +161,7 @@ namespace zero.test.core.patterns.bushings
 
             var z1 = Task.Factory.StartNew(async () => await c1.BlockOnReplicateAsync(), TaskCreationOptions.DenyChildAttach).Unwrap();
 
-            var ts = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+            var ts = Environment.TickCount;
             long last = -1;
             while (!z1.IsCompleted)
             {

@@ -60,7 +60,7 @@ namespace zero.core.misc
         /// <param name="timestamp"></param>
         /// <returns></returns>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static long CurrentMsDelta(this long timestamp)
+        public static long CurrentUtcMsDelta(this long timestamp)
         {
             var delta = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() - timestamp ;
             if (delta < 0)
@@ -82,21 +82,34 @@ namespace zero.core.misc
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static long Elapsed(this long timestamp)
+        public static long ElapsedUtc(this long timestamp)
         {
             return DateTimeOffset.UtcNow.ToUnixTimeSeconds() - timestamp;
         }
 
+
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static long ElapsedMs(this long timestamp)
+        public static long ElapsedUtcMs(this long timestamp)
         {
             return DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() - timestamp;
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static long ElapsedMs(this long timestamp)
+        {
+            return Environment.TickCount - timestamp;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static long ElapsedUctMsToSec(this long timestamp)
+        {
+            return timestamp.ElapsedUtcMs() / 1000;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static long ElapsedMsToSec(this long timestamp)
         {
-            return (DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() - timestamp)/1000;
+            return timestamp.ElapsedMs()/1000;
         }
 
         /// <summary>
