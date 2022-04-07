@@ -755,9 +755,14 @@ namespace zero.cocoon.autopeer
                 {
                     //send PAT
                     if (!await ProbeAsync("SYN-PAT").FastPath())
-                        _logger.Error($"-/> {nameof(ProbeAsync)}: PAT Send [FAILED], {Description}, {MetaDesc}");
-                    else
+                    {
+                        if (!Zeroed())
+                            _logger.Error($"-/> {nameof(ProbeAsync)}: PAT Send [FAILED], {Description}, {MetaDesc}");
+                    }
+#if DEBUG
+                    else 
                         _logger.Trace($"-/> {nameof(ProbeAsync)}: PAT Send [SUCCESS], {Description}, {MetaDesc}");
+#endif
                 }
 
                 if(Zeroed())
@@ -1912,7 +1917,7 @@ namespace zero.cocoon.autopeer
 
                     //TODO: vector?
                     //set ext address as seen by neighbor
-#if DEBUG 
+#if DEBUG
                     DebugAddress = IoNodeAddress.CreateFromEndpoint("udp", newRemoteEp);
 #endif
                     NatAddress = IoNodeAddress.CreateFromEndpoint("udp", newRemoteEp);

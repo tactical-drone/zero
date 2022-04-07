@@ -355,7 +355,7 @@ namespace zero.test.core.patterns.semaphore
             await v.ZeroManagedAsync();
             await Task.WhenAll(t,t2).WaitAsync(TimeSpan.FromSeconds(15));
             
-            var maps = count * 1000 / totalTime.ElapsedMs() / 1000;
+            var maps = count * 1000 / (totalTime.ElapsedMs() + 1) / 1000;
             _output.WriteLine($"MAPS = {maps} K/s, t = {totalTime.ElapsedMs()}ms");
             Assert.InRange(maps, 1, int.MaxValue);
         }

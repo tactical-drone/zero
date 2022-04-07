@@ -328,15 +328,8 @@ namespace zero.core.patterns.bushings
                 //And the consumer is keeping up, which it should
                 try
                 {
-                    try
-                    {
-                        nextJob = await JobHeap.TakeAsync(null, this).FastPath();
-                    }
-                    catch (Exception e)
-                    {
-                        Console.WriteLine(e);
-                    }
-
+                    nextJob = await JobHeap.TakeAsync(null, this).FastPath();
+                        
                     //Allocate a job from the heap
                     if (nextJob != null)
                     {
@@ -474,7 +467,7 @@ namespace zero.core.patterns.bushings
                     if (nextJob != null)
                     {
                         if (!Zeroed() && !nextJob.Zeroed())
-                            _logger.Fatal($"{GetType().Name} ({nextJob.GetType().Name}): [FATAL] Job resources were not freed..., state = {nextJob.State}");
+                            _logger?.Fatal($"{GetType().Name} ({nextJob.GetType().Name}): [FATAL] Job resources were not freed..., state = {nextJob.State}");
 
                         await ZeroJobAsync(nextJob, true).FastPath();
                         nextJob = null;
