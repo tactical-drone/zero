@@ -774,7 +774,7 @@ namespace zero.cocoon.autopeer
                     return;
 
                 //Watchdog failure
-                if (SecondsSincePat > CcCollective.parm_mean_pat_delay_s<<1)
+                if (!IsDroneConnected && SecondsSincePat > CcCollective.parm_mean_pat_delay_s)
                 {
                     ////swarm attempt
                     //for (var j = 0; j < 3; j++)

@@ -92,7 +92,7 @@ namespace zero.core.runtime.scheduler
         }
 
         //The rate at which the scheduler will be allowed to "burst" allowing per tick unchecked new threads to be spawned until one of them spawns
-        private static readonly int WorkerSpawnBurstTimeMs = 500;
+        private static readonly int WorkerSpawnBurstTimeMs = 100;
         private static readonly int MaxWorker = (int)Math.Pow(2, Math.Max((Environment.ProcessorCount >> 1) + 1, 17));
         public static readonly TaskScheduler ZeroDefault;
         public static readonly IoZeroScheduler Zero;
@@ -262,25 +262,18 @@ namespace zero.core.runtime.scheduler
         /// <param name="s">The signal to be sent</param>
         /// <param name="id">The queen id</param>
         /// <returns>True if successful, false otherwise</returns>
-        [MethodImpl(MethodImplOptions.NoInlining)]
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         static bool QueenHandler(IoZeroScheduler @this, ZeroSignal s, int id)
         {
-            var ts = Environment.TickCount;
+
 #if _TRACE_
+            var ts = Environment.TickCount;
             Console.WriteLine($"Queen ASYNC handler... POLLING WORKER..."); 
 #endif
 
-            try
-            {
-                if (s.Processed > 0 || s.Task.Status > TaskStatus.WaitingToRun)
-                    return false;
-            }
-            catch (Exception exception)
-            {
-                Console.WriteLine(exception);
+            if (s.Processed > 0 || s.Task.Status > TaskStatus.WaitingToRun)
                 return false;
-            }
-
+            
             //poll a worker, or create a new one if none are available
             try
             {
@@ -339,7 +332,6 @@ namespace zero.core.runtime.scheduler
                                     @this._signalHeap.Return(s);
                                 }
 
-                                Interlocked.MemoryBarrierProcessWide();
                                 //spawn more workers, the ones we have are deadlocked
                                 if (blocked.Count >= @this._workerCount && @this._lastSpawnedWorker.ElapsedMs() > WorkerSpawnBurstTimeMs)
                                 {
@@ -375,7 +367,9 @@ namespace zero.core.runtime.scheduler
                         }
                     }, (@this, s, id)))
                 {
+#if TRACE
                     Console.WriteLine($"Queen[{id}]: Unable to Q signal for task {s.Task.Id}, {ts.ElapsedMs()}ms, OOM");
+#endif
                     return false;
                 }
             }
@@ -393,7 +387,7 @@ namespace zero.core.runtime.scheduler
             return true;
         }
 
-        [MethodImpl(MethodImplOptions.NoInlining)]
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private static bool WorkerHandler(IoZeroScheduler ioZeroScheduler, Task task, int id)
         {
             var s = task.Status == TaskStatus.WaitingToRun && ioZeroScheduler.TryExecuteTask(task);
@@ -533,10 +527,11 @@ var d = 0;
 
                             try
                             {
-                                var ramp = 3;
+                                int ramp;
                                 //Service the Q
                                 if (!isWorker)
                                 {
+                                    ramp = 0;
                                     Interlocked.Exchange(ref @this._queenPunchCards[xId], 1);
 #if __TRACE__
                                     Console.WriteLine($"[[QUEEN]] CONSUMING FROM Q {workerId},  Q = {queue.Count}/{@this.Active.Count()} - total jobs process = {@this.CompletedWorkItemCount}");
@@ -544,8 +539,8 @@ var d = 0;
                                 }
                                 else
                                 {
+                                    ramp = 3;
                                     Interlocked.Exchange(ref @this._workerPunchCards[xId], 1);
-                                    Interlocked.MemoryBarrier();
                                 }
 
                                 while (queue.TryDequeue(out var work) || ramp --> 0)
@@ -562,6 +557,8 @@ var d = 0;
                                             jobsProcessed++;
 #endif
                                         }
+                                        else if(isWorker && work == null)
+                                            await Task.Yield();
                                     }
                                     catch (Exception e)
                                     {
@@ -599,7 +596,6 @@ var d = 0;
                                 {
                                     Interlocked.Exchange(ref @this._queenPunchCards[xId], 0);
                                 }
-                                Interlocked.MemoryBarrier();
                             }
                         }
                         catch (Exception e)

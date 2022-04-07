@@ -166,7 +166,7 @@ namespace zero.cocoon
                 try
                 {
                     var force = false;
-                    if (@this.Hub.Neighbors.Count <= 1 || @this.TotalConnections == 0 || @this.Hub.Zeroed())
+                    if (@this.Hub.Neighbors.Count <= 1 || @this.TotalConnections == 0)
                     {
                         //restart useless hubs
                         if (@this.UpTime.ElapsedMsToSec() > @this.parm_mean_pat_delay_s)
