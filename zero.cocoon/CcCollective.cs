@@ -133,12 +133,13 @@ namespace zero.cocoon
 
         private async ValueTask StartHubAsync(int udpPrefetch, int udpConcurrencyLevel)
         {
+            if(Zeroed() || _autoPeering != null && _autoPeering.Zeroed())
+                return;
+
             if (_autoPeering != null)
                 await _autoPeering.Zero(this, "RESTART!");
 
-            _autoPeering = new CcHub(this, _peerAddress,
-                static (node, client, extraData) => { return new CcAdjunct((CcHub)node, client, extraData); }, udpPrefetch,
-                udpConcurrencyLevel);
+            _autoPeering = new CcHub(this, _peerAddress, static (node, client, extraData) => new CcAdjunct((CcHub)node, client, extraData), udpPrefetch, udpConcurrencyLevel);
         }
 
         /// <summary>
@@ -165,7 +166,7 @@ namespace zero.cocoon
                 try
                 {
                     var force = false;
-                    if (@this.Hub.Neighbors.Count <= 1 || @this.TotalConnections == 0)
+                    if (@this.Hub.Neighbors.Count <= 1 || @this.TotalConnections == 0 || @this.Hub.Zeroed())
                     {
                         //restart useless hubs
                         if (@this.UpTime.ElapsedMsToSec() > @this.parm_mean_pat_delay_s)

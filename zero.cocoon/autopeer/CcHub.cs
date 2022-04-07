@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Threading.Tasks;
+using NLog;
 using zero.cocoon.identity;
 using zero.cocoon.models.batches;
 using zero.cocoon.models.services;
@@ -76,6 +77,7 @@ namespace zero.cocoon.autopeer
         /// </summary>
         public override ValueTask ZeroManagedAsync()
         {
+            LogManager.GetCurrentClassLogger().Info($"- {Description}, from = {ZeroedFrom}, reason = {ZeroReason}");
             return base.ZeroManagedAsync();
         }
 

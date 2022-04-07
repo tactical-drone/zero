@@ -41,7 +41,7 @@ namespace zero.core.core
         /// <summary>
         /// The listening address of this node
         /// </summary>
-        private IoNodeAddress _address;
+        private readonly IoNodeAddress _address;
 
         /// <summary>
         /// The listening address of this node
@@ -137,7 +137,6 @@ namespace zero.core.core
             Neighbors = null;
             NeighborTasks = default;
             _netServer = null;
-            _address = null;
             _whiteList = null;
 #endif
         }
