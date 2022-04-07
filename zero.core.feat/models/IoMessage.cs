@@ -121,9 +121,9 @@ namespace zero.core.feat.models
         /// Does dup checking on this transaction
         /// </summary>        
         /// <returns></returns>
-        public async ValueTask<bool> WasProcessedRecentlyAsync(string key)
+        public ValueTask<bool> WasProcessedRecentlyAsync(string key)
         {            
-            return await Source.RecentlyProcessed.KeyExistsAsync(key);
+            return Source.RecentlyProcessed.KeyExistsAsync(key);
         }
 
         public override void ZeroUnmanaged()

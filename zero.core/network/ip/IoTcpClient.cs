@@ -50,7 +50,7 @@ namespace zero.core.network.ip
         public override async ValueTask<bool> ConnectAsync(IoNodeAddress remoteAddress, int timeout)
         {
             IoNetSocket = (await ZeroHiveAsync(new IoTcpSocket(ZeroConcurrencyLevel()), true).FastPath()).target;
-            return await base.ConnectAsync(remoteAddress, timeout);
+            return await base.ConnectAsync(remoteAddress, timeout).FastPath();
         }
 
         /// <summary>

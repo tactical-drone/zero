@@ -123,11 +123,11 @@ namespace zero.core.feat.models.protobuffer.sources
         /// Dequeue item
         /// </summary>
         /// <returns></returns>
-        public async ValueTask<TBatch> DequeueAsync()
+        public ValueTask<TBatch> DequeueAsync()
         {
             try
             {
-                return await BatchQueue.DequeueAsync();
+                return BatchQueue.DequeueAsync();
             }
             catch when (Zeroed()){}
             catch (Exception e)when (!Zeroed())

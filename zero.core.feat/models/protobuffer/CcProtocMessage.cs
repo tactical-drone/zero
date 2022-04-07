@@ -129,7 +129,7 @@ namespace zero.core.feat.models.protobuffer
                         // amount of steps. Instead of say just filling up memory buffers.
                         // This allows us some kind of (anti DOS?) congestion control
                         //----------------------------------------------------------------------------
-                        if (!await producerPressure(ioJob, ioZero).FastPath().ConfigureAwait(job.Zc))
+                        if (!await producerPressure(ioJob, ioZero).FastPath())
                             return false;
 
                         //Async read the message from the message stream
@@ -137,8 +137,7 @@ namespace zero.core.feat.models.protobuffer
                         {
 
                             job.GenerateJobId();
-                            var read = await ((IoNetClient<CcProtocMessage<TModel, TBatch>>)ioSocket).IoNetSocket
-                                .ReadAsync(job.MemoryBuffer, job.BufferOffset, job.BufferSize, job.RemoteEndPoint).FastPath().ConfigureAwait(job.Zc);
+                            var read = await ((IoNetClient<CcProtocMessage<TModel, TBatch>>)ioSocket).IoNetSocket.ReadAsync(job.MemoryBuffer, job.BufferOffset, job.BufferSize, job.RemoteEndPoint).FastPath();
 
                             //Drop zero reads
                             if (read == 0)

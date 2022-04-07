@@ -883,7 +883,7 @@ namespace zero.cocoon.autopeer
                     {
                         //TODO: DELAYS
                         //await Task.Delay(@this._random.Next(@this.parm_max_network_latency_ms>>4), @this.AsyncTasks.Token);
-                        await Task.Yield();
+                        //await Task.Yield();
 
                         var ts = Environment.TickCount;
                         AdjunctState oldState;
@@ -960,7 +960,7 @@ namespace zero.cocoon.autopeer
                                 continue;
 
                             var srcEndPoint = epGroups.Value.Item1.GetEndpoint();
-                            var proxy = await RouteAsync(srcEndPoint, epGroups.Value.Item2[0].Chroniton.PublicKey);
+                            var proxy = await RouteAsync(srcEndPoint, epGroups.Value.Item2[0].Chroniton.PublicKey).FastPath();
                             if (proxy != null)
                             {
                                 foreach (var message in msgGroup.Item2)
@@ -971,6 +971,8 @@ namespace zero.cocoon.autopeer
                                     {
                                         if(Equals(message.Chroniton.Header.Ip.Dst.GetEndpoint(), Router.MessageService.IoNetSocket.NativeSocket.LocalEndPoint)) 
                                             await processCallback(message, msgBatch, channel, nanite, proxy, srcEndPoint);
+                                        message.Chroniton = null;
+                                        message.EmbeddedMsg = null;
                                     }
                                     catch (Exception) when (!Zeroed()) { }
                                     catch (Exception e) when (Zeroed())
@@ -1004,12 +1006,12 @@ namespace zero.cocoon.autopeer
                                 cachedEp = message.EndPoint;
                                 cachedPk = message.Chroniton.PublicKey;
 #if DEBUG
-                                proxy = await RouteAsync(cachedEp.GetEndpoint(), cachedPk, message.Chroniton.Header.Ip.Src.GetEndpoint());
+                                proxy = await RouteAsync(cachedEp.GetEndpoint(), cachedPk, message.Chroniton.Header.Ip.Src.GetEndpoint()).FastPath();
 #else
                                 //proxy = RouteAsync(message.Chroniton.Header.Ip.Src.GetEndpoint(), cachedPk);
                                 //proxy = RouteAsync(cachedEp.GetEndpoint(), cachedPk, message.Chroniton.Header.Ip.Src.GetEndpoint());
                                 //TODO route issue
-                                proxy = await RouteAsync(cachedEp.GetEndpoint(), cachedPk);
+                                proxy = await RouteAsync(cachedEp.GetEndpoint(), cachedPk).FastPath();
 #endif
 
                             }
@@ -1113,7 +1115,7 @@ namespace zero.cocoon.autopeer
                     if (alternate != null)
                     {
                         var badProxy = proxy;
-                        proxy = await RouteAsync(alternate, publicKey);
+                        proxy = await RouteAsync(alternate, publicKey).FastPath();
                         if (proxy.IsProxy && proxy.Designation.IdString() != CcDesignation.MakeKey(publicKey))
                         {
                             _logger!.Warn($"Invalid routing detected wanted = {proxy.Designation.IdString()} - {proxy.RemoteAddress.IpEndPoint}, got = {CcDesignation.MakeKey(publicKey)} - {srcEndPoint}");
@@ -1521,10 +1523,10 @@ namespace zero.cocoon.autopeer
         {
             var f1 = _fuseRequest.Count;
             var f2 = Router._fuseRequest.Count;
-            var fuseMessage = await _fuseRequest.ResponseAsync(src.ToString(), response.ReqHash);
+            var fuseMessage = await _fuseRequest.ResponseAsync(src.ToString(), response.ReqHash).FastPath();
 
             if(!fuseMessage)
-                fuseMessage = await Router._fuseRequest.ResponseAsync(src.ToString(), response.ReqHash);
+                fuseMessage = await Router._fuseRequest.ResponseAsync(src.ToString(), response.ReqHash).FastPath();
 
             if (!fuseMessage)
             {
@@ -1710,7 +1712,7 @@ namespace zero.cocoon.autopeer
                             return await MessageService.IoNetSocket.SendAsync(buf.Item2, 0, (int)length + sizeof(ulong), dest.IpEndPoint);
                         }
 #else
-                        return await MessageService.IoNetSocket.SendAsync(buf.Item2, 0, (int)length + sizeof(ulong), dest.IpEndPoint);
+                        return await MessageService.IoNetSocket.SendAsync(buf.Item2, 0, (int)length + sizeof(ulong), dest.IpEndPoint).FastPath();
 #endif
                     }
                     finally
@@ -1754,9 +1756,9 @@ namespace zero.cocoon.autopeer
         {
             Interlocked.Increment(ref _scanCount);
 
-            var matchRequest = await _scanRequest.ResponseAsync(src.ToString(), response.ReqHash);
+            var matchRequest = await _scanRequest.ResponseAsync(src.ToString(), response.ReqHash).FastPath();
             if(!matchRequest)
-                matchRequest = await Router._scanRequest.ResponseAsync(src.ToString(), response.ReqHash);
+                matchRequest = await Router._scanRequest.ResponseAsync(src.ToString(), response.ReqHash).FastPath();
 
             if (!matchRequest || !Assimilating || response.Contacts.Count > parm_max_swept_drones)
             {
@@ -2275,16 +2277,16 @@ namespace zero.cocoon.autopeer
         {
             Interlocked.Exchange(ref _zeroProbes, 0);
 
-            var matchRequest = await _probeRequest.ResponseAsync(src.ToString(), response.ReqHash);
+            var matchRequest = await _probeRequest.ResponseAsync(src.ToString(), response.ReqHash).FastPath();
             
             //Try the router
             if (!matchRequest && IsProxy)
-                matchRequest = await Hub.Router._probeRequest.ResponseAsync(src.ToString(), response.ReqHash);
+                matchRequest = await Hub.Router._probeRequest.ResponseAsync(src.ToString(), response.ReqHash).FastPath();
 
 #if DEBUG
             //Try the DBG source info //TODO: is this fixed?
             if (!matchRequest && IsProxy)
-                matchRequest = await _probeRequest.ResponseAsync(packet.Header.Ip.Src.GetEndpoint().ToString(), response.ReqHash);
+                matchRequest = await _probeRequest.ResponseAsync(packet.Header.Ip.Src.GetEndpoint().ToString(), response.ReqHash).FastPath();
 #endif
             if (!matchRequest)
             {
@@ -2476,8 +2478,7 @@ namespace zero.cocoon.autopeer
                 var probeMsgBuf = probeMessage.ToByteArray();
 
                 IoQueue<IoZeroMatcher.IoChallenge>.IoZNode challenge;
-                if ((challenge = await _probeRequest.ChallengeAsync(dest.IpPort, probeMsgBuf)
-                        .FastPath()) == null)
+                if ((challenge = await _probeRequest.ChallengeAsync(dest.IpPort, probeMsgBuf).FastPath()) == null)
                 {
                     if(!Zeroed())
                         _logger.Fatal($"{nameof(ProbeAsync)} No challange, {_probeRequest.Count}/{_probeRequest.Capacity}");
@@ -2500,7 +2501,7 @@ namespace zero.cocoon.autopeer
                     }
 
                     //send
-                    var sent = await SendMessageAsync(data: probeMsgBuf, type: CcDiscoveries.MessageTypes.Probe);
+                    var sent = await SendMessageAsync(data: probeMsgBuf, type: CcDiscoveries.MessageTypes.Probe).FastPath();
                     if (sent > 0)
                     {
                         Interlocked.Increment(ref _zeroProbes);
@@ -2539,8 +2540,7 @@ namespace zero.cocoon.autopeer
                 }
                 else //The destination state was undefined, this is local
                 {
-                    var sent = await SendMessageAsync(probeMsgBuf, CcDiscoveries.MessageTypes.Probe, dest)
-                        ;
+                    var sent = await SendMessageAsync(probeMsgBuf, CcDiscoveries.MessageTypes.Probe, dest).FastPath();
 
                     if (sent > 0)
                     {
@@ -2620,13 +2620,12 @@ namespace zero.cocoon.autopeer
                 var sweepMsgBuf = sweepMessage.ToByteArray();
 
                 IoQueue<IoZeroMatcher.IoChallenge>.IoZNode challenge;
-                if ((challenge = await _scanRequest.ChallengeAsync(RemoteAddress.IpPort, sweepMsgBuf)
-                    .FastPath()) == null)
+                if ((challenge = await _scanRequest.ChallengeAsync(RemoteAddress.IpPort, sweepMsgBuf).FastPath()) == null)
                 {
                     return false;
                 }
 
-                var sent = await SendMessageAsync(sweepMsgBuf,CcDiscoveries.MessageTypes.Scan, RemoteAddress);
+                var sent = await SendMessageAsync(sweepMsgBuf,CcDiscoveries.MessageTypes.Scan, RemoteAddress).FastPath();
                 if (sent > 0)
                 {
                     Interlocked.Increment(ref _scanCount);
@@ -2709,7 +2708,7 @@ namespace zero.cocoon.autopeer
                         return;
                     }
 
-                    var sent = await @this.SendMessageAsync(fuseRequestBuf, CcDiscoveries.MessageTypes.Fuse);
+                    var sent = await @this.SendMessageAsync(fuseRequestBuf, CcDiscoveries.MessageTypes.Fuse).FastPath();
                     if (sent > 0)
                     {
                         Interlocked.Increment(ref @this._fuseCount);
@@ -2757,8 +2756,7 @@ namespace zero.cocoon.autopeer
                     Timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()
                 };
 
-                var sent = await SendMessageAsync(dropRequest.ToByteArray(), CcDiscoveries.MessageTypes.Defuse, dest)
-                    ;
+                var sent = await SendMessageAsync(dropRequest.ToByteArray(), CcDiscoveries.MessageTypes.Defuse, dest).FastPath();
 
 #if DEBUG
                 _logger.Trace(

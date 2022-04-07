@@ -381,10 +381,10 @@ namespace zero.core.network.ip
         /// Attempts to reconnect the socket
         /// </summary>
         /// <returns></returns>
-        public async ValueTask<bool> ReconnectAsync()
+        public ValueTask<bool> ReconnectAsync()
         {
             ResetSocket();
-            return await ConnectAsync(RemoteNodeAddress);
+            return ConnectAsync(RemoteNodeAddress);
         }
     }
 }

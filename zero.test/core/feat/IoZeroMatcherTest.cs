@@ -34,7 +34,7 @@ namespace zero.test.core.feat
                 {
                     var array = payload as byte[];
                     var key = ((ReadOnlyMemory<byte>)array).HashSig();
-                    var c = await m.ChallengeAsync(key, array);
+                    var c = await m.ChallengeAsync(key, array).FastPath();
 
                     var reqHash = RandomNumberGenerator.GetBytes(32);
 
@@ -78,7 +78,7 @@ namespace zero.test.core.feat
                 {
                     var array = payload as byte[];
                     var key = ((ReadOnlyMemory<byte>)array).HashSig();
-                    var c = await m.ChallengeAsync(key, array);
+                    var c = await m.ChallengeAsync(key, array).FastPath();
 
                     var reqHash = ArrayPool<byte>.Shared.Rent(32);
 
@@ -120,7 +120,7 @@ namespace zero.test.core.feat
                 {
                     var array = payload as byte[];
                     var key = ((ReadOnlyMemory<byte>)array).HashSig();
-                    var c = await m.ChallengeAsync(key, array);
+                    var c = await m.ChallengeAsync(key, array).FastPath();
 
                     var reqHash = ArrayPool<byte>.Shared.Rent(32);
 

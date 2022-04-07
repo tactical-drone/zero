@@ -105,9 +105,14 @@ namespace zero.core.core
         protected int parm_nb_teardown_timeout_s  = 3; //currently takes 2 seconds to up
 
         /// <summary>
-        /// TCP read ahead
+        /// Read ahead
         /// </summary>
         private readonly int _preFetch;
+
+        /// <summary>
+        /// Read ahead
+        /// </summary>
+        public int PreFetch => _preFetch;
 
         /// <summary>
         /// The listener task
@@ -356,12 +361,12 @@ namespace zero.core.core
 
                 var node = await NeighborTasks.EnqueueAsync(ZeroOptionAsync(static async state =>
                 {
-                    var (@this, newNeighbor, cfgAwait) = state;
+                    var (@this, newNeighbor) = state;
 
                     try
                     {
                         while(!newNeighbor.Zeroed())
-                            await newNeighbor.BlockOnReplicateAsync().FastPath().ConfigureAwait(cfgAwait);
+                            await newNeighbor.BlockOnReplicateAsync().FastPath();
                     }
                     catch when(!@this.Zeroed() || newNeighbor.Zeroed()){}
                     catch (Exception e) when (!@this.Zeroed() && !newNeighbor.Zeroed())
@@ -371,7 +376,7 @@ namespace zero.core.core
 
                     if(!@this.Zeroed() && !newNeighbor.Zeroed())
                         @this._logger.Warn($"{nameof(newNeighbor.BlockOnReplicateAsync)}: [FAILED]... restarting...");
-                }, ValueTuple.Create(this, newNeighbor, Zc), TaskCreationOptions.DenyChildAttach | TaskCreationOptions.LongRunning | TaskCreationOptions.PreferFairness).AsTask());
+                }, ValueTuple.Create(this, newNeighbor), TaskCreationOptions.DenyChildAttach | TaskCreationOptions.LongRunning | TaskCreationOptions.PreferFairness).AsTask()).FastPath();
 
                 await node.Value.ContinueWith(static async (_, state) =>
                 {
@@ -404,8 +409,7 @@ namespace zero.core.core
                 if (Neighbors.ContainsKey(remoteAddress.Key))
                     return null;
 
-                newClient = await _netServer.ConnectAsync(remoteAddress, timeout: timeout).FastPath()
-                    ;
+                newClient = await _netServer.ConnectAsync(remoteAddress, timeout: timeout).FastPath();
 
                 if (newClient != null)
                 {
@@ -419,7 +423,7 @@ namespace zero.core.core
                         {
                             var (@this, newNeighbor) = state;
 
-                            static async Task<bool> AddOrUpdate(IoNode<TJob> @this, IoNeighbor<TJob> newNeighbor)
+                            static async ValueTask<bool> AddOrUpdate(IoNode<TJob> @this, IoNeighbor<TJob> newNeighbor)
                             {
                                 try
                                 {
@@ -452,7 +456,7 @@ namespace zero.core.core
 
                                     @this.Neighbors.TryRemove(newNeighbor.Key, out _);
 
-                                    return await AddOrUpdate(@this, newNeighbor);
+                                    return await AddOrUpdate(@this, newNeighbor).FastPath();
                                 }
                                 catch when (@this.Zeroed() || newNeighbor.Zeroed())
                                 {
@@ -465,7 +469,7 @@ namespace zero.core.core
                                 return false;
                             }
 
-                            return new ValueTask<bool>(AddOrUpdate(@this, newNeighbor));
+                            return AddOrUpdate(@this, newNeighbor);
                         }, (this, newNeighbor)).FastPath())
                     {
                         return newNeighbor;

@@ -178,7 +178,7 @@ namespace zero.core.feat.misc
                         {
                             challenge.Key = response.Key;
                             challenge.TimestampMs = Environment.TickCount;
-                            response.Node = await @this._lut.EnqueueAsync(challenge);
+                            response.Node = await @this._lut.EnqueueAsync(challenge).FastPath();
                             return true;
                         }
                     }

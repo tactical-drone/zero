@@ -30,11 +30,10 @@ namespace zero.cocoon.models.batches
                 GroupBy = new Dictionary<byte[], Tuple<byte[], List<CcDiscoveryMessage>>>(new IoByteArrayComparer());
         }
 
-        IoHeap<CcDiscoveryBatch, CcDiscoveries> _heapRef;
+        volatile IoHeap<CcDiscoveryBatch, CcDiscoveries> _heapRef;
         private CcDiscoveryMessage[] _messages;
         private Dictionary<string, ReadOnlyMemory<CcDiscoveryMessage>> _messagesDictionary = new();
         private volatile int _disposed;
-
 
         public CcDiscoveryMessage this[int i] => _messages[i];
 
@@ -51,12 +50,6 @@ namespace zero.cocoon.models.batches
         {
             if(_heapRef.Count / (double)_heapRef.Capacity > 0.8)
                 LogManager.GetCurrentClassLogger().Warn($"{nameof(CcDiscoveryBatch)}: Heap is running lean, {_heapRef} ");
-
-            foreach (var t in _messages)
-            {
-                t.Chroniton = null;
-                t.EmbeddedMsg = null;
-            }
 
             _heapRef.Return(this);
         }

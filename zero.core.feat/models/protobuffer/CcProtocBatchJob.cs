@@ -128,12 +128,12 @@ namespace zero.core.feat.models.protobuffer
                 {
                     var job = (CcProtocBatchJob<TModel, TBatch>)ioJob;
                 
-                    if (!await backPressure(ioJob, state).FastPath().ConfigureAwait(job.Zc))
+                    if (!await backPressure(ioJob, state).FastPath())
                         return false;
 
                     try
                     {
-                        job._batch = await ((CcProtocBatchSource<TModel, TBatch>) job.Source).DequeueAsync().FastPath().ConfigureAwait(job.Zc);
+                        job._batch = await ((CcProtocBatchSource<TModel, TBatch>) job.Source).DequeueAsync().FastPath();
                         job.GenerateJobId();
                     }
                     catch (Exception e) when(!job.Zeroed())
@@ -154,7 +154,6 @@ namespace zero.core.feat.models.protobuffer
         /// <summary>
         /// Consumes the job
         /// </summary>
-        /// <param name="zeroRecovery"></param>
         /// <returns>
         /// The state of the consumption
         /// </returns>

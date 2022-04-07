@@ -328,7 +328,7 @@ namespace zero.core.patterns.bushings
                 //And the consumer is keeping up, which it should
                 try
                 {
-                    nextJob = await JobHeap.TakeAsync(null, this);
+                    nextJob = await JobHeap.TakeAsync(null, this).FastPath();
                         
                     //Allocate a job from the heap
                     if (nextJob != null)
@@ -378,8 +378,7 @@ namespace zero.core.patterns.bushings
 
                                     if (@this.ZeroRecoveryEnabled)
                                     {
-                                        nextJob.PrevJobQHook = await @this._previousJobFragment
-                                            .EnqueueAsync(nextJob);
+                                        nextJob.PrevJobQHook = await @this._previousJobFragment.EnqueueAsync(nextJob).FastPath();
                                     }
                                 }, (this, nextJob)).FastPath() == null || nextJob.Source == null)
                             {
@@ -567,7 +566,7 @@ namespace zero.core.patterns.bushings
                 //A job was produced. Dequeue it and process
                 try
                 {
-                    curJob = await _queue.DequeueAsync();
+                    curJob = await _queue.DequeueAsync().FastPath();
                 }
                 catch (Exception e)
                 {

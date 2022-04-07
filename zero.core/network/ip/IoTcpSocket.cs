@@ -307,9 +307,7 @@ namespace zero.core.network.ip
                 if (!NativeSocket.Poll(parm_socket_poll_wait_ms, SelectMode.SelectWrite))
                     return 0;
 
-                return await NativeSocket
-                    .SendAsync(buffer.Slice(offset, length), SocketFlags.None, timeout >0? new CancellationTokenSource(timeout).Token: AsyncTasks.Token).FastPath()
-                    ;
+                return await NativeSocket.SendAsync(buffer.Slice(offset, length), SocketFlags.None, timeout >0? new CancellationTokenSource(timeout).Token: AsyncTasks.Token).FastPath();
             }
             catch (SocketException e)
             {
@@ -348,9 +346,7 @@ namespace zero.core.network.ip
         {
             try
             {
-                return await NativeSocket
-                        .ReceiveAsync(buffer.Slice(offset, length), SocketFlags.None, timeout > 0? new CancellationTokenSource(timeout).Token: AsyncTasks.Token).FastPath()
-                        ;
+                return await NativeSocket.ReceiveAsync(buffer.Slice(offset, length), SocketFlags.None, timeout > 0? new CancellationTokenSource(timeout).Token: AsyncTasks.Token).FastPath();
             }
             catch (ObjectDisposedException) { }
             catch (OperationCanceledException) { }

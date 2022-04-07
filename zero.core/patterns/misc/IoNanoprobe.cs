@@ -194,11 +194,6 @@ namespace zero.core.patterns.misc
         //public virtual ValueTask<bool> ReuseAsync(object localContext = null) {return new ValueTask<bool>(true);}
         
         /// <summary>
-        /// config await
-        /// </summary>
-        public bool Zc => ContinueOnCapturedContext;
-
-        /// <summary>
         /// Initialize concurrency level
         /// </summary>
         /// <param name="concurrencyLevel"></param>
@@ -367,7 +362,7 @@ namespace zero.core.patterns.misc
             if (_zeroed > 0 || target == null)
                 return (default, false, null);
 
-            var zNode = await _zeroHiveMind.EnqueueAsync(target);
+            var zNode = await _zeroHiveMind.EnqueueAsync(target).FastPath();
 
             if (zNode == null)
             {
@@ -584,7 +579,7 @@ namespace zero.core.patterns.misc
                     {
                         try
                         {
-                            return _zeroed == 0 && await ownershipAction(this, userData, disposing);
+                            return _zeroed == 0 && await ownershipAction(this, userData, disposing).FastPath();
                         }
                         catch when (Zeroed())
                         {
@@ -598,7 +593,7 @@ namespace zero.core.patterns.misc
                     }
                     else
                     {
-                        return await ownershipAction(this, userData, disposing);
+                        return await ownershipAction(this, userData, disposing).FastPath();
                     }
                 }
                 catch when (Zeroed())
@@ -656,7 +651,7 @@ namespace zero.core.patterns.misc
                     var nanoprobe = state as IoNanoprobe;
                     try
                     {
-                        return await action(state);
+                        return await action(state).FastPath();
                     }
 #if DEBUG
                     catch (TaskCanceledException e) when ( nanoprobe != null && !nanoprobe.Zeroed() ||
@@ -679,7 +674,7 @@ namespace zero.core.patterns.misc
                     return default;
                 }, ValueTuple.Create(this, continuation, state, filePath, methodName, lineNumber), asyncToken, options, scheduler??TaskScheduler.Current);
 
-                return await zeroAsyncTask.Result;
+                return await zeroAsyncTask.Result.FastPath();
                 
             }
             catch (TaskCanceledException e) when (!nanite.Zeroed())

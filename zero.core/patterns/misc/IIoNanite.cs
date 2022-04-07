@@ -109,11 +109,6 @@ namespace zero.core.patterns.misc
         IoQueue<IoZeroSub> ZeroHive();
 
         /// <summary>
-        /// Maintain zero context
-        /// </summary>
-        bool Zc { get; }
-
-        /// <summary>
         /// Cancels all processing
         /// </summary>
         ValueTask ZeroPrimeAsync();

@@ -554,7 +554,7 @@ namespace zero.cocoon.models
                     if (IoZero.ZeroRecoveryEnabled && !Zeroed() && !zeroRecovery && !fastPath && BytesLeftToProcess > 0 && PreviousJob != null)
                     {
                         State = IoJobMeta.JobState.ZeroRecovery;
-                        State = await ConsumeAsync();
+                        State = await ConsumeAsync().FastPath();
                     }
 
                     //else
@@ -570,7 +570,7 @@ namespace zero.cocoon.models
                     if (IoZero.ZeroRecoveryEnabled && !Zeroed() && !zeroRecovery && !fastPath && BytesLeftToProcess > 0 && PreviousJob != null)
                     {
                         State = IoJobMeta.JobState.ZeroRecovery;
-                        State = await ConsumeAsync();
+                        State = await ConsumeAsync().FastPath();
                     }
                 }
                 catch when (Zeroed()) { State = IoJobMeta.JobState.ConsumeErr; }

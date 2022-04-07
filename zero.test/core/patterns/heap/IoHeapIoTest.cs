@@ -76,7 +76,7 @@ namespace zero.test.core.patterns.heap
             {
                 newItem.TestVar5 = context;
                 return new ValueTask<TestHeapItem>(newItem);
-            }, userData:3);
+            }, userData:3).FastPath();
             Assert.Equal(3, item.TestVar4);
             Assert.Equal(3, item.TestVar5);
             Assert.Equal(3, item.TestVar6);

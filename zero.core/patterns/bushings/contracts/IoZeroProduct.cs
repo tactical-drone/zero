@@ -42,7 +42,7 @@ namespace zero.core.patterns.bushings.contracts
                 {
                     var job = (IoZeroProduct)ioJob;
 
-                    if (!await backPressure(ioJob, state).FastPath().ConfigureAwait(job.Zc))
+                    if (!await backPressure(ioJob, state).FastPath())
                         return false;
 
                     //mock production delay

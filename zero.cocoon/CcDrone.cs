@@ -240,7 +240,7 @@ namespace zero.cocoon
                     
 
                 //Attach the other way
-                var attached = await Adjunct.AttachDroneAsync(this, direction);
+                var attached = await Adjunct.AttachDroneAsync(this, direction).FastPath();
 
                 if (attached)
                 {

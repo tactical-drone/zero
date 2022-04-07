@@ -147,7 +147,7 @@ namespace zero.core.network.ip
             if (Zeroed())
                 return false;
             var ts = Environment.TickCount;
-            var connected = await IoNetSocket.ConnectAsync(remoteAddress, timeout);
+            var connected = await IoNetSocket.ConnectAsync(remoteAddress, timeout).FastPath();
 
             if (connected)
                 _logger.Trace($"Connecting to `{remoteAddress}', took {ts.ElapsedMs()}ms, {Description}");
@@ -186,8 +186,7 @@ namespace zero.core.network.ip
                     if (!IoNetSocket.IsConnected())
                     {
                         if (UpTime.ElapsedMsToSec() > 5)
-                            _logger.Error(
-                                $"DC {IoNetSocket.RemoteNodeAddress} from {IoNetSocket.LocalNodeAddress}, uptime = {TimeSpan.FromSeconds(UpTime.ElapsedMs())}");
+                            _logger.Error($"DC {IoNetSocket.RemoteNodeAddress} from {IoNetSocket.LocalNodeAddress}, uptime = {TimeSpan.FromMilliseconds(UpTime.ElapsedMs())}");
 
                         //Do cleanup
                         return false;

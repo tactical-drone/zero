@@ -52,15 +52,19 @@ namespace zero.cocoon.models
 #else
             string bashDesc = string.Empty;
 #endif
+            //Create the conduit source
+            const string conduitId = nameof(CcAdjunct);
+            ProtocolConduit = MessageService.CreateConduitOnceAsync<CcProtocBatchJob<chroniton, CcDiscoveryBatch>>(conduitId).GetAwaiter().GetResult();
 
-            _batchHeap ??= new IoHeap<CcDiscoveryBatch, CcDiscoveries>(bashDesc, parm_max_msg_batch_size, static (_, @this) =>
+            //Set the heap
+            _batchHeap = new IoHeap<CcDiscoveryBatch, CcDiscoveries>(bashDesc, pf * 2, static (_, @this) =>
             {
                 //sentinel
                 if (@this == null)
                     return new CcDiscoveryBatch(null, 1);
 
                 return new CcDiscoveryBatch(@this._batchHeap, @this.parm_max_msg_batch_size, @this._groupByEp);
-            }, true)
+            })
             {
                 Context = this
             };
@@ -70,10 +74,7 @@ namespace zero.cocoon.models
             if (_currentBatch == null)
                 throw new OutOfMemoryException($"{Description}: {nameof(CcDiscoveries)}.{nameof(_currentBatch)}");
 
-            const string conduitId = nameof(CcAdjunct);
-
-            ProtocolConduit = MessageService.CreateConduitOnceAsync<CcProtocBatchJob<chroniton, CcDiscoveryBatch>>(conduitId).GetAwaiter().GetResult();
-
+            //create the channel
             if (ProtocolConduit == null)
             {
                 //TODO tuning
@@ -393,7 +394,7 @@ namespace zero.cocoon.models
             if (IoZero.ZeroRecoveryEnabled && !Zeroed() && !fastPath && !zeroRecovery && BytesLeftToProcess > 0 && PreviousJob != null)
             {
                 State = IoJobMeta.JobState.ZeroRecovery;
-                return await ConsumeAsync();
+                return await ConsumeAsync().FastPath();
             }
 
             return State;

@@ -60,10 +60,7 @@ namespace zero.cocoon
             Services.CcRecord.Endpoints.TryAdd(CcService.Keys.gossip, _gossipAddress);
             Services.CcRecord.Endpoints.TryAdd(CcService.Keys.fpc, fpcAddress);
 
-            _autoPeering =  new CcHub(this, _peerAddress,static (node, client, extraData) =>
-            {
-                return new CcAdjunct((CcHub)node, client, extraData);
-            }, udpPrefetch, udpConcurrencyLevel);
+            _ = StartHubAsync(udpPrefetch, udpConcurrencyLevel);
             _autoPeering.ZeroHiveAsync(this).AsTask().GetAwaiter().GetResult();
             
             DupSyncRoot = new IoZeroSemaphoreSlim(AsyncTasks,  $"Dup checker for {ccDesignation.IdString()}", maxBlockers: Math.Max(MaxDrones * tcpConcurrencyLevel,1), initialCount: 1);
@@ -134,6 +131,16 @@ namespace zero.cocoon
             };//ensure robotics
         }
 
+        private async ValueTask StartHubAsync(int udpPrefetch, int udpConcurrencyLevel)
+        {
+            if (_autoPeering != null)
+                await _autoPeering.Zero(this, "RESTART!");
+
+            _autoPeering = new CcHub(this, _peerAddress,
+                static (node, client, extraData) => { return new CcAdjunct((CcHub)node, client, extraData); }, udpPrefetch,
+                udpConcurrencyLevel);
+        }
+
         /// <summary>
         /// Tasks
         /// </summary>
@@ -151,35 +158,36 @@ namespace zero.cocoon
         /// </summary>
         /// <param name="this"></param>
         /// <returns></returns>
-        private async ValueTask RoboAsync(CcCollective @this)
+        private static async ValueTask RoboAsync(CcCollective @this)
         {
-            await ZeroAsync(static async @this =>
+            while (!@this.Zeroed())
             {
-                while (!@this.Zeroed())
+                try
                 {
-                    try
+                    var force = false;
+                    if (@this.Hub.Neighbors.Count <= 1 || @this.TotalConnections == 0)
                     {
-                        var force = false;
-                        if (@this.Hub.Neighbors.Count <= 1)
-                        {
-                            force = true;
-                            await Task.Delay(@this._random.Next(@this.parm_mean_pat_delay_s * 1000/2) + @this.parm_mean_pat_delay_s * 1000 / 4, @this.AsyncTasks.Token);
-                        }
-                        else
-                        {
-                            await Task.Delay(@this._random.Next(@this.parm_mean_pat_delay_s * 1000) + @this.parm_mean_pat_delay_s * 1000 / 2, @this.AsyncTasks.Token);
-                        }
+                        //restart useless hubs
+                        if (@this.UpTime.ElapsedMsToSec() > @this.parm_mean_pat_delay_s)
+                            await @this.StartHubAsync(@this.Hub.PreFetch, @this.Hub.ZeroConcurrencyLevel());
+                        
+                        force = true;
+                        await Task.Delay(@this._random.Next(@this.parm_mean_pat_delay_s * 1000/2) + @this.parm_mean_pat_delay_s * 1000 / 4, @this.AsyncTasks.Token);
+                    }
+                    else
+                    {
+                        await Task.Delay(@this._random.Next(@this.parm_mean_pat_delay_s * 1000) + @this.parm_mean_pat_delay_s * 1000 / 2, @this.AsyncTasks.Token);
+                    }
 
-                        if (@this.EgressCount < @this.parm_max_outbound) 
-                            await @this.DeepScanAsync(force);
-                    }
-                    catch when(@this.Zeroed()){}
-                    catch (Exception e)
-                    {
-                        @this._logger.Error(e, "Error while scanning DMZ!");
-                    }
+                    if (@this.EgressCount < @this.parm_max_outbound) 
+                        await @this.DeepScanAsync(force);
                 }
-            }, this, TaskCreationOptions.DenyChildAttach);
+                catch when(@this.Zeroed()){}
+                catch (Exception e)
+                {
+                    @this._logger.Error(e, "Error while scanning DMZ!");
+                }
+            }
         }
 
         /// <summary>
@@ -473,7 +481,7 @@ namespace zero.cocoon
                     {
                         //TODO: DELAYS
                         //await Task.Delay(@this.parm_futile_timeout_ms>>4, @this.AsyncTasks.Token);
-                        await Task.Yield();
+                        //await Task.Yield();
 
                         if (drone.Zeroed())
                         {
@@ -574,9 +582,7 @@ namespace zero.cocoon
                     do
                     {
                         
-                        bytesRead += localRead = await ioNetSocket
-                            .ReadAsync(futileBuffer, bytesRead, _futileRequestSize - bytesRead, timeout: parm_futile_timeout_ms).FastPath()
-                            ;
+                        bytesRead += localRead = await ioNetSocket.ReadAsync(futileBuffer, bytesRead, _futileRequestSize - bytesRead, timeout: parm_futile_timeout_ms).FastPath();
                     } while (bytesRead < _futileRequestSize && localRead > 0 && !Zeroed());
 
                     if ((bytesRead == 0 || bytesRead < _futileRequestSize) && ioNetSocket.IsConnected())
@@ -636,7 +642,7 @@ namespace zero.cocoon
                             //}
 
                             //race for connection
-                            won = await ConnectForTheWinAsync(CcAdjunct.Heading.Ingress, drone, packet, (IPEndPoint)ioNetSocket.NativeSocket.RemoteEndPoint);
+                            won = await ConnectForTheWinAsync(CcAdjunct.Heading.Ingress, drone, packet, (IPEndPoint)ioNetSocket.NativeSocket.RemoteEndPoint).FastPath();
 
                             _logger.Trace($"{nameof(CcFutileRequest)}: won = {won}, read = {bytesRead}, {drone.IoSource.Key}");
 
@@ -650,8 +656,7 @@ namespace zero.cocoon
                             
                             _sw.Restart();
 
-                            var sent = await SendMessageAsync(drone, futileResponseBuf, nameof(CcFutileResponse),
-                                parm_futile_timeout_ms);
+                            var sent = await SendMessageAsync(drone, futileResponseBuf, nameof(CcFutileResponse), parm_futile_timeout_ms).FastPath();
                             if (sent == 0)
                             {
                                 _logger.Trace($"{nameof(futileResponse)}: Send FAILED! {ioNetSocket.Description}");
@@ -678,8 +683,7 @@ namespace zero.cocoon
                     var futileRequestBuf = ccFutileRequest.ToByteString();
                     
                     _sw.Restart();
-                    var sent = await SendMessageAsync(drone, futileRequestBuf, nameof(CcFutileRequest))
-                        ;
+                    var sent = await SendMessageAsync(drone, futileRequestBuf, nameof(CcFutileRequest)).FastPath();
                     if (sent > 0)
                     {
                         _logger.Trace(
@@ -698,9 +702,7 @@ namespace zero.cocoon
                     ts = Environment.TickCount;
                     do
                     {
-                        bytesRead += localRead = await ioNetSocket
-                            .ReadAsync(futileBuffer, bytesRead, chunkSize, timeout: parm_futile_timeout_ms).FastPath()
-                            ;
+                        bytesRead += localRead = await ioNetSocket.ReadAsync(futileBuffer, bytesRead, chunkSize, timeout: parm_futile_timeout_ms).FastPath();
                         if (chunkSize == _futileRejectSize)
                         {
                             expectedChunk = _futileResponseSize;
@@ -746,9 +748,7 @@ namespace zero.cocoon
                         _logger.Trace($"{nameof(CcFuseRequest)}: [signed], from = egress, read = {bytesRead}, {drone.IoSource.Key}");
 
                         //race for connection
-                        var won = await ConnectForTheWinAsync(CcAdjunct.Heading.Egress, drone, packet,
-                                drone.Adjunct.RemoteAddress.IpEndPoint)
-                            ;
+                        var won = await ConnectForTheWinAsync(CcAdjunct.Heading.Egress, drone, packet, drone.Adjunct.RemoteAddress.IpEndPoint).FastPath();
 
                         if(!won)
                             return false;
@@ -849,7 +849,7 @@ namespace zero.cocoon
 
             if (adjunct.Assimilating && !adjunct.IsDroneAttached)
             {
-                var attached = await drone.AttachViaAdjunctAsync(direction);
+                var attached = await drone.AttachViaAdjunctAsync(direction).FastPath();
 
                 var capped = attached && !await ZeroAtomic(static (_, o, _) =>
                 {
@@ -918,7 +918,7 @@ namespace zero.cocoon
                 {
                     Interlocked.Increment(ref _currentOutboundConnectionAttempts);
 
-                    var drone = await ConnectAsync(IoNodeAddress.CreateFromEndpoint("tcp", adjunct.RemoteAddress.IpEndPoint) , adjunct, timeout:parm_futile_timeout_ms);
+                    var drone = await ConnectAsync(IoNodeAddress.CreateFromEndpoint("tcp", adjunct.RemoteAddress.IpEndPoint) , adjunct, timeout:parm_futile_timeout_ms).FastPath();
                     if (Zeroed() || drone == null || ((CcDrone)drone).Adjunct.Zeroed())
                     {
                         if (drone != null) await drone.Zero(this, $"{nameof(ConnectAsync)} was not successful [OK]");
@@ -936,7 +936,7 @@ namespace zero.cocoon
 
                             //TODO: DELAYS
                             //await Task.Delay(@this.parm_futile_timeout_ms >> 4, @this.AsyncTasks.Token);
-                            await Task.Yield();
+                            //await Task.Yield();
 
                             if (!drone.Zeroed())
                             {
