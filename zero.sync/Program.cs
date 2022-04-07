@@ -260,7 +260,7 @@ namespace zero.sync
                 int minInC = 0;
                 int empty = 0;
                 long lastUpdate = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
-                long perfTime = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(), totalPerfTime = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+                long perfTime = Environment.TickCount, totalPerfTime = Environment.TickCount;
                 long opsCheckpoint = ThreadPool.CompletedWorkItemCount, totalOpsCheckpoint = ThreadPool.CompletedWorkItemCount;
                 while (_running)
                 {
@@ -346,7 +346,7 @@ namespace zero.sync
                             var fps = localOps / (double)perfTime.ElapsedMsToSec();
                             var tfps = totalOps / (double)totalPerfTime.ElapsedMsToSec();
                             opsCheckpoint = ThreadPool.CompletedWorkItemCount;
-                            perfTime = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+                            perfTime = Environment.TickCount;
                             try
                             {
                                 Console.ForegroundColor = prevPeers <= peers ? ConsoleColor.Green : ConsoleColor.Red;
@@ -370,7 +370,7 @@ namespace zero.sync
                             var totalOps = (ThreadPool.CompletedWorkItemCount - totalOpsCheckpoint);
                             var fps = localOps / (double)perfTime.ElapsedMsToSec();
                             var tfps = totalOps / (double)totalPerfTime.ElapsedMsToSec();
-                            perfTime = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+                            perfTime = Environment.TickCount;
                             opsCheckpoint = ThreadPool.CompletedWorkItemCount;
 
                             Console.ForegroundColor = ConsoleColor.Green;
