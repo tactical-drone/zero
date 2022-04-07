@@ -1200,7 +1200,7 @@ namespace zero.sync
         private static async ValueTask ZeroAsync(int total)
         {
             _running = false;
-            await AutoPeeringEventService.ClearAsync().FastPath();
+            await AutoPeeringEventService.ClearAsync();
             Console.WriteLine("#");
             SemaphoreSlim s = new (10);
             int zeroed = 0;
@@ -1213,7 +1213,7 @@ namespace zero.sync
                     s.Wait();
                     var task = Task.Run(async () =>
                     {
-                        await n.Zero(null,"MAIN TEARDOWN").FastPath();
+                        await n.Zero(null,"MAIN TEARDOWN");
                         Interlocked.Increment(ref zeroed);
                     });
 
@@ -1281,7 +1281,7 @@ namespace zero.sync
                 IoNodeAddress.Create(fpcAddress),
                 IoNodeAddress.Create(extAddress),
                 bootStrapAddress.Select(IoNodeAddress.Create).Where(a => a.Port.ToString() != peerAddress.Split(":")[2]).ToList(),
-                3, 3, 2, 1, zeroDrone);
+                2, 2, 1, 1, zeroDrone);
 
             _nodes.Add(cocoon);
 

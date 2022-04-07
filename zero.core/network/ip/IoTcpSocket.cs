@@ -70,7 +70,7 @@ namespace zero.core.network.ip
             Func<ValueTask> bootstrapAsync = null)
         {
             //base
-            await base.BlockOnListenAsync(listeningAddress, acceptConnectionHandler, context, bootstrapAsync).FastPath();
+            await base.BlockOnListenAsync(listeningAddress, acceptConnectionHandler, context, bootstrapAsync);
             
             //Put the socket in listen mode
             try
@@ -85,7 +85,7 @@ namespace zero.core.network.ip
 
             //Execute bootstrap
             if(bootstrapAsync!=null)
-                await bootstrapAsync().FastPath();
+                await bootstrapAsync();
 
             var description = Description;
             // Accept incoming connections
@@ -137,11 +137,11 @@ namespace zero.core.network.ip
                     try
                     {
                         //ZERO
-                        await acceptConnectionHandler(newSocket, context).FastPath();
+                        await acceptConnectionHandler(newSocket, context);
                     }
                     catch (Exception e)
                     {
-                       await newSocket.Zero(this, $"{nameof(acceptConnectionHandler)} returned with errors").FastPath();
+                       await newSocket.Zero(this, $"{nameof(acceptConnectionHandler)} returned with errors");
                         _logger.Error(e, $"There was an error handling a new connection from {newSocket.RemoteNodeAddress} to `{newSocket.LocalNodeAddress}'");
                     }
                 }
@@ -315,7 +315,7 @@ namespace zero.core.network.ip
             {
                 _logger.Trace($"{nameof(SendAsync)}: err = {e.SocketErrorCode}, {Description}");
                 if (e.SocketErrorCode != SocketError.TimedOut)
-                    await Zero(this, e.Message).FastPath();
+                    await Zero(this, e.Message);
             }
             catch (OperationCanceledException) { }
             catch (ObjectDisposedException)
@@ -328,7 +328,7 @@ namespace zero.core.network.ip
             {
                 var errMsg = $"{nameof(SendAsync)}: [FAILED], {Description}, l = {length}, o = {offset}: {e.Message}";
                 _logger.Trace(e, errMsg);
-                await Zero(this, errMsg).FastPath();
+                await Zero(this, errMsg);
             }
 
             return 0;
@@ -358,14 +358,14 @@ namespace zero.core.network.ip
             {
                 var errMsg = $"{nameof(ReadAsync)}: {e.Message} - {Description}";
                 _logger?.Debug(errMsg);
-                await Zero(this, errMsg).FastPath();
+                await Zero(this, errMsg);
             }
             catch (Exception) when (Zeroed()){}
             catch (Exception e) when(!Zeroed())
             {
                 var errMsg = $"{nameof(ReadAsync)}: [FAILED], {Description}, l = {length}, o = {offset}: {e.Message}";
                 _logger?.Error(e, errMsg);
-                await Zero(this, errMsg).FastPath();
+                await Zero(this, errMsg);
             }
             return 0;
         }

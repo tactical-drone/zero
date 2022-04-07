@@ -133,8 +133,8 @@ namespace zero.core.network.ip
         /// </summary>
         public override async ValueTask ZeroManagedAsync()
         {
-            await base.ZeroManagedAsync().FastPath();
-            await IoNetSocket.Zero(this, $"{nameof(ZeroManagedAsync)}: teardown").FastPath();
+            await base.ZeroManagedAsync();
+            await IoNetSocket.Zero(this, $"{nameof(ZeroManagedAsync)}: teardown");
         }
 
         /// <summary>
@@ -147,7 +147,7 @@ namespace zero.core.network.ip
             if (Zeroed())
                 return false;
             var ts = Environment.TickCount;
-            var connected = await IoNetSocket.ConnectAsync(remoteAddress, timeout).FastPath();
+            var connected = await IoNetSocket.ConnectAsync(remoteAddress, timeout);
 
             if (connected)
                 _logger.Trace($"Connecting to `{remoteAddress}', took {ts.ElapsedMs()}ms, {Description}");

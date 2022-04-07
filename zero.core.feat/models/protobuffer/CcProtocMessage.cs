@@ -176,7 +176,7 @@ namespace zero.core.feat.models.protobuffer
                     }
 
                     return false;
-                }, this, barrier, ioZero).FastPath();
+                }, this, barrier, ioZero);
             }
             catch when (Zeroed()) { }
             catch (Exception e)when (!Zeroed())

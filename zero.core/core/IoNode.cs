@@ -142,11 +142,11 @@ namespace zero.core.core
         /// </summary>
         public override async ValueTask ZeroManagedAsync()
         {
-            await base.ZeroManagedAsync().FastPath();
+            await base.ZeroManagedAsync();
 
             foreach (var ioNeighbor in Neighbors.Values)
             {
-                await ioNeighbor.Zero(this, $"{nameof(ZeroManagedAsync)}: teardown").FastPath();
+                await ioNeighbor.Zero(this, $"{nameof(ZeroManagedAsync)}: teardown");
             }
 
             Neighbors.Clear();
@@ -160,7 +160,7 @@ namespace zero.core.core
                     @this._logger.Warn(neighborTask.Exception, $"{nameof(IoNode<TJob>)}.{nameof(ZeroManagedAsync)}: {nameof(neighborTask)} exit slow...");
                 }
                 return default;
-            }, this, zero: true).FastPath();
+            }, this, zero: true);
         }
 
         /// <summary>
@@ -169,9 +169,9 @@ namespace zero.core.core
         /// <returns>The task</returns>
         public override async ValueTask ZeroPrimeAsync()
         {
-            await base.ZeroPrimeAsync().FastPath();
+            await base.ZeroPrimeAsync();
             foreach (var ioNeighbor in Neighbors.Values)
-                await ioNeighbor.ZeroPrimeAsync().FastPath();
+                await ioNeighbor.ZeroPrimeAsync();
         }
 
         /// <summary>
@@ -182,7 +182,7 @@ namespace zero.core.core
             //clear previous attempts
             if (_netServer != null)
             {
-                await _netServer.Zero(this, "Recycled").FastPath();
+                await _netServer.Zero(this, "Recycled");
                 _netServer = null;
                 return;
             }
@@ -192,7 +192,7 @@ namespace zero.core.core
 #endif
             //start the listener
             _netServer = IoNetServer<TJob>.GetKindFromUrl(_address, _preFetch, ZeroConcurrencyLevel());
-            await _netServer.ZeroHiveAsync(this).FastPath();
+            await _netServer.ZeroHiveAsync(this);
 
             _listenerTask = _netServer.ListenAsync(static async (state, newSocket) =>
             {
@@ -202,7 +202,7 @@ namespace zero.core.core
 
                 if (@this.Neighbors.Count == @this.NeighborTasks.Capacity)
                 {
-                    await newSocket.Zero(@this, $"{nameof(_netServer.ListenAsync)}: neighbor count maxed out at {@this.Neighbors.Count}").FastPath();
+                    await newSocket.Zero(@this, $"{nameof(_netServer.ListenAsync)}: neighbor count maxed out at {@this.Neighbors.Count}");
                     return;
                 }
 
@@ -242,7 +242,7 @@ namespace zero.core.core
                             if (!await acceptConnection(newNeighbor, nanite).FastPath())
                             {
                                 @this._logger.Trace($"Incoming connection from {ioNetClient.Key} rejected.");
-                                await newNeighbor.Zero(@this,$"Incoming connection from {ioNetClient.Key} not accepted").FastPath();
+                                await newNeighbor.Zero(@this,$"Incoming connection from {ioNetClient.Key} not accepted");
                             }
                         }, (@this, newNeighbor, acceptConnection, nanite, ioNetClient: newSocket), TaskCreationOptions.DenyChildAttach, unwrap:true).AsTask();
                     }
@@ -250,7 +250,7 @@ namespace zero.core.core
                 }
                 catch (Exception e)
                 {
-                    await newNeighbor.Zero(@this,$"{nameof(acceptConnection)} Exception: {e.Message}").FastPath();
+                    await newNeighbor.Zero(@this,$"{nameof(acceptConnection)} Exception: {e.Message}");
 
                     @this._logger.Error(e, $"Accepting connection {newSocket.Key} returned with errors");
                     return;
@@ -289,7 +289,7 @@ namespace zero.core.core
 
                                                             //We remove the key here or async race conditions with the listener...
                                                             @this.Neighbors.Remove(existingNeighbor.Key, out _);
-                                                            await existingNeighbor.Zero(@this,errMsg).FastPath();
+                                                            await existingNeighbor.Zero(@this,errMsg);
                                                             continue;
                                                         }
 
@@ -330,18 +330,18 @@ namespace zero.core.core
                                     },ValueTuple.Create(@this, newNeighbor)).FastPath())
                             {
                                 //Start processing
-                                await @this.BlockOnAssimilateAsync(newNeighbor).FastPath();
+                                await @this.BlockOnAssimilateAsync(newNeighbor);
                             }
                             else
                             {
-                                await newNeighbor.Zero(@this, "Failed to add new node...").FastPath();
+                                await newNeighbor.Zero(@this, "Failed to add new node...");
                             }
                         }
                     }, (@this, newNeighbor));
                 }
             }, ValueTuple.Create(this, context, acceptConnection), bootstrapAsync);
 
-            await _listenerTask.FastPath();
+            await _listenerTask;
         }
 
         /// <summary>
@@ -371,12 +371,12 @@ namespace zero.core.core
 
                     if(!@this.Zeroed() && !newNeighbor.Zeroed())
                         @this._logger.Warn($"{nameof(newNeighbor.BlockOnReplicateAsync)}: [FAILED]... restarting...");
-                }, ValueTuple.Create(this, newNeighbor, Zc), TaskCreationOptions.DenyChildAttach | TaskCreationOptions.LongRunning | TaskCreationOptions.PreferFairness).AsTask()).FastPath();
+                }, ValueTuple.Create(this, newNeighbor, Zc), TaskCreationOptions.DenyChildAttach | TaskCreationOptions.LongRunning | TaskCreationOptions.PreferFairness).AsTask());
 
                 await node.Value.ContinueWith(static async (_, state) =>
                 {
                     var (@this, node) = (ValueTuple<IoNode<TJob>, IoQueue<Task>.IoZNode>)state;
-                    await @this.NeighborTasks.RemoveAsync(node).FastPath();
+                    await @this.NeighborTasks.RemoveAsync(node);
                 }, (this, node));
             }
             catch when(Zeroed()){}
@@ -448,7 +448,7 @@ namespace zero.core.core
                                     @this._logger.Warn(warnMsg);
 
                                     //Existing broken neighbor...
-                                    await existingNeighbor.Zero(@this, warnMsg).FastPath();
+                                    await existingNeighbor.Zero(@this, warnMsg);
 
                                     @this.Neighbors.TryRemove(newNeighbor.Key, out _);
 
@@ -473,7 +473,7 @@ namespace zero.core.core
                     else if(newNeighbor != null)
                     {
                         _logger.Debug($"Neighbor with id = {newNeighbor.Key} already exists! Closing connection from {newClient.IoNetSocket.RemoteNodeAddress} ...");
-                        await newNeighbor.Zero(this, "Dropped, connection already exists").FastPath();
+                        await newNeighbor.Zero(this, "Dropped, connection already exists");
                     }
                 }
             }
@@ -486,7 +486,7 @@ namespace zero.core.core
             {
                 if (newClient != null && newNeighbor == null)
                 {
-                    await newClient.Zero(this, $"{nameof(newClient)} is not null but {nameof(newNeighbor)} is. Should not be...").FastPath();
+                    await newClient.Zero(this, $"{nameof(newClient)} is not null but {nameof(newNeighbor)} is. Should not be...");
                 }
             }
 
@@ -510,16 +510,16 @@ namespace zero.core.core
                 var retry = 3;
                 while (!@this.Zeroed() && retry-- > 0)
                 {
-                    await @this.SpawnListenerAsync<object>(bootstrapAsync: bootstrapFunc).FastPath();
+                    await @this.SpawnListenerAsync<object>(bootstrapAsync: bootstrapFunc);
                     if (!@this.Zeroed())
                         @this._logger.Warn($"Listener restart... {@this.Description}");
                     else
-                        await @this.Zero(@this, "Zeroed").FastPath();
+                        await @this.Zero(@this, "Zeroed");
                 }
 
                 if (!@this.Zeroed())
                     @this._logger.Trace($"{@this.Description}: {(@this._listenerTask.IsCompletedSuccessfully ? "clean" : "dirty")} exit ({@this._listenerTask}), retries left = {retry}");
-            },(this, bootstrapFunc), TaskCreationOptions.DenyChildAttach | TaskCreationOptions.LongRunning, customScheduler??IoZeroScheduler.ZeroDefault, true).FastPath();
+            },(this, bootstrapFunc), TaskCreationOptions.DenyChildAttach | TaskCreationOptions.LongRunning, customScheduler??IoZeroScheduler.ZeroDefault, true);
             
             _activated = 0;
         }
@@ -551,7 +551,7 @@ namespace zero.core.core
                   });
 
 
-                await Neighbors[address.ToString()].Zero(this, "blacklisted").FastPath();
+                await Neighbors[address.ToString()].Zero(this, "blacklisted");
 
                 Neighbors.TryRemove(address.ToString(), out var ioNeighbor);
                 return ioNeighbor;

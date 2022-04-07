@@ -36,17 +36,15 @@ namespace zero.cocoon.models
 
             IoZero = (IoZero<CcProtocMessage<chroniton, CcDiscoveryBatch>>)context;
 
-            var cc = 4;
-            var pf = 6;
+            var cc = 2;
+            var pf = 3;
             var ac = 0;
 
             if (!Source.Proxy && Adjunct.CcCollective.ZeroDrone)
             {
                 parm_max_msg_batch_size *= 2;
-                cc *= 2;
-                pf *= 2;
-                //ac *= 1;
-                //_groupByEp = true;
+                cc = 3;
+                pf = 4;
             }
 
 #if DEBUG
@@ -112,7 +110,7 @@ namespace zero.cocoon.models
         /// </summary>
         public override async ValueTask ZeroManagedAsync()
         {
-            await base.ZeroManagedAsync().FastPath();
+            await base.ZeroManagedAsync();
 
             _currentBatch?.Dispose();
             
@@ -120,7 +118,7 @@ namespace zero.cocoon.models
             {
                 batch.Dispose();
                 return default;
-            }).FastPath();
+            });
         }
 
         /// <summary>
@@ -317,25 +315,25 @@ namespace zero.cocoon.models
                     switch ((MessageTypes)packet.Type)
                     {
                         case MessageTypes.Probe:
-                            await ZeroBatchRequestAsync(packet, CcProbeMessage.Parser).FastPath();
+                            await ZeroBatchRequestAsync(packet, CcProbeMessage.Parser);
                             break;
                         case MessageTypes.Probed:
-                            await ZeroBatchRequestAsync(packet, CcProbeResponse.Parser).FastPath();
+                            await ZeroBatchRequestAsync(packet, CcProbeResponse.Parser);
                             break;
                         case MessageTypes.Scan:
-                            await ZeroBatchRequestAsync(packet, CcScanRequest.Parser).FastPath();
+                            await ZeroBatchRequestAsync(packet, CcScanRequest.Parser);
                             break;
                         case MessageTypes.Adjuncts:
-                            await ZeroBatchRequestAsync(packet, CcAdjunctResponse.Parser).FastPath();
+                            await ZeroBatchRequestAsync(packet, CcAdjunctResponse.Parser);
                             break;
                         case MessageTypes.Fuse:
-                            await ZeroBatchRequestAsync(packet, CcFuseRequest.Parser).FastPath();
+                            await ZeroBatchRequestAsync(packet, CcFuseRequest.Parser);
                             break;
                         case MessageTypes.Fused:
-                            await ZeroBatchRequestAsync(packet, CcFuseResponse.Parser).FastPath();
+                            await ZeroBatchRequestAsync(packet, CcFuseResponse.Parser);
                             break;
                         case MessageTypes.Defuse:
-                            await ZeroBatchRequestAsync(packet, CcDefuseRequest.Parser).FastPath();
+                            await ZeroBatchRequestAsync(packet, CcDefuseRequest.Parser);
                             break;
                         default:
                             _logger.Debug($"Unknown auto peer msg type = {packet.Type}");
@@ -349,7 +347,7 @@ namespace zero.cocoon.models
                 if (_currentBatch.Count > _batchHeap.Capacity * 3 / 2)
                     _logger.Warn($"{nameof(_batchHeap)} running lean {_currentBatch.Count}/{_batchHeap.Capacity}, {_batchHeap}, {_batchHeap.Description}");
                 //Release a waiter
-                await ZeroBatchAsync().FastPath();
+                await ZeroBatchAsync();
             }
             catch when(Zeroed()){State = IoJobMeta.JobState.ConsumeErr;}
             catch (Exception e) when (!Zeroed())
@@ -395,7 +393,7 @@ namespace zero.cocoon.models
             if (IoZero.ZeroRecoveryEnabled && !Zeroed() && !fastPath && !zeroRecovery && BytesLeftToProcess > 0 && PreviousJob != null)
             {
                 State = IoJobMeta.JobState.ZeroRecovery;
-                return await ConsumeAsync().FastPath();
+                return await ConsumeAsync();
             }
 
             return State;
@@ -441,7 +439,7 @@ namespace zero.cocoon.models
 
                     if (_currentBatch.Count >= parm_max_msg_batch_size)
                     {
-                        await ZeroBatchAsync().FastPath();
+                        await ZeroBatchAsync();
                     }
 
                 }

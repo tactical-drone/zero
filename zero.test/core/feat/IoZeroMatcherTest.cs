@@ -48,6 +48,8 @@ namespace zero.test.core.feat
                         hash.CopyTo(dud, 0);
                         dud[0] = dud[1];
                         dud[^1] = dud[^2];
+                        dud[^2] = dud[^3];
+                        dud[^3] = dud[^4];
                         dud[dud.Length>>1] = dud[(dud.Length >> 1) - 1];
 
                         Assert.False(await matcher.ResponseAsync(k, UnsafeByteOperations.UnsafeWrap(dud)).FastPath());

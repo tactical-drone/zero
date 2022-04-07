@@ -92,7 +92,7 @@ namespace zero.core.runtime.scheduler
         }
 
         //The rate at which the scheduler will be allowed to "burst" allowing per tick unchecked new threads to be spawned until one of them spawns
-        private static readonly int WorkerSpawnBurstTimeMs = 100;
+        private static readonly int WorkerSpawnBurstTimeMs = 500;
         private static readonly int MaxWorker = (int)Math.Pow(2, Math.Max((Environment.ProcessorCount >> 1) + 1, 17));
         public static readonly TaskScheduler ZeroDefault;
         public static readonly IoZeroScheduler Zero;
@@ -286,94 +286,99 @@ namespace zero.core.runtime.scheduler
             {
                 if (!ThreadPool.UnsafeQueueUserWorkItem(static state => 
                     {
-                        var (@this, s, workerId) = (ValueTuple<IoZeroScheduler, ZeroSignal, int>)state;
-
-                        if (s.Processed > 0)
-                            return;
-
-                        if (s.Task.Status > TaskStatus.WaitingToRun)
-                        {
-                            if (Interlocked.CompareExchange(ref s.Processed, 1, 0) == 0)
-                            {
-                                s.Task = null;
-                                @this._signalHeap.Return(s);
-                            }
-
-                            return;
-                        }
-
-                        var blocked = @this.Blocked;
                         try
                         {
-                            if (blocked.Count < @this._workerCount)
+                            var (@this, s, workerId) = (ValueTuple<IoZeroScheduler, ZeroSignal, int>)state;
+
+                            if (s.Processed > 0)
+                                return;
+
+                            if (s.Task.Status > TaskStatus.WaitingToRun)
                             {
-                                var ramp = 2;
-                                for (var i = @this._workerCount; i-- > 0;)
+                                if (Interlocked.CompareExchange(ref s.Processed, 1, 0) == 0)
                                 {
-                                    try
+                                    s.Task = null;
+                                    @this._signalHeap.Return(s);
+                                }
+
+                                return;
+                            }
+
+                            var blocked = @this.Blocked;
+                            try
+                            {
+                                if (blocked.Count < @this._workerCount)
+                                {
+                                    var ramp = 2;
+                                    for (var i = @this._workerCount; i-- > 0;)
                                     {
-                                        var w = @this._pollWorker[i];
-                                        if (Volatile.Read(ref @this._workerPunchCards[i]) == 0 && w.Ready())
+                                        try
                                         {
-                                            w.SetResult(true);
+                                            var w = @this._pollWorker[i];
+                                            if (Volatile.Read(ref @this._workerPunchCards[i]) == 0 && w.Ready())
+                                            {
+                                                w.SetResult(true);
 #if _TRACE_
                                             Console.WriteLine($"Polled worker {i} from queen {workerId}, for task {s.Task!.Id}");
 #endif
-                                            if(ramp --> 0)
-                                                return;
+                                                if(ramp --> 0)
+                                                    return;
+                                            }
+                                        }
+                                        catch
+                                        {
+                                            // ignored
                                         }
                                     }
-                                    catch
-                                    {
-                                        // ignored
-                                    }
                                 }
-                            }
 
-                            //mark this signal as processed
-                            if (Interlocked.CompareExchange(ref s.Processed, 1, 0) == 0)
-                            {
-                                s.Task = null;
-                                @this._signalHeap.Return(s);
-                            }
-
-                            Interlocked.MemoryBarrierProcessWide();
-                            //spawn more workers, the ones we have are deadlocked
-                            if (blocked.Count >= @this._workerCount && @this._lastSpawnedWorker.ElapsedMs() > WorkerSpawnBurstTimeMs)
-                            {
-                                var newWorkerId = Interlocked.Increment(ref @this._workerCount) - 1;
-                                if (newWorkerId < MaxWorker)
+                                //mark this signal as processed
+                                if (Interlocked.CompareExchange(ref s.Processed, 1, 0) == 0)
                                 {
+                                    s.Task = null;
+                                    @this._signalHeap.Return(s);
+                                }
+
+                                Interlocked.MemoryBarrierProcessWide();
+                                //spawn more workers, the ones we have are deadlocked
+                                if (blocked.Count >= @this._workerCount && @this._lastSpawnedWorker.ElapsedMs() > WorkerSpawnBurstTimeMs)
+                                {
+                                    var newWorkerId = Interlocked.Increment(ref @this._workerCount) - 1;
+                                    if (newWorkerId < MaxWorker)
+                                    {
 #if __TRACE__
                                     Console.WriteLine($"spawning more workers q[{newWorkerId}] = {@this._workQueue.Count}, l = {@this.Load}, {@this.Free.Count()}/{@this.Blocked.Count()}/{@this.Active.Count()}");
 #endif
-                                    Volatile.Write(ref @this._pollWorker[newWorkerId], MallocWorkTaskCore);
-                                    @this.SpawnWorker<Task>($"zero scheduler worker thread {newWorkerId}", newWorkerId, @this._workQueue, s.Task, ThreadPriority.Normal, WorkerHandler);
-                                    @this._lastSpawnedWorker = Environment.TickCount;
-                                }
-                                else
-                                {
-                                    Interlocked.Decrement(ref @this._workerCount);
+                                        Volatile.Write(ref @this._pollWorker[newWorkerId], MallocWorkTaskCore);
+                                        @this.SpawnWorker<Task>($"zero scheduler worker thread {newWorkerId}", newWorkerId, @this._workQueue, s.Task, ThreadPriority.Normal, WorkerHandler);
+                                        @this._lastSpawnedWorker = Environment.TickCount;
+                                    }
+                                    else
+                                    {
+                                        Interlocked.Decrement(ref @this._workerCount);
+                                    }
                                 }
                             }
-                        }
-                        finally
-                        {
-                            @this._diagnosticsHeap.Return(blocked);
-                            if (Interlocked.CompareExchange(ref s.Processed, 1, 0) == 0)
+                            finally
                             {
-                                s.Task = null;
-                                @this._signalHeap.Return(s);
+                                @this._diagnosticsHeap.Return(blocked);
+                                if (Interlocked.CompareExchange(ref s.Processed, 1, 0) == 0)
+                                {
+                                    s.Task = null;
+                                    @this._signalHeap.Return(s);
+                                }
                             }
                         }
-
+                        catch (Exception e)
+                        {
+                            Console.WriteLine(e);
+                        }
                     }, (@this, s, id)))
                 {
                     Console.WriteLine($"Queen[{id}]: Unable to Q signal for task {s.Task.Id}, {ts.ElapsedMs()}ms, OOM");
                     return false;
                 }
             }
-            catch when (s.Processed > 1) { return true;}
             catch (Exception e)
             {
                 Console.WriteLine(e);

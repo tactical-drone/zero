@@ -135,7 +135,7 @@ namespace zero.core.network.ip
             var connected = false;
             try
             {
-                connected = await ioNetClient!.ConnectAsync(remoteAddress, timeout).FastPath();
+                connected = await ioNetClient!.ConnectAsync(remoteAddress, timeout);
                 if (connected && ioNetClient.IsOperational())
                 {
                     //Check things
@@ -176,7 +176,7 @@ namespace zero.core.network.ip
                 if (!connected)
                 {
                     var errMsg = $"{Description}: {nameof(ConnectAsync)} to {remoteAddress.Key} [FAILED]";
-                    await ioNetClient!.Zero(this, errMsg).FastPath();
+                    await ioNetClient!.Zero(this, errMsg);
 
                     if (!Zeroed())
                         _logger.Error(errMsg);
@@ -211,7 +211,7 @@ namespace zero.core.network.ip
         /// </summary>
         public override async ValueTask ZeroManagedAsync()
         {
-            await base.ZeroManagedAsync().FastPath();
+            await base.ZeroManagedAsync();
             _connectionAttempts.Clear();
         }
 

@@ -132,11 +132,11 @@ namespace zero.core.patterns.queue
                     try
                     {
                         if (op != null)
-                            await op(cur.Value, nanite).FastPath();
+                            await op(cur.Value, nanite);
                         if (cur.Value is IIoNanite ioNanite)
                         {
                             if (!ioNanite.Zeroed())
-                                await ioNanite.Zero(nanite as IIoNanite, string.Empty).FastPath();
+                                await ioNanite.Zero(nanite as IIoNanite, string.Empty);
                         }
                     }
                     catch when(Zeroed){}
@@ -159,8 +159,8 @@ namespace zero.core.patterns.queue
 
                 if (zero)
                 {
-                    await ClearAsync().FastPath(); //TODO perf: can these two steps be combined?
-                    await _nodeHeap.ZeroManagedAsync<object>().FastPath();
+                    await ClearAsync(); //TODO perf: can these two steps be combined?
+                    await _nodeHeap.ZeroManagedAsync<object>();
 
                     _nodeHeap = null;
                     _count = 0;
@@ -264,7 +264,7 @@ namespace zero.core.patterns.queue
                         try
                         {
                             if (onAtomicAdd != null)
-                                await onAtomicAdd.Invoke(context).FastPath();
+                                await onAtomicAdd.Invoke(context);
                         }
                         catch when (Zeroed)
                         {

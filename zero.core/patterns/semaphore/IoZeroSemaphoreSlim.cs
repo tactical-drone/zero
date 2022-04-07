@@ -32,7 +32,7 @@ namespace zero.core.patterns.semaphore
 
         public override async ValueTask ZeroManagedAsync()
         {
-            await base.ZeroManagedAsync().FastPath();
+            await base.ZeroManagedAsync();
             _semaphore.ZeroSem();
         }
 

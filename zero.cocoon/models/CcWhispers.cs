@@ -42,9 +42,9 @@ namespace zero.cocoon.models
         /// <returns></returns>
         public override async ValueTask ZeroManagedAsync()
         {
-            await base.ZeroManagedAsync().FastPath();
+            await base.ZeroManagedAsync();
 
-            await _sendBuf.ZeroManagedAsync<object>().FastPath();
+            await _sendBuf.ZeroManagedAsync<object>();
             //if (_protocolMsgBatch != null)
             //    _arrayPool.ReturnAsync(_protocolMsgBatch, true);
 
@@ -55,7 +55,7 @@ namespace zero.cocoon.models
             //    batchMsg.RemoteEndPoint = null;
             //});
 
-            //await _dupHeap.ClearAsync().FastPath();
+            //await _dupHeap.ClearAsync();
 
         }
 
@@ -300,7 +300,7 @@ namespace zero.cocoon.models
                                             Id = drone.Adjunct.Designation.IdString(),
                                             Type = $"gossip{Id % 6}"
                                         }
-                                    }).FastPath();
+                                    });
                             }
                         }
                         catch when(Zeroed() || CcCollective == null || CcCollective.Zeroed() || CcCollective.DupSyncRoot == null) {}
@@ -507,7 +507,7 @@ namespace zero.cocoon.models
                                                     Id = drone.Adjunct.Designation.IdString(),
                                                     Type = $"gossip{Id % 6}"
                                                 }
-                                            }).FastPath();
+                                            });
                                     }
                                 }
                                 catch when (Zeroed() || CcCollective == null || CcCollective.Zeroed() || CcCollective.DupSyncRoot == null) { }
@@ -529,7 +529,7 @@ namespace zero.cocoon.models
                 //if (_currentBatch.Count > _batchHeap.Capacity * 3 / 2)
                 //    _logger.Warn($"{nameof(_batchHeap)} running lean {_currentBatch.Count}/{_batchHeap.Capacity}, {_batchHeap}, {_batchHeap.Description}");
                 ////Release a waiter
-                //await ZeroBatchAsync().FastPath();
+                //await ZeroBatchAsync();
             }
             catch when (Zeroed()) { State = IoJobMeta.JobState.ConsumeErr; }
             catch (Exception e) when (!Zeroed())
@@ -554,7 +554,7 @@ namespace zero.cocoon.models
                     if (IoZero.ZeroRecoveryEnabled && !Zeroed() && !zeroRecovery && !fastPath && BytesLeftToProcess > 0 && PreviousJob != null)
                     {
                         State = IoJobMeta.JobState.ZeroRecovery;
-                        State = await ConsumeAsync().FastPath();
+                        State = await ConsumeAsync();
                     }
 
                     //else
@@ -570,7 +570,7 @@ namespace zero.cocoon.models
                     if (IoZero.ZeroRecoveryEnabled && !Zeroed() && !zeroRecovery && !fastPath && BytesLeftToProcess > 0 && PreviousJob != null)
                     {
                         State = IoJobMeta.JobState.ZeroRecovery;
-                        State = await ConsumeAsync().FastPath();
+                        State = await ConsumeAsync();
                     }
                 }
                 catch when (Zeroed()) { State = IoJobMeta.JobState.ConsumeErr; }
@@ -585,7 +585,7 @@ namespace zero.cocoon.models
             //if (IoZero.ZeroRecoveryEnabled && !Zeroed() && !zeroRecovery && !fastPath && BytesLeftToProcess > 0 && PreviousJob != null)
             //{
             //    State = IoJobMeta.JobState.ZeroRecovery;
-            //    return await ConsumeAsync().FastPath();
+            //    return await ConsumeAsync();
             //}
 
             return State;

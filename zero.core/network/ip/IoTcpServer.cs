@@ -40,7 +40,7 @@ namespace zero.core.network.ip
         /// <returns>True on success, false otherwise</returns>
         public override async ValueTask ListenAsync<T>(Func<T, IoNetClient<TJob>, ValueTask> connectionReceivedAction, T context = default, Func<ValueTask> bootstrapAsync = null)
         {
-            await base.ListenAsync(connectionReceivedAction, context, bootstrapAsync).FastPath();
+            await base.ListenAsync(connectionReceivedAction, context, bootstrapAsync);
 
             IoListenSocket = (await ZeroHiveAsync(new IoTcpSocket(ZeroConcurrencyLevel()), true).FastPath()).target;
 
@@ -59,15 +59,15 @@ namespace zero.core.network.ip
                                     @this.Prefetch,
                                     @this.ConcurrencyLevel)).FastPath()
                             ).target
-                        ).FastPath();
+                        );
                 }
                 catch (Exception e)
                 {
                     var errMsg = $"{@this.Description} Connection received handler returned with errors:";
                     @this._logger.Error(e, errMsg);
-                    await newConnectionSocket.Zero(@this, errMsg).FastPath();
+                    await newConnectionSocket.Zero(@this, errMsg);
                 }
-            }, ValueTuple.Create(this, context, connectionReceivedAction), bootstrapAsync).FastPath();
+            }, ValueTuple.Create(this, context, connectionReceivedAction), bootstrapAsync);
         }
 
         /// <summary>

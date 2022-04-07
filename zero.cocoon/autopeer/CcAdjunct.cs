@@ -70,10 +70,9 @@ namespace zero.cocoon.autopeer
             //TODO tuning
             var capMult = CcCollective.ZeroDrone ? 9 : 6;
             var capBase = 2;
-            _probeRequest = new IoZeroMatcher(nameof(_probeRequest), Source.PrefetchSize,
-                parm_max_network_latency_ms * 5, (int)Math.Pow(capBase, capMult));
-            _fuseRequest = new IoZeroMatcher(nameof(_fuseRequest), Source.PrefetchSize, parm_max_network_latency_ms * 5, (int)Math.Pow(capBase, capMult));
-            _scanRequest = new IoZeroMatcher(nameof(_scanRequest), (int)(CcCollective.MaxAdjuncts * parm_max_swept_drones + 1), parm_max_network_latency_ms * 5, (int)Math.Pow(capBase, capMult));
+            _probeRequest = new IoZeroMatcher(nameof(_probeRequest), Source.PrefetchSize, parm_max_network_latency_ms << 1, (int)Math.Pow(capBase, capMult));
+            _fuseRequest = new IoZeroMatcher(nameof(_fuseRequest), Source.PrefetchSize, parm_max_network_latency_ms << 1, (int)Math.Pow(capBase, capMult));
+            _scanRequest = new IoZeroMatcher(nameof(_scanRequest), (int)(CcCollective.MaxAdjuncts * parm_max_swept_drones + 1), parm_max_network_latency_ms << 1, (int)Math.Pow(capBase, capMult));
 
             if (extraData != null)
             {
@@ -130,7 +129,7 @@ namespace zero.cocoon.autopeer
 
             _sendBuf = new IoHeap<Tuple<byte[],byte[]>>(protoHeapDesc, CcCollective.ZeroDrone & !IsProxy ? 32 : 16, static (_, _) => Tuple.Create(new byte[1492 / 2], new byte[1492 / 2]), autoScale: true);
 
-            _stealthy = Environment.TickCount - parm_max_network_latency_ms * 10;
+            _stealthy = Environment.TickCount - parm_max_network_latency_ms;
             var nrOfStates = Enum.GetNames(typeof(AdjunctState)).Length;
             _lastScan = Environment.TickCount - CcCollective.parm_mean_pat_delay_s * 1000 * 2;
         }
@@ -404,7 +403,7 @@ namespace zero.cocoon.autopeer
         /// <summary>
         /// Seconds since pat
         /// </summary>
-        private long _lastPat = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+        private long _lastPat = Environment.TickCount;
 
         /// <summary>
         /// Total pats
@@ -506,9 +505,9 @@ namespace zero.cocoon.autopeer
         [IoParameter]
         // ReSharper disable once InconsistentNaming
 #if DEBUG
-        public int parm_max_network_latency_ms = 3000;
+        public int parm_max_network_latency_ms = 5000;
 #else
-        public int parm_max_network_latency_ms = 2000;
+        public int parm_max_network_latency_ms = 10000;
 #endif
 
         /// <summary>
@@ -602,7 +601,7 @@ namespace zero.cocoon.autopeer
         /// </summary>
         public override async ValueTask ZeroManagedAsync()
         {
-            await base.ZeroManagedAsync().FastPath();
+            await base.ZeroManagedAsync();
 
             if (IsProxy)
             {
@@ -635,20 +634,20 @@ namespace zero.cocoon.autopeer
                     // ignored
                 }
 
-                await _chronitonHeap.ZeroManagedAsync<object>().FastPath();
-                await _sendBuf.ZeroManagedAsync<object>().FastPath();
+                await _chronitonHeap.ZeroManagedAsync<object>();
+                await _sendBuf.ZeroManagedAsync<object>();
 
                 var from = ZeroedFrom == this? "self" : ZeroedFrom?.Description??"null";
                 if (Assimilated && WasAttached && UpTime.ElapsedMs() > parm_min_uptime_ms && EventCount > 10)
                     _logger.Info($"- `{(Assimilated ? "apex" : "sub")} {Direction}: {Description}, {from}: r ={ZeroReason}");
 
-                await DetachDroneAsync().FastPath();
+                await DetachDroneAsync();
                 
                 //swarm 
                 await ZeroAsync(static async @this =>
                 {
-                    await Task.Delay(@this.parm_max_network_latency_ms * 2, @this.AsyncTasks.Token);
-                    await @this.Router.ProbeAsync("SYN-BRG", @this.RemoteAddress.Copy()).FastPath();
+                    await Task.Delay(@this._random.Next(@this.parm_max_network_latency_ms), @this.AsyncTasks.Token);
+                    await @this.Router.ProbeAsync("SYN-BRG", @this.RemoteAddress.Copy());
                 }, this, TaskCreationOptions.DenyChildAttach);
 
                 //await ZeroAsync(static async @this =>
@@ -663,7 +662,7 @@ namespace zero.cocoon.autopeer
                 //                Id = @this.Designation.IdString(),
                 //                CollectiveId = @this.Router.Designation.IdString()
                 //            }
-                //        }).FastPath();
+                //        });
 
                 //}, this, TaskCreationOptions.DenyChildAttach);
 
@@ -676,16 +675,16 @@ namespace zero.cocoon.autopeer
                             Id = Designation.IdString(),
                             CollectiveId = Router.Designation.IdString()
                         }
-                    }).FastPath();
+                    });
             }
             else
             {
                 _logger.Info($"{Source.Proxy} ~> {Description}, from: {ZeroedFrom?.Description}, reason: {ZeroReason}");
             }
 
-            await _probeRequest.Zero(this, $"{nameof(ZeroManagedAsync)}: teardown").FastPath();
-            await _fuseRequest.Zero(this, $"{nameof(ZeroManagedAsync)}: teardown").FastPath();
-            await _scanRequest.Zero(this, $"{nameof(ZeroManagedAsync)}: teardown").FastPath();
+            await _probeRequest.Zero(this, $"{nameof(ZeroManagedAsync)}: teardown");
+            await _fuseRequest.Zero(this, $"{nameof(ZeroManagedAsync)}: teardown");
+            await _scanRequest.Zero(this, $"{nameof(ZeroManagedAsync)}: teardown");
 
             ResetState(AdjunctState.FinalState);
             //Array.Clear(_produceTaskPool,0, _produceTaskPool.Length);
@@ -703,30 +702,33 @@ namespace zero.cocoon.autopeer
             {
                 while (!@this.Zeroed())
                 {
-                    var targetDelay = (@this._random.Next(@this.CcCollective.parm_mean_pat_delay_s / 5) + @this.CcCollective.parm_mean_pat_delay_s / 4) * 1000;
-
-                    if (@this.CcCollective.TotalConnections == 0)
-                        targetDelay /= 4;
-
-                    var ts = Environment.TickCount;
-                    await Task.Delay(targetDelay, @this.AsyncTasks.Token);
-
-                    if (@this.Zeroed())
-                        break;
-
-                    if (ts.ElapsedMs() > targetDelay * 1.25 && ts.ElapsedMs() > 0)
-                    {
-                        @this._logger.Warn($"{@this.Description}: Popdog is slow!!!, {(ts.ElapsedMs() - targetDelay) / 1000.0:0.0}s");
-                    }
-
-                    if (ts.ElapsedMs() < targetDelay && !@this.Zeroed())
-                    {
-                        @this._logger.Warn($"{@this.Description}: Popdog is FAST!!!, {(ts.ElapsedMs() - targetDelay):0.0}ms / {targetDelay}");
-                    }
-
                     try
                     {
-                        await @this.EnsureRoboticsAsync().FastPath();
+                        var targetDelay = (@this._random.Next(@this.CcCollective.parm_mean_pat_delay_s / 4) + @this.CcCollective.parm_mean_pat_delay_s / 4) * 1000;
+
+                        if (@this.CcCollective.TotalConnections == 0)
+                            targetDelay /= 4;
+
+                        var ts = Environment.TickCount;
+                        await Task.Delay(targetDelay, @this.AsyncTasks.Token);
+
+                        if (@this.Zeroed())
+                            break;
+
+                        if (ts.ElapsedMs() > targetDelay * 1.25 && ts.ElapsedMs() > 0)
+                        {
+                            @this._logger.Warn($"{@this.Description}: Popdog is slow!!!, {(ts.ElapsedMs() - targetDelay) / 1000.0:0.0}s");
+                        }
+
+                        if (ts.ElapsedMs() < targetDelay && !@this.Zeroed())
+                        {
+                            @this._logger.Warn($"{@this.Description}: Popdog is FAST!!!, {(ts.ElapsedMs() - targetDelay):0.0}ms / {targetDelay}");
+                        }
+
+                        foreach (var adjunct in @this.Hub.Neighbors.Values.Where(n=> ((CcAdjunct)n).IsProxy))
+                        {
+                            await ((CcAdjunct)adjunct).EnsureRoboticsAsync();
+                        }
                     }
                     catch (Exception) when (@this.Zeroed()) { }
                     catch (Exception e) when (!@this.Zeroed())
@@ -751,6 +753,9 @@ namespace zero.cocoon.autopeer
         {
             try
             {
+                if(!Verified || !IsProxy)
+                    return;
+
                 if (SecondsSincePat >= CcCollective.parm_mean_pat_delay_s / 2)
                 {
                     //send PAT
@@ -769,24 +774,24 @@ namespace zero.cocoon.autopeer
                     return;
 
                 //Watchdog failure
-                if (SecondsSincePat > CcCollective.parm_mean_pat_delay_s * 2)
+                if (SecondsSincePat > CcCollective.parm_mean_pat_delay_s<<1)
                 {
-                    //swarm attempt
-                    for (var j = 0; j < 3; j++)
-                    {
-                        if(Zeroed())
-                            break;
+                    ////swarm attempt
+                    //for (var j = 0; j < 3; j++)
+                    //{
+                    //    if(Zeroed() || SecondsSincePat > CcCollective.parm_mean_pat_delay_s)
+                    //        break;
                         
-                        _logger.Warn($"{nameof(EnsureRoboticsAsync)}: Popdog swarm to {MessageService.IoNetSocket}");
-                        await ProbeAsync("SYN-SWA").FastPath();
-                        await Task.Delay(parm_max_network_latency_ms);
-                    }
+                    //    _logger.Warn($"{nameof(EnsureRoboticsAsync)}: Popdog swarm # {j} to {MessageService.IoNetSocket}");
+                    //    await ProbeAsync("SYN-SWA");
+                    //    await Task.Delay(parm_max_network_latency_ms);
+                    //}
 
                     //cull
-                    if (SecondsSincePat > CcCollective.parm_mean_pat_delay_s)
+                    //if (SecondsSincePat > CcCollective.parm_mean_pat_delay_s)
                     {
                         _logger.Trace($"w {nameof(EnsureRoboticsAsync)} - {Description}, s = {SecondsSincePat} >> {CcCollective.parm_mean_pat_delay_s}, {MetaDesc}");
-                        await Zero(CcCollective,$"-wd: l = {SecondsSincePat}s ago, up-time = {TimeSpan.FromMilliseconds(UpTime.ElapsedMs()).TotalHours:0.00}h").FastPath();
+                        await Zero(CcCollective,$"-wd: l = {SecondsSincePat}s ago, up-time = {TimeSpan.FromMilliseconds(UpTime.ElapsedMs()).TotalHours:0.00}h");
                     }
                 }
             }
@@ -807,27 +812,28 @@ namespace zero.cocoon.autopeer
             {
                 if (!IsProxy)
                 {
-
                     //Discoveries
                     await ZeroAsync(static async @this =>
                     {
-                        await @this.ProcessDiscoveriesAsync().FastPath();
-                    }, this, TaskCreationOptions.LongRunning | TaskCreationOptions.DenyChildAttach ).FastPath();
+                        await @this.ProcessDiscoveriesAsync();
+                    }, this, TaskCreationOptions.LongRunning | TaskCreationOptions.DenyChildAttach);
 
                     ////UDP traffic
                     await ZeroAsync(static async state =>
                     {
                         var (@this, assimilateAsync) = state;
-                        await assimilateAsync().FastPath();
-                    }, ValueTuple.Create<CcAdjunct, Func<ValueTask>>(this, base.BlockOnReplicateAsync), TaskCreationOptions.LongRunning).FastPath();
+                        await assimilateAsync();
+                    }, ValueTuple.Create<CcAdjunct, Func<ValueTask>>(this, base.BlockOnReplicateAsync), TaskCreationOptions.LongRunning);
 
-                    await AsyncTasks.Token.BlockOnNotCanceledAsync().FastPath();
+                    //Watchdogs
+                    await ZeroAsync(RoboAsync, this, TaskCreationOptions.LongRunning);
+                    await AsyncTasks.Token.BlockOnNotCanceledAsync();
                 }
-                else
-                {
-                    await ZeroAsync(RoboAsync, this, TaskCreationOptions.LongRunning).FastPath();
-                    await AsyncTasks.Token.BlockOnNotCanceledAsync().FastPath();
-                }
+                //else
+                //{
+                //    await ZeroAsync(RoboAsync, this, TaskCreationOptions.LongRunning);
+                //    await AsyncTasks.Token.BlockOnNotCanceledAsync();
+                //}
             }
             catch when(Zeroed()){}
             catch(Exception e)when (!Zeroed())
@@ -862,8 +868,7 @@ namespace zero.cocoon.autopeer
                             return false;
                         }
 
-                        await existingNeighbor.Zero(this, $"Dropped because stale from {existingNeighbor.Description}")
-                            .FastPath();
+                        await existingNeighbor.Zero(this, $"Dropped because stale from {existingNeighbor.Description}");
                     }
                     catch when (existingNeighbor?.Source?.Zeroed()?? true) {}
                     catch (Exception e)when(!existingNeighbor.Source.Zeroed())
@@ -876,8 +881,9 @@ namespace zero.cocoon.autopeer
                 {
                     try
                     {
-                        await Task.Delay(@this._random.Next(@this.parm_max_network_latency_ms / 5 + 1), @this.AsyncTasks.Token);
-                        //await Task.Yield();
+                        //TODO: DELAYS
+                        //await Task.Delay(@this._random.Next(@this.parm_max_network_latency_ms>>4), @this.AsyncTasks.Token);
+                        await Task.Yield();
 
                         var ts = Environment.TickCount;
                         AdjunctState oldState;
@@ -904,7 +910,7 @@ namespace zero.cocoon.autopeer
                     {
                         @this._logger.Trace(e);
                     }
-                }, this, TaskCreationOptions.DenyChildAttach).FastPath();
+                }, this, TaskCreationOptions.DenyChildAttach);
 
                 return true;
             }
@@ -954,7 +960,7 @@ namespace zero.cocoon.autopeer
                                 continue;
 
                             var srcEndPoint = epGroups.Value.Item1.GetEndpoint();
-                            var proxy = await RouteAsync(srcEndPoint, epGroups.Value.Item2[0].Chroniton.PublicKey).FastPath();
+                            var proxy = await RouteAsync(srcEndPoint, epGroups.Value.Item2[0].Chroniton.PublicKey);
                             if (proxy != null)
                             {
                                 foreach (var message in msgGroup.Item2)
@@ -963,8 +969,8 @@ namespace zero.cocoon.autopeer
                                         break;
                                     try
                                     {
-                                        if(Equals(message.Chroniton.Header.Ip.Dst.GetEndpoint(), Router.MessageService.IoNetSocket.NativeSocket.LocalEndPoint))
-                                            await processCallback(message, msgBatch, channel, nanite, proxy, srcEndPoint).FastPath();
+                                        if(Equals(message.Chroniton.Header.Ip.Dst.GetEndpoint(), Router.MessageService.IoNetSocket.NativeSocket.LocalEndPoint)) 
+                                            await processCallback(message, msgBatch, channel, nanite, proxy, srcEndPoint);
                                     }
                                     catch (Exception) when (!Zeroed()) { }
                                     catch (Exception e) when (Zeroed())
@@ -998,17 +1004,17 @@ namespace zero.cocoon.autopeer
                                 cachedEp = message.EndPoint;
                                 cachedPk = message.Chroniton.PublicKey;
 #if DEBUG
-                                proxy = await RouteAsync(cachedEp.GetEndpoint(), cachedPk, message.Chroniton.Header.Ip.Src.GetEndpoint()).FastPath();
+                                proxy = await RouteAsync(cachedEp.GetEndpoint(), cachedPk, message.Chroniton.Header.Ip.Src.GetEndpoint());
 #else
                                 //proxy = RouteAsync(message.Chroniton.Header.Ip.Src.GetEndpoint(), cachedPk);
                                 //proxy = RouteAsync(cachedEp.GetEndpoint(), cachedPk, message.Chroniton.Header.Ip.Src.GetEndpoint());
                                 //TODO route issue
-                                proxy = await RouteAsync(cachedEp.GetEndpoint(), cachedPk).FastPath();
+                                proxy = await RouteAsync(cachedEp.GetEndpoint(), cachedPk);
 #endif
 
                             }
                             if (proxy != null && Equals(message.Chroniton.Header.Ip.Dst.GetEndpoint(), Router.MessageService.IoNetSocket.NativeSocket.LocalEndPoint))
-                                await processCallback(message, msgBatch, channel, nanite, proxy, message.EndPoint.GetEndpoint()).FastPath();
+                                await processCallback(message, msgBatch, channel, nanite, proxy, message.EndPoint.GetEndpoint());
                             message.Chroniton = null;
                             message.EmbeddedMsg = null;
                         }
@@ -1088,7 +1094,7 @@ namespace zero.cocoon.autopeer
 #if DEBUG
                     _logger?.Warn(msg);           
 #endif
-                    await proxy.Zero(this, msg).FastPath();
+                    await proxy.Zero(this, msg);
                     proxy = null;
                 }
             }
@@ -1107,7 +1113,7 @@ namespace zero.cocoon.autopeer
                     if (alternate != null)
                     {
                         var badProxy = proxy;
-                        proxy = await RouteAsync(alternate, publicKey).FastPath();
+                        proxy = await RouteAsync(alternate, publicKey);
                         if (proxy.IsProxy && proxy.Designation.IdString() != CcDesignation.MakeKey(publicKey))
                         {
                             _logger!.Warn($"Invalid routing detected wanted = {proxy.Designation.IdString()} - {proxy.RemoteAddress.IpEndPoint}, got = {CcDesignation.MakeKey(publicKey)} - {srcEndPoint}");
@@ -1248,11 +1254,11 @@ namespace zero.cocoon.autopeer
                                                                 {
                                                                     case CcDiscoveries.MessageTypes.Probe:
                                                                         if(((CcProbeMessage)message).Timestamp.ElapsedUtcMs() < @this.parm_max_network_latency_ms * 2)
-                                                                            await currentRoute.ProcessAsync((CcProbeMessage)message, srcEndPoint, packet).FastPath();
+                                                                            await currentRoute.ProcessAsync((CcProbeMessage)message, srcEndPoint, packet);
                                                                         break;
                                                                     case CcDiscoveries.MessageTypes.Probed:
                                                                         if (((CcProbeResponse)message).Timestamp.ElapsedUtcMs() < @this.parm_max_network_latency_ms * 2)
-                                                                            await currentRoute.ProcessAsync((CcProbeResponse)message, srcEndPoint, packet).FastPath();
+                                                                            await currentRoute.ProcessAsync((CcProbeResponse)message, srcEndPoint, packet);
                                                                         break;
                                                                     case CcDiscoveries.MessageTypes.Scan:
                                                                         if (!currentRoute.Verified)
@@ -1263,7 +1269,7 @@ namespace zero.cocoon.autopeer
                                                                             break;
                                                                         }
                                                                         if (((CcScanRequest)message).Timestamp.ElapsedUtcMs() < @this.parm_max_network_latency_ms * 2)
-                                                                            await currentRoute.ProcessAsync((CcScanRequest)message, srcEndPoint, packet).FastPath();
+                                                                            await currentRoute.ProcessAsync((CcScanRequest)message, srcEndPoint, packet);
                                                                         break;
                                                                     case CcDiscoveries.MessageTypes.Adjuncts:
                                                                         if (!currentRoute.Verified)
@@ -1274,12 +1280,12 @@ namespace zero.cocoon.autopeer
                                                                             break;
                                                                         }
                                                                         if (((CcAdjunctResponse)message).Timestamp.ElapsedUtcMs() < @this.parm_max_network_latency_ms * 2)
-                                                                            await currentRoute.ProcessAsync((CcAdjunctResponse) message, srcEndPoint, packet).FastPath();
+                                                                            await currentRoute.ProcessAsync((CcAdjunctResponse) message, srcEndPoint, packet);
                                                                         break;
                                                                     case CcDiscoveries.MessageTypes.Fuse:
                                                                         //TODO feat: add weak proxy test 
                                                                         if (((CcFuseRequest)message).Timestamp.ElapsedUtcMs() < @this.parm_max_network_latency_ms * 2)
-                                                                            await currentRoute.ProcessAsync((CcFuseRequest)message, srcEndPoint, packet).FastPath();
+                                                                            await currentRoute.ProcessAsync((CcFuseRequest)message, srcEndPoint, packet);
                                                                         break;
                                                                     case CcDiscoveries.MessageTypes.Fused:
                                                                         if (!currentRoute.Verified)
@@ -1291,7 +1297,7 @@ namespace zero.cocoon.autopeer
                                                                         }
 
                                                                         if (((CcFuseResponse)message).Timestamp.ElapsedUtcMs() < @this.parm_max_network_latency_ms * 2)
-                                                                            await currentRoute.ProcessAsync((CcFuseResponse) message, srcEndPoint, packet).FastPath();
+                                                                            await currentRoute.ProcessAsync((CcFuseResponse) message, srcEndPoint, packet);
                                                                         break;
                                                                     case CcDiscoveries.MessageTypes.Defuse:
                                                                         if (@this.CcCollective.ZeroDrone || !currentRoute.Verified)
@@ -1303,7 +1309,7 @@ namespace zero.cocoon.autopeer
                                                                         }
 
                                                                         if(((CcDefuseRequest)message).Timestamp.ElapsedUtcMs() < @this.parm_max_network_latency_ms * 2)
-                                                                            await currentRoute.ProcessAsync((CcDefuseRequest) message, srcEndPoint, packet).FastPath();
+                                                                            await currentRoute.ProcessAsync((CcDefuseRequest) message, srcEndPoint, packet);
                                                                         break;
                                                                 }
                                                             }
@@ -1383,13 +1389,13 @@ namespace zero.cocoon.autopeer
             if (IsDroneAttached)
             {
                 _logger.Trace($"{nameof(CcDefuseRequest)}: {Direction} Drone = {_drone.Key}: {Description}, {MetaDesc}");
-                await DetachDroneAsync().FastPath();
+                await DetachDroneAsync();
             }
             //else
             //{
             //    //Hup
             //    if (Direction == Heading.Undefined && CcCollective.IngressCount < CcCollective.parm_max_inbound)
-            //        await ProbeAsync().FastPath();
+            //        await ProbeAsync();
             //}
         }
 
@@ -1411,7 +1417,7 @@ namespace zero.cocoon.autopeer
                         Id = Designation.IdString(),
                         CollectiveId = CcCollective.Hub.Router.Designation.IdString()
                     }
-                }).FastPath();
+                });
 
             //fail fast
             int sent;
@@ -1462,11 +1468,11 @@ namespace zero.cocoon.autopeer
 
             if (fuseResponse.Accept)
             {
-                var stateIsValid = _currState.Value != AdjunctState.Connected && CompareAndEnterState(AdjunctState.Fusing, AdjunctState.Verified, overrideHung: parm_max_network_latency_ms * 2) == AdjunctState.Verified;
+                var stateIsValid = _currState.Value != AdjunctState.Connected && CompareAndEnterState(AdjunctState.Fusing, AdjunctState.Verified, overrideHung: parm_max_network_latency_ms) == AdjunctState.Verified;
 
                 fuseResponse.Accept &= stateIsValid;
 
-                if (!stateIsValid && _currState.EnterTime.ElapsedMs() > parm_max_network_latency_ms * 2)
+                if (!stateIsValid && _currState.EnterTime.ElapsedMs() > parm_max_network_latency_ms)
                 {
                     _logger.Warn($"{Description}: Invalid state ~{_currState.Value}, age = {_currState.EnterTime.ElapsedMs()}ms. Wanted {nameof(AdjunctState.Verified)} -  [RACE OK!]");
                 }
@@ -1492,14 +1498,14 @@ namespace zero.cocoon.autopeer
                             Id = Designation.IdString(),
                             Type = $"peer response {response}"
                         }
-                    }).FastPath();
+                    });
             }
             else
                 _logger.Debug($"<\\- {nameof(CcFuseRequest)}: Send fuse response [FAILED], {Description}, {MetaDesc}");
 
             if (!CcCollective.ZeroDrone && !fuseResponse.Accept)
             {
-                await SeduceAsync("SYN-FU", Heading.Both, force:true).FastPath();
+                await SeduceAsync("SYN-FU", Heading.Both, force:true);
             }
         }
 
@@ -1515,10 +1521,10 @@ namespace zero.cocoon.autopeer
         {
             var f1 = _fuseRequest.Count;
             var f2 = Router._fuseRequest.Count;
-            var fuseMessage = await _fuseRequest.ResponseAsync(src.ToString(), response.ReqHash).FastPath();
+            var fuseMessage = await _fuseRequest.ResponseAsync(src.ToString(), response.ReqHash);
 
             if(!fuseMessage)
-                fuseMessage = await Router._fuseRequest.ResponseAsync(src.ToString(), response.ReqHash).FastPath();
+                fuseMessage = await Router._fuseRequest.ResponseAsync(src.ToString(), response.ReqHash);
 
             if (!fuseMessage)
             {
@@ -1575,7 +1581,7 @@ namespace zero.cocoon.autopeer
                         }
                         
                         if (IsProxy) 
-                            await ScanAsync(0).FastPath();
+                            await ScanAsync(0);
                     }
                     break;
                 }
@@ -1695,16 +1701,16 @@ namespace zero.cocoon.autopeer
                             var s2 = RandomNumberGenerator.GetInt32(s + 1, (int)(length - 20));
                             //Console.WriteLine($"S = {s}/{s2}/{length - sizeof(ulong)}");
                             //Console.WriteLine($"S = {s}/{s2 - s}/{(int)(length - (ulong)s2)}");
-                            await MessageService.IoNetSocket.SendAsync(buf.Item2, 0, s, dest.IpEndPoint).FastPath();
-                            await MessageService.IoNetSocket.SendAsync(buf.Item2, s, s2 - s, dest.IpEndPoint).FastPath();
-                            return await MessageService.IoNetSocket.SendAsync(buf.Item2, s2, (int)(length - (ulong)s2) + sizeof(ulong), dest.IpEndPoint).FastPath();
+                            await MessageService.IoNetSocket.SendAsync(buf.Item2, 0, s, dest.IpEndPoint);
+                            await MessageService.IoNetSocket.SendAsync(buf.Item2, s, s2 - s, dest.IpEndPoint);
+                            return await MessageService.IoNetSocket.SendAsync(buf.Item2, s2, (int)(length - (ulong)s2) + sizeof(ulong), dest.IpEndPoint);
                         }
                         else
                         {
-                            return await MessageService.IoNetSocket.SendAsync(buf.Item2, 0, (int)length + sizeof(ulong), dest.IpEndPoint).FastPath();
+                            return await MessageService.IoNetSocket.SendAsync(buf.Item2, 0, (int)length + sizeof(ulong), dest.IpEndPoint);
                         }
 #else
-                        return await MessageService.IoNetSocket.SendAsync(buf.Item2, 0, (int)length + sizeof(ulong), dest.IpEndPoint).FastPath();
+                        return await MessageService.IoNetSocket.SendAsync(buf.Item2, 0, (int)length + sizeof(ulong), dest.IpEndPoint);
 #endif
                     }
                     finally
@@ -1748,9 +1754,9 @@ namespace zero.cocoon.autopeer
         {
             Interlocked.Increment(ref _scanCount);
 
-            var matchRequest = await _scanRequest.ResponseAsync(src.ToString(), response.ReqHash).FastPath();
+            var matchRequest = await _scanRequest.ResponseAsync(src.ToString(), response.ReqHash);
             if(!matchRequest)
-                matchRequest = await Router._scanRequest.ResponseAsync(src.ToString(), response.ReqHash).FastPath();
+                matchRequest = await Router._scanRequest.ResponseAsync(src.ToString(), response.ReqHash);
 
             if (!matchRequest || !Assimilating || response.Contacts.Count > parm_max_swept_drones)
             {
@@ -1853,7 +1859,7 @@ namespace zero.cocoon.autopeer
                                 var dropped = badList.FirstOrDefault();
                                 if (dropped != default && ((CcAdjunct)dropped).State < AdjunctState.Verified) 
                                 {
-                                    await ((CcAdjunct)dropped).Zero(@this,"got collected").FastPath();
+                                    await ((CcAdjunct)dropped).Zero(@this,"got collected");
                                     @this._logger.Debug($"@ {dropped.Description}");
                                 }
                             }
@@ -1863,7 +1869,7 @@ namespace zero.cocoon.autopeer
                                 {
                                     if (((CcAdjunct)ioNeighbor).State < AdjunctState.Connected)
                                     {
-                                        await ((CcAdjunct)ioNeighbor).Zero(@this,"Assimilated!").FastPath();
+                                        await ((CcAdjunct)ioNeighbor).Zero(@this,"Assimilated!");
                                         @this._logger.Debug($"@ {ioNeighbor.Description}");
                                         break;
                                     }
@@ -1874,7 +1880,7 @@ namespace zero.cocoon.autopeer
                         //Transfer?
                         if (@this.Hub.Neighbors.Count > @this.CcCollective.MaxAdjuncts || !@this.Hub.Neighbors.TryAdd(newAdjunct.Key, newAdjunct))
                         {
-                            await newAdjunct.Zero(@this,$"Adjunct already exists, dropping {newAdjunct.Description}").FastPath();
+                            await newAdjunct.Zero(@this,$"Adjunct already exists, dropping {newAdjunct.Description}");
                             return false;    
                         }
                         return true;
@@ -1892,7 +1898,7 @@ namespace zero.cocoon.autopeer
                 await ZeroAsync(static async state =>
                 {
                     var (@this, newAdjunct) = state;
-                    await newAdjunct.BlockOnReplicateAsync().FastPath();
+                    await newAdjunct.BlockOnReplicateAsync();
                 },(this, newAdjunct), TaskCreationOptions.DenyChildAttach);
                 
                 //setup conduits to messages
@@ -1929,9 +1935,10 @@ namespace zero.cocoon.autopeer
 
                     _logger.Trace($"* {nameof(CollectAsync)}: Collected: {Description}");
 #endif
-                    await Task.Delay(parm_max_network_latency_ms / 2 + RandomNumberGenerator.GetInt32(0, parm_max_network_latency_ms), AsyncTasks.Token);
+                    //TODO: DELAYS
+                    //await Task.Delay(parm_max_network_latency_ms / 2 + RandomNumberGenerator.GetInt32(0, parm_max_network_latency_ms), AsyncTasks.Token);
 
-                    await SeduceAsync("ACK-SYN", Heading.Ingress, NatAddress, force: true).FastPath();
+                    await SeduceAsync("ACK-SYN", Heading.Ingress, NatAddress, force: true);
                 }
                 
                 return true;
@@ -1955,7 +1962,7 @@ namespace zero.cocoon.autopeer
                 if (Assimilating)
                 {
                     _logger.Trace(
-                        $"<\\- {nameof(CcScanRequest)}: [ABORTED] {!Assimilating}, age = {request.Timestamp.CurrentUtcMsDelta():0.0}ms/{parm_max_network_latency_ms * 2:0.0}ms, {Description}, {MetaDesc}");
+                        $"<\\- {nameof(CcScanRequest)}: [ABORTED] {!Assimilating}, age = {request.Timestamp.CurrentUtcMsDelta():0.0}ms/{parm_max_network_latency_ms:0.0}ms, {Description}, {MetaDesc}");
                 }
                     
                 return;
@@ -2037,7 +2044,7 @@ namespace zero.cocoon.autopeer
                             Id = Designation.IdString(),
                             Type = "discovery response"
                         }
-                    }).FastPath();
+                    });
             }
             else
             {
@@ -2072,7 +2079,7 @@ namespace zero.cocoon.autopeer
                 return;
 
             //Drop if we are saturated
-            if(!IsProxy && !CcCollective.ZeroDrone && Hub.Neighbors.Count > CcCollective.MaxAdjuncts && _random.Next(1000000) > 1000000/4)
+            if(!IsProxy && !CcCollective.ZeroDrone && Hub.Neighbors.Count >= CcCollective.MaxAdjuncts)
                 return;
 
             var response = new CcProbeResponse
@@ -2087,7 +2094,7 @@ namespace zero.cocoon.autopeer
             };
 
             //ensure ingress delta trigger
-            if (!CcCollective.ZeroDrone && EnableSynTrigger && Volatile.Read(ref _lastSeduced).ElapsedMs() < parm_max_network_latency_ms * 2)
+            if (!CcCollective.ZeroDrone && EnableSynTrigger && Volatile.Read(ref _lastSeduced).ElapsedMs() < parm_max_network_latency_ms)
                 _fuseCount = -parm_zombie_max_connection_attempts;
             
             Interlocked.Exchange(ref _lastSeduced, Environment.TickCount);
@@ -2143,7 +2150,7 @@ namespace zero.cocoon.autopeer
                     @this._logger.Trace($"{@this.Description}: Collecting {fromAddress.IpEndPoint} failed!");
 #endif
                         }
-                    }, ValueTuple.Create(this, fromAddress, ccId), TaskCreationOptions.DenyChildAttach).FastPath();
+                    }, ValueTuple.Create(this, fromAddress, ccId), TaskCreationOptions.DenyChildAttach);
                     
 
                     if (AutoPeeringEventService.Operational)
@@ -2156,7 +2163,7 @@ namespace zero.cocoon.autopeer
                                 Id = CcDesignation.MakeKey(packet.PublicKey),
                                 Type = "pong"
                             }
-                        }).FastPath();
+                        });
                 }
 
 //                if (toProxyAddress != null && CcCollective.UdpTunnelSupport && toAddress.Ip != toProxyAddress.Ip)
@@ -2172,6 +2179,10 @@ namespace zero.cocoon.autopeer
             }
             else //PROCESS SYN
             {
+                //if (UpTime.ElapsedMsToSec() > CcCollective.parm_mean_pat_delay_s && SecondsSincePat > CcCollective.parm_mean_pat_delay_s/2)
+                //{
+                //    _logger.Error($"PAT Success! {Description}");
+                //}
                 LastPat = Environment.TickCount;
 
                 if ((sent = await SendMessageAsync(data: response.ToByteArray(), type: CcDiscoveries.MessageTypes.Probed)
@@ -2186,7 +2197,7 @@ namespace zero.cocoon.autopeer
                     //ensure ingress delta trigger
                     if (!CcCollective.ZeroDrone)
                     {
-                        await SeduceAsync("ACK", Heading.Both).FastPath();
+                        await SeduceAsync("ACK", Heading.Both);
                     }
 
                     if (AutoPeeringEventService.Operational)
@@ -2199,7 +2210,7 @@ namespace zero.cocoon.autopeer
                                 Id = Designation.IdString(),
                                 Type = "pong"
                             }
-                        }).FastPath();
+                        });
                 }
                 else
                 {
@@ -2264,16 +2275,16 @@ namespace zero.cocoon.autopeer
         {
             Interlocked.Exchange(ref _zeroProbes, 0);
 
-            var matchRequest = await _probeRequest.ResponseAsync(src.ToString(), response.ReqHash).FastPath();
+            var matchRequest = await _probeRequest.ResponseAsync(src.ToString(), response.ReqHash);
             
             //Try the router
             if (!matchRequest && IsProxy)
-                matchRequest = await Hub.Router._probeRequest.ResponseAsync(src.ToString(), response.ReqHash).FastPath();
+                matchRequest = await Hub.Router._probeRequest.ResponseAsync(src.ToString(), response.ReqHash);
 
 #if DEBUG
             //Try the DBG source info //TODO: is this fixed?
             if (!matchRequest && IsProxy)
-                matchRequest = await _probeRequest.ResponseAsync(packet.Header.Ip.Src.GetEndpoint().ToString(), response.ReqHash).FastPath();
+                matchRequest = await _probeRequest.ResponseAsync(packet.Header.Ip.Src.GetEndpoint().ToString(), response.ReqHash);
 #endif
             if (!matchRequest)
             {
@@ -2322,7 +2333,7 @@ namespace zero.cocoon.autopeer
                             @this._logger.Trace($"{@this.Description}: Collecting {fromAddress.IpEndPoint} failed!");
 #endif
                         }
-                    }, ValueTuple.Create(this, fromAddress, ccId), TaskCreationOptions.DenyChildAttach).FastPath();
+                    }, ValueTuple.Create(this, fromAddress, ccId), TaskCreationOptions.DenyChildAttach);
                 }
             }
             else if (!Verified) //Process ACK
@@ -2372,12 +2383,12 @@ namespace zero.cocoon.autopeer
 #endif
 
                 if (!CcCollective.ZeroDrone)
-                    await SeduceAsync("ACK-SYN-VCK", Heading.Both).FastPath();
+                    await SeduceAsync("ACK-SYN-VCK", Heading.Both);
 
                 //Ask drones that we are not connected to, to drop us
                 if (((DroneStatus)response.Status).HasFlag(DroneStatus.Drone) && !IsDroneAttached && UpTime.ElapsedMs() > parm_min_uptime_ms)
                 {
-                    await DeFuseAsync().FastPath();
+                    await DeFuseAsync();
                 }
             }
         }
@@ -2388,7 +2399,7 @@ namespace zero.cocoon.autopeer
         /// <returns>A valuable task</returns>s
         public async ValueTask<bool> SeduceAsync(string desc, Heading heading, IoNodeAddress dmzEndpoint = null, bool force = false)
         {
-            if (!force && Volatile.Read(ref _stealthy).ElapsedMs() < parm_max_network_latency_ms * 2 || Zeroed() || IsDroneAttached ||
+            if (!force && Volatile.Read(ref _stealthy).ElapsedMs() < parm_max_network_latency_ms || Zeroed() || IsDroneAttached ||
                 _currState.Value > AdjunctState.Connecting /*don't change this from Connecting*/)
             {
                 return false;
@@ -2480,16 +2491,16 @@ namespace zero.cocoon.autopeer
                     if (ZeroProbes > parm_zombie_max_connection_attempts)
                     {
 #if DEBUG
-                        await Zero(this, $"drone left, T = {TimeSpan.FromMilliseconds(UpTime.ElapsedMs()).TotalMinutes:0.0}min ~ {_sibling?.UpTime.ElapsedMsToSec()/60.0:0.0}min, {_sibling?.Description}").FastPath();
+                        await Zero(this, $"drone left, T = {TimeSpan.FromMilliseconds(UpTime.ElapsedMs()).TotalMinutes:0.0}min ~ {_sibling?.UpTime.ElapsedMsToSec()/60.0:0.0}min, {_sibling?.Description}");
 #else
-                        await Zero(this, $"timeout {SecondsSincePat}s ago, T = {TimeSpan.FromMilliseconds(UpTime.ElapsedMs()).TotalMinutes:0.0}min").FastPath();
+                        await Zero(this, $"timeout {SecondsSincePat}s ago, T = {TimeSpan.FromMilliseconds(UpTime.ElapsedMs()).TotalMinutes:0.0}min");
 #endif
 
                         return false;
                     }
 
                     //send
-                    var sent = await SendMessageAsync(data: probeMsgBuf, type: CcDiscoveries.MessageTypes.Probe).FastPath();
+                    var sent = await SendMessageAsync(data: probeMsgBuf, type: CcDiscoveries.MessageTypes.Probe);
                     if (sent > 0)
                     {
                         Interlocked.Increment(ref _zeroProbes);
@@ -2514,12 +2525,12 @@ namespace zero.cocoon.autopeer
                                     Id = Designation.IdString(),
                                     Type = "ping"
                                 }
-                            }).FastPath();
+                            });
 
                         return true;
                     }
 
-                    await _probeRequest.RemoveAsync(challenge).FastPath();
+                    await _probeRequest.RemoveAsync(challenge);
 
                     if(!Zeroed())
                         _logger.Error($"-/> {nameof(CcProbeMessage)}: [FAILED], {Description}");
@@ -2529,7 +2540,7 @@ namespace zero.cocoon.autopeer
                 else //The destination state was undefined, this is local
                 {
                     var sent = await SendMessageAsync(probeMsgBuf, CcDiscoveries.MessageTypes.Probe, dest)
-                        .FastPath();
+                        ;
 
                     if (sent > 0)
                     {
@@ -2546,12 +2557,12 @@ namespace zero.cocoon.autopeer
                                     Id = id??Designation.IdString(),
                                     Type = "ping"
                                 }
-                            }).FastPath();
+                            });
 
                         return true;
                     }
 
-                    await _probeRequest.RemoveAsync(challenge).FastPath();
+                    await _probeRequest.RemoveAsync(challenge);
 
                     if(!Zeroed())
                         _logger.Error($"-/> {nameof(CcProbeMessage)}:({desc}) [FAILED], {Description}");
@@ -2615,7 +2626,7 @@ namespace zero.cocoon.autopeer
                     return false;
                 }
 
-                var sent = await SendMessageAsync(sweepMsgBuf,CcDiscoveries.MessageTypes.Scan, RemoteAddress).FastPath();
+                var sent = await SendMessageAsync(sweepMsgBuf,CcDiscoveries.MessageTypes.Scan, RemoteAddress);
                 if (sent > 0)
                 {
                     Interlocked.Increment(ref _scanCount);
@@ -2632,12 +2643,12 @@ namespace zero.cocoon.autopeer
                                 Id = Designation.IdString(),
                                 Type = "scan request"
                             }
-                        }).FastPath();
+                        });
 
                     return true;
                 }
 
-                await _scanRequest.RemoveAsync(challenge).FastPath();
+                await _scanRequest.RemoveAsync(challenge);
                 _logger.Debug($"-/> {nameof(CcScanRequest)}: [FAILED], {Description} ");
             }
             catch when (Zeroed()){}
@@ -2667,11 +2678,11 @@ namespace zero.cocoon.autopeer
             AdjunctState oldState;
 
             var stateIsValid = (oldState = CompareAndEnterState(AdjunctState.Fusing, AdjunctState.Verified,
-                overrideHung: parm_max_network_latency_ms * 2)) == AdjunctState.Verified;
+                overrideHung: parm_max_network_latency_ms)) == AdjunctState.Verified;
 
             if (!stateIsValid)
             {
-                if (oldState != AdjunctState.Fusing && _currState.EnterTime.ElapsedMs() > parm_max_network_latency_ms * 2)
+                if (oldState != AdjunctState.Fusing && _currState.EnterTime.ElapsedMs() > parm_max_network_latency_ms)
                     _logger.Warn($"{nameof(FuseAsync)} - {Description}: Invalid state, {oldState}, age = {_currState.EnterTime.ElapsedMs()}ms. Wanted {nameof(AdjunctState.Verified)} - [RACE OK!] ");
                 return false;
             }
@@ -2681,9 +2692,9 @@ namespace zero.cocoon.autopeer
             {
                 try
                 {
-                    //TODO prod:
-                    await Task.Delay(@this._random.Next(@this.parm_max_network_latency_ms / 5 + 1), @this.AsyncTasks.Token);
-                    //await Task.Yield();
+                    //TODO DELAYS:
+                    //await Task.Delay(@this._random.Next(@this.parm_max_network_latency_ms / 5 + 1), @this.AsyncTasks.Token);
+                    //await Task.Delay(@this._random.Next(@this.parm_max_network_latency_ms>>3), @this.AsyncTasks.Token);
 
                     var fuseRequest = new CcFuseRequest
                     {
@@ -2698,7 +2709,7 @@ namespace zero.cocoon.autopeer
                         return;
                     }
 
-                    var sent = await @this.SendMessageAsync(fuseRequestBuf, CcDiscoveries.MessageTypes.Fuse).FastPath();
+                    var sent = await @this.SendMessageAsync(fuseRequestBuf, CcDiscoveries.MessageTypes.Fuse);
                     if (sent > 0)
                     {
                         Interlocked.Increment(ref @this._fuseCount);
@@ -2714,11 +2725,11 @@ namespace zero.cocoon.autopeer
                                     Id = @this.Designation.IdString(),
                                     Type = "peer request"
                                 }
-                            }).FastPath();
+                            });
                         return;
                     }
 
-                    await @this._fuseRequest.RemoveAsync(challenge).FastPath();
+                    await @this._fuseRequest.RemoveAsync(challenge);
                     @this._logger.Debug($"-/> {nameof(CcDefuseRequest)}: [FAILED], {@this.Description}, {@this.MetaDesc}");
                 }
                 catch when (@this.Zeroed()) { }
@@ -2726,7 +2737,7 @@ namespace zero.cocoon.autopeer
                 {
                     @this._logger.Debug(e, $"{nameof(CcDefuseRequest)}: [FAILED], {@this.Description}, {@this.MetaDesc}");
                 }
-            }, this, TaskCreationOptions.DenyChildAttach).FastPath();
+            }, this, TaskCreationOptions.DenyChildAttach);
 
             return true;
         }
@@ -2747,7 +2758,7 @@ namespace zero.cocoon.autopeer
                 };
 
                 var sent = await SendMessageAsync(dropRequest.ToByteArray(), CcDiscoveries.MessageTypes.Defuse, dest)
-                    .FastPath();
+                    ;
 
 #if DEBUG
                 _logger.Trace(
@@ -2768,7 +2779,7 @@ namespace zero.cocoon.autopeer
                                 Id = Designation.IdString(),
                                 Type = $"peer disconnect"
                             }
-                        }).FastPath();
+                        });
 
                     return true;
                 }
@@ -2833,10 +2844,10 @@ namespace zero.cocoon.autopeer
                             Adjunct = ccDrone.Adjunct.Designation.IdString(),
                             Direction = ccDrone.Adjunct.Direction.ToString()
                         }
-                    }).FastPath();
+                    });
 
                 if(CcCollective.Hub.Neighbors.Count <= CcCollective.MaxAdjuncts)
-                    await ScanAsync().FastPath();
+                    await ScanAsync();
 
                 return true;
             }
@@ -2880,14 +2891,13 @@ namespace zero.cocoon.autopeer
                     //back off for a while... Try to re-establish a link 
                     await ZeroAsync(static async @this =>
                     {
-                        var backOff = @this.parm_max_network_latency_ms * 2 + @this._random.Next(@this.parm_max_network_latency_ms * 2);
+                        var backOff = @this.parm_max_network_latency_ms + @this._random.Next(@this.parm_max_network_latency_ms);
                         await Task.Delay(backOff, @this.AsyncTasks.Token);
 
                         var router = !@this.Zeroed() ? @this : @this.Router;
-                        await router.ProbeAsync("SYN-BRG", @this.RemoteAddress.Copy()).FastPath()
-                            ;
+                        await router.ProbeAsync("SYN-BRG", @this.RemoteAddress.Copy());
 
-                    }, this, TaskCreationOptions.DenyChildAttach).FastPath();
+                    }, this, TaskCreationOptions.DenyChildAttach);
                 }
 
                 //emit event
@@ -2900,7 +2910,7 @@ namespace zero.cocoon.autopeer
                             CollectiveId = CcCollective.Hub.Router.Designation.IdString(),
                             Adjunct = Designation.IdString()
                         }
-                    }).FastPath();
+                    });
             }
             catch when (Zeroed())
             { }
@@ -2911,9 +2921,9 @@ namespace zero.cocoon.autopeer
             finally
             {
                 ResetState(AdjunctState.Verified);
-                await severedDrone.Zero(this, $"detached from adjunct, was attached = {WasAttached}").FastPath();
+                await severedDrone.Zero(this, $"detached from adjunct, was attached = {WasAttached}");
                 if(WasAttached)
-                    await DeFuseAsync().FastPath();
+                    await DeFuseAsync();
             }
 
             if (CcCollective.TotalConnections < CcCollective.MaxDrones)
@@ -2923,7 +2933,7 @@ namespace zero.cocoon.autopeer
                 {
                     await CcCollective.Adjuncts.Where(a => a.State == AdjunctState.Verified).ToList().ForEachAsync<CcAdjunct, IIoNanite>(static async (@this, _) =>
                     {
-                        await @this.ProbeAsync("SYN-HOT").FastPath();
+                        await @this.ProbeAsync("SYN-HOT");
                     });
                 }, this, TaskCreationOptions.DenyChildAttach);
             }

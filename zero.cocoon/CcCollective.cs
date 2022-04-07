@@ -50,9 +50,9 @@ namespace zero.cocoon
             {
                 _zeroDrone = true;
                 parm_max_drone = 0;
-                parm_max_adjunct = 64; //TODO tuning:
-                udpPrefetch = 6;
-                udpConcurrencyLevel = 4;
+                parm_max_adjunct = 128; //TODO tuning:
+                udpPrefetch = 2;
+                udpConcurrencyLevel = 3;
                 NeighborTasks = new IoQueue<Task>($"{nameof(NeighborTasks)}", parm_max_adjunct + 1, ZeroConcurrencyLevel());
             }
 
@@ -142,8 +142,8 @@ namespace zero.cocoon
         public override async ValueTask BlockOnAssimilateAsync(IoNeighbor<CcProtocMessage<CcWhisperMsg, CcGossipBatch>> newNeighbor)
         {
             if (!ZeroDrone)
-                await ZeroAsync(RoboAsync, this, TaskCreationOptions.DenyChildAttach | TaskCreationOptions.PreferFairness).FastPath();
-            await base.BlockOnAssimilateAsync(newNeighbor).FastPath();
+                await ZeroAsync(RoboAsync, this, TaskCreationOptions.LongRunning);
+            await base.BlockOnAssimilateAsync(newNeighbor);
         }
 
         /// <summary>
@@ -170,8 +170,8 @@ namespace zero.cocoon
                             await Task.Delay(@this._random.Next(@this.parm_mean_pat_delay_s * 1000) + @this.parm_mean_pat_delay_s * 1000 / 2, @this.AsyncTasks.Token);
                         }
 
-                        if (@this.Neighbors.Count < @this.parm_max_outbound) 
-                            await @this.DeepScanAsync(force).FastPath();
+                        if (@this.EgressCount < @this.parm_max_outbound) 
+                            await @this.DeepScanAsync(force);
                     }
                     catch when(@this.Zeroed()){}
                     catch (Exception e)
@@ -179,7 +179,7 @@ namespace zero.cocoon
                         @this._logger.Error(e, "Error while scanning DMZ!");
                     }
                 }
-            }, this, TaskCreationOptions.DenyChildAttach).FastPath();
+            }, this, TaskCreationOptions.DenyChildAttach);
         }
 
         /// <summary>
@@ -210,10 +210,10 @@ namespace zero.cocoon
         /// </summary>
         public override async ValueTask ZeroManagedAsync()
         {
-            await base.ZeroManagedAsync().FastPath();
+            await base.ZeroManagedAsync();
 
             var autoPeeringDesc = _autoPeering.Description;
-            await _autoPeering.Zero(this, $"{nameof(ZeroManagedAsync)}: teardown").FastPath();
+            await _autoPeering.Zero(this, $"{nameof(ZeroManagedAsync)}: teardown");
 
             
             if (!_autoPeeringTask.Wait(TimeSpan.FromSeconds(parm_hub_teardown_timeout_s)))
@@ -222,8 +222,8 @@ namespace zero.cocoon
             }
 
             var id = Hub.Router?.Designation?.IdString();
-            await DupSyncRoot.Zero(this, $"{nameof(ZeroManagedAsync)}: teardown").FastPath();
-            await DupHeap.ZeroManagedAsync<object>().FastPath();
+            await DupSyncRoot.Zero(this, $"{nameof(ZeroManagedAsync)}: teardown");
+            await DupHeap.ZeroManagedAsync<object>();
             DupChecker.Clear();
 
             Services?.CcRecord?.Endpoints?.Clear();
@@ -240,7 +240,7 @@ namespace zero.cocoon
                             {
                                 Id = id
                             }
-                        }).FastPath();
+                        });
                 }
             }
             catch
@@ -255,8 +255,8 @@ namespace zero.cocoon
         /// <returns>The task</returns>
         public override async ValueTask ZeroPrimeAsync()
         {
-            await base.ZeroPrimeAsync().FastPath();
-            await _autoPeering.ZeroPrimeAsync().FastPath();
+            await base.ZeroPrimeAsync();
+            await _autoPeering.ZeroPrimeAsync();
         }
 
         private Logger _logger;
@@ -312,7 +312,7 @@ namespace zero.cocoon
         /// Timeout for futile messages
         /// </summary>
         [IoParameter]
-        public int parm_futile_timeout_ms = 2000;
+        public int parm_futile_timeout_ms = 10000;
         
         /// <summary>
         /// The discovery service
@@ -410,7 +410,7 @@ namespace zero.cocoon
 #if DEBUG
         public int parm_mean_pat_delay_s = 60 * 3;
 #else
-        public int parm_mean_pat_delay_s = 60 * 30;
+        public int parm_mean_pat_delay_s = 60 * 10;
 #endif
 
         /// <summary>
@@ -456,7 +456,7 @@ namespace zero.cocoon
                     if(!@this.Zeroed())
                         @this._logger.Warn($"Restarting hub... {@this.Description}");
                 }
-            }, this, TaskCreationOptions.DenyChildAttach).FastPath();
+            }, this, TaskCreationOptions.DenyChildAttach);
 
             //start node listener
             await base.SpawnListenerAsync(static async (drone,@this) =>
@@ -471,7 +471,9 @@ namespace zero.cocoon
                     //Handshake
                     if (await @this.FutileAsync((CcDrone)drone).FastPath())
                     {
-                        await Task.Delay(@this.parm_futile_timeout_ms / 2, @this.AsyncTasks.Token);
+                        //TODO: DELAYS
+                        //await Task.Delay(@this.parm_futile_timeout_ms>>4, @this.AsyncTasks.Token);
+                        await Task.Yield();
 
                         if (drone.Zeroed())
                         {
@@ -493,7 +495,7 @@ namespace zero.cocoon
                 {
                     if (!success)
                     {
-                        //await @this.Hub.Router.DeFuseAsync().FastPath();
+                        //await @this.Hub.Router.DeFuseAsync();
                     }
                 }
             },this, bootstrapAsync);
@@ -634,7 +636,7 @@ namespace zero.cocoon
                             //}
 
                             //race for connection
-                            won = await ConnectForTheWinAsync(CcAdjunct.Heading.Ingress, drone, packet, (IPEndPoint)ioNetSocket.NativeSocket.RemoteEndPoint).FastPath();
+                            won = await ConnectForTheWinAsync(CcAdjunct.Heading.Ingress, drone, packet, (IPEndPoint)ioNetSocket.NativeSocket.RemoteEndPoint);
 
                             _logger.Trace($"{nameof(CcFutileRequest)}: won = {won}, read = {bytesRead}, {drone.IoSource.Key}");
 
@@ -649,7 +651,7 @@ namespace zero.cocoon
                             _sw.Restart();
 
                             var sent = await SendMessageAsync(drone, futileResponseBuf, nameof(CcFutileResponse),
-                                parm_futile_timeout_ms).FastPath();
+                                parm_futile_timeout_ms);
                             if (sent == 0)
                             {
                                 _logger.Trace($"{nameof(futileResponse)}: Send FAILED! {ioNetSocket.Description}");
@@ -677,7 +679,7 @@ namespace zero.cocoon
                     
                     _sw.Restart();
                     var sent = await SendMessageAsync(drone, futileRequestBuf, nameof(CcFutileRequest))
-                        .FastPath();
+                        ;
                     if (sent > 0)
                     {
                         _logger.Trace(
@@ -746,7 +748,7 @@ namespace zero.cocoon
                         //race for connection
                         var won = await ConnectForTheWinAsync(CcAdjunct.Heading.Egress, drone, packet,
                                 drone.Adjunct.RemoteAddress.IpEndPoint)
-                            .FastPath();
+                            ;
 
                         if(!won)
                             return false;
@@ -792,7 +794,7 @@ namespace zero.cocoon
                         {
                             Interlocked.Decrement(ref @this.EgressCount);
                             return new ValueTask<bool>(true);
-                        }, this).FastPath();                        
+                        }, this);                        
                     }
                     else if (drone.MessageService.IoNetSocket.IsIngress)
                     {
@@ -800,7 +802,7 @@ namespace zero.cocoon
                         {
                             Interlocked.Decrement(ref @this.IngressCount);
                             return new ValueTask<bool>(true);
-                        }, this).FastPath();                        
+                        }, this);                        
                     }
                 }
             }
@@ -839,7 +841,7 @@ namespace zero.cocoon
                 var stateIsValid = adjunct.CurrentState.Value != CcAdjunct.AdjunctState.Connected && adjunct.CompareAndEnterState(CcAdjunct.AdjunctState.Connecting, CcAdjunct.AdjunctState.Fusing, overrideHung: adjunct.parm_max_network_latency_ms * 4) == CcAdjunct.AdjunctState.Fusing;
                 if (!stateIsValid)
                 {
-                    if(adjunct.CurrentState.Value != CcAdjunct.AdjunctState.Connected && adjunct.CurrentState.EnterTime.ElapsedMs() > adjunct.parm_max_network_latency_ms * 4)
+                    if(adjunct.CurrentState.Value != CcAdjunct.AdjunctState.Connected && adjunct.CurrentState.EnterTime.ElapsedMs() > adjunct.parm_max_network_latency_ms)
                         _logger.Warn($"{nameof(ConnectForTheWinAsync)} - {Description}: Invalid state, {adjunct.CurrentState.Value}, age = {adjunct.CurrentState.EnterTime.ElapsedMs()}ms. Wanted {nameof(CcAdjunct.AdjunctState.Fusing)} - [RACE OK!]");
                     return false;
                 }
@@ -847,7 +849,7 @@ namespace zero.cocoon
 
             if (adjunct.Assimilating && !adjunct.IsDroneAttached)
             {
-                var attached = await drone.AttachViaAdjunctAsync(direction).FastPath();
+                var attached = await drone.AttachViaAdjunctAsync(direction);
 
                 var capped = attached && !await ZeroAtomic(static (_, o, _) =>
                 {
@@ -877,11 +879,11 @@ namespace zero.cocoon
                             return new ValueTask<bool>(false);
                         }
                     }
-                }, (this, direction)).FastPath();
+                }, (this, direction));
 
                 if(capped)
                 {
-                    await drone.DropAdjunctAsync().FastPath();
+                    await drone.DropAdjunctAsync();
                 }
 
                 return !capped;
@@ -916,10 +918,10 @@ namespace zero.cocoon
                 {
                     Interlocked.Increment(ref _currentOutboundConnectionAttempts);
 
-                    var drone = await ConnectAsync(IoNodeAddress.CreateFromEndpoint("tcp", adjunct.RemoteAddress.IpEndPoint) , adjunct, timeout:parm_futile_timeout_ms).FastPath();
+                    var drone = await ConnectAsync(IoNodeAddress.CreateFromEndpoint("tcp", adjunct.RemoteAddress.IpEndPoint) , adjunct, timeout:parm_futile_timeout_ms);
                     if (Zeroed() || drone == null || ((CcDrone)drone).Adjunct.Zeroed())
                     {
-                        if (drone != null) await drone.Zero(this, $"{nameof(ConnectAsync)} was not successful [OK]").FastPath();
+                        if (drone != null) await drone.Zero(this, $"{nameof(ConnectAsync)} was not successful [OK]");
                         _logger.Debug($"{nameof(ConnectToDroneAsync)}: [ABORTED], {adjunct.Description}, {adjunct.MetaDesc}");
                         return false;
                     }
@@ -932,25 +934,27 @@ namespace zero.cocoon
                         {
                             var (@this, drone) = state;
 
-                            await Task.Delay(@this.parm_futile_timeout_ms / 2, @this.AsyncTasks.Token);
+                            //TODO: DELAYS
+                            //await Task.Delay(@this.parm_futile_timeout_ms >> 4, @this.AsyncTasks.Token);
+                            await Task.Yield();
 
                             if (!drone.Zeroed())
                             {
                                 @this._logger.Info($"+ {drone.Description}");
-                                await @this.BlockOnAssimilateAsync(drone).FastPath();
+                                await @this.BlockOnAssimilateAsync(drone);
                             }
                             else
                             {
                                 @this._logger.Debug($"+|{drone.Description}");
                             }
-                        }, ValueTuple.Create(this, drone), TaskCreationOptions.DenyChildAttach).FastPath();
+                        }, ValueTuple.Create(this, drone), TaskCreationOptions.DenyChildAttach);
 
                         return true;
                     }
                     else
                     {
                         _logger.Debug($"+|{drone.Description}");
-                        await drone.Zero(this, "RACED").FastPath();
+                        await drone.Zero(this, "RACED");
                     }
 
                     return false;
@@ -1017,7 +1021,7 @@ namespace zero.cocoon
             //    }
             //    try
             //    {
-            //        await ioNeighbor.EmitTestGossipMsgAsync(v).FastPath();
+            //        await ioNeighbor.EmitTestGossipMsgAsync(v);
             //        return true;
             //    }
             //    catch when(Zeroed()){}
@@ -1030,7 +1034,7 @@ namespace zero.cocoon
 
             if (Neighbors.Count > 0)
             {
-                await WhisperingDrones[_random.Next(0, WhisperingDrones.Count - 1)].EmitTestGossipMsgAsync(v).FastPath();
+                await WhisperingDrones[_random.Next(0, WhisperingDrones.Count - 1)].EmitTestGossipMsgAsync(v);
                 return true;
             }
             
@@ -1038,7 +1042,7 @@ namespace zero.cocoon
         }
 
         /// <summary>
-        /// Boostrap node
+        /// Bootstrap node
         /// </summary>
         /// <returns></returns>
         public async ValueTask DeepScanAsync(bool ensureFuse = false)
@@ -1066,7 +1070,7 @@ namespace zero.cocoon
                         foundVector = true;
                     }
 
-                    await Task.Delay(((CcAdjunct)vector).parm_max_network_latency_ms/4, AsyncTasks.Token);
+                    await Task.Delay(((CcAdjunct)vector).parm_max_network_latency_ms>>1, AsyncTasks.Token);
                 }
 
                 if(foundVector)

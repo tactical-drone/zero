@@ -38,8 +38,8 @@ namespace zero.cocoon.events.services
             _operational = _operational > 0 ? 0 : 1;
             if (!Operational)
             {
-                await QueuedEvents[_curIdx % 2].ClearAsync().FastPath();
-                await QueuedEvents[(_curIdx + 1) % 2].ClearAsync().FastPath();
+                await QueuedEvents[_curIdx % 2].ClearAsync();
+                await QueuedEvents[(_curIdx + 1) % 2].ClearAsync();
             }
         }
 
@@ -79,10 +79,10 @@ namespace zero.cocoon.events.services
                 //    c++;
                 //}
 
-                //await curQ.ClipAsync(cur).FastPath();
+                //await curQ.ClipAsync(cur);
 
                 //Console.WriteLine($"c = {c}");
-                //await curQ.ClearAsync().FastPath();
+                //await curQ.ClearAsync();
             }
             catch (Exception e)
             {
@@ -106,7 +106,7 @@ namespace zero.cocoon.events.services
                 {
                     newAutoPeerEvent.Timestamp = Environment.TickCount;
                     newAutoPeerEvent.Seq = Interlocked.Increment(ref _seq) - 1;
-                    await curQ.EnqueueAsync(newAutoPeerEvent).FastPath();
+                    await curQ.EnqueueAsync(newAutoPeerEvent);
                 }
             }
             catch
@@ -126,8 +126,8 @@ namespace zero.cocoon.events.services
             if (QueuedEvents == null)
                 return;
             QueuedEvents = null;
-            await q[0].ZeroManagedAsync<object>(zero:true).FastPath();
-            await q[1].ZeroManagedAsync<object>(zero:true).FastPath();
+            await q[0].ZeroManagedAsync<object>(zero:true);
+            await q[1].ZeroManagedAsync<object>(zero:true);
         }
     }
 }

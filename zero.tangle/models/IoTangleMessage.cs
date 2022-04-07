@@ -456,7 +456,7 @@ namespace zero.tangle.models
                                 case TaskStatus.Canceled:
                                 case TaskStatus.Faulted:
                                     State = rx.Status == TaskStatus.Canceled ? IoJobMeta.JobState.ProdCancel : IoJobMeta.JobState.ProduceErr;
-                                    await Source.Zero(this, "").FastPath();
+                                    await Source.Zero(this, "");
                                     _logger.Error(rx.Exception?.InnerException, $"{TraceDescription} ReadAsync from stream returned with errors:");
                                     break;
                                 //Success

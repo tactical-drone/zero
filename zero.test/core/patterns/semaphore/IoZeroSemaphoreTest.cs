@@ -78,14 +78,14 @@ namespace zero.test.core.patterns.semaphore
 
             var ts = Environment.TickCount;
             Assert.Equal(3, m.ReadyCount);
-            await m.WaitAsync().FastPath();
+            await m.WaitAsync();
             Assert.Equal(0, m.CurNrOfBlockers);
-            await m.WaitAsync().FastPath();
+            await m.WaitAsync();
             Assert.Equal(0, m.CurNrOfBlockers);
-            await m.WaitAsync().FastPath();
+            await m.WaitAsync();
             Assert.Equal(0, m.CurNrOfBlockers);
             Assert.InRange(ts.ElapsedMs(), 0, 50);
-            await m.WaitAsync().FastPath();
+            await m.WaitAsync();
             Assert.InRange(ts.ElapsedMs(),400, 2000);
             Assert.Equal(0, m.CurNrOfBlockers);
         }
@@ -105,14 +105,14 @@ namespace zero.test.core.patterns.semaphore
 
             var ts = Environment.TickCount;
             
-            await m.WaitAsync().FastPath();
-            await m.WaitAsync().FastPath();
-            await m.WaitAsync().FastPath();
-            await m.WaitAsync().FastPath();
-            await m.WaitAsync().FastPath();
+            await m.WaitAsync();
+            await m.WaitAsync();
+            await m.WaitAsync();
+            await m.WaitAsync();
+            await m.WaitAsync();
 
             Assert.InRange(ts.ElapsedMs(), 0, 50);
-            await m.WaitAsync().FastPath();
+            await m.WaitAsync();
             _output.WriteLine($"6 {m.Tail} -> {m.Head}");
             Assert.InRange(ts.ElapsedMs(), 400, 2000);
         }

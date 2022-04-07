@@ -59,7 +59,7 @@ namespace zero.cocoon
                         {
                             @this._logger.Debug($"! {@this.Description} - n = {@this.Adjunct}, d = {@this.Adjunct?.Direction}, s = {@this.Adjunct?.State} (wants {CcAdjunct.AdjunctState.Connected}), {@this.Adjunct?.MetaDesc}");
                         }
-                        await @this.Zero(@this, $"Invalid state after {@this.parm_insane_checks_delay_s}: s = {@this.Adjunct?.State}, wants = {CcAdjunct.AdjunctState.Connected}), {@this.Adjunct?.MetaDesc}").FastPath();
+                        await @this.Zero(@this, $"Invalid state after {@this.parm_insane_checks_delay_s}: s = {@this.Adjunct?.State}, wants = {CcAdjunct.AdjunctState.Connected}), {@this.Adjunct?.MetaDesc}");
                     }
                     else if (@this.Adjunct != null && @this.MessageService.IsOperational()) 
                         @this.Adjunct.WasAttached = true;
@@ -192,10 +192,10 @@ namespace zero.cocoon
         /// </summary>
         public override async ValueTask ZeroManagedAsync()
         {
-            await base.ZeroManagedAsync().FastPath();
+            await base.ZeroManagedAsync();
             try
             {
-                await DropAdjunctAsync().FastPath();
+                await DropAdjunctAsync();
             }
             catch (Exception e)
             {
@@ -207,7 +207,7 @@ namespace zero.cocoon
                 if ((Adjunct?.Assimilated??false) && UpTime.ElapsedMs() > parm_min_uptime_ms)
                     _logger.Info($"- {Description}, from: {ZeroedFrom?.Description}");
 
-                await _sendBuf.ZeroManagedAsync<object>().FastPath();
+                await _sendBuf.ZeroManagedAsync<object>();
             }
             catch
             {
@@ -240,7 +240,7 @@ namespace zero.cocoon
                     
 
                 //Attach the other way
-                var attached = await Adjunct.AttachDroneAsync(this, direction).FastPath();
+                var attached = await Adjunct.AttachDroneAsync(this, direction);
 
                 if (attached)
                 {
@@ -269,7 +269,7 @@ namespace zero.cocoon
         {
             var latch = _adjunct;
             if (latch != null && Interlocked.CompareExchange(ref _adjunct, null, latch) == latch)
-                await latch.DetachDroneAsync().FastPath();
+                await latch.DetachDroneAsync();
         }
 
         /// <summary>
@@ -335,7 +335,7 @@ namespace zero.cocoon
                                         Id = Adjunct.Designation.IdString(),
                                         Type = "gossip"
                                     }
-                                }).FastPath();
+                                });
                         }
                     }
                 }

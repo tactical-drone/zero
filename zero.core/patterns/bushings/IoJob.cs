@@ -150,9 +150,9 @@ namespace zero.core.patterns.bushings
                 {
                     @this._stateHeap.Return(s);
                     return default;
-                }, this).FastPath();
+                }, this);
 
-                await StateTransitionHistory.ClearAsync().FastPath();
+                await StateTransitionHistory.ClearAsync();
 #else
                 _stateMeta.Set((int)IoJobMeta.JobState.Undefined);
 #endif
@@ -210,7 +210,7 @@ namespace zero.core.patterns.bushings
         /// </summary>
         public override async ValueTask ZeroManagedAsync()
         {
-            await base.ZeroManagedAsync().FastPath();
+            await base.ZeroManagedAsync();
 
 #if DEBUG
             if (_stateMeta != null)
@@ -220,17 +220,17 @@ namespace zero.core.patterns.bushings
             {
                 @this._stateHeap.Return(s);
                 return default;
-            }, this, zero:true).FastPath();
+            }, this, zero:true);
 
 
             await _stateHeap.ZeroManagedAsync((ioHeapItem, _) =>
             {
                 ioHeapItem.ZeroManaged();
                 return default;
-            }, this).FastPath();
+            }, this);
 #endif
             if (PreviousJob != null)
-                await PreviousJob.Zero(this, $"{nameof(IoJob<TJob>)}: teardown").FastPath();
+                await PreviousJob.Zero(this, $"{nameof(IoJob<TJob>)}: teardown");
         }
 
         /// <summary>
