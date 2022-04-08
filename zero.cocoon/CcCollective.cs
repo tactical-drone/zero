@@ -489,7 +489,9 @@ namespace zero.cocoon
                             @this._logger.Debug($"+|{drone.Description}");
                             return false;
                         }
-                    
+
+                        ((CcDrone)drone).Adjunct.WasAttached = true;
+
                         //ACCEPT
                         @this._logger.Info($"+ {drone.Description}");
                         return success = true;
@@ -941,6 +943,7 @@ namespace zero.cocoon
 
                             if (!drone.Zeroed())
                             {
+                                ((CcDrone)drone).Adjunct.WasAttached = true;
                                 @this._logger.Info($"+ {drone.Description}");
                                 await @this.BlockOnAssimilateAsync(drone);
                             }

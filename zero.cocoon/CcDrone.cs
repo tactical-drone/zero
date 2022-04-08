@@ -48,23 +48,23 @@ namespace zero.cocoon
             //Testing
             var rand = new Random(DateTimeOffset.Now.Ticks.GetHashCode() * DateTimeOffset.Now.Ticks.GetHashCode());
 
-            var t = ZeroAsync(static async @this  =>
-            {
-                while (!@this.Zeroed())
-                {
-                    await Task.Delay(@this.parm_insane_checks_delay_s * 1000, @this.AsyncTasks.Token);
-                    if (!@this.Zeroed() && @this.Adjunct == null || @this.Adjunct?.Direction == CcAdjunct.Heading.Undefined || @this.Adjunct?.State < CcAdjunct.AdjunctState.Connected && @this.Adjunct?.Direction != CcAdjunct.Heading.Undefined && @this.Adjunct.IsDroneConnected)
-                    {
-                        if (!@this.Zeroed() && @this.Adjunct == null)
-                        {
-                            @this._logger.Debug($"! {@this.Description} - n = {@this.Adjunct}, d = {@this.Adjunct?.Direction}, s = {@this.Adjunct?.State} (wants {CcAdjunct.AdjunctState.Connected}), {@this.Adjunct?.MetaDesc}");
-                        }
-                        await @this.Zero(@this, $"Invalid state after {@this.parm_insane_checks_delay_s}: s = {@this.Adjunct?.State}, wants = {CcAdjunct.AdjunctState.Connected}), {@this.Adjunct?.MetaDesc}");
-                    }
-                    else if (@this.Adjunct != null && @this.MessageService.IsOperational()) 
-                        @this.Adjunct.WasAttached = true;
-                }
-            },this, TaskCreationOptions.DenyChildAttach);
+            //var t = ZeroAsync(static async @this  =>
+            //{
+            //    while (!@this.Zeroed())
+            //    {
+            //        await Task.Delay(@this.parm_insane_checks_delay_s * 1000, @this.AsyncTasks.Token);
+            //        if (!@this.Zeroed() && @this.Adjunct == null || @this.Adjunct?.Direction == CcAdjunct.Heading.Undefined || @this.Adjunct?.State < CcAdjunct.AdjunctState.Connected && @this.Adjunct?.Direction != CcAdjunct.Heading.Undefined && @this.Adjunct.IsDroneConnected)
+            //        {
+            //            if (!@this.Zeroed() && @this.Adjunct == null)
+            //            {
+            //                @this._logger.Debug($"! {@this.Description} - n = {@this.Adjunct}, d = {@this.Adjunct?.Direction}, s = {@this.Adjunct?.State} (wants {CcAdjunct.AdjunctState.Connected}), {@this.Adjunct?.MetaDesc}");
+            //            }
+            //            await @this.Zero(@this, $"Invalid state after {@this.parm_insane_checks_delay_s}: s = {@this.Adjunct?.State}, wants = {CcAdjunct.AdjunctState.Connected}), {@this.Adjunct?.MetaDesc}");
+            //        }
+            //        else if (@this.Adjunct != null && @this.MessageService.IsOperational()) 
+            //            @this.Adjunct.WasAttached = true;
+            //    }
+            //},this, TaskCreationOptions.DenyChildAttach);
 
             _m = new CcWhisperMsg() { Data = UnsafeByteOperations.UnsafeWrap(new ReadOnlyMemory<byte>(_vb)) };
 
@@ -171,7 +171,7 @@ namespace zero.cocoon
         /// </summary>
         [IoParameter]
         // ReSharper disable once InconsistentNaming
-        public int parm_insane_checks_delay_s = 10;
+        public int parm_insane_checks_delay_s = 1;
 #endif
 
         /// <summary>

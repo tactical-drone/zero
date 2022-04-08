@@ -273,7 +273,7 @@ namespace zero.cocoon.autopeer
         /// <summary>
         /// Indicates whether we have extracted information from this drone
         /// </summary>
-        public volatile bool Assimilated;
+        public bool Assimilated { get; protected set; }
 
         private volatile int _fusedCount;
         /// <summary>
@@ -474,7 +474,7 @@ namespace zero.cocoon.autopeer
         /// </summary>
         private bool _enableBatchEpCache = false;
 
-        private long _lastScan;
+        private long _lastScan = (long)(Environment.TickCount - TimeSpan.FromDays(1).TotalMilliseconds);
         /// <summary>
         /// Time since our last scan
         /// </summary>
@@ -638,7 +638,7 @@ namespace zero.cocoon.autopeer
                 await _sendBuf.ZeroManagedAsync<object>();
 
                 var from = ZeroedFrom == this? "self" : ZeroedFrom?.Description??"null";
-                if (Assimilated && WasAttached && UpTime.ElapsedMs() > parm_min_uptime_ms && EventCount > 10)
+                if (!CcCollective.ZeroDrone && Assimilated && WasAttached && UpTime.ElapsedMs() > parm_min_uptime_ms && EventCount > 10)
                     _logger.Info($"- `{(Assimilated ? "apex" : "sub")} {Direction}: {Description}, {from}: r ={ZeroReason}");
 
                 await DetachDroneAsync();
@@ -649,22 +649,6 @@ namespace zero.cocoon.autopeer
                     await Task.Delay(@this._random.Next(@this.parm_max_network_latency_ms), @this.AsyncTasks.Token);
                     await @this.Router.ProbeAsync("SYN-BRG", @this.RemoteAddress.Copy());
                 }, this, TaskCreationOptions.DenyChildAttach);
-
-                //await ZeroAsync(static async @this =>
-                //{
-                //    await Task.Delay(@this.parm_min_uptime_ms, @this.AsyncTasks.Token);
-                //    if (AutoPeeringEventService.Operational)
-                //        await AutoPeeringEventService.AddEventAsync(new AutoPeerEvent
-                //        {
-                //            EventType = AutoPeerEventType.RemoveAdjunct,
-                //            Adjunct = new Adjunct
-                //            {
-                //                Id = @this.Designation.IdString(),
-                //                CollectiveId = @this.Router.Designation.IdString()
-                //            }
-                //        });
-
-                //}, this, TaskCreationOptions.DenyChildAttach);
 
                 if (AutoPeeringEventService.Operational)
                     await AutoPeeringEventService.AddEventAsync(new AutoPeerEvent
@@ -679,7 +663,7 @@ namespace zero.cocoon.autopeer
             }
             else
             {
-                _logger.Info($"{Source.Proxy} ~> {Description}, from: {ZeroedFrom?.Description}, reason: {ZeroReason}");
+                _logger.Info($"ZERO HUB PROXY: from: {ZeroedFrom?.Description}, reason: {ZeroReason}, {Description}");
             }
 
             await _probeRequest.Zero(this, $"{nameof(ZeroManagedAsync)}: teardown");
@@ -687,8 +671,6 @@ namespace zero.cocoon.autopeer
             await _scanRequest.Zero(this, $"{nameof(ZeroManagedAsync)}: teardown");
 
             ResetState(AdjunctState.FinalState);
-            //Array.Clear(_produceTaskPool,0, _produceTaskPool.Length);
-            //Array.Clear(_produceTaskPool, 0, _consumeTaskPool.Length);
         }
 
         /// <summary>
@@ -725,9 +707,11 @@ namespace zero.cocoon.autopeer
                             @this._logger.Warn($"{@this.Description}: Popdog is FAST!!!, {(ts.ElapsedMs() - targetDelay):0.0}ms / {targetDelay}");
                         }
 
-                        foreach (var adjunct in @this.Hub.Neighbors.Values.Where(n=> ((CcAdjunct)n).IsProxy))
+                        foreach (var ioNeighbor in @this.Hub.Neighbors.Values.Where(n=> ((CcAdjunct)n).IsProxy))
                         {
-                            await ((CcAdjunct)adjunct).EnsureRoboticsAsync();
+                            var adjunct = (CcAdjunct)ioNeighbor;
+                            if(!adjunct.IsDroneConnected)
+                                await adjunct.EnsureRoboticsAsync();
                         }
                     }
                     catch (Exception) when (@this.Zeroed()) { }
@@ -753,9 +737,6 @@ namespace zero.cocoon.autopeer
         {
             try
             {
-                if(!Verified || !IsProxy)
-                    return;
-
                 if (SecondsSincePat >= CcCollective.parm_mean_pat_delay_s / 2)
                 {
                     //send PAT
@@ -774,25 +755,10 @@ namespace zero.cocoon.autopeer
                     return;
 
                 //Watchdog failure
-                if (!IsDroneConnected && SecondsSincePat > CcCollective.parm_mean_pat_delay_s)
+                if (SecondsSincePat > CcCollective.parm_mean_pat_delay_s)
                 {
-                    ////swarm attempt
-                    //for (var j = 0; j < 3; j++)
-                    //{
-                    //    if(Zeroed() || SecondsSincePat > CcCollective.parm_mean_pat_delay_s)
-                    //        break;
-                        
-                    //    _logger.Warn($"{nameof(EnsureRoboticsAsync)}: Popdog swarm # {j} to {MessageService.IoNetSocket}");
-                    //    await ProbeAsync("SYN-SWA");
-                    //    await Task.Delay(parm_max_network_latency_ms);
-                    //}
-
-                    //cull
-                    //if (SecondsSincePat > CcCollective.parm_mean_pat_delay_s)
-                    {
-                        _logger.Trace($"w {nameof(EnsureRoboticsAsync)} - {Description}, s = {SecondsSincePat} >> {CcCollective.parm_mean_pat_delay_s}, {MetaDesc}");
-                        await Zero(CcCollective,$"-wd: l = {SecondsSincePat}s ago, up-time = {TimeSpan.FromMilliseconds(UpTime.ElapsedMs()).TotalHours:0.00}h");
-                    }
+                    _logger.Trace($"w {nameof(EnsureRoboticsAsync)} - {Description}, s = {SecondsSincePat} >> {CcCollective.parm_mean_pat_delay_s}, {MetaDesc}");
+                    await Zero(CcCollective,$"-wd: l = {SecondsSincePat}s, up = {TimeSpan.FromMilliseconds(UpTime.ElapsedMs()).TotalHours:0.00}h");
                 }
             }
             catch when(Zeroed()){}
@@ -2275,8 +2241,6 @@ namespace zero.cocoon.autopeer
         /// <param name="packet">The original packet</param>
         private async ValueTask ProcessAsync(CcProbeResponse response, IPEndPoint src, chroniton packet)
         {
-            Interlocked.Exchange(ref _zeroProbes, 0);
-
             var matchRequest = await _probeRequest.ResponseAsync(src.ToString(), response.ReqHash).FastPath();
             
             //Try the router
@@ -2300,6 +2264,8 @@ namespace zero.cocoon.autopeer
 #endif
                 return;
             }
+
+            Interlocked.Exchange(ref _zeroProbes, 0);
 
             //Process SYN-ACK
             if (!IsProxy)
@@ -2494,7 +2460,7 @@ namespace zero.cocoon.autopeer
 #if DEBUG
                         await Zero(this, $"drone left, T = {TimeSpan.FromMilliseconds(UpTime.ElapsedMs()).TotalMinutes:0.0}min ~ {_sibling?.UpTime.ElapsedMsToSec()/60.0:0.0}min, {_sibling?.Description}");
 #else
-                        await Zero(this, $"timeout {SecondsSincePat}s ago, T = {TimeSpan.FromMilliseconds(UpTime.ElapsedMs()).TotalMinutes:0.0}min");
+                        await Zero(this, $"wd: s = {SecondsSincePat}, probed = {ZeroProbes} << {parm_zombie_max_connection_attempts}, T = {TimeSpan.FromMilliseconds(UpTime.ElapsedMs()).TotalMinutes:0.0}min");
 #endif
 
                         return false;
@@ -2598,7 +2564,7 @@ namespace zero.cocoon.autopeer
                     _logger.Trace($"{nameof(ScanAsync)}: [skipped], no replies {Description}, s = {State}, a = {Assimilating}");
                     if (!IsDroneAttached)
                     {
-                        await Zero(this, $"{nameof(ScanAsync)}: Unable to scan adjunct");
+                        await Zero(this, $"{nameof(ScanAsync)}: Unable to scan adjunct, count = {_scanCount} << {parm_zombie_max_connection_attempts}");
                         return false;
                     }
                         
