@@ -6,6 +6,7 @@ using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Xml.Schema;
 using NLog;
 using NLog.Config;
 using zero.core.misc;
@@ -39,6 +40,7 @@ namespace zero.core.runtime.scheduler
             _queenCount = Math.Max(Environment.ProcessorCount >> 4, 1) + 1;
             var capacity = MaxWorker;
 
+            //TODO: tuning
             _workQueue = new IoZeroQ<Task>(string.Empty, capacity * 2, true);
             _queenQueue = new IoZeroQ<ZeroSignal>(string.Empty, capacity,true);
             _signalHeap = new IoHeap<ZeroSignal>(string.Empty, capacity, (_, _) => new ZeroSignal(), true)
@@ -72,14 +74,14 @@ namespace zero.core.runtime.scheduler
             for (var i = 0; i < _workerCount; i++)
             {
                 //spawn worker thread
-                Volatile.Write(ref _pollWorker[i], MallocWorkTaskCore);
+                _pollWorker[i] = MallocWorkTaskCore;
                 spawnWorker($"zero scheduler worker thread {i}", i, _workQueue, null, ThreadPriority.Normal, WorkerHandler);
             }
 
             for (var i = 0; i < _queenCount; i++)
             {
                 //spawn queen thread.
-                Volatile.Write(ref _pollQueen[i], MallocQueenTaskCore);
+                _pollQueen[i] =MallocQueenTaskCore;
                 spawnQueen($"zero scheduler queen thread {i}", i, _queenQueue, null,
                     ThreadPriority.Highest, QueenHandler);
             }
@@ -283,7 +285,7 @@ namespace zero.core.runtime.scheduler
                         {
                             var (@this, s, workerId) = (ValueTuple<IoZeroScheduler, ZeroSignal, int>)state;
 
-                            if (s.Processed > 0)
+                            if (s.Processed != 0)
                                 return;
 
                             if (s.Task.Status > TaskStatus.WaitingToRun)
@@ -291,6 +293,7 @@ namespace zero.core.runtime.scheduler
                                 if (Interlocked.CompareExchange(ref s.Processed, 1, 0) == 0)
                                 {
                                     s.Task = null;
+                                    s.Processed = -1;
                                     @this._signalHeap.Return(s);
                                 }
 
@@ -308,7 +311,7 @@ namespace zero.core.runtime.scheduler
                                         try
                                         {
                                             var w = @this._pollWorker[i];
-                                            if (Volatile.Read(ref @this._workerPunchCards[i]) == 0 && w.Ready())
+                                            if (@this._workerPunchCards[i] == 0 && w.Ready())
                                             {
                                                 w.SetResult(true);
 #if _TRACE_
@@ -329,6 +332,7 @@ namespace zero.core.runtime.scheduler
                                 if (Interlocked.CompareExchange(ref s.Processed, 1, 0) == 0)
                                 {
                                     s.Task = null;
+                                    s.Processed = -1;
                                     @this._signalHeap.Return(s);
                                 }
 
@@ -341,7 +345,7 @@ namespace zero.core.runtime.scheduler
 #if __TRACE__
                                     Console.WriteLine($"spawning more workers q[{newWorkerId}] = {@this._workQueue.Count}, l = {@this.Load}, {@this.Free.Count()}/{@this.Blocked.Count()}/{@this.Active.Count()}");
 #endif
-                                        Volatile.Write(ref @this._pollWorker[newWorkerId], MallocWorkTaskCore);
+                                        @this._pollWorker[newWorkerId] = MallocWorkTaskCore;
                                         @this.SpawnWorker<Task>($"zero scheduler worker thread {newWorkerId}", newWorkerId, @this._workQueue, s.Task, ThreadPriority.Normal, WorkerHandler);
                                         @this._lastSpawnedWorker = Environment.TickCount;
                                     }
@@ -357,6 +361,7 @@ namespace zero.core.runtime.scheduler
                                 if (Interlocked.CompareExchange(ref s.Processed, 1, 0) == 0)
                                 {
                                     s.Task = null;
+                                    s.Processed = -1;
                                     @this._signalHeap.Return(s);
                                 }
                             }
@@ -440,9 +445,7 @@ var d = 0;
 #if DEBUG
                     var jobsProcessed = 0;
 #endif
-                    var syncRoot = !isWorker
-                        ? Volatile.Read(ref @this._pollQueen[xId])
-                        : Volatile.Read(ref @this._pollWorker[xId]);
+                    var syncRoot = !isWorker ? @this._pollQueen[xId] : @this._pollWorker[xId];
 
                     //process tasks
                     while (!@this._asyncTasks.IsCancellationRequested)
@@ -539,7 +542,7 @@ var d = 0;
                                 }
                                 else
                                 {
-                                    ramp = 3;
+                                    ramp = 10;
                                     Interlocked.Exchange(ref @this._workerPunchCards[xId], 1);
                                 }
 
@@ -557,8 +560,11 @@ var d = 0;
                                             jobsProcessed++;
 #endif
                                         }
-                                        else if(isWorker && work == null)
-                                            await Task.Yield();
+                                        else if (isWorker && work == null)
+                                        {
+                                            //TODO: tuning
+                                            //await Task.Yield();
+                                        }
                                     }
                                     catch (Exception e)
                                     {
@@ -632,7 +638,7 @@ var d = 0;
                     if (isWorker)
                     {
                         Console.WriteLine($"KILLING WORKER THREAD id ={xId} - has = {desc})");
-                        Volatile.Write(ref @this._workerPunchCards[xId], -1);
+                        @this._workerPunchCards[xId] = -1;
 
                         var wTmp = @this._pollWorker[xId];
                         @this._pollWorker[xId] = null;
@@ -662,9 +668,9 @@ var d = 0;
             t.Start((this, queue, desc, id, prime, callback, priority));
 
             if (priority == ThreadPriority.Highest)
-                Volatile.Write(ref _queenPunchCards[id], 0);
+                _queenPunchCards[id] = 0;
             else
-                Volatile.Write(ref _workerPunchCards[id], 0);
+                _workerPunchCards[id] = 0;
         }
 
         /// <summary>
@@ -702,7 +708,10 @@ var d = 0;
 
             //queue the work for processing
             if (_workQueue.TryEnqueue(task) != -1)
+            {
+                Thread.Yield(); //TODO: Tuning
                 PollQueen(task);
+            }
             else
             {
                 throw new InternalBufferOverflowException($"{nameof(_workQueue)}: count = {_workQueue.Count}, capacity {_workQueue.Capacity}");
@@ -719,59 +728,41 @@ var d = 0;
         {
             Debug.Assert(task != null);
 
-            ZeroSignal zeroSignal = null;
-            ZeroSignal tmpSignal;
-            var polled = false;
+            //Fast path
+            if (task.Status > TaskStatus.WaitingToRun)
+                return false;
 
+            ZeroSignal zeroSignal = null;
+            var polled = false;
+            var queued = false;
             try
             {
                 zeroSignal = _signalHeap.Take();
                 Debug.Assert(zeroSignal != null);
                 Debug.Assert(task != null);
-                //prepare work queen poll signal
-                
-                zeroSignal.Task = task;
 
-                if (task.Status <= TaskStatus.WaitingToRun)
-                {
-                    if (_queenQueue.TryEnqueue(tmpSignal = zeroSignal) != -1)
-                    {
-                        zeroSignal = null;
-                    }
-                    else
-                    {
-                        Console.WriteLine($"Failed to EQ: {_queenQueue.Description}");
-                    }
-                }
-                else
-                    return false;
+                zeroSignal.Task = task;
+                if (task.Status == TaskStatus.WaitingToRun && _queenQueue.TryEnqueue(zeroSignal) != -1)
+                    queued = true;
             }
             finally
             {
-                if(zeroSignal != null)
+                if(!queued && zeroSignal != null)
                     _signalHeap.Return(zeroSignal);
             }
 
-            if (zeroSignal != null)
+            if (!queued)
                 return false;
-            
+
             //poll a queen that there is work to be done
             var qId = _queenCount;
-            while (!polled && task.Status <= TaskStatus.WaitingToRun && qId-- > 0)
+            while (!polled && task.Status <= TaskStatus.WaitingToRun && zeroSignal.Processed == 0 && qId-- > 0)
             {
-                if (tmpSignal.Processed > 0 || Volatile.Read(ref _queenPunchCards[qId]) == 1)
-                {
-                    polled = false;
-                    break;
-                }
-                
                 var q = _pollQueen[qId];
-                
-                if (tmpSignal.Processed == 0 && Volatile.Read(ref _queenPunchCards[qId]) == 0)
+                if (_queenPunchCards[qId] == 0)
                 {
                     if (q.Ready())//TODO: Design flaw
                     {
-
                         try
                         {
                             q.SetResult(true);

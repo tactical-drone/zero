@@ -646,7 +646,6 @@ namespace zero.cocoon
 
                             //race for connection
                             won = await ConnectForTheWinAsync(CcAdjunct.Heading.Ingress, drone, packet, (IPEndPoint)ioNetSocket.NativeSocket.RemoteEndPoint).FastPath();
-
                             _logger.Trace($"{nameof(CcFutileRequest)}: won = {won}, read = {bytesRead}, {drone.IoSource.Key}");
 
                             //send response
@@ -670,8 +669,7 @@ namespace zero.cocoon
                         //return await ConnectForTheWinAsync(CcNeighbor.Kind.Inbound, peer, packet,
                         //        (IPEndPoint)ioNetSocket.NativeSocket.RemoteEndPoint)
                         //    .FastPath().ConfigureAwait(ZC);
-                        success = !Zeroed() && drone.Adjunct != null && !drone.Adjunct.Zeroed() && won && drone.Adjunct.Direction == CcAdjunct.Heading.Ingress && drone.Source.IsOperational();
-                        return success;
+                        return !Zeroed() && drone.Adjunct != null && !drone.Adjunct.Zeroed() && won && drone.Adjunct.Direction == CcAdjunct.Heading.Ingress && drone.Source.IsOperational();
                     }
                 }
                 //-----------------------------------------------------//
@@ -777,8 +775,7 @@ namespace zero.cocoon
                             }
                         }
                     
-                        success = !Zeroed() && drone.Adjunct != null && !drone.Adjunct.Zeroed() && drone.Adjunct?.Direction == CcAdjunct.Heading.Egress && drone.Source.IsOperational();
-                        return success;
+                        return !Zeroed() && drone.Adjunct != null && !drone.Adjunct.Zeroed() && drone.Adjunct?.Direction == CcAdjunct.Heading.Egress && drone.Source.IsOperational();
                     }
                 }
             }            

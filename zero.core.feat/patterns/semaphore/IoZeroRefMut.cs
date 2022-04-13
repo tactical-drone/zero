@@ -21,8 +21,7 @@ namespace zero.core.feat.patterns.semaphore
         
         private AsyncAutoResetEvent _semaphore;
         private readonly CancellationToken _cancellationToken;
-        private readonly bool _zc = IoNanoprobe.ContinueOnCapturedContext;
-        
+
         public bool GetResult(short token)
         {
             throw new NotImplementedException();
@@ -51,7 +50,7 @@ namespace zero.core.feat.patterns.semaphore
 
         public async ValueTask<bool> WaitAsync()
         {
-            await _semaphore.WaitAsync(_cancellationToken).ConfigureAwait(_zc);
+            await _semaphore.WaitAsync(_cancellationToken);
             return true;
         }
 

@@ -682,6 +682,9 @@ namespace zero.cocoon.autopeer
         {
             try
             {
+                //TODO: tuning, helps cluster test bootups not stalling on popdog spam
+                await Task.Delay(@this.CcCollective.parm_mean_pat_delay_s * 1000);
+
                 while (!@this.Zeroed())
                 {
                     try
@@ -2257,7 +2260,7 @@ namespace zero.cocoon.autopeer
 #if DEBUG
                 if (IsProxy && _probeRequest.Count > 0)
                 {
-                    _logger.Error($"<\\- {nameof(CcProbeResponse)} {packet.Data.Memory.PayloadSig()}: SEC! age = {response.Timestamp.ElapsedMs()}ms, matcher = ({_probeRequest.Count}, {Router._probeRequest.Count}) ,{response.ReqHash.Memory.HashSig()}, d = {_probeRequest.Count}, pats = {TotalPats},  " +
+                    _logger.Error($"<\\- {nameof(CcProbeResponse)} {packet.Data.Memory.PayloadSig()}: SEC! age = {response.Timestamp.ElapsedUtcMs()}ms, matcher = ({_probeRequest.Count}, {Router._probeRequest.Count}) ,{response.ReqHash.Memory.HashSig()}, d = {_probeRequest.Count}, pats = {TotalPats},  " +
                                   $"PK={Designation.IdString()} != {CcDesignation.MakeKey(packet.PublicKey)} (proxy = {IsProxy}),  ssp = {SecondsSincePat}, d = {(AttachTimestamp > 0 ? (AttachTimestamp - LastPat).ToString() : "N/A")}, v = {Verified}, s = {src}, nat = {NatAddress}, dmz = {packet.Header.Ip.Src.GetEndpoint()}");
                     _probeRequest.DumpToLog();
                 }

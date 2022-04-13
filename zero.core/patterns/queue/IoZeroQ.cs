@@ -69,8 +69,10 @@ namespace zero.core.patterns.queue
             _sentinel = Unsafe.As<T>(new object());
         }
 
+        private long _head; 
+        private long _tail;
+
         private volatile int _zeroed;
-        private readonly bool _zc = IoNanoprobe.ContinueOnCapturedContext;
         private readonly string _description;
 
         private T[][] _storage;
@@ -82,10 +84,9 @@ namespace zero.core.patterns.queue
         private volatile int _virility;
         private long _hwm;
         public long Tail => Interlocked.Read(ref _tail);
-        private long _tail;
         public long Head => Interlocked.Read(ref _head);
-        private long _head;
-
+        //public long Tail => _tail;
+        //public long Head => _head;
         private volatile IoQEnumerator<T> _curEnumerator;
 
         private volatile int _count;
@@ -425,12 +426,12 @@ namespace zero.core.patterns.queue
                             continue;
 
                         if (op != null)
-                            await op(item, nanite).FastPath().ConfigureAwait(_zc);
+                            await op(item, nanite).FastPath();
 
                         if (item is IIoNanite ioNanite)
                         {
                             if (!ioNanite.Zeroed())
-                                await ioNanite.Zero((IIoNanite)nanite, string.Empty).FastPath().ConfigureAwait(_zc);
+                                await ioNanite.Zero((IIoNanite)nanite, string.Empty).FastPath();
                         }
                     }
                     catch (InvalidCastException) { }

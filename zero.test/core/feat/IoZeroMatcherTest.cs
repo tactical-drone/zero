@@ -46,11 +46,12 @@ namespace zero.test.core.feat
                         
                         var dud = new byte[hash.Length];
                         hash.CopyTo(dud, 0);
-                        dud[0] = dud[1];
-                        dud[^1] = dud[^2];
-                        dud[^2] = dud[^3];
-                        dud[^3] = dud[^4];
-                        dud[dud.Length>>1] = dud[(dud.Length >> 1) - 1];
+                        
+                        Volatile.Write(ref dud[0]  , dud[1]);
+                        Volatile.Write(ref dud[^1] , dud[^2]);
+                        Volatile.Write(ref dud[^2] , dud[^3]);
+                        Volatile.Write(ref dud[^3] , dud[^4]);
+                        Volatile.Write(ref dud[dud.Length>>1] , dud[(dud.Length >> 1) - 1]);
 
                         Assert.False(await matcher.ResponseAsync(k, UnsafeByteOperations.UnsafeWrap(dud)).FastPath());
                         Assert.True(await matcher.ResponseAsync(k, UnsafeByteOperations.UnsafeWrap(hash)).FastPath());

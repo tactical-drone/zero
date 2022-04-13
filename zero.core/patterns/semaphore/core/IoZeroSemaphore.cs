@@ -98,6 +98,20 @@ namespace zero.core.patterns.semaphore.core
         #endregion
 
         #region properties
+
+        //place this region fist for alignment
+        #region aligned
+        /// <summary>
+        /// A pointer to the head of the Q
+        /// </summary>
+        private long _head;
+
+        /// <summary>
+        /// A pointer to the tail of the Q, separate from _head
+        /// </summary>
+        private long _tail;
+        #endregion
+
         /// <summary>
         /// A semaphore description
         /// </summary>
@@ -190,19 +204,9 @@ namespace zero.core.patterns.semaphore.core
         /// </summary>
         private object[] _signalCapturedContext;
 
-        /// <summary>
-        /// A pointer to the head of the Q
-        /// </summary>
-        private long _tail; //Zero is a special start state;
-
-        /// <summary>
-        /// A pointer to the tail of the Q
-        /// </summary>
-        private long _head;
-
         public long Head => Interlocked.Read(ref _head);
         public long Tail => Interlocked.Read(ref _tail);
-
+        
         /// <summary>
         /// Whether this semaphore has been cleared out
         /// </summary>
@@ -222,7 +226,6 @@ namespace zero.core.patterns.semaphore.core
         /// The cancellation token  
         /// </summary>
         private CancellationTokenSource _asyncTasks;
-
         #endregion
 
         #region core

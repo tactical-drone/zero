@@ -22,7 +22,6 @@ namespace zero.test.core.patterns.queue{
             _output = output;
             context = new Context();
         }
-        private readonly bool _zc = IoNanoprobe.ContinueOnCapturedContext;
         private readonly Context context;
         private readonly ITestOutputHelper _output;
 
@@ -41,7 +40,7 @@ namespace zero.test.core.patterns.queue{
         [Fact]
         void RemoveHead()
         {
-            context.Q.RemoveAsync(context.Head).FastPath().ConfigureAwait(_zc).GetAwaiter();
+            context.Q.RemoveAsync(context.Head).FastPath().GetAwaiter();
 
             var sb = new StringBuilder();
             foreach (var ioZNode in context.Q)
@@ -65,7 +64,7 @@ namespace zero.test.core.patterns.queue{
         [Fact]
         void RemoveTail()
         {
-            context.Q.RemoveAsync(context.Tail).FastPath().ConfigureAwait(_zc).GetAwaiter();
+            context.Q.RemoveAsync(context.Tail).FastPath().GetAwaiter();
 
             var sb = new StringBuilder();
             foreach (var ioZNode in context.Q)
@@ -89,7 +88,7 @@ namespace zero.test.core.patterns.queue{
         [Fact]
         void RemoveMid()
         {
-            context.Q.RemoveAsync(context.Middle).FastPath().ConfigureAwait(_zc).GetAwaiter();
+            context.Q.RemoveAsync(context.Middle).FastPath().GetAwaiter();
 
             var sb = new StringBuilder();
             foreach (var ioZNode in context.Q)
@@ -113,13 +112,13 @@ namespace zero.test.core.patterns.queue{
         [Fact]
         void DequeueSecondLastPrime()
         {
-            context.Q.DequeueAsync().FastPath().ConfigureAwait(_zc).GetAwaiter();
-            context.Q.RemoveAsync(context.Q.Head).FastPath().ConfigureAwait(_zc).GetAwaiter();
-            context.Q.RemoveAsync(context.Q.Head).FastPath().ConfigureAwait(_zc).GetAwaiter();
-            context.Q.DequeueAsync().FastPath().ConfigureAwait(_zc).GetAwaiter();
+            context.Q.DequeueAsync().FastPath().GetAwaiter();
+            context.Q.RemoveAsync(context.Q.Head).FastPath().GetAwaiter();
+            context.Q.RemoveAsync(context.Q.Head).FastPath().GetAwaiter();
+            context.Q.DequeueAsync().FastPath().GetAwaiter();
 
-            context.Q.RemoveAsync(context.Q.Tail).FastPath().ConfigureAwait(_zc).GetAwaiter();
-            context.Q.DequeueAsync().FastPath().ConfigureAwait(_zc).GetAwaiter();
+            context.Q.RemoveAsync(context.Q.Tail).FastPath().GetAwaiter();
+            context.Q.DequeueAsync().FastPath().GetAwaiter();
             
 
             var sb = new StringBuilder();
@@ -144,16 +143,16 @@ namespace zero.test.core.patterns.queue{
         [Fact]
         public void DequeueSecondLast()
         {
-            context.Q.DequeueAsync().FastPath().ConfigureAwait(_zc).GetAwaiter();
-            context.Q.RemoveAsync(context.Q.Head).FastPath().ConfigureAwait(_zc).GetAwaiter();
-            context.Q.RemoveAsync(context.Q.Head).FastPath().ConfigureAwait(_zc).GetAwaiter();
-            context.Q.DequeueAsync().FastPath().ConfigureAwait(_zc).GetAwaiter();
+            context.Q.DequeueAsync().FastPath().GetAwaiter();
+            context.Q.RemoveAsync(context.Q.Head).FastPath().GetAwaiter();
+            context.Q.RemoveAsync(context.Q.Head).FastPath().GetAwaiter();
+            context.Q.DequeueAsync().FastPath().GetAwaiter();
 
-            context.Q.RemoveAsync(context.Q.Tail).FastPath().ConfigureAwait(_zc).GetAwaiter();
-            context.Q.DequeueAsync().FastPath().ConfigureAwait(_zc).GetAwaiter();
-            context.Q.RemoveAsync(context.Q.Tail).FastPath().ConfigureAwait(_zc).GetAwaiter();
-            context.Q.DequeueAsync().FastPath().ConfigureAwait(_zc).GetAwaiter();
-            context.Q.RemoveAsync(context.Q.Head).FastPath().ConfigureAwait(_zc).GetAwaiter();
+            context.Q.RemoveAsync(context.Q.Tail).FastPath().GetAwaiter();
+            context.Q.DequeueAsync().FastPath().GetAwaiter();
+            context.Q.RemoveAsync(context.Q.Tail).FastPath().GetAwaiter();
+            context.Q.DequeueAsync().FastPath().GetAwaiter();
+            context.Q.RemoveAsync(context.Q.Head).FastPath().GetAwaiter();
 
             var sb = new StringBuilder();
             foreach (var ioZNode in context.Q)
@@ -209,21 +208,21 @@ namespace zero.test.core.patterns.queue{
                             var i2 = @this.context.Q.EnqueueAsync(3);
                             var i4 = @this.context.Q.PushBackAsync(4);
 
-                            await eq2.ConfigureAwait(@this._zc);
-                            await eq1.ConfigureAwait(@this._zc);
-                            await i4.ConfigureAwait(@this._zc);
-                            await i2.ConfigureAwait(@this._zc);
-                            await i1.ConfigureAwait(@this._zc);
+                            await eq2;
+                            await eq1;
+                            await i4;
+                            await i2;
+                            await i1;
 
                             
                             var d2 = @this.context.Q.DequeueAsync();
                             var d4 = @this.context.Q.DequeueAsync();
                             var d5 = @this.context.Q.DequeueAsync();
-                            await @this.context.Q.DequeueAsync().FastPath().ConfigureAwait(@this._zc);
-                            await @this.context.Q.DequeueAsync().FastPath().ConfigureAwait(@this._zc);
-                            await d5.ConfigureAwait(@this._zc);
-                            await d4.ConfigureAwait(@this._zc);
-                            await d2.ConfigureAwait(@this._zc);
+                            await @this.context.Q.DequeueAsync().FastPath();
+                            await @this.context.Q.DequeueAsync().FastPath();
+                            await d5;
+                            await d4;
+                            await d2;
                         }
                         catch (Exception e)
                         {
@@ -253,7 +252,7 @@ namespace zero.test.core.patterns.queue{
 
             while(context.Q.Count > 0)
             {
-                await context.Q.DequeueAsync().FastPath().ConfigureAwait(_zc);
+                await context.Q.DequeueAsync().FastPath();
             }
 
             Assert.Equal(0, context.Q.Count);
@@ -370,7 +369,7 @@ namespace zero.test.core.patterns.queue{
 
             await _queuePressure.EnqueueAsync(0);
 
-            var item = await _queuePressure.DequeueAsync().FastPath().ConfigureAwait(_zc);
+            var item = await _queuePressure.DequeueAsync().FastPath();
 
             Assert.NotNull(item);
 
@@ -378,7 +377,7 @@ namespace zero.test.core.patterns.queue{
             {
                 var @this = (IoQueueTest)state!;
 
-                var item = await @this._queuePressure.DequeueAsync().FastPath().ConfigureAwait(@this._zc);
+                var item = await @this._queuePressure.DequeueAsync().FastPath();
                 Assert.Null(item);
             }, this, TaskCreationOptions.DenyChildAttach).Unwrap();
 
@@ -392,7 +391,7 @@ namespace zero.test.core.patterns.queue{
                 try
                 {
                     //Wait for up to 2 seconds for results
-                    await Task.Delay(2000, @this._blockCancellationSignal.Token).ConfigureAwait(@this._zc);
+                    await Task.Delay(2000, @this._blockCancellationSignal.Token);
                 }
                 catch
                 {
@@ -402,8 +401,8 @@ namespace zero.test.core.patterns.queue{
                 Assert.True(@this._queueNoBlockingTask.IsCompletedSuccessfully);
             }, this, TaskCreationOptions.DenyChildAttach).Unwrap();
 
-            await dequeue.ConfigureAwait(_zc);
-            await enqueueTask.ConfigureAwait(_zc);
+            await dequeue;
+            await enqueueTask;
             Assert.True(dequeue.IsCompletedSuccessfully);
             Assert.True(enqueueTask.IsCompletedSuccessfully);
         }
@@ -418,7 +417,7 @@ namespace zero.test.core.patterns.queue{
 
             await _queuePressure.EnqueueAsync(0);
 
-            var item = await _queuePressure.DequeueAsync().FastPath().ConfigureAwait(_zc);
+            var item = await _queuePressure.DequeueAsync().FastPath();
 
             Assert.NotNull(item);
 
@@ -426,7 +425,7 @@ namespace zero.test.core.patterns.queue{
             {
                 var @this = (IoQueueTest)state!;
                 var s = Environment.TickCount;
-                var item = await @this._queuePressure.DequeueAsync().FastPath().ConfigureAwait(@this._zc);
+                var item = await @this._queuePressure.DequeueAsync().FastPath();
                 Assert.InRange(s.ElapsedMs(), (100/15)*15, 100 + 15 * 2);
                 Assert.NotNull(item);
 
@@ -449,10 +448,10 @@ namespace zero.test.core.patterns.queue{
 
                 try
                 {
-                    await Task.Delay(100, @this._blockCancellationSignal.Token).ConfigureAwait(@this._zc);
-                    await @this._queuePressure.EnqueueAsync(1).FastPath().ConfigureAwait(@this._zc);
+                    await Task.Delay(100, @this._blockCancellationSignal.Token);
+                    await @this._queuePressure.EnqueueAsync(1).FastPath();
                     //Wait for up to 2 seconds for results
-                    await Task.Delay(2000, @this._blockCancellationSignal.Token).ConfigureAwait(@this._zc);
+                    await Task.Delay(2000, @this._blockCancellationSignal.Token);
                 }
                 catch
                 {
@@ -460,9 +459,9 @@ namespace zero.test.core.patterns.queue{
                 }
             }, this, TaskCreationOptions.DenyChildAttach).Unwrap();
 
-            await insertTask.ConfigureAwait(_zc);
+            await insertTask;
             Assert.True(insertTask.IsCompletedSuccessfully);
-            await dequeTask.ConfigureAwait(_zc);
+            await dequeTask;
             Assert.True(dequeTask.IsCompletedSuccessfully);
         }
 
@@ -476,12 +475,12 @@ namespace zero.test.core.patterns.queue{
 
             await _queuePressure.EnqueueAsync(0);
 
-            var item = await _queuePressure.DequeueAsync().FastPath().ConfigureAwait(_zc);
+            var item = await _queuePressure.DequeueAsync().FastPath();
             Assert.NotNull(item);
 
             await _queuePressure.EnqueueAsync(0);
 
-            item = await _queuePressure.DequeueAsync().FastPath().ConfigureAwait(_zc);
+            item = await _queuePressure.DequeueAsync().FastPath();
             Assert.NotNull(item);
 
             _queueNoBlockingTask = Task.Factory.StartNew(static async state =>
@@ -489,14 +488,14 @@ namespace zero.test.core.patterns.queue{
                 var @this = (IoQueueTest)state!;
                 var s = Environment.TickCount;
 
-                var item = await @this._queuePressure.DequeueAsync().FastPath().ConfigureAwait(@this._zc);
+                var item = await @this._queuePressure.DequeueAsync().FastPath();
                 Assert.InRange(s.ElapsedMs(), 100 - 16, 2000);
                 Assert.NotNull(item);
 
-                await Task.Delay(100).ConfigureAwait(@this._zc);
+                await Task.Delay(100);
 
                 s = Environment.TickCount;
-                item = await @this._queuePressure.DequeueAsync().FastPath().ConfigureAwait(@this._zc);
+                item = await @this._queuePressure.DequeueAsync().FastPath();
                 Assert.InRange(s.ElapsedMs(), 0, 500);
                 Assert.NotNull(item);
 
@@ -516,16 +515,16 @@ namespace zero.test.core.patterns.queue{
             var insertTask = Task.Factory.StartNew(static async state =>
             {
                 var @this = (IoQueueTest)state!;
-                await Task.Delay(100, @this._blockCancellationSignal.Token).ConfigureAwait(@this._zc);
-                _ = @this._queuePressure.EnqueueAsync(1).FastPath().ConfigureAwait(@this._zc);
-                _ = @this._queuePressure.EnqueueAsync(1).FastPath().ConfigureAwait(@this._zc);
+                await Task.Delay(100, @this._blockCancellationSignal.Token);
+                _ = @this._queuePressure.EnqueueAsync(1).FastPath();
+                _ = @this._queuePressure.EnqueueAsync(1).FastPath();
                 var s = Environment.TickCount;
                 //blocking
-                await @this._queuePressure.EnqueueAsync(1).FastPath().ConfigureAwait(@this._zc);
-                await @this._queuePressure.EnqueueAsync(1).FastPath().ConfigureAwait(@this._zc);
+                await @this._queuePressure.EnqueueAsync(1).FastPath();
+                await @this._queuePressure.EnqueueAsync(1).FastPath();
                 Assert.InRange(s.ElapsedMs(), 100 -16, 10000);
                 //Wait for up to 2 seconds for results
-                await Task.Delay(2000, @this._blockCancellationSignal.Token).ConfigureAwait(@this._zc);
+                await Task.Delay(2000, @this._blockCancellationSignal.Token);
             }, this, TaskCreationOptions.DenyChildAttach).Unwrap().ContinueWith(task =>
             {
                 if (task.Exception != null)
@@ -534,9 +533,9 @@ namespace zero.test.core.patterns.queue{
                 }
             });
 
-            await insertTask.ConfigureAwait(_zc);
+            await insertTask;
             Assert.True(insertTask.IsCompletedSuccessfully);
-            await dequeTask.ConfigureAwait(_zc);
+            await dequeTask;
             Assert.True(dequeTask.IsCompletedSuccessfully);
         }
 
