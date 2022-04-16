@@ -26,7 +26,6 @@
   </ItemGroup>
 
 	<ItemGroup>
-    <ProjectReference Include="..\deps\tangle.net\Tangle.Net.Standard\Tangle.Net.Standard\Tangle.Net.Standard.csproj" />
     <ProjectReference Include="..\zero.core\zero.core.csproj" />
   </ItemGroup>
 
