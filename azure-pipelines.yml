@@ -31,6 +31,7 @@ steps:
   inputs:
     command: 'restore'
     projects: '$(restore)'
+    nugetConfigPath: ./nuget.config
     
 - task: DotNetCoreCLI@2
   displayName: debug build '$(solution)'
