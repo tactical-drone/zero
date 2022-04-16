@@ -11,6 +11,7 @@ pool:
   vmImage: 'windows-2022'
 
 variables:  
+  restore: './'
   solution: './zero.sync'
   core-solution: './zero.core'
   cocoon-solution: './zero.cocoon'
@@ -29,7 +30,7 @@ steps:
   displayName: Nuget Restore '$(solution)'
   inputs:
     command: 'restore'
-    projects: '$(solution)'
+    projects: '$(restore)'
     
 - task: DotNetCoreCLI@2
   displayName: debug build '$(solution)'
