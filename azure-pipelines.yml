@@ -11,7 +11,7 @@ pool:
   vmImage: 'windows-2022'
 
 variables:  
-  restore: './unimatrix zero.sln'
+  restore: ''
   solution: './zero.sync'
   core-solution: './zero.core'
   cocoon-solution: './zero.cocoon'
