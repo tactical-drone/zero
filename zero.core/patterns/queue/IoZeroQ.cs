@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
@@ -11,6 +12,8 @@ using System.Threading.Tasks;
 using NLog;
 using zero.core.patterns.misc;
 using zero.core.patterns.queue.enumerator;
+using zero.core.patterns.semaphore;
+using zero.core.patterns.semaphore.core;
 using zero.@unsafe.core.math;
 
 namespace zero.core.patterns.queue
@@ -27,8 +30,10 @@ namespace zero.core.patterns.queue
         /// <param name="description">A description</param>
         /// <param name="capacity">The initial capacity</param>
         /// <param name="autoScale">This is pseudo scaling: If set, allows the internal buffers to grow (amortized) if buffer pressure drops below 50% after exceeding it, otherwise scaling is not possible</param>
+        /// <param name="asyncTasks">When used as async blocking collection</param>
+        /// <param name="concurrencyLevel">Max expected concurrency</param>
         /// <exception cref="ArgumentOutOfRangeException"></exception>
-        public IoZeroQ(string description, int capacity, bool autoScale = false)
+        public IoZeroQ(string description, int capacity, bool autoScale = false, CancellationTokenSource asyncTasks = null, int concurrencyLevel = 0)
         {
 #if DEBUG
             _description = description;
@@ -39,6 +44,9 @@ namespace zero.core.patterns.queue
                 throw new ArgumentOutOfRangeException($"{nameof(capacity)} = {capacity} must be a power of 2 when {nameof(autoScale)} is set true");
 
             _autoScale = autoScale;
+            _blockingCollection = asyncTasks != null;
+
+            //if scaling is enabled
             if (autoScale)
             {
                 //TODO: tuning
@@ -63,6 +71,9 @@ namespace zero.core.patterns.queue
                 _storage = new T[1][];
                 _storage[0] = _fastStorage = new T[_capacity];
             }
+
+            if (_blockingCollection)
+                _blockSync = new IoZeroSemaphoreSlim(asyncTasks, $"{description}", concurrencyLevel, maxAsyncWork: 0);
 
             _curEnumerator = new IoQEnumerator<T>(this);
 
@@ -90,8 +101,11 @@ namespace zero.core.patterns.queue
         private volatile IoQEnumerator<T> _curEnumerator;
 
         private volatile int _count;
-        private volatile bool _autoScale;
+        private readonly bool _autoScale;
+        private readonly bool _blockingCollection;
+        private volatile int _blockingConsumers;
         private volatile int _primedForScale;
+        private readonly IoZeroSemaphoreSlim _blockSync;
 
         /// <summary>
         /// ZeroAsync status
@@ -261,13 +275,16 @@ namespace zero.core.patterns.queue
                 long cap;
                 bool blocked, race = false;
 
-                while ((blocked = (tail = Tail) >= Head + (cap = Capacity)) || _count >= cap || tail != Tail || (slot = CompareExchange(tail, item, null)) != null || (race = tail != Tail))
+                while ((blocked = (tail = Tail) >= Head + (cap = Capacity)) || _count >= cap || tail != Tail ||
+                       (slot = CompareExchange(tail, item, null)) != null || (race = tail != Tail))
                 {
                     if (race)
                     {
                         if ((slot = CompareExchange(tail, null, item)) != item)
                         {
-                            LogManager.GetCurrentClassLogger().Fatal($"{nameof(TryEnqueue)}: Unable to restore lock at tail = {tail}, too {slot}, cur = {this[tail]}");
+                            LogManager.GetCurrentClassLogger()
+                                .Fatal(
+                                    $"{nameof(TryEnqueue)}: Unable to restore lock at tail = {tail}, too {slot}, cur = {this[tail]}");
                         }
                     }
 #if DEBUG
@@ -278,7 +295,7 @@ namespace zero.core.patterns.queue
                     if (Zeroed || !_autoScale && _count >= cap)
                         return -1;
 
-                    if(slot != null) 
+                    if (slot != null)
                         Interlocked.MemoryBarrierProcessWide();
                     else
                         Interlocked.MemoryBarrier();
@@ -296,7 +313,12 @@ namespace zero.core.patterns.queue
                 Interlocked.MemoryBarrier();
                 Interlocked.Increment(ref _tail);
 
+                //service async blockers
+                if (_blockingCollection && _blockingConsumers > 0)
+                    _blockSync.Release(_blockingConsumers, bestCase: Head != Tail);
+
                 _curEnumerator.IncIteratorCount(); //TODO: is this a good idea?
+
                 return tail;
             }
             catch when (Zeroed)
@@ -491,6 +513,38 @@ namespace zero.core.patterns.queue
             _curEnumerator = (IoQEnumerator<T>)_curEnumerator.Reuse(this, b => new IoQEnumerator<T>((IoZeroQ<T>)b));
             return _curEnumerator;
             //return _curEnumerator = new IoQEnumerator<T>(this);
+        }
+
+        /// <summary>
+        /// Async blocking consumer support
+        /// </summary>
+        /// <returns>The next inserted item</returns>
+        public async IAsyncEnumerable<T> BlockOnConsumeAsync()
+        {
+            if (!_blockingCollection)
+                yield return null;
+
+            try
+            {
+                Interlocked.Increment(ref _blockingConsumers);
+                var cur = Head;
+                while (!_blockSync.Zeroed())
+                {
+                    if (cur == Tail && !await _blockSync.WaitAsync().FastPath())
+                        break;
+
+                    var newItem = this[cur];
+                    if (newItem != _sentinel && newItem != null)
+                    {
+                        cur++;
+                        yield return newItem;
+                    }
+                }
+            }
+            finally
+            {
+                Interlocked.Decrement(ref _blockingConsumers);
+            }
         }
 
         /// <summary>

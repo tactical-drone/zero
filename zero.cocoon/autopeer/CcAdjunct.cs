@@ -650,7 +650,7 @@ namespace zero.cocoon.autopeer
                     await @this.Router.ProbeAsync("SYN-BRG", @this.RemoteAddress.Copy());
                 }, this, TaskCreationOptions.DenyChildAttach);
 
-                if (AutoPeeringEventService.Operational)
+                if (!CcCollective.ZeroDrone && AutoPeeringEventService.Operational)
                     await AutoPeeringEventService.AddEventAsync(new AutoPeerEvent
                     {
                         EventType = AutoPeerEventType.RemoveAdjunct,
@@ -1379,7 +1379,7 @@ namespace zero.cocoon.autopeer
         private async ValueTask ProcessAsync(CcFuseRequest request, IPEndPoint src, chroniton packet)
         { 
             //emit event
-            if (AutoPeeringEventService.Operational)
+            if (!CcCollective.ZeroDrone && AutoPeeringEventService.Operational)
                 await AutoPeeringEventService.AddEventAsync(new AutoPeerEvent
                 {
                     EventType = AutoPeerEventType.AddAdjunct,
@@ -1459,7 +1459,7 @@ namespace zero.cocoon.autopeer
                 if(fuseResponse.Accept)
                     _logger.Debug($"# {Description}");
 
-                if (AutoPeeringEventService.Operational)
+                if (!CcCollective.ZeroDrone && AutoPeeringEventService.Operational)
                     await AutoPeeringEventService.AddEventAsync(new AutoPeerEvent
                     {
                         EventType = AutoPeerEventType.SendProtoMsg,
@@ -2005,7 +2005,7 @@ namespace zero.cocoon.autopeer
                     _logger.Trace($"-/> {nameof(CcAdjunctResponse)}({sent}): Sent {count} discoveries to {(IsProxy?Description:src)}");
 
                 //Emit message event
-                if (AutoPeeringEventService.Operational)
+                if (!CcCollective.ZeroDrone && AutoPeeringEventService.Operational)
                     await AutoPeeringEventService.AddEventAsync(new AutoPeerEvent
                     {
                         EventType = AutoPeerEventType.SendProtoMsg,
@@ -2124,7 +2124,7 @@ namespace zero.cocoon.autopeer
                     }, ValueTuple.Create(this, fromAddress, ccId), TaskCreationOptions.DenyChildAttach);
                     
 
-                    if (AutoPeeringEventService.Operational)
+                    if (!CcCollective.ZeroDrone && AutoPeeringEventService.Operational)
                         await AutoPeeringEventService.AddEventAsync(new AutoPeerEvent
                         {
                             EventType = AutoPeerEventType.SendProtoMsg,
@@ -2171,7 +2171,7 @@ namespace zero.cocoon.autopeer
                         await SeduceAsync("ACK", Heading.Both);
                     }
 
-                    if (AutoPeeringEventService.Operational)
+                    if (!CcCollective.ZeroDrone && AutoPeeringEventService.Operational)
                         await AutoPeeringEventService.AddEventAsync(new AutoPeerEvent
                         {
                             EventType = AutoPeerEventType.SendProtoMsg,
@@ -2485,7 +2485,7 @@ namespace zero.cocoon.autopeer
                             _logger.Trace(e);
                         }
 #endif
-                        if (AutoPeeringEventService.Operational)
+                        if (!CcCollective.ZeroDrone && AutoPeeringEventService.Operational)
                             await AutoPeeringEventService.AddEventAsync(new AutoPeerEvent
                             {
                                 EventType = AutoPeerEventType.SendProtoMsg,
@@ -2516,7 +2516,7 @@ namespace zero.cocoon.autopeer
 #if DEBUG
                         _logger.Trace($"-/> {nameof(CcProbeMessage)}({sent})[{probeMsgBuf.PayloadSig()}]: sent [[{desc}]], dest = {dest}, {Description}");
 #endif
-                        if (AutoPeeringEventService.Operational)
+                        if (!CcCollective.ZeroDrone && AutoPeeringEventService.Operational)
                             await AutoPeeringEventService.AddEventAsync(new AutoPeerEvent
                             {
                                 EventType = AutoPeerEventType.SendProtoMsg,
@@ -2601,7 +2601,7 @@ namespace zero.cocoon.autopeer
                     _logger.Trace($"-/> {nameof(CcScanRequest)}({sent}){sweepMsgBuf.PayloadSig()}: Sent, {Description}");
 
                     //Emit message event
-                    if (AutoPeeringEventService.Operational)
+                    if (!CcCollective.ZeroDrone && AutoPeeringEventService.Operational)
                         await AutoPeeringEventService.AddEventAsync(new AutoPeerEvent
                         {
                             EventType = AutoPeerEventType.SendProtoMsg,
@@ -2683,7 +2683,7 @@ namespace zero.cocoon.autopeer
                         Interlocked.Increment(ref @this._fuseCount);
                         @this._logger.Debug($"-/> {nameof(CcFuseRequest)}({sent})[{fuseRequestBuf.PayloadSig()}]: Sent, {@this.Description}");
                         
-                        if (AutoPeeringEventService.Operational)
+                        if (!@this.CcCollective.ZeroDrone && AutoPeeringEventService.Operational)
                             await AutoPeeringEventService.AddEventAsync(new AutoPeerEvent
                             {
                                 EventType = AutoPeerEventType.SendProtoMsg,
@@ -2736,7 +2736,7 @@ namespace zero.cocoon.autopeer
 
                 if (sent > 0)
                 {
-                    if (AutoPeeringEventService.Operational)
+                    if (!CcCollective.ZeroDrone && AutoPeeringEventService.Operational)
                         await AutoPeeringEventService.AddEventAsync(new AutoPeerEvent
                         {
                             EventType = AutoPeerEventType.SendProtoMsg,
@@ -2801,7 +2801,7 @@ namespace zero.cocoon.autopeer
                 AttachTimestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
 
                 //emit event
-                if (AutoPeeringEventService.Operational)
+                if (!CcCollective.ZeroDrone && AutoPeeringEventService.Operational)
                     await AutoPeeringEventService.AddEventAsync(new AutoPeerEvent
                     {
                         EventType = AutoPeerEventType.AddDrone,
@@ -2868,7 +2868,7 @@ namespace zero.cocoon.autopeer
                 }
 
                 //emit event
-                if (AutoPeeringEventService.Operational)
+                if (!CcCollective.ZeroDrone && AutoPeeringEventService.Operational)
                     await AutoPeeringEventService.AddEventAsync(new AutoPeerEvent
                     {
                         EventType = AutoPeerEventType.RemoveDrone,

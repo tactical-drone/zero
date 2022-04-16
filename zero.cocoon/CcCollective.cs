@@ -241,7 +241,7 @@ namespace zero.cocoon
             {
                 if (!string.IsNullOrEmpty(id))
                 {
-                    if (AutoPeeringEventService.Operational)
+                    if (!ZeroDrone && AutoPeeringEventService.Operational)
                         await AutoPeeringEventService.AddEventAsync(new AutoPeerEvent
                         {
                             EventType = AutoPeerEventType.RemoveCollective,
@@ -584,7 +584,6 @@ namespace zero.cocoon
                     int localRead;
                     do
                     {
-                        
                         bytesRead += localRead = await ioNetSocket.ReadAsync(futileBuffer, bytesRead, _futileRequestSize - bytesRead, timeout: parm_futile_timeout_ms).FastPath();
                     } while (bytesRead < _futileRequestSize && localRead > 0 && !Zeroed());
 
@@ -1126,7 +1125,7 @@ namespace zero.cocoon
         public ValueTask EmitAsync()
         {
             //Emit collective event
-            if (AutoPeeringEventService.Operational)
+            if (!ZeroDrone && AutoPeeringEventService.Operational)
                 return AutoPeeringEventService.AddEventAsync(new AutoPeerEvent
                 {
                     EventType = AutoPeerEventType.AddCollective,

@@ -88,7 +88,7 @@ namespace zero.sync
 
             var random = new Random((int)DateTime.Now.Ticks);
             //Tangle("tcp://192.168.1.2:15600");
-            var total = 348;
+            var total = 100;
             var maxDrones = 3;
             var maxAdjuncts = 16;
             var boot = true;
@@ -196,7 +196,7 @@ namespace zero.sync
                 var c = 1;
                 var rateLimit = 9000;
                 var injectionCount = 75;
-                var rampDelay = 500;
+                var rampDelay = 250;
                 foreach (var task in tasks)
                 {
                     await Task.Factory.StartNew(async () =>
@@ -565,7 +565,7 @@ namespace zero.sync
                                 Task.WaitAll(gossipTasks.ToArray());
                                 tasks.ToList().ForEach(t=>t.Result.ClearDupBuf());
                                 gossipTasks.Clear();
-                                AutoPeeringEventService.QueuedEvents[0].ClearAsync().AsTask().GetAwaiter().GetResult();
+                                AutoPeeringEventService.QueuedEvents[0].ZeroManagedAsync<object>().AsTask().GetAwaiter().GetResult();
                             }
 
                             long v = 1;
@@ -1272,7 +1272,7 @@ namespace zero.sync
                 IoNodeAddress.Create(fpcAddress),
                 IoNodeAddress.Create(extAddress),
                 bootStrapAddress.Select(IoNodeAddress.Create).Where(a => a.Port.ToString() != peerAddress.Split(":")[2]).ToList(),
-                2, 2, 1, 1, zeroDrone);
+                3, 3, 2, 2, zeroDrone);
 
             _nodes.Add(cocoon);
 

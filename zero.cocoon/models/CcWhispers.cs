@@ -12,6 +12,7 @@ using zero.cocoon.events.services;
 using zero.cocoon.identity;
 using zero.cocoon.models.batches;
 using zero.core.feat.models.protobuffer;
+using zero.core.misc;
 using zero.core.patterns.bushings;
 using zero.core.patterns.bushings.contracts;
 using zero.core.patterns.heap;
@@ -29,7 +30,7 @@ namespace zero.cocoon.models
                 return;
 
             _m = new CcWhisperMsg() { Data = UnsafeByteOperations.UnsafeWrap(new ReadOnlyMemory<byte>(_vb)) };
-            _sendBuf = new IoHeap<byte[]>($"{nameof(_sendBuf)}: {Description}", 1, (_, _) => new byte[32]);
+            _sendBuf = new IoHeap<byte[]>($"{nameof(_sendBuf)}: {Description}", 8, (_, _) => new byte[32], true);
         }
 
         private IoHeap<byte[]> _sendBuf;
@@ -329,6 +330,8 @@ namespace zero.cocoon.models
         }*/
 
         private long _maxReq = -1;
+
+        private volatile int _gossipRate = Environment.TickCount - 10000;
         public override async ValueTask<IoJobMeta.JobState> ConsumeAsync()
         {
             //are we in recovery mode?
@@ -437,20 +440,16 @@ namespace zero.cocoon.models
 
                     //if(Id % 5 != 0)
                     //await Task.Delay(1000/64);
-                    await Task.Delay(10);
-                    //await Task.Delay(1);
+                    //await Task.Delay(RandomNumberGenerator.GetInt32(0,2000));
+                    //await Task.Delay(500);
                     //await Task.Delay(1000);
-                    //await Task.Yield();
-
-                    IoZero.IncEventCounter();
-                    CcCollective.IncEventCounter();
-
+                    
                     //read the token
                     var req = MemoryMarshal.Read<long>(packet.Data.Span);
 
-                    if (_maxReq > 5 && req < 5)
+                    if (_maxReq > 1000 && req < 5)
                     {
-                        //Console.WriteLine($"RESET[{req}] {_maxReq} -> {IoZero.Description}");
+                        Console.WriteLine($"RESET[{req}] {_maxReq} -> {IoZero.Description}");
                         _maxReq = -1;
                     }
 
@@ -460,68 +459,108 @@ namespace zero.cocoon.models
                     }
                     req++;
 
-                    if (req is > uint.MaxValue or < 0 || req <= Volatile.Read(ref _maxReq) || (_maxReq > 0 && req > _maxReq * 2))
+                    if (req is > uint.MaxValue or < 0 || req <= Volatile.Read(ref _maxReq))
                     {
                         //Console.Write($". r = {req}, mr = {Volatile.Read(ref _maxReq)}");
                         continue;
                     }
-                    
-                    Volatile.Write(ref _maxReq, req);
 
-                    //Console.WriteLine($"{req}");
 
-                    byte[] socketBuf = null;
-                    try
+                    if (_gossipRate.ElapsedMs() < 2000)// && req - _maxReq < 10)
+                        continue;
+
+                    _gossipRate = Environment.TickCount;
+
+                    IoZero.IncEventCounter();
+                    CcCollective.IncEventCounter();
+
+                    await ZeroAsync(static async state =>
                     {
-                        socketBuf = _sendBuf.Take();
-                        MemoryMarshal.Write(_vb.AsSpan(), ref req);
+                        var (@this, req) = state;
 
-                        var protoBuf = _m.ToByteArray();
-                        var compressed = (ulong)LZ4Codec.Encode(protoBuf, 0, protoBuf.Length, socketBuf, sizeof(ulong), socketBuf.Length - sizeof(ulong));
-                        MemoryMarshal.Write(socketBuf, ref compressed);
+                        if(req <= Volatile.Read(ref @this._maxReq))
+                            return;
 
-                        if (!Zeroed())
+                        await Task.Delay(RandomNumberGenerator.GetInt32(500, 1500));
+
+                        if (req <= Volatile.Read(ref @this._maxReq))
+                            return;
+
+                        var latch = @this._maxReq;
+                        if (Interlocked.CompareExchange(ref @this._maxReq, req, @this._maxReq) != latch)
+                            return;
+
+                        //if( d < 3 )
+
+                        byte[] socketBuf = null;
+                        try
                         {
-                            foreach (var drone in CcCollective.Neighbors.Values.Cast<CcDrone>())
-                            {
-                                try
-                                {
-                                    var source = drone.MessageService;
+                            socketBuf = @this._sendBuf.Take();
+                            MemoryMarshal.Write(@this._vb.AsSpan(), ref req);
 
-                                    //Don't forward new messages to nodes from which we have received the msg in the mean time.
-                                    //This trick has the added bonus of using congestion as a governor to catch more of those overlaps, 
-                                    //which in turn lowers the traffic causing less congestion
+                            var protoBuf = @this._m.ToByteArray();
+                            var compressed = (ulong)LZ4Codec.Encode(protoBuf, 0, protoBuf.Length, socketBuf,
+                                sizeof(ulong), socketBuf.Length - sizeof(ulong));
+                            MemoryMarshal.Write(socketBuf, ref compressed);
+
+                            if (!@this.Zeroed())
+                            {
+                                foreach (var drone in @this.CcCollective.Neighbors.Values.Cast<CcDrone>())
+                                {
+                                    if (req != Volatile.Read(ref @this._maxReq))
+                                        break;
+                                    try
+                                    {
+                                        var source = drone.MessageService;
+
+                                        //Don't forward new messages to nodes from which we have received the msg in the mean time.
+                                        //This trick has the added bonus of using congestion as a governor to catch more of those overlaps, 
+                                        //which in turn lowers the traffic causing less congestion
 #if DUPCHECK
                             if (source.IoNetSocket.RemoteAddress == endpoint || dupEndpoints != null && dupEndpoints.Contains(source.IoNetSocket.RemoteAddress.GetHashCode()))
                                 continue;
 #endif
-                                    if (source == null || await source.IoNetSocket.SendAsync(socketBuf, 0, (int)compressed + sizeof(ulong)).FastPath() <= 0) continue;
-                                    {
-                                        if (AutoPeeringEventService.Operational)
-                                            await AutoPeeringEventService.AddEventAsync(new AutoPeerEvent
-                                            {
-                                                EventType = AutoPeerEventType.SendProtoMsg,
-                                                Msg = new ProtoMsg
+                                        if (source == null || await source.IoNetSocket
+                                                .SendAsync(socketBuf, 0, (int)compressed + sizeof(ulong)).FastPath() <=
+                                            0) continue;
+                                        {
+                                            if (AutoPeeringEventService.Operational)
+                                                await AutoPeeringEventService.AddEventAsync(new AutoPeerEvent
                                                 {
-                                                    CollectiveId = CcCollective.Hub.Router.Designation.IdString(),
-                                                    Id = drone.Adjunct.Designation.IdString(),
-                                                    Type = $"gossip{Id % 6}"
-                                                }
-                                            });
+                                                    EventType = AutoPeerEventType.SendProtoMsg,
+                                                    Msg = new ProtoMsg
+                                                    {
+                                                        CollectiveId = @this.CcCollective.Hub.Router.Designation
+                                                            .IdString(),
+                                                        Id = drone.Adjunct.Designation.IdString(),
+                                                        Type = $"gossip{@this.Id % 6}"
+                                                    }
+                                                });
+                                        }
                                     }
-                                }
-                                catch when (Zeroed() || CcCollective == null || CcCollective.Zeroed() || CcCollective.DupSyncRoot == null) { }
-                                catch (Exception e) when (!Zeroed())
-                                {
-                                    _logger.Trace(e, Description);
+                                    catch when (@this.Zeroed() || @this.CcCollective == null ||
+                                                @this.CcCollective.Zeroed() || @this.CcCollective.DupSyncRoot == null)
+                                    {
+                                    }
+                                    catch (Exception e) when (!@this.Zeroed())
+                                    {
+                                        _logger.Trace(e, @this.Description);
+                                    }
                                 }
                             }
                         }
-                    }
-                    finally
-                    {
-                        _sendBuf.Return(socketBuf);
-                    }
+                        catch when (@this.Zeroed())
+                        {
+                        }
+                        catch (Exception e) when (@this.Zeroed())
+                        {
+                            IoJob<CcWhispers>._logger.Error(e,$"{@this.Description}");
+                        }
+                        finally
+                        {
+                            @this._sendBuf.Return(socketBuf);
+                        }
+                    }, (this, req), TaskCreationOptions.DenyChildAttach);
 
                 }
 

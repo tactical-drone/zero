@@ -42,7 +42,7 @@ namespace zero.core.feat.patterns.semaphore
             throw new NotImplementedException();
         }
 
-        public int Release(int releaseCount)
+        public int Release(int releaseCount, bool bestCase = false)
         {
             _semaphore.Set();
             return 1;

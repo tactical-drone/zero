@@ -1,6 +1,5 @@
 ﻿using zero.core.patterns.heap;
 using zero.core.patterns.misc;
-using zero.core.patterns.queue;
 
 namespace zero.core.patterns.bushings.contracts
 {

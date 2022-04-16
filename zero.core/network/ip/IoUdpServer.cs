@@ -49,7 +49,7 @@ namespace zero.core.network.ip
             while (!Zeroed())
             {
                 //Creates a listening socket
-                IoListenSocket = (await ZeroHiveAsync(new IoUdpSocket(ConcurrencyLevel), true)).target;
+                IoListenSocket = (await ZeroHiveAsync(new IoUdpSocket(Prefetch), true)).target;
 
                 await IoListenSocket.BlockOnListenAsync(ListeningAddress, static async (ioSocket,state) =>
                 {

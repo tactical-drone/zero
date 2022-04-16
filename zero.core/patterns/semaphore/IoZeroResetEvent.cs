@@ -57,7 +57,7 @@ namespace zero.core.patterns.semaphore
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public int Release(int releaseCount = 1)
+        public int Release(int releaseCount = 1, bool bestCase = false)
         {
             Debug.Assert(releaseCount == 1);
             try

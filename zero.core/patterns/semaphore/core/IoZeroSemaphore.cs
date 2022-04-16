@@ -756,7 +756,7 @@ namespace zero.core.patterns.semaphore.core
         /// <param name="releaseCount">The number of waiters to enter</param>
         /// <returns>The number of waiters released, -1 on failure</returns>
         /// <exception cref="SemaphoreFullException">Fails when maximum waiters reached</exception>
-        public int Release(int releaseCount = 1)
+        public int Release(int releaseCount = 1, bool bestCase = false)
         {
             //preconditions that reject overflow because every overflowing signal will spin seeking its waiter
             if (Zeroed() || releaseCount < 1 || releaseCount + _curSignalCount > _maxBlockers)
@@ -765,18 +765,19 @@ namespace zero.core.patterns.semaphore.core
             }
 
             //bank a set
-            Interlocked.Add(ref _curSignalCount, releaseCount);
+            if(!bestCase)
+                Interlocked.Add(ref _curSignalCount, releaseCount);
             
             //lock in return value
             var released = 0;
 
             //release waiters
-            while (released < releaseCount && _curWaitCount > 0 && _curSignalCount > 0 && !Zeroed())
+            while (released < releaseCount && _curWaitCount > 0 && (_curSignalCount > 0 || bestCase) && !Zeroed())
             {
                 int latch;
                 var slot = -1;
 
-                //reserve a signal
+                //reserve a waiter
 #if DEBUG
                 var c = 0;
 #endif
@@ -799,12 +800,16 @@ namespace zero.core.patterns.semaphore.core
                 }
 
                 if (slot != latch)
+                {
+                    if (bestCase)
+                        return -1;
                     continue;
+                }
 #if DEBUG
                 c = 0;
 #endif
-                //race for a waiter
-                while ((latch = _curSignalCount) > 0 &&
+                //race for a signal
+                while (!bestCase && (latch = _curSignalCount) > 0 &&
                        (slot = Interlocked.CompareExchange(ref _curSignalCount, latch - 1, latch)) != latch)
                 {
 #if DEBUG
@@ -818,7 +823,7 @@ namespace zero.core.patterns.semaphore.core
                     slot = -1;
                 }
 
-                if (slot != latch)
+                if (!bestCase && slot != latch)
                 {
                     Interlocked.Increment(ref _curWaitCount); //dine on deadlock
                     continue;

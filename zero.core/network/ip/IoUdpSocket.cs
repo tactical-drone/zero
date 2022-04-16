@@ -117,6 +117,7 @@ namespace zero.core.network.ip
                 };
             }
             
+            //TODO: tuning
             _sendArgs = new IoHeap<SocketAsyncEventArgs, IoUdpSocket>($"{nameof(_sendArgs)}: {Description}", concurrencyLevel * 4, static (_, @this) =>
             {
                 //sentinel
@@ -511,7 +512,7 @@ namespace zero.core.network.ip
                         //args.UserToken = recvSource;
                         SetRef(ref recvSourceRef, args);
                         args.SetBuffer(buffer.Slice(offset, length));
-
+                        
                         if (NativeSocket.ReceiveFromAsync(args) && !await receiveAsync.FastPath())
                         {
                             return 0;
@@ -526,7 +527,7 @@ namespace zero.core.network.ip
                     catch (Exception e) when (!Zeroed())
                     {
                         _logger.Error(e, "Receive udp failed:");
-                        await Zero(this, $"{nameof(NativeSocket.ReceiveFromAsync)}: [FAILED] {e.Message}");
+                        await Zero(this, $"{nameof(NativeSocket.ReceiveFromAsync)}: [FAILED] {e.Message}").ConfigureAwait(false);
                     }
                     finally
                     {
@@ -667,6 +668,8 @@ namespace zero.core.network.ip
 
             // Set the Time To Live (TTL) to 42 router hops.
             NativeSocket.Ttl = 64;
+
+            
         }
     }
 }

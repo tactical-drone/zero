@@ -8,7 +8,6 @@ namespace zero.core.patterns.queue.enumerator
         private IoZeroQ<T> ZeroQ => (IoZeroQ<T>)Collection;
         private long _iteratorIdx = -1;
         private long _iteratorCount;
-        
 
         public IoQEnumerator(IoZeroQ<T> zeroQ):base(zeroQ)
         {

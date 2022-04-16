@@ -17,15 +17,14 @@ namespace zero.cocoon.events.services
             _logger = logger;
         }
 
-        private const int EventBatchSize = 500;
-        private const int TotalBatches = 100;
-        private static bool Zc = IoNanoprobe.ContinueOnCapturedContext;
+        private const int EventBatchSize = 1000;
+        private const int TotalBatches = 200;
         private readonly ILogger<AutoPeeringEventService> _logger;
-        public static IoQueue<AutoPeerEvent>[] QueuedEvents =
+        public static IoZeroQ<AutoPeerEvent>[] QueuedEvents =
         {
             //TODO tuning
-            new IoQueue<AutoPeerEvent>($"{nameof(AutoPeeringEventService)}", EventBatchSize * TotalBatches, 2000),
-            new IoQueue<AutoPeerEvent>($"{nameof(AutoPeeringEventService)}", EventBatchSize * TotalBatches, 2000)
+            new IoZeroQ<AutoPeerEvent>($"{nameof(AutoPeeringEventService)}", 16384, true ),
+            new IoZeroQ<AutoPeerEvent>($"{nameof(AutoPeeringEventService)}", 16384, true )
         };
 
         private static volatile int _operational = 0;
@@ -38,8 +37,8 @@ namespace zero.cocoon.events.services
             _operational = _operational > 0 ? 0 : 1;
             if (!Operational)
             {
-                await QueuedEvents[_curIdx % 2].ClearAsync();
-                await QueuedEvents[(_curIdx + 1) % 2].ClearAsync();
+                await QueuedEvents[_curIdx % 2].ZeroManagedAsync<object>();
+                await QueuedEvents[(_curIdx + 1) % 2].ZeroManagedAsync<object>();
             }
         }
 
@@ -53,7 +52,7 @@ namespace zero.cocoon.events.services
             try
             {
                 //IoQueue<AutoPeerEvent> curQ = _queuedEvents[(Interlocked.Increment(ref _curIdx) - 1) % 2];
-                IoQueue<AutoPeerEvent> curQ = QueuedEvents[0];
+                IoZeroQ<AutoPeerEvent> curQ = QueuedEvents[0];
 
                 int c = 0;
 
@@ -62,8 +61,7 @@ namespace zero.cocoon.events.services
 
                 c = 0;
                 AutoPeerEvent cur;
-                while (c < EventBatchSize && (cur = await curQ.DequeueAsync().FastPath()) != null)
-                //while ((cur = await curQ.DequeueAsync().FastPath()) != null)
+                while (c < EventBatchSize && curQ.TryDequeue(out cur))
                 {
                     response.Events.Add(cur);
                     c++;
@@ -104,9 +102,9 @@ namespace zero.cocoon.events.services
                 var curQ = QueuedEvents[_curIdx % 2];
                 if (_operational > 0 && curQ.Count < EventBatchSize  * TotalBatches)
                 {
-                    newAutoPeerEvent.Timestamp = Environment.TickCount;
+                    newAutoPeerEvent.Timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
                     newAutoPeerEvent.Seq = Interlocked.Increment(ref _seq) - 1;
-                    await curQ.EnqueueAsync(newAutoPeerEvent);
+                    curQ.TryEnqueue(newAutoPeerEvent);
                 }
             }
             catch
