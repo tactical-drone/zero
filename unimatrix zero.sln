@@ -15,8 +15,6 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "zero.interop", "zero.intero
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "deps", "deps", "{CB5DA72D-A82B-44FB-B819-107DF5C6BCB6}"
 EndProject
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Tangle.Net.Standard", "deps\tangle.net\Tangle.Net.Standard\Tangle.Net.Standard\Tangle.Net.Standard.csproj", "{F6547BEE-E19F-4DD6-9CFC-3DA33534818B}"
-EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "zero.tangle", "zero.tangle\zero.tangle.csproj", "{C62A1201-3B24-4C0F-8D22-25A309E99E2E}"
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "zero.cocoon", "zero.cocoon\zero.cocoon.csproj", "{5458EC7F-843F-4D4C-82F4-D92CF65B1CE7}"
