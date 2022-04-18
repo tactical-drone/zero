@@ -330,8 +330,6 @@ namespace zero.cocoon.models
         }*/
 
         private long _maxReq = -1;
-
-        private volatile int _gossipRate = Environment.TickCount - 10000;
         public override async ValueTask<IoJobMeta.JobState> ConsumeAsync()
         {
             //are we in recovery mode?
@@ -465,11 +463,12 @@ namespace zero.cocoon.models
                         continue;
                     }
 
-                    if (_gossipRate.ElapsedMs() < 4000)// && req - _maxReq < 10)
+                    
+                    if (req > 2 && Source.Rate.ElapsedMs() < 4000)// && req - _maxReq < 10)
                         continue;
 
-                    var latch = _gossipRate;
-                    if( Interlocked.CompareExchange(ref _gossipRate, Environment.TickCount, latch) != latch)
+                    var latch = Source.Rate;
+                    if( Source.SetRate(Environment.TickCount, latch) != latch)
                         continue;
                     
                     IoZero.IncEventCounter();

@@ -157,6 +157,20 @@ namespace zero.core.patterns.bushings.contracts
         int BacklogCount { get; }
 
         /// <summary>
+        /// Used to anchor a control rate at the consumer
+        /// </summary>
+        int Rate { get;}
+
+        /// <summary>
+        /// Sets the current rate
+        /// </summary>
+        /// <param name="rate"></param>
+        /// <param name="value"></param>
+        /// <param name="cmp"></param>
+        /// <returns></returns>
+        int SetRate(int value, int cmp);
+
+        /// <summary>
         /// Congestion control hooks
         /// </summary>
         /// <typeparam name="T">The type of <see cref="IIoZero"/></typeparam>

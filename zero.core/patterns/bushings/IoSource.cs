@@ -209,6 +209,19 @@ namespace zero.core.patterns.bushings
         /// </summary>
         public int BacklogCount => _backPressure?.CurNrOfBlockers?? 0;
 
+        private volatile int _rate;
+
+        /// <summary>
+        /// Used to rate limit
+        /// </summary>
+        public int Rate
+        {
+            get => _rate;
+            internal set => _rate = value;
+        }
+
+        public int SetRate(int value, int cmp) => Interlocked.CompareExchange(ref _rate, value, cmp);
+        
         /// <summary>
         /// Used to identify work that was done recently
         /// </summary>
