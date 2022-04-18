@@ -52,7 +52,7 @@ namespace zero.cocoon
                 parm_max_drone = 0;
                 parm_max_adjunct = 128; //TODO tuning:
                 udpPrefetch = 2;
-                udpConcurrencyLevel = 3;
+                udpConcurrencyLevel = 1;
                 NeighborTasks = new IoQueue<Task>($"{nameof(NeighborTasks)}", parm_max_adjunct + 1, ZeroConcurrencyLevel());
             }
 
@@ -137,7 +137,7 @@ namespace zero.cocoon
                 return;
 
             if (_autoPeering != null)
-                await _autoPeering.Zero(this, "RESTART!");
+                await _autoPeering.Zero(this, "RESTART!").FastPath();
 
             _autoPeering = new CcHub(this, _peerAddress, static (node, client, extraData) => new CcAdjunct((CcHub)node, client, extraData), udpPrefetch, udpConcurrencyLevel);
         }
@@ -150,8 +150,8 @@ namespace zero.cocoon
         public override async ValueTask BlockOnAssimilateAsync(IoNeighbor<CcProtocMessage<CcWhisperMsg, CcGossipBatch>> newNeighbor)
         {
             if (!ZeroDrone)
-                await ZeroAsync(RoboAsync, this, TaskCreationOptions.LongRunning);
-            await base.BlockOnAssimilateAsync(newNeighbor);
+                await ZeroAsync(RoboAsync, this, TaskCreationOptions.LongRunning).FastPath();
+            await base.BlockOnAssimilateAsync(newNeighbor).FastPath();
         }
 
         /// <summary>
@@ -170,7 +170,7 @@ namespace zero.cocoon
                     {
                         //restart useless hubs
                         if (@this.UpTime.ElapsedMsToSec() > @this.parm_mean_pat_delay_s)
-                            await @this.StartHubAsync(@this.Hub.PreFetch, @this.Hub.ZeroConcurrencyLevel());
+                            await @this.StartHubAsync(@this.Hub.PreFetch, @this.Hub.ZeroConcurrencyLevel()).FastPath();
                         
                         force = true;
                         await Task.Delay(@this._random.Next(@this.parm_mean_pat_delay_s * 1000/2) + @this.parm_mean_pat_delay_s * 1000 / 4, @this.AsyncTasks.Token);
@@ -181,7 +181,7 @@ namespace zero.cocoon
                     }
 
                     if (@this.EgressCount < @this.parm_max_outbound) 
-                        await @this.DeepScanAsync(force);
+                        await @this.DeepScanAsync(force).FastPath();
                 }
                 catch when(@this.Zeroed()){}
                 catch (Exception e)
@@ -219,10 +219,10 @@ namespace zero.cocoon
         /// </summary>
         public override async ValueTask ZeroManagedAsync()
         {
-            await base.ZeroManagedAsync();
+            await base.ZeroManagedAsync().FastPath();
 
             var autoPeeringDesc = _autoPeering.Description;
-            await _autoPeering.Zero(this, $"{nameof(ZeroManagedAsync)}: teardown");
+            await _autoPeering.Zero(this, $"{nameof(ZeroManagedAsync)}: teardown").FastPath();
 
             
             if (!_autoPeeringTask.Wait(TimeSpan.FromSeconds(parm_hub_teardown_timeout_s)))
@@ -231,8 +231,8 @@ namespace zero.cocoon
             }
 
             var id = Hub.Router?.Designation?.IdString();
-            await DupSyncRoot.Zero(this, $"{nameof(ZeroManagedAsync)}: teardown");
-            await DupHeap.ZeroManagedAsync<object>();
+            await DupSyncRoot.Zero(this, $"{nameof(ZeroManagedAsync)}: teardown").FastPath();
+            await DupHeap.ZeroManagedAsync<object>().FastPath();
             DupChecker.Clear();
 
             Services?.CcRecord?.Endpoints?.Clear();
@@ -242,7 +242,7 @@ namespace zero.cocoon
                 if (!string.IsNullOrEmpty(id))
                 {
                     if (!ZeroDrone && AutoPeeringEventService.Operational)
-                        await AutoPeeringEventService.AddEventAsync(new AutoPeerEvent
+                        AutoPeeringEventService.AddEvent(new AutoPeerEvent
                         {
                             EventType = AutoPeerEventType.RemoveCollective,
                             Collective = new Collective()
@@ -264,8 +264,8 @@ namespace zero.cocoon
         /// <returns>The task</returns>
         public override async ValueTask ZeroPrimeAsync()
         {
-            await base.ZeroPrimeAsync();
-            await _autoPeering.ZeroPrimeAsync();
+            await base.ZeroPrimeAsync().FastPath();
+            await _autoPeering.ZeroPrimeAsync().FastPath();
         }
 
         private Logger _logger;
@@ -465,12 +465,13 @@ namespace zero.cocoon
                     if(!@this.Zeroed())
                         @this._logger.Warn($"Restarting hub... {@this.Description}");
                 }
-            }, this, TaskCreationOptions.DenyChildAttach);
+            }, this, TaskCreationOptions.DenyChildAttach).FastPath();
 
             //start node listener
             await base.SpawnListenerAsync(static async (drone,@this) =>
             {
                 var success = false;
+                var ccDrone = (CcDrone)drone;
                 //limit connects
                 try
                 {
@@ -478,19 +479,31 @@ namespace zero.cocoon
                         return false;
 
                     //Handshake
-                    if (await @this.FutileAsync((CcDrone)drone).FastPath())
+                    if (await @this.FutileAsync(ccDrone).FastPath())
                     {
                         //TODO: DELAYS
                         //await Task.Delay(@this.parm_futile_timeout_ms>>4, @this.AsyncTasks.Token);
                         //await Task.Yield();
 
-                        if (drone.Zeroed())
+                        if (ccDrone.Zeroed())
                         {
                             @this._logger.Debug($"+|{drone.Description}");
                             return false;
                         }
 
-                        ((CcDrone)drone).Adjunct.WasAttached = true;
+                        ccDrone.Adjunct.WasAttached = true;
+
+                        if (!@this.ZeroDrone && AutoPeeringEventService.Operational)
+                            AutoPeeringEventService.AddEvent(new AutoPeerEvent
+                            {
+                                EventType = AutoPeerEventType.AddDrone,
+                                Drone = new Drone
+                                {
+                                    CollectiveId = @this.Hub.Designation.IdString(),
+                                    Adjunct = ccDrone.Adjunct.Designation.IdString(),
+                                    Direction = ccDrone.Adjunct.Direction.ToString()
+                                }
+                            });
 
                         //ACCEPT
                         @this._logger.Info($"+ {drone.Description}");
@@ -509,7 +522,7 @@ namespace zero.cocoon
                         //await @this.Hub.Router.DeFuseAsync();
                     }
                 }
-            },this, bootstrapAsync);
+            },this, bootstrapAsync).FastPath();
         }
 
         /// <summary>
@@ -793,7 +806,7 @@ namespace zero.cocoon
                         {
                             Interlocked.Decrement(ref @this.EgressCount);
                             return new ValueTask<bool>(true);
-                        }, this);                        
+                        }, this).FastPath();                        
                     }
                     else if (drone.MessageService.IoNetSocket.IsIngress)
                     {
@@ -801,7 +814,7 @@ namespace zero.cocoon
                         {
                             Interlocked.Decrement(ref @this.IngressCount);
                             return new ValueTask<bool>(true);
-                        }, this);                        
+                        }, this).FastPath();                        
                     }
                 }
             }
@@ -824,25 +837,30 @@ namespace zero.cocoon
                 throw new ApplicationException($"Connection inception dropped from {remoteEp} on {_gossipAddress.IpEndPoint}: {Description}");
 
             var adjunct = drone.Adjunct;
-
             if (adjunct == null)
             {
+                Debug.Assert(direction == CcAdjunct.Heading.Ingress);
                 var id = CcDesignation.MakeKey(packet.PublicKey.Memory.AsArray());
-                if (direction == CcAdjunct.Heading.Ingress && (drone.Adjunct = (CcAdjunct)_autoPeering.Neighbors.Values.FirstOrDefault(n => n.Key.Contains(id))) == null)
+
+                if (!_autoPeering.Neighbors.TryGetValue(id, out var existingAdjunct))
                 {
                     //TODO: this code path is jammed
                     _logger.Error($"Neighbor [{id}] not found, dropping {direction} connection to {remoteEp}");
                     return false;
                 }
 
-                adjunct = drone.Adjunct;
+                drone.Adjunct = adjunct = (CcAdjunct)existingAdjunct;
 
-                var stateIsValid = adjunct.CurrentState.Value != CcAdjunct.AdjunctState.Connected && adjunct.CompareAndEnterState(CcAdjunct.AdjunctState.Connecting, CcAdjunct.AdjunctState.Fusing, overrideHung: adjunct.parm_max_network_latency_ms * 4) == CcAdjunct.AdjunctState.Fusing;
+                var stateIsValid = adjunct.CompareAndEnterState(CcAdjunct.AdjunctState.Connecting, CcAdjunct.AdjunctState.Fusing) == CcAdjunct.AdjunctState.Fusing;
                 if (!stateIsValid)
                 {
-                    if(adjunct.CurrentState.Value != CcAdjunct.AdjunctState.Connected && adjunct.CurrentState.EnterTime.ElapsedMs() > adjunct.parm_max_network_latency_ms)
-                        _logger.Warn($"{nameof(ConnectForTheWinAsync)} - {Description}: Invalid state, {adjunct.CurrentState.Value}, age = {adjunct.CurrentState.EnterTime.ElapsedMs()}ms. Wanted {nameof(CcAdjunct.AdjunctState.Fusing)} - [RACE OK!]");
-                    return false;
+                    stateIsValid = adjunct.CompareAndEnterState(CcAdjunct.AdjunctState.Connecting, CcAdjunct.AdjunctState.Rusing) == CcAdjunct.AdjunctState.Rusing;
+                    if (!stateIsValid)
+                    {
+                        if (adjunct.CurrentState.Value != CcAdjunct.AdjunctState.Connected)
+                            _logger.Warn($"{nameof(ConnectForTheWinAsync)} - {Description}: Invalid state, {adjunct.CurrentState.Value}, age = {adjunct.CurrentState.EnterTime.ElapsedMs()}ms. Wanted {nameof(CcAdjunct.AdjunctState.Fusing)} - [RACE OK!]");
+                        return false;
+                    }
                 }
             }
 
@@ -878,11 +896,11 @@ namespace zero.cocoon
                             return new ValueTask<bool>(false);
                         }
                     }
-                }, (this, direction));
+                }, (this, direction)).FastPath();
 
                 if(capped)
                 {
-                    await drone.DropAdjunctAsync();
+                    await drone.DropAdjunctAsync().FastPath();
                 }
 
                 return !capped;
@@ -920,7 +938,7 @@ namespace zero.cocoon
                     var drone = await ConnectAsync(IoNodeAddress.CreateFromEndpoint("tcp", adjunct.RemoteAddress.IpEndPoint) , adjunct, timeout:parm_futile_timeout_ms).FastPath();
                     if (Zeroed() || drone == null || ((CcDrone)drone).Adjunct.Zeroed())
                     {
-                        if (drone != null) await drone.Zero(this, $"{nameof(ConnectAsync)} was not successful [OK]");
+                        if (drone != null) await drone.Zero(this, $"{nameof(ConnectAsync)} was not successful [OK]").FastPath();
                         _logger.Debug($"{nameof(ConnectToDroneAsync)}: [ABORTED], {adjunct.Description}, {adjunct.MetaDesc}");
                         return false;
                     }
@@ -932,29 +950,42 @@ namespace zero.cocoon
                         await ZeroAsync(static async state =>
                         {
                             var (@this, drone) = state;
-
+                            var ccDrone = (CcDrone)drone;
                             //TODO: DELAYS
                             //await Task.Delay(@this.parm_futile_timeout_ms >> 4, @this.AsyncTasks.Token);
                             //await Task.Yield();
 
-                            if (!drone.Zeroed())
+                            if (!ccDrone.Zeroed())
                             {
-                                ((CcDrone)drone).Adjunct.WasAttached = true;
+                                ccDrone.Adjunct.WasAttached = true;
+
+                                if (!@this.ZeroDrone && AutoPeeringEventService.Operational)
+                                    AutoPeeringEventService.AddEvent(new AutoPeerEvent
+                                    {
+                                        EventType = AutoPeerEventType.AddDrone,
+                                        Drone = new Drone
+                                        {
+                                            CollectiveId = @this.Hub.Designation.IdString(),
+                                            Adjunct = ccDrone.Adjunct.Designation.IdString(),
+                                            Direction = ccDrone.Adjunct.Direction.ToString()
+                                        }
+                                    });
+
                                 @this._logger.Info($"+ {drone.Description}");
-                                await @this.BlockOnAssimilateAsync(drone);
+                                await @this.BlockOnAssimilateAsync(drone).FastPath();
                             }
                             else
                             {
                                 @this._logger.Debug($"+|{drone.Description}");
                             }
-                        }, ValueTuple.Create(this, drone), TaskCreationOptions.DenyChildAttach);
+                        }, ValueTuple.Create(this, drone), TaskCreationOptions.DenyChildAttach).FastPath();
 
                         return true;
                     }
                     else
                     {
                         _logger.Debug($"+|{drone.Description}");
-                        await drone.Zero(this, "RACED");
+                        await drone.Zero(this, "RACED").FastPath();
                     }
 
                     return false;
@@ -1034,7 +1065,7 @@ namespace zero.cocoon
 
             if (Neighbors.Count > 0)
             {
-                await WhisperingDrones[_random.Next(0, WhisperingDrones.Count - 1)].EmitTestGossipMsgAsync(v);
+                await WhisperingDrones[_random.Next(0, WhisperingDrones.Count - 1)].EmitTestGossipMsgAsync(v).FastPath();
                 return true;
             }
             
@@ -1088,7 +1119,7 @@ namespace zero.cocoon
 
                             try
                             {
-                                await Task.Delay(parm_futile_timeout_ms / 2 + _random.Next(parm_futile_timeout_ms), AsyncTasks.Token);
+                                //await Task.Delay(parm_futile_timeout_ms / 2 + _random.Next(parm_futile_timeout_ms), AsyncTasks.Token);
                                 _logger.Trace($"{Description} Bootstrapping from {ioNodeAddress}");
                                 if (!await Hub.Router.ProbeAsync("DMZ-SYN", ioNodeAddress).FastPath())
                                 {
@@ -1122,11 +1153,11 @@ namespace zero.cocoon
             }
         }
 
-        public ValueTask EmitAsync()
+        public void Emit()
         {
             //Emit collective event
             if (!ZeroDrone && AutoPeeringEventService.Operational)
-                return AutoPeeringEventService.AddEventAsync(new AutoPeerEvent
+                AutoPeeringEventService.AddEvent(new AutoPeerEvent
                 {
                     EventType = AutoPeerEventType.AddCollective,
                     Collective = new Collective
@@ -1135,8 +1166,6 @@ namespace zero.cocoon
                         Ip = ExtAddress.Url
                     }
                 });
-
-            return default;
         }
 
         public void PrintNeighborhood()

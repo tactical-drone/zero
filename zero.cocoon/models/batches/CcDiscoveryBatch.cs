@@ -48,9 +48,6 @@ namespace zero.cocoon.models.batches
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void ReturnToHeap()
         {
-            if(_heapRef.Count / (double)_heapRef.Capacity > 0.8)
-                LogManager.GetCurrentClassLogger().Warn($"{nameof(CcDiscoveryBatch)}: Heap is running lean, {_heapRef} ");
-
             _heapRef.Return(this);
         }
 

@@ -273,7 +273,8 @@ namespace zero.core.runtime.scheduler
             Console.WriteLine($"Queen ASYNC handler... POLLING WORKER..."); 
 #endif
 
-            if (s.Processed > 0 || s.Task.Status > TaskStatus.WaitingToRun)
+            //TODO: why is s sometimes null?
+            if (s == null || s.Processed > 0 || s.Task.Status > TaskStatus.WaitingToRun)
                 return false;
             
             //poll a worker, or create a new one if none are available

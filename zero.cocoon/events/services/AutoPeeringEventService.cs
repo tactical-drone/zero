@@ -27,7 +27,7 @@ namespace zero.cocoon.events.services
             new IoZeroQ<AutoPeerEvent>($"{nameof(AutoPeeringEventService)}", 16384, true )
         };
 
-        private static volatile int _operational = 0;
+        private static volatile int _operational = 1;
         private static long _seq;
         private static volatile int _curIdx = 0;
         public static bool Operational => _operational > 0;
@@ -37,8 +37,8 @@ namespace zero.cocoon.events.services
             _operational = _operational > 0 ? 0 : 1;
             if (!Operational)
             {
-                await QueuedEvents[_curIdx % 2].ZeroManagedAsync<object>();
-                await QueuedEvents[(_curIdx + 1) % 2].ZeroManagedAsync<object>();
+                await QueuedEvents[_curIdx % 2].ZeroManagedAsync<object>().FastPath();
+                await QueuedEvents[(_curIdx + 1) % 2].ZeroManagedAsync<object>().FastPath();
             }
         }
 
@@ -95,7 +95,7 @@ namespace zero.cocoon.events.services
             return response;
         }
 
-        public static async ValueTask AddEventAsync(AutoPeerEvent newAutoPeerEvent)
+        public static void AddEvent(AutoPeerEvent newAutoPeerEvent)
         {
             try
             {
@@ -124,8 +124,8 @@ namespace zero.cocoon.events.services
             if (QueuedEvents == null)
                 return;
             QueuedEvents = null;
-            await q[0].ZeroManagedAsync<object>(zero:true);
-            await q[1].ZeroManagedAsync<object>(zero:true);
+            await q[0].ZeroManagedAsync<object>(zero:true).FastPath();
+            await q[1].ZeroManagedAsync<object>(zero:true).FastPath();
         }
     }
 }

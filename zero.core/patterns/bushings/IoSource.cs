@@ -27,7 +27,7 @@ namespace zero.core.patterns.bushings
         {
             _logger = LogManager.GetCurrentClassLogger();
 
-            
+
             //if (prefetchSize > concurrencyLevel * 2)
             //    throw new ArgumentOutOfRangeException($"{description}: invalid {nameof(prefetchSize)} = {prefetchSize}, must be at least {nameof(concurrencyLevel)} = {concurrencyLevel*2}");
 
@@ -36,19 +36,20 @@ namespace zero.core.patterns.bushings
 
             //if (maxAsyncSources > concurrencyLevel)
             //    throw new ArgumentOutOfRangeException($"{description}: invalid {nameof(concurrencyLevel)} = {concurrencyLevel}, must be at least {nameof(maxAsyncSources)} = {maxAsyncSources}");
-            
-            if (disableZero)
-            {
-                DisableZero = true;
-                PressureEnabled = false;
-                PrefetchEnabled = false;
-                BackPressureEnabled = false;
-            }
-            else
-            {
-                PrefetchEnabled = prefetchSize > 1;
-            }
 
+            //if (disableZero)
+            //{
+            //    DisableZero = true;
+            //    PressureEnabled = false;
+            //    PrefetchEnabled = false;
+            //    BackPressureEnabled = false;
+            //}
+            //else
+            //{
+            //    PrefetchEnabled = prefetchSize > 1;
+            //}
+
+            PrefetchEnabled = prefetchSize > concurrencyLevel;
             PrefetchSize = prefetchSize;
             MaxAsyncSources = maxAsyncSources;
             AsyncEnabled = MaxAsyncSources > 0;
@@ -262,26 +263,26 @@ namespace zero.core.patterns.bushings
         /// </summary>
         public override async ValueTask ZeroManagedAsync()
         {
-            await base.ZeroManagedAsync();
+            await base.ZeroManagedAsync().FastPath();
 
             if(_pressure != null)
-                await _pressure.Zero(this, $"{nameof(ZeroManagedAsync)}: teardown");
+                await _pressure.Zero(this, $"{nameof(ZeroManagedAsync)}: teardown").FastPath();
             if(_backPressure != null)
-                await _backPressure.Zero(this, $"{nameof(ZeroManagedAsync)}: teardown");
+                await _backPressure.Zero(this, $"{nameof(ZeroManagedAsync)}: teardown").FastPath();
             if(_prefetchPressure != null)
-                await _prefetchPressure.Zero(this, $"{nameof(ZeroManagedAsync)}: teardown");
+                await _prefetchPressure.Zero(this, $"{nameof(ZeroManagedAsync)}: teardown").FastPath();
 
             var reason = $"{nameof(IoSource<TJob>)}: teardown";
 
             foreach (var o in ObjectStorage)
             {
                 if (o.Value is IIoNanite ioNanite)
-                    await ioNanite.Zero(this, reason);
+                    await ioNanite.Zero(this, reason).FastPath();
             }
             ObjectStorage.Clear();
 
             foreach (var ioConduit in IoConduits.Values)
-                await ioConduit.Zero(this, reason);
+                await ioConduit.Zero(this, reason).FastPath();
             
             IoConduits.Clear();
 
@@ -333,7 +334,7 @@ namespace zero.core.patterns.bushings
 
                         if (!@this.IoConduits.TryAdd(id, newConduit))
                         {
-                            await newConduit.Zero(@this,$"{nameof(CreateConduitOnceAsync)}: lost race");
+                            await newConduit.Zero(@this,$"{nameof(CreateConduitOnceAsync)}: lost race").FastPath();
                             @this._logger.Trace($"Could not add {id}, already exists = {@this.IoConduits.ContainsKey(id)}");
                             return false;
                         }

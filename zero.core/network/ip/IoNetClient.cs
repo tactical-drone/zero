@@ -133,8 +133,8 @@ namespace zero.core.network.ip
         /// </summary>
         public override async ValueTask ZeroManagedAsync()
         {
-            await base.ZeroManagedAsync();
-            await IoNetSocket.Zero(this, $"{nameof(ZeroManagedAsync)}: teardown");
+            await base.ZeroManagedAsync().ConfigureAwait(true);
+            await IoNetSocket.Zero(this, $"{nameof(ZeroManagedAsync)}: teardown").ConfigureAwait(true);
         }
 
         /// <summary>
@@ -188,6 +188,7 @@ namespace zero.core.network.ip
                         if (UpTime.ElapsedMsToSec() > 5)
                             _logger.Error($"DC {IoNetSocket.RemoteNodeAddress} from {IoNetSocket.LocalNodeAddress}, uptime = {TimeSpan.FromMilliseconds(UpTime.ElapsedMs())}");
 
+                        Zero(this, "Disconnected!!");
                         //Do cleanup
                         return false;
                     }

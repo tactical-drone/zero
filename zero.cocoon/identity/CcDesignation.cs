@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Diagnostics;
 using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
@@ -60,7 +61,7 @@ namespace zero.cocoon.identity
             };
         }
 
-        [ThreadStatic] private static readonly SecureRandom SecureRandom;
+        [ThreadStatic] private static volatile SecureRandom SecureRandom;
         public static CcDesignation Generate(bool devMode = false)
         {
             var skBuf = Encoding.ASCII.GetBytes(DevKey);
@@ -105,6 +106,49 @@ namespace zero.cocoon.identity
         public override int GetHashCode()
         {
             return MemoryMarshal.Read<int>(PublicKey);
+        }
+
+        public override string ToString()
+        {
+            return IdString();
+        }
+
+        public static bool operator < (CcDesignation left, CcDesignation right)
+        {
+            Debug.Assert(left != null && right != null);
+
+            var c = (left.PublicKey[left.PublicKey.Length >> 1] + right.PublicKey[right.PublicKey.Length >> 1]) % left.PublicKey.Length;
+
+            byte l;
+            byte r;
+            do
+            {
+                l = left.PublicKey[c];
+                r = right.PublicKey[c];
+                c = (c + 1) % left.PublicKey.Length;
+            } while (r == l);
+            
+                
+            return l < r;
+        }
+
+        public static bool operator >(CcDesignation left, CcDesignation right)
+        {
+            Debug.Assert(left != null && right != null);
+
+            var c = (left.PublicKey[left.PublicKey.Length >> 1] + right.PublicKey[right.PublicKey.Length >> 1]) % left.PublicKey.Length;
+
+            byte l;
+            byte r;
+            do
+            {
+                l = left.PublicKey[c];
+                r = right.PublicKey[c];
+                c = (c + 1) % left.PublicKey.Length;
+            } while (r == l);
+
+
+            return l > r;
         }
     }
 }

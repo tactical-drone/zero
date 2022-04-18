@@ -28,10 +28,22 @@ namespace zero.core.patterns.queue
             public volatile IoZNode Next;
             public volatile IoZNode Prev;
         }
+
+        /// <summary>
+        /// Q modes
+        /// </summary>
+        [Flags]
+        public enum Mode
+        {
+            Undefined = 0,
+            Pressure = 1,
+            BackPressure = 1<<1,
+            DynamicSize = 1 << 2,
+        }
         /// <summary>
         /// constructor
         /// </summary>
-        public IoQueue(string description, int capacity, int concurrencyLevel, int prefetch = 1, bool enableBackPressure = false, bool disablePressure = true, bool autoScale = false)
+        public IoQueue(string description, int capacity, int concurrencyLevel, Mode configuration = Mode.Undefined)
         {
 #if DEBUG
             _description = description;
@@ -39,7 +51,8 @@ namespace zero.core.patterns.queue
 #else
             var desc = _description = string.Empty;
 #endif
-            _nodeHeap = new IoHeap<IoZNode>(desc, capacity, static (_,_) => new IoZNode(), autoScale) {
+            _configuration = configuration;
+            _nodeHeap = new IoHeap<IoZNode>(desc, capacity, static (_,_) => new IoZNode(), _configuration.HasFlag(Mode.DynamicSize)) {
                 PopAction =
                 (node, _) =>
                 {
@@ -51,19 +64,17 @@ namespace zero.core.patterns.queue
             _syncRoot = new IoZeroSemaphore(desc, maxBlockers: concurrencyLevel, initialCount: 1, asyncWorkerCount: 0,enableDeadlockDetection:true, cancellationTokenSource:_asyncTasks);
             _syncRoot.ZeroRef(ref _syncRoot);
 
-            var c = Math.Max(prefetch + 1, concurrencyLevel);
-
-            if (!disablePressure)
+            if (_configuration.HasFlag(Mode.Pressure))
             {
                 _pressure = new IoZeroSemaphore($"qp {description}",
-                    maxBlockers: c, asyncWorkerCount: 0, cancellationTokenSource:_asyncTasks);
+                    maxBlockers: concurrencyLevel, cancellationTokenSource:_asyncTasks);
                 _pressure.ZeroRef(ref _pressure);
             }
             
-            if (enableBackPressure)
+            if (_configuration.HasFlag(Mode.BackPressure))
             {
                 _backPressure = new IoZeroSemaphore($"qbp {description}",
-                    maxBlockers: c, asyncWorkerCount: 0, initialCount: concurrencyLevel, cancellationTokenSource:_asyncTasks);
+                    maxBlockers: concurrencyLevel, initialCount : concurrencyLevel, cancellationTokenSource:_asyncTasks);
                 _backPressure.ZeroRef(ref _backPressure);
             }
 
@@ -132,11 +143,11 @@ namespace zero.core.patterns.queue
                     try
                     {
                         if (op != null)
-                            await op(cur.Value, nanite);
+                            await op(cur.Value, nanite).FastPath();
                         if (cur.Value is IIoNanite ioNanite)
                         {
                             if (!ioNanite.Zeroed())
-                                await ioNanite.Zero(nanite as IIoNanite, string.Empty);
+                                await ioNanite.Zero(nanite as IIoNanite, string.Empty).FastPath();
                         }
                     }
                     catch when(Zeroed){}
@@ -159,8 +170,8 @@ namespace zero.core.patterns.queue
 
                 if (zero)
                 {
-                    await ClearAsync(); //TODO perf: can these two steps be combined?
-                    await _nodeHeap.ZeroManagedAsync<object>();
+                    await ClearAsync().FastPath(); //TODO perf: can these two steps be combined?
+                    await _nodeHeap.ZeroManagedAsync<object>().FastPath();
 
                     _nodeHeap = null;
                     _count = 0;
@@ -264,7 +275,7 @@ namespace zero.core.patterns.queue
                         try
                         {
                             if (onAtomicAdd != null)
-                                await onAtomicAdd.Invoke(context);
+                                await onAtomicAdd.Invoke(context).FastPath();
                         }
                         catch when (Zeroed)
                         {
@@ -359,6 +370,8 @@ namespace zero.core.patterns.queue
         }
 
         private volatile int _entered = 0;
+        private readonly Mode _configuration;
+
         /// <summary>
         /// Blocking dequeue item
         /// </summary>

@@ -43,9 +43,9 @@ namespace zero.cocoon.models
         /// <returns></returns>
         public override async ValueTask ZeroManagedAsync()
         {
-            await base.ZeroManagedAsync();
+            await base.ZeroManagedAsync().FastPath();
 
-            await _sendBuf.ZeroManagedAsync<object>();
+            await _sendBuf.ZeroManagedAsync<object>().FastPath();
             //if (_protocolMsgBatch != null)
             //    _arrayPool.ReturnAsync(_protocolMsgBatch, true);
 
@@ -292,7 +292,7 @@ namespace zero.cocoon.models
                             else
                             {
                                 if (AutoPeeringEventService.Operational)
-                                    await AutoPeeringEventService.AddEventAsync(new AutoPeerEvent
+                                    await AutoPeeringEventService.AddEvent(new AutoPeerEvent
                                     {
                                         EventType = AutoPeerEventType.SendProtoMsg,
                                         Msg = new ProtoMsg
@@ -465,12 +465,13 @@ namespace zero.cocoon.models
                         continue;
                     }
 
-
-                    if (_gossipRate.ElapsedMs() < 2000)// && req - _maxReq < 10)
+                    if (_gossipRate.ElapsedMs() < 4000)// && req - _maxReq < 10)
                         continue;
 
-                    _gossipRate = Environment.TickCount;
-
+                    var latch = _gossipRate;
+                    if( Interlocked.CompareExchange(ref _gossipRate, Environment.TickCount, latch) != latch)
+                        continue;
+                    
                     IoZero.IncEventCounter();
                     CcCollective.IncEventCounter();
 
@@ -490,8 +491,6 @@ namespace zero.cocoon.models
                         if (Interlocked.CompareExchange(ref @this._maxReq, req, @this._maxReq) != latch)
                             return;
 
-                        //if( d < 3 )
-
                         byte[] socketBuf = null;
                         try
                         {
@@ -505,7 +504,7 @@ namespace zero.cocoon.models
 
                             if (!@this.Zeroed())
                             {
-                                foreach (var drone in @this.CcCollective.Neighbors.Values.Cast<CcDrone>())
+                                foreach (var drone in @this.CcCollective.Neighbors.Values.Cast<CcDrone>().Where(d=>d.MessageService?.IsOperational()??false))
                                 {
                                     if (req != Volatile.Read(ref @this._maxReq))
                                         break;
@@ -520,12 +519,10 @@ namespace zero.cocoon.models
                             if (source.IoNetSocket.RemoteAddress == endpoint || dupEndpoints != null && dupEndpoints.Contains(source.IoNetSocket.RemoteAddress.GetHashCode()))
                                 continue;
 #endif
-                                        if (source == null || await source.IoNetSocket
-                                                .SendAsync(socketBuf, 0, (int)compressed + sizeof(ulong)).FastPath() <=
-                                            0) continue;
+                                        if (source == null || await source.IoNetSocket.SendAsync(socketBuf, 0, (int)compressed + sizeof(ulong)).FastPath() <= 0) continue;
                                         {
                                             if (AutoPeeringEventService.Operational)
-                                                await AutoPeeringEventService.AddEventAsync(new AutoPeerEvent
+                                                AutoPeeringEventService.AddEvent(new AutoPeerEvent
                                                 {
                                                     EventType = AutoPeerEventType.SendProtoMsg,
                                                     Msg = new ProtoMsg
@@ -560,7 +557,7 @@ namespace zero.cocoon.models
                         {
                             @this._sendBuf.Return(socketBuf);
                         }
-                    }, (this, req), TaskCreationOptions.DenyChildAttach);
+                    }, (this, req), TaskCreationOptions.DenyChildAttach).FastPath();
 
                 }
 

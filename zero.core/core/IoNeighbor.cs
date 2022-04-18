@@ -70,13 +70,13 @@ namespace zero.core.core
         /// </summary>
         public override async ValueTask ZeroManagedAsync()
         {
-            await base.ZeroManagedAsync();
+            await base.ZeroManagedAsync().FastPath();
 
             try
             {
                 if (Node?.Neighbors?.TryRemove(Key, out var zeroNeighbor) ?? false)
                 {
-                    await zeroNeighbor.Zero(this, $"{nameof(ZeroManagedAsync)}: teardown");
+                    await zeroNeighbor.Zero(this, $"{nameof(ZeroManagedAsync)}: teardown").FastPath();
                     _logger.Trace($"Removed {zeroNeighbor?.Description}");
                 }
                 else

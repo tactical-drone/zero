@@ -184,7 +184,7 @@ namespace zero.core.network.ip
         /// </summary>
         public override async ValueTask ZeroManagedAsync()
         {
-            await base.ZeroManagedAsync();
+            await base.ZeroManagedAsync().FastPath();
 
             Close();
 #if DEBUG
@@ -204,7 +204,7 @@ namespace zero.core.network.ip
                 try
                 {
                     NativeSocket.Shutdown(SocketShutdown.Both);
-                    NativeSocket.Disconnect(true);
+                    NativeSocket.Disconnect(false);
                 }
                 catch when (Zeroed()) { }
                 catch (Exception e) when (!Zeroed())

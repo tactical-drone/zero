@@ -192,10 +192,10 @@ namespace zero.cocoon
         /// </summary>
         public override async ValueTask ZeroManagedAsync()
         {
-            await base.ZeroManagedAsync();
+            await base.ZeroManagedAsync().FastPath();
             try
             {
-                await DropAdjunctAsync();
+                await DropAdjunctAsync().FastPath();
             }
             catch (Exception e)
             {
@@ -207,7 +207,7 @@ namespace zero.cocoon
                 if ((Adjunct?.Assimilated??false) && UpTime.ElapsedMs() > parm_min_uptime_ms)
                     _logger.Info($"- {Description}, from: {ZeroedFrom?.Description}");
 
-                await _sendBuf.ZeroManagedAsync<object>();
+                await _sendBuf.ZeroManagedAsync<object>().FastPath();
             }
             catch
             {
@@ -269,7 +269,7 @@ namespace zero.cocoon
         {
             var latch = _adjunct;
             if (latch != null && Interlocked.CompareExchange(ref _adjunct, null, latch) == latch)
-                await latch.DetachDroneAsync();
+                await latch.DetachDroneAsync().FastPath();
         }
 
         /// <summary>
@@ -326,7 +326,7 @@ namespace zero.cocoon
                         if (await socket.SendAsync(socketBuf, 0, (int)compressed + sizeof(ulong), timeout: 20).FastPath() > 0)
                         {
                             if (!Adjunct.CcCollective.ZeroDrone && AutoPeeringEventService.Operational)
-                                await AutoPeeringEventService.AddEventAsync(new AutoPeerEvent
+                                AutoPeeringEventService.AddEvent(new AutoPeerEvent
                                 {
                                     EventType = AutoPeerEventType.SendProtoMsg,
                                     Msg = new ProtoMsg

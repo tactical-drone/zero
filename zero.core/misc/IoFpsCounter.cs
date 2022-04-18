@@ -64,7 +64,7 @@ namespace zero.core.misc
             if (Volatile.Read(ref _count[_index]) < Volatile.Read(ref _range[_index])) return;
 
             var m = _mutex.WaitAsync();
-            if(await m.FastPath().ConfigureAwait(true))
+            if(await m.FastPath())
             {
                 _range[_index] = (int)(_time * _time * Fps() / 1000000);
                 Interlocked.Increment(ref _index);

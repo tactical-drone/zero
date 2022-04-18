@@ -234,7 +234,7 @@ namespace zero.test.core.patterns.queue{
             }
             await Task.WhenAll(concurrentTasks).WaitAsync(TimeSpan.FromSeconds(10));
 
-            _output.WriteLine($"count = {context.Q.Count}, Head = {context.Q?.Tail?.Value}, tail = {context.Q?.Head?.Value}, time = {Environment.TickCount - start}ms, {rounds * mult * 6 / (Environment.TickCount - start)} kOPS");
+            _output.WriteLine($"count = {context.Q.Count}, Head = {context.Q?.Tail?.Value}, tail = {context.Q?.Head?.Value}, time = {Environment.TickCount - start}ms, {rounds * mult * 6 / (Environment.TickCount - start + 1)} kOPS");
 
             Assert.Equal(9, context.Q!.Count);
             Assert.NotNull(context.Q.Head);
@@ -338,7 +338,7 @@ namespace zero.test.core.patterns.queue{
         async Task AutoScaleAsync()
         {
             await Task.Yield();
-            var q = new IoQueue<int>("test Q", 2, 1, autoScale:true);
+            var q = new IoQueue<int>("test Q", 2, 1, IoQueue<int>.Mode.DynamicSize);
             await q.EnqueueAsync(0);
             await q.EnqueueAsync(1);
             await q.EnqueueAsync(2);
@@ -411,7 +411,7 @@ namespace zero.test.core.patterns.queue{
         async Task QueuePressureAsync()
         {
             _blockCancellationSignal = new CancellationTokenSource();
-            _queuePressure = new IoQueue<IoInt32>("test Q", 1, 2, disablePressure:false);
+            _queuePressure = new IoQueue<IoInt32>("test Q", 1, 2, IoQueue<IoInt32>.Mode.Pressure);
 
             await Task.Yield();
 
@@ -469,16 +469,16 @@ namespace zero.test.core.patterns.queue{
         async Task QueueBackPressureAsync()
         {
             _blockCancellationSignal = new CancellationTokenSource();
-            _queuePressure = new IoQueue<IoInt32>("test Q", 4, 2, disablePressure: false, enableBackPressure:true);
+            _queuePressure = new IoQueue<IoInt32>("test Q", 10, 1, IoQueue<IoInt32>.Mode.BackPressure | IoQueue<IoInt32>.Mode.Pressure);
 
             await Task.Yield();
 
-            await _queuePressure.EnqueueAsync(0);
+            await _queuePressure.EnqueueAsync(0).FastPath();
 
             var item = await _queuePressure.DequeueAsync().FastPath();
             Assert.NotNull(item);
 
-            await _queuePressure.EnqueueAsync(0);
+            await _queuePressure.EnqueueAsync(0).FastPath();
 
             item = await _queuePressure.DequeueAsync().FastPath();
             Assert.NotNull(item);
@@ -517,9 +517,9 @@ namespace zero.test.core.patterns.queue{
                 var @this = (IoQueueTest)state!;
                 await Task.Delay(100, @this._blockCancellationSignal.Token);
                 _ = @this._queuePressure.EnqueueAsync(1).FastPath();
-                _ = @this._queuePressure.EnqueueAsync(1).FastPath();
                 var s = Environment.TickCount;
                 //blocking
+                //_ = @this._queuePressure.EnqueueAsync(1).FastPath();
                 await @this._queuePressure.EnqueueAsync(1).FastPath();
                 await @this._queuePressure.EnqueueAsync(1).FastPath();
                 Assert.InRange(s.ElapsedMs(), 100 -16, 10000);
@@ -548,7 +548,7 @@ namespace zero.test.core.patterns.queue{
         {
             
             _blockCancellationSignal = new CancellationTokenSource();
-            _queuePressure = new IoQueue<IoInt32>("test Q", Concurrency, Concurrency, disablePressure: false, enableBackPressure: true);
+            _queuePressure = new IoQueue<IoInt32>("test Q", Concurrency, Concurrency, IoQueue<IoInt32>.Mode.BackPressure | IoQueue<IoInt32>.Mode.Pressure);
             
             //await Task.Yield();
 

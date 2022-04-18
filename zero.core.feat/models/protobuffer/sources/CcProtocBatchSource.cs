@@ -26,17 +26,13 @@ namespace zero.core.feat.models.protobuffer.sources
         /// <param name="prefetchSize">Initial job prefetch from source</param>
         /// <param name="concurrencyLevel"></param>
         /// <param name="maxAsyncSources"></param>
-        public CcProtocBatchSource(string description, IIoSource ioSource, int batchSize, int prefetchSize, int concurrencyLevel, int maxAsyncSources = 0, bool disableZero = false) 
-            : base(description, false, prefetchSize, concurrencyLevel, maxAsyncSources, disableZero)//TODO config
+        public CcProtocBatchSource(string description, IIoSource ioSource, int batchSize, int prefetchSize, int concurrencyLevel, int maxAsyncSources = 0) 
+            : base(description, false, prefetchSize, concurrencyLevel, maxAsyncSources, true)//TODO config
         {
             _logger = LogManager.GetCurrentClassLogger();
 
             UpstreamSource = ioSource;
-
-            //Set Q to be blocking
-            //TODO tuning
-
-            BatchQueue = new IoQueue<TBatch>($"{nameof(CcProtocBatchSource<TModel,TBatch>)}: {ioSource.Description}", batchSize, concurrencyLevel, prefetchSize, true, false); //TODO: fix these smelly booleans
+            BatchQueue = new IoQueue<TBatch>($"{nameof(CcProtocBatchSource<TModel,TBatch>)}: {ioSource.Description}", prefetchSize + 1, concurrencyLevel, IoQueue<TBatch>.Mode.Pressure | IoQueue<TBatch>.Mode.BackPressure); //TODO: fix these smelly booleans
         }
 
         /// <summary>
@@ -85,13 +81,13 @@ namespace zero.core.feat.models.protobuffer.sources
         /// </summary>
         public override async ValueTask ZeroManagedAsync()
         {
-            await base.ZeroManagedAsync();
+            await base.ZeroManagedAsync().FastPath();
 
             await BatchQueue.ZeroManagedAsync(static (msgBatch,_) =>
             {
                 msgBatch.Dispose();
                 return default;
-            },this, zero:true);
+            },this, zero:true).FastPath();
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]

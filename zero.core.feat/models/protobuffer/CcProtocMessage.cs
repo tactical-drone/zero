@@ -142,7 +142,16 @@ namespace zero.core.feat.models.protobuffer
                             //Drop zero reads
                             if (read == 0)
                             {
-                                job.State = IoJobMeta.JobState.ProduceTo;
+                                //if (!job.MessageService.IsOperational())
+                                {
+                                    await job.MessageService.Zero(ioJob, "ZERO READS!!!").FastPath();
+                                    job.State = IoJobMeta.JobState.Error;
+                                }
+                                //else
+                                //{
+                                //    job.State = IoJobMeta.JobState.ProduceTo;
+                                //}
+
                                 return false;
                             }
 
@@ -175,7 +184,7 @@ namespace zero.core.feat.models.protobuffer
                     }
 
                     return false;
-                }, this, barrier, ioZero);
+                }, this, barrier, ioZero).FastPath();
             }
             catch when (Zeroed()) { }
             catch (Exception e)when (!Zeroed())

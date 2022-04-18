@@ -76,7 +76,7 @@ namespace zero.core.patterns.bushings
         /// <returns></returns>
         public override async ValueTask<IIoHeapItem> HeapPopAsync(object context)
         {
-            await base.HeapPopAsync(context);
+            await base.HeapPopAsync(context).FastPath();
             PrevJobQHook = null;
             return this;
         }

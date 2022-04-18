@@ -155,7 +155,7 @@ namespace zero.core.network.ip
         /// </summary>
         public override async ValueTask ZeroManagedAsync()
         {
-            await base.ZeroManagedAsync();
+            await base.ZeroManagedAsync().FastPath();
 
             if (_recvArgs != null)
             {
@@ -175,7 +175,7 @@ namespace zero.core.network.ip
                     ((IDisposable)o).Dispose();
 
                     return default;
-                }, this);
+                }, this).FastPath();
             }
             
             await _sendArgs.ZeroManagedAsync(static (o,@this) =>
@@ -194,7 +194,7 @@ namespace zero.core.network.ip
                 }
                 ((IDisposable)o).Dispose();
                 return default;
-            },this);
+            },this).FastPath();
 
 
             //_sendSync.ZeroSem();
@@ -223,7 +223,7 @@ namespace zero.core.network.ip
             Func<ValueTask> bootstrapAsync = null)
         {
             //base
-            await base.BlockOnListenAsync(listeningAddress, acceptConnectionHandler, context,bootstrapAsync);
+            await base.BlockOnListenAsync(listeningAddress, acceptConnectionHandler, context,bootstrapAsync).FastPath();
 
             //set some socket options
             //NativeSocket.SetSocketOption(SocketOptionLevel.IP, SocketOptionName.PacketInformation, true);
@@ -246,7 +246,7 @@ namespace zero.core.network.ip
                 try
                 {
                     //ZERO
-                    await acceptConnectionHandler(this, context);
+                    await acceptConnectionHandler(this, context).FastPath();
                 }
                 catch (Exception e)
                 {
@@ -258,13 +258,14 @@ namespace zero.core.network.ip
                 {
                     await ZeroAsync(static async bootstrapAsync =>
                     {
-                        await Task.Delay(1000);
-                        await bootstrapAsync();
-                    }, bootstrapAsync, TaskCreationOptions.DenyChildAttach);
+                        //TODO: tuning;
+                        await Task.Delay(2000);
+                        await bootstrapAsync().FastPath();
+                    }, bootstrapAsync, TaskCreationOptions.DenyChildAttach).FastPath();
                 }
                 
                 //block
-                await AsyncTasks.Token.BlockOnNotCanceledAsync();
+                await AsyncTasks.Token.BlockOnNotCanceledAsync().FastPath();
 
                 _logger.Trace($"Stopped listening at {LocalNodeAddress}");
             }
@@ -420,7 +421,7 @@ namespace zero.core.network.ip
             {
                 var errMsg = $"Sending to {NativeSocket.LocalAddress()} ~> udp://{endPoint} failed, z = {Zeroed()}, zf = {ZeroedFrom?.Description}:";
                 _logger.Error(e, errMsg);
-                await Zero(this, errMsg);
+                await Zero(this, errMsg).FastPath();
             }
             finally
             {
@@ -527,7 +528,7 @@ namespace zero.core.network.ip
                     catch (Exception e) when (!Zeroed())
                     {
                         _logger.Error(e, "Receive udp failed:");
-                        await Zero(this, $"{nameof(NativeSocket.ReceiveFromAsync)}: [FAILED] {e.Message}").ConfigureAwait(false);
+                        await Zero(this, $"{nameof(NativeSocket.ReceiveFromAsync)}: [FAILED] {e.Message}").FastPath();
                     }
                     finally
                     {
@@ -572,7 +573,7 @@ namespace zero.core.network.ip
             {
                 var errMsg = $"Unable to read from socket: {Description}";
                 _logger?.Error(e, errMsg);
-                await Zero(this, errMsg);
+                await Zero(this, errMsg).FastPath();
             }
             finally
             {

@@ -64,11 +64,11 @@ namespace zero.core.patterns.misc
 
             //TODO: tuning
 #if DEBUG
-            _zeroHive = new IoQueue<IoZeroSub>($"{nameof(_zeroHive)} {description}", 32, _concurrencyLevel, autoScale:true);
-            _zeroHiveMind = new IoQueue<IIoNanite>($"{nameof(_zeroHiveMind)} {description}", 32, _concurrencyLevel, autoScale:true);
+            _zeroHive = new IoQueue<IoZeroSub>($"{nameof(_zeroHive)} {description}", 32, _concurrencyLevel, IoQueue<IoZeroSub>.Mode.DynamicSize);
+            _zeroHiveMind = new IoQueue<IIoNanite>($"{nameof(_zeroHiveMind)} {description}", 32, _concurrencyLevel, IoQueue<IIoNanite>.Mode.DynamicSize);
 #else
-            _zeroHive = new IoQueue<IoZeroSub>(string.Empty, 64, _concurrencyLevel, autoScale:true);
-            _zeroHiveMind = new IoQueue<IIoNanite>(string.Empty, 64, _concurrencyLevel, autoScale: true);
+            _zeroHive = new IoQueue<IoZeroSub>(string.Empty, 64, _concurrencyLevel, IoQueue<IoZeroSub>.Mode.DynamicSize);
+            _zeroHiveMind = new IoQueue<IIoNanite>(string.Empty, 64, _concurrencyLevel, IoQueue<IIoNanite>.Mode.DynamicSize);
 #endif
             ZeroSyncRoot(concurrencyLevel);
             
@@ -277,7 +277,7 @@ namespace zero.core.patterns.misc
                 foreach (var ioZNode in _zeroHiveMind)
                 {
                     if (!ioZNode.Value.Zeroed())
-                        await ioZNode.Value.ZeroPrimeAsync();
+                        await ioZNode.Value.ZeroPrimeAsync().FastPath();
                 }
             }
         }
@@ -382,7 +382,7 @@ namespace zero.core.patterns.misc
                         var (@this, target, sub) = state;
                         target?.ZeroHiveMind()?.RemoveAsync(sub);
                         return new ValueTask<bool>(true);
-                    }, (this, target, sub));
+                    }, (this, target, sub)).FastPath();
                 }
             }
 
@@ -425,7 +425,7 @@ namespace zero.core.patterns.misc
                     while ((zeroSub = await _zeroHiveMind.DequeueAsync().FastPath()) != null)
                     {
                         if (zeroSub.Zeroed()) continue;
-                        await zeroSub.Zero(this, $"[ZERO CASCADE] from {desc}");
+                        await zeroSub.Zero(this, $"[ZERO CASCADE] from {desc}").FastPath();
                     }
                 }
                 
@@ -434,7 +434,7 @@ namespace zero.core.patterns.misc
 
                 try
                 {
-                    await ZeroManagedAsync();
+                    await ZeroManagedAsync().FastPath();
                 }
 #if DEBUG
                 catch (Exception e) when(!Zeroed())
@@ -529,15 +529,14 @@ namespace zero.core.patterns.misc
         /// <summary>
         /// Manages managed objects
         /// </summary>
-        public virtual ValueTask ZeroManagedAsync()
+        public virtual async ValueTask ZeroManagedAsync()
         {
-            _zeroHive.ZeroManagedAsync<object>(zero:true);
-            _zeroHiveMind.ZeroManagedAsync<object>(zero: true);
+            await _zeroHive.ZeroManagedAsync<object>(zero:true).FastPath();
+            await _zeroHiveMind.ZeroManagedAsync<object>(zero: true).FastPath();
             _zeroRoot.ZeroSem();
 #if DEBUG
             Interlocked.Increment(ref _extracted);
 #endif
-            return default;
         }
 
         /// <summary>
@@ -716,7 +715,7 @@ namespace zero.core.patterns.misc
                     var nanoprobe = state as IoNanoprobe;
                     try
                     {
-                        await action(state);
+                        await action(state).FastPath();
                     }
 #if DEBUG
                     catch (TaskCanceledException e) when ( nanoprobe != null && !nanoprobe.Zeroed() ||

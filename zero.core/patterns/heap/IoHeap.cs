@@ -125,9 +125,9 @@ namespace zero.core.patterns.heap
                 return;
             
             if (zeroAction != null)
-                await _ioHeapBuf.ZeroManagedAsync(zeroAction, nanite, true);
+                await _ioHeapBuf.ZeroManagedAsync(zeroAction, nanite, true).FastPath();
             else
-                await _ioHeapBuf.ZeroManagedAsync<object>(zero:true);
+                await _ioHeapBuf.ZeroManagedAsync<object>(zero:true).FastPath();
 
             _refCount = 0;
         }
@@ -237,7 +237,7 @@ namespace zero.core.patterns.heap
         /// </summary>
         public async ValueTask ClearAsync(bool zero = false)
         {
-            await _ioHeapBuf.ZeroManagedAsync<object>(zero: zero);
+            await _ioHeapBuf.ZeroManagedAsync<object>(zero: zero).FastPath();
         }
 
         public override string ToString()

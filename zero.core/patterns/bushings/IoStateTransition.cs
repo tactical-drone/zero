@@ -15,11 +15,22 @@ namespace zero.core.patterns.bushings
     /// </summary>
     /// <typeparam name="TState">The state enum</typeparam>
     public class IoStateTransition<TState> : IoIntQueue.IoZNode,  IIoHeapItem
-        where TState : struct, Enum 
+        where TState : struct, Enum
     {
+        static IoStateTransition()
+        {
+            _states = Enum.GetValues(typeof(TState)).Cast<TState>().ToArray();
+        }
+
+        public IoStateTransition()
+        {
+            EnterTime = Environment.TickCount;
+        }
+
         public IoStateTransition(int initState = 0)
         {
             base.Value = initState;
+            EnterTime = Environment.TickCount;
         }
 
         //Release all memory held
@@ -59,7 +70,10 @@ namespace zero.core.patterns.bushings
             set => base.Prev = value;
         }
 
-        public new TState Value => (TState)Enum.ToObject(typeof(TState), base.Value);
+        /// <summary>
+        /// Current state enum value
+        /// </summary>
+        public new TState Value => _states[base.Value];
 
         /// <summary>
         /// The absolute time it took to mechanically transition from the previous state to this state. <see cref="EnterTime"/> - <see cref="IoQueue{T}.IoZNode.Prev"/>. <see cref="EnterTime"/>
@@ -93,6 +107,11 @@ namespace zero.core.patterns.bushings
         /// Calculates the max state string length used for log formatting purposes
         /// </summary>
         public static readonly int StateStrPadding = Enum.GetNames(typeof(TState)).ToList().Select(s => s.Length).Max();
+
+        /// <summary>
+        /// An array of all the states
+        /// </summary>
+        private static readonly TState[] _states;
 
         /// <summary>
         /// Pads the current state string and returns it

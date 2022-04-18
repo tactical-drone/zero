@@ -62,7 +62,7 @@ namespace zero.core.patterns.bushings.contracts
 
         public override async ValueTask<IIoHeapItem> HeapPopAsync(object context)
         {
-            await base.HeapPopAsync(context);
+            await base.HeapPopAsync(context).FastPath();
 
             //user safety, rtfm?/rtfc!
             State = IoJobMeta.JobState.Undefined;

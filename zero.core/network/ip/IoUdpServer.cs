@@ -44,12 +44,12 @@ namespace zero.core.network.ip
             T context = default,
             Func<ValueTask> bootstrapAsync = null)
         {
-            await base.ListenAsync(connectionReceivedAction, context,bootstrapAsync);
+            await base.ListenAsync(connectionReceivedAction, context,bootstrapAsync).FastPath();
 
             while (!Zeroed())
             {
                 //Creates a listening socket
-                IoListenSocket = (await ZeroHiveAsync(new IoUdpSocket(Prefetch), true)).target;
+                IoListenSocket = (await ZeroHiveAsync(new IoUdpSocket(Prefetch), true).FastPath()).target;
 
                 await IoListenSocket.BlockOnListenAsync(ListeningAddress, static async (ioSocket,state) =>
                 {
@@ -62,20 +62,20 @@ namespace zero.core.network.ip
                                 .ZeroHiveAsync(new IoUdpClient<TJob>(
                                     $"{nameof(IoUdpClient<TJob>)} ~> {@this.Description}", ioSocket,
                                     @this.Prefetch, @this.ConcurrencyLevel)).FastPath()
-                                ).target);
+                                ).target).FastPath();
                     }
                     catch (Exception e)
                     {
                         @this._logger.Error(e, $"Accept udp connection failed: {@this.Description}");
 
-                        await ioSocket.Zero(@this, $"{nameof(ZeroManagedAsync)}: teardown");
+                        await ioSocket.Zero(@this, $"{nameof(ZeroManagedAsync)}: teardown").FastPath();
                     }
-                },ValueTuple.Create(this,context, connectionReceivedAction), bootstrapAsync);
+                },ValueTuple.Create(this,context, connectionReceivedAction), bootstrapAsync).FastPath();
 
                 if(!Zeroed())
                     _logger.Warn($"Listener stopped, restarting: {Description}");
 
-                await IoListenSocket.Zero(this, $"{nameof(ZeroManagedAsync)}: teardown");
+                await IoListenSocket.Zero(this, $"{nameof(ZeroManagedAsync)}: teardown").FastPath();
             }
         }
 

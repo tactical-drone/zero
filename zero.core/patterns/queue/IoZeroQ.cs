@@ -73,7 +73,7 @@ namespace zero.core.patterns.queue
             }
 
             if (_blockingCollection)
-                _blockSync = new IoZeroSemaphoreSlim(asyncTasks, $"{description}", concurrencyLevel, maxAsyncWork: 0);
+                _blockSync = new IoZeroSemaphoreSlim(asyncTasks, $"{description}", concurrencyLevel, maxAsyncWork: concurrencyLevel); //TODO: tuning
 
             _curEnumerator = new IoQEnumerator<T>(this);
 
@@ -243,16 +243,17 @@ namespace zero.core.patterns.queue
         /// </summary>
         /// <param name="item">The item to be added</param>
         /// <param name="deDup">Whether to de-dup this item from the bag</param>
+        /// <param name="onAtomicAdd">Action to execute on add success</param>
+        /// <param name="context">Action context</param>
         /// <exception cref="OutOfMemoryException">Thrown if we are internally OOM</exception>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public long TryEnqueue(T item, bool deDup = false)
+        public long TryEnqueue<TC>(T item, bool deDup = false, Action<TC> onAtomicAdd = null, TC context = default)
         {
             if (Zeroed)
                 return -1;
 
             Debug.Assert(Zeroed || item != null);
-            
-            if (_autoScale && (_primedForScale == 1 || _count >= Capacity>>1 ))
+
+            if (_autoScale && (_primedForScale == 1 || _count >= Capacity >> 1))
             {
                 if (!Scale() && _count >= Capacity)
                     return -1;
@@ -309,6 +310,9 @@ namespace zero.core.patterns.queue
                 Debug.Assert(Zeroed || tail == Tail);
                 Interlocked.MemoryBarrier();
 #endif
+                //execute atomic action on success
+                onAtomicAdd?.Invoke(context);
+                    
                 Interlocked.Increment(ref _count);
                 Interlocked.MemoryBarrier();
                 Interlocked.Increment(ref _tail);
@@ -331,6 +335,8 @@ namespace zero.core.patterns.queue
 
             return -1;
         }
+
+        public long TryEnqueue(T item, bool deDup = false) => TryEnqueue<object>(item, deDup);
 
         /// <summary>
         /// Try take from the Q, round robin

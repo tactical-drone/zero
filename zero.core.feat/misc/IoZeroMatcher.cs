@@ -19,11 +19,11 @@ namespace zero.core.feat.misc
     {
         public IoZeroMatcher(string description, int concurrencyLevel, long ttlMs = 2000, int capacity = 32, bool autoscale = true) : base($"{nameof(IoZeroMatcher)}", concurrencyLevel * 2)
         {
-            _capacity = capacity * 2;
+            _capacity = capacity;
             _description = description??$"{GetType()}";
             _ttlMs = ttlMs;
 
-            _lut = new IoQueue<IoChallenge>($"Matcher: {description}", capacity, concurrencyLevel * 2, autoScale: autoscale);
+            _lut = new IoQueue<IoChallenge>($"Matcher: {description}", capacity, concurrencyLevel, autoscale?IoQueue<IoChallenge>.Mode.DynamicSize : 0);
 
             _valHeap = new IoHeap<IoChallenge>($"{nameof(_valHeap)}: {description}", capacity, static (_, _) => new IoChallenge(), autoscale);
 
@@ -86,13 +86,13 @@ namespace zero.core.feat.misc
         /// <returns></returns>
         public override async ValueTask ZeroManagedAsync()
         {
-            await base.ZeroManagedAsync();
+            await base.ZeroManagedAsync().FastPath();
 
-            await _lut.ZeroManagedAsync<object>(zero: true);
+            await _lut.ZeroManagedAsync<object>(zero: true).FastPath();
 
-            await _valHeap.ZeroManagedAsync<object>();
+            await _valHeap.ZeroManagedAsync<object>().FastPath();
 
-            await _carHeap.ZeroManagedAsync<object>();
+            await _carHeap.ZeroManagedAsync<object>().FastPath();
         }
 
         internal class ChallengeAsyncResponse
@@ -139,7 +139,7 @@ namespace zero.core.feat.misc
                         {
                             try
                             {
-                                await @this.PurgeAsync();
+                                await @this.PurgeAsync().FastPath();
                             }
                             catch (Exception e)
                             {
@@ -195,7 +195,7 @@ namespace zero.core.feat.misc
                     }
 
                     return false;
-                }, (this,response));
+                }, (this,response)).FastPath();
             }
             finally
             {
@@ -245,7 +245,7 @@ namespace zero.core.feat.misc
                         cur.Value.Hash.ArrayEqual(reqHash.Span))
                     {
                         var tmp = Volatile.Read(ref cur.Value);
-                        await @this._lut.RemoveAsync(cur);
+                        await @this._lut.RemoveAsync(cur).FastPath();
                         @this._valHeap.Return(tmp);
                         return true;
                     }
@@ -253,7 +253,7 @@ namespace zero.core.feat.misc
                     if (cur.Value.TimestampMs.ElapsedMs() > _ttlMs)
                     {
                         var value = Volatile.Read(ref cur.Value);
-                        await @this._lut.RemoveAsync(cur);
+                        await @this._lut.RemoveAsync(cur).FastPath();
                         cur = @this._lut.Head;
                         @this._lut.Modified = false;
                         @this._valHeap.Return(value);
@@ -280,7 +280,7 @@ namespace zero.core.feat.misc
         /// <returns>The response payload</returns>
         public async ValueTask<bool> ResponseAsync(string key, ByteString reqHash)
         {
-            return reqHash.Length != 0 && await ZeroAtomic(MatchAsync, (this, key, reqHash));
+            return reqHash.Length != 0 && await ZeroAtomic(MatchAsync, (this, key, reqHash)).FastPath();
             //return reqHash.Length != 0 && await MatchAsync( null, (this, key, reqHash), false);
         }
 
@@ -300,7 +300,7 @@ namespace zero.core.feat.misc
                     if (n.Value.TimestampMs.ElapsedMs() > _ttlMs)
                     {
                         var value = n.Value;
-                        await _lut.RemoveAsync(n);
+                        await _lut.RemoveAsync(n).FastPath();
                         _valHeap.Return(value);
                     }
                     n = t;
@@ -322,7 +322,7 @@ namespace zero.core.feat.misc
                 var cur = _lut.Head;
                 while (cur != null)
                 {
-                    await target._lut.EnqueueAsync(cur.Value);
+                    await target._lut.EnqueueAsync(cur.Value).FastPath();
                     cur = cur.Next;
                 }
             }
@@ -362,7 +362,7 @@ namespace zero.core.feat.misc
         public async ValueTask<bool> RemoveAsync(IoQueue<IoChallenge>.IoZNode node)
         {
             var value = node.Value;
-            await _lut.RemoveAsync(node);
+            await _lut.RemoveAsync(node).FastPath();
             _valHeap.Return(value);
 
             return true;

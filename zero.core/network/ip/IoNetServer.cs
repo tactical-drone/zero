@@ -172,7 +172,7 @@ namespace zero.core.network.ip
                 if (!connected)
                 {
                     var errMsg = $"{Description}: {nameof(ConnectAsync)} to {remoteAddress.Key} [FAILED]";
-                    await ioNetClient!.Zero(this, errMsg);
+                    await ioNetClient!.Zero(this, errMsg).FastPath();
 
                     if (!Zeroed())
                         _logger.Error(errMsg);
@@ -207,7 +207,7 @@ namespace zero.core.network.ip
         /// </summary>
         public override async ValueTask ZeroManagedAsync()
         {
-            await base.ZeroManagedAsync();
+            await base.ZeroManagedAsync().FastPath();
             _connectionAttempts.Clear();
         }
 

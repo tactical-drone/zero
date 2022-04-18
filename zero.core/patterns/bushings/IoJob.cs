@@ -43,7 +43,7 @@ namespace zero.core.patterns.bushings
             Source = source;
             _jobDesc = desc;
 #if DEBUG
-            StateTransitionHistory = new IoQueue<IoStateTransition<IoJobMeta.JobState>>($"{nameof(StateTransitionHistory)}: {desc}", 64, concurrencyLevel, autoScale: true);
+            StateTransitionHistory = new IoQueue<IoStateTransition<IoJobMeta.JobState>>($"{nameof(StateTransitionHistory)}: {desc}", 64, concurrencyLevel, IoQueue<IoStateTransition<IoJobMeta.JobState>>.Mode.DynamicSize);
             _stateHeap = new($"{nameof(_stateHeap)}: {desc}", (Enum.GetNames(typeof(IoJobMeta.JobState)).Length * 2), static (_, _) => new IoStateTransition<IoJobMeta.JobState>() { FinalState = IoJobMeta.JobState.Halted })
             {
                 PopAction = (nextState, context) =>
@@ -150,9 +150,9 @@ namespace zero.core.patterns.bushings
                 {
                     @this._stateHeap.Return(s);
                     return default;
-                }, this);
+                }, this).FastPath();
 
-                await StateTransitionHistory.ClearAsync();
+                await StateTransitionHistory.ClearAsync().FastPath();
 #else
                 _stateMeta.Set((int)IoJobMeta.JobState.Undefined);
 #endif
@@ -210,7 +210,7 @@ namespace zero.core.patterns.bushings
         /// </summary>
         public override async ValueTask ZeroManagedAsync()
         {
-            await base.ZeroManagedAsync();
+            await base.ZeroManagedAsync().FastPath();
 
 #if DEBUG
             if (_stateMeta != null)
@@ -220,7 +220,7 @@ namespace zero.core.patterns.bushings
             {
                 @this._stateHeap.Return(s);
                 return default;
-            }, this, zero:true);
+            }, this, zero:true).FastPath();
 
 
             await _stateHeap.ZeroManagedAsync((ioHeapItem, _) =>
@@ -230,7 +230,7 @@ namespace zero.core.patterns.bushings
             }, this);
 #endif
             if (PreviousJob != null)
-                await PreviousJob.Zero(this, $"{nameof(IoJob<TJob>)}: teardown");
+                await PreviousJob.Zero(this, $"{nameof(IoJob<TJob>)}: teardown").FastPath();
         }
 
         /// <summary>
