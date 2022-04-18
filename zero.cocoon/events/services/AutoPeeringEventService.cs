@@ -17,7 +17,7 @@ namespace zero.cocoon.events.services
             _logger = logger;
         }
 
-        private const int EventBatchSize = 1000;
+        private const int EventBatchSize = 10000;
         private const int TotalBatches = 200;
         private readonly ILogger<AutoPeeringEventService> _logger;
         public static IoZeroQ<AutoPeerEvent>[] QueuedEvents =

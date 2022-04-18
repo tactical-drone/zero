@@ -1,12 +1,10 @@
 ﻿using System;
 using System.ComponentModel;
-using System.Diagnostics;
 using System.Net;
 using System.Net.Sockets;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Threading.Tasks;
-using System.Threading.Tasks.Sources;
 using NLog;
 using zero.core.misc;
 using zero.core.patterns.heap;
@@ -38,6 +36,7 @@ namespace zero.core.network.ip
         /// <param name="nativeSocket">The listening address</param>
         /// <param name="remoteEndPoint">The remote endpoint</param>
         /// <param name="concurrencyLevel"></param>
+        /// <param name="clone">Operator overloaded, parm not used</param>
         public IoUdpSocket(Socket nativeSocket, IPEndPoint remoteEndPoint, int concurrencyLevel, bool clone) : base(nativeSocket, remoteEndPoint, concurrencyLevel)
         {
             try
@@ -282,7 +281,7 @@ namespace zero.core.network.ip
         /// <param name="remoteAddress">The remote to connect to</param>
         /// <param name="timeout">A timeout</param>
         /// <returns>True on success, false otherwise</returns>
-        public override async ValueTask<bool> ConnectAsync(IoNodeAddress remoteAddress, int timeout)
+        public override async ValueTask<bool> ConnectAsync(IoNodeAddress remoteAddress, int timeout = 0)
         {
             if (!await base.ConnectAsync(remoteAddress, timeout).FastPath())
                 return false;
@@ -402,13 +401,13 @@ namespace zero.core.network.ip
                     throw new OutOfMemoryException(nameof(_sendArgs));
 
                 var buf = Unsafe.As<ReadOnlyMemory<byte>, Memory<byte>>(ref buffer).Slice(offset, length);
-                var taskCore = new IoManualResetValueTaskSource<bool>();
+                IIoManualResetValueTaskSourceCore<bool> taskCore = new IoManualResetValueTaskSourceCore<bool>();
+                var sent = new ValueTask<bool>(taskCore, 0);
 
                 args.UserToken = taskCore;
                 args.SetBuffer(buf);
                 args.RemoteEndPoint = endPoint;
 
-                var sent = new ValueTask<bool>(taskCore, 0);
                 //receive
                 if (NativeSocket.SendToAsync(args) && !await sent.FastPath())
                     return 0;
@@ -454,8 +453,9 @@ namespace zero.core.network.ip
         {
             try
             {
-                var tcs = (IoManualResetValueTaskSource<bool>)eventArgs.UserToken;
+                var tcs = (IIoManualResetValueTaskSourceCore<bool>)eventArgs.UserToken;
                 tcs.SetResult(!Zeroed() && eventArgs.SocketError == SocketError.Success);
+                
             }
             catch(Exception) when(Zeroed()){}
             catch(Exception e) when (!Zeroed())
@@ -480,8 +480,7 @@ namespace zero.core.network.ip
         /// <param name="remoteEp"></param>
         /// <param name="timeout">Timeout after ms</param>
         /// <returns></returns>
-        public override async ValueTask<int> ReadAsync(Memory<byte> buffer, int offset, int length, byte[] remoteEp,
-            int timeout = 0)
+        public override async ValueTask<int> ReadAsync(Memory<byte> buffer, int offset, int length, byte[] remoteEp, int timeout = 0)
         {
             try
             {
@@ -501,22 +500,37 @@ namespace zero.core.network.ip
 
                         if (args == null)
                             throw new OutOfMemoryException(nameof(_recvArgs));
-                        var recvSource = new IoManualResetValueTaskSource<bool>();
-                        
-                        var receiveAsync = new ValueTask<bool>(recvSource, 0);
-                        IValueTaskSource<bool> recvSourceRef = recvSource;
 
-                        static void SetRef(ref IValueTaskSource<bool> s, SocketAsyncEventArgs a)
-                        {
-                            a.UserToken = s;
-                        }
-                        //args.UserToken = recvSource;
-                        SetRef(ref recvSourceRef, args);
+                        IIoManualResetValueTaskSourceCore<bool> taskCore = new IoManualResetValueTaskSourceCore<bool>();
+                        var receive = new ValueTask<bool>(taskCore, 0);
+
+                        //static void SetRef(ref IValueTaskSource<bool> s, SocketAsyncEventArgs a)
+                        //{
+                        //    a.UserToken = s;
+                        //}
+                        //SetRef(ref taskCore, args);
+
+                        args.UserToken = taskCore;
                         args.SetBuffer(buffer.Slice(offset, length));
-                        
-                        if (NativeSocket.ReceiveFromAsync(args) && !await receiveAsync.FastPath())
+
+                        try
                         {
-                            return 0;
+                            if (NativeSocket.ReceiveFromAsync(args) && !await receive.FastPath())
+                            {
+                                return 0;
+                            }
+                        }
+                        catch (Exception e)
+                        {
+                            Console.WriteLine(e);
+                            try
+                            {
+                                await receive.FastPath();
+                            }
+                            catch (Exception exception)
+                            {
+                                Console.WriteLine(exception);
+                            }
                         }
 
                         args.RemoteEndPoint.AsBytes(remoteEp);
@@ -575,41 +589,13 @@ namespace zero.core.network.ip
                 _logger?.Error(e, errMsg);
                 await Zero(this, errMsg).FastPath();
             }
-            finally
-            {
-                //_rcvSync.Release();
-            }
+            //finally
+            //{
+            //    //_rcvSync.Release();
+            //}
 
             return 0;
         }
-
-
-        /// <summary>
-        /// Receive callback
-        /// </summary>
-        /// <param name="ar">async result</param>
-        private void RecvCallback(IAsyncResult ar)
-        {
-            try
-            {
-                var tcs = (IoZeroResetValueTaskSource<ValueTuple<int, EndPoint>>)ar.AsyncState;
-                EndPoint ep = new IPEndPoint(IPAddress.Any, 0);
-                tcs.SetResult((NativeSocket.EndReceiveFrom(ar, ref ep), ep));
-            }
-            catch (Exception) when (Zeroed()) { }
-            catch (Exception e) when (!Zeroed())
-            {
-                try
-                {
-                    _logger?.Fatal(e, $"{Description}: udp signal callback failed!");
-                }
-                catch
-                {
-                    // ignored
-                }
-            }
-        }
-
 
         /// <inheritdoc />
         /// <summary>

@@ -97,10 +97,10 @@ namespace zero.core.network.ip
                 try
                 {
                     //ZERO control passed to connection handler
-                    var taskCore = new IoManualResetValueTaskSource<Socket>();
+                    IIoManualResetValueTaskSourceCore<Socket> taskCore = new IoManualResetValueTaskSourceCore<Socket>();
                     NativeSocket.BeginAccept(static result =>
                     {
-                        var (socket, taskCore) = (ValueTuple<Socket, IoManualResetValueTaskSource<Socket>>)result.AsyncState;
+                        var (socket, taskCore) = (ValueTuple<Socket, IIoManualResetValueTaskSourceCore<Socket>>)result.AsyncState;
                         try
                         {
                             taskCore.SetResult(socket.EndAccept(result));
@@ -115,7 +115,7 @@ namespace zero.core.network.ip
 
                     Socket socket;
                     IoTcpSocket newSocket;
-                    var connected = new ValueTask<Socket>(taskCore, (short)taskCore.Version);
+                    var connected = new ValueTask<Socket>(taskCore, 0);
 
                     if ((socket = await connected.FastPath()) != null)
                     {
@@ -191,10 +191,10 @@ namespace zero.core.network.ip
                 NativeSocket.Blocking = false;
                 NativeSocket.SendTimeout = timeout;
                 NativeSocket.ReceiveTimeout = timeout;
-                var taskCore = new IoManualResetValueTaskSource<bool>();
+                IIoManualResetValueTaskSourceCore<bool> taskCore = new IoManualResetValueTaskSourceCore<bool>();
                 var connectAsync = NativeSocket.BeginConnect(remoteAddress.IpEndPoint, static result =>
                 {
-                    var (socket, taskCore) = (ValueTuple<Socket, IoManualResetValueTaskSource<bool>>)result.AsyncState;
+                    var (socket, taskCore) = (ValueTuple<Socket, IIoManualResetValueTaskSourceCore<bool>>)result.AsyncState;
                     try
                     {
                         socket.EndConnect(result);
@@ -203,7 +203,7 @@ namespace zero.core.network.ip
                     catch (Exception e)
                     {
                         LogManager.GetCurrentClassLogger().Trace(e, $"{nameof(NativeSocket.BeginConnect)}");
-                        if (taskCore.GetStatus((short)taskCore.Version) == ValueTaskSourceStatus.Pending)
+                        if (taskCore.GetStatus(0) == ValueTaskSourceStatus.Pending)
                             taskCore.SetResult(false);
                     }
                 }, (NativeSocket, taskCore));
@@ -232,10 +232,10 @@ namespace zero.core.network.ip
                         {
                             // ignored
                         }
-                    }, ValueTuple.Create(this, taskCore, connectAsync, timeout), TaskCreationOptions.DenyChildAttach).FastPath();
+                    }, (this, taskCore, connectAsync, timeout), TaskCreationOptions.DenyChildAttach).FastPath();
                 }
 
-                var connected = new ValueTask<bool>(taskCore, (short)taskCore.Version);
+                var connected = new ValueTask<bool>(taskCore, 0);
                 if (!await connected.FastPath())
                 {
                     try
