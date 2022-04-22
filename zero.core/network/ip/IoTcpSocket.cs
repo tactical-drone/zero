@@ -165,14 +165,6 @@ namespace zero.core.network.ip
         private int WSAEWOULDBLOCK = 10035;
 #endif
 
-    
-        protected override void ConfigureSocket()
-        {
-            base.ConfigureSocket();
-
-            NativeSocket.Blocking = true;
-        }
-
         /// <summary>
         /// Connect to a remote endpoint
         /// </summary>

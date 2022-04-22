@@ -221,21 +221,19 @@ namespace zero.core.network.ip
             T context,
             Func<ValueTask> bootstrapAsync = null)
         {
-            //base
-            await base.BlockOnListenAsync(listeningAddress, acceptConnectionHandler, context,bootstrapAsync).FastPath();
-
-            //set some socket options
-            //NativeSocket.SetSocketOption(SocketOptionLevel.IP, SocketOptionName.PacketInformation, true);
 
             //TODO sec
             NativeSocket.IOControl(
-                (IOControlCode) SIO_UDP_CONNRESET,
-                new byte[] {0, 0, 0, 0},
+                (IOControlCode)SIO_UDP_CONNRESET,
+                new byte[] { 0, 0, 0, 0 },
                 null
             );
 
             //configure the socket
             ConfigureSocket();
+
+            //base
+            await base.BlockOnListenAsync(listeningAddress, acceptConnectionHandler, context,bootstrapAsync).FastPath();
 
             //Init connection tracking
             try
@@ -630,33 +628,10 @@ namespace zero.core.network.ip
         protected override void ConfigureSocket()
         {
             if (NativeSocket.IsBound || NativeSocket.Connected)
-            {
-                return;
-            }
+                throw new InvalidOperationException();
 
-            NativeSocket.DontFragment = true;
-
-            // Don't allow another socket to bind to this port.
-            NativeSocket.ExclusiveAddressUse = true;
-
-            // Set the receive buffer size to 32k
-            NativeSocket.ReceiveBufferSize = 8192 * 8;
-
-            // Set the timeout for synchronous receive methods to
-            // 1 second (1000 milliseconds.)
-            NativeSocket.ReceiveTimeout = 1000;
-
-            // Set the send buffer size to 32k.
-            NativeSocket.SendBufferSize = 8192 * 8;
-
-            // Set the timeout for synchronous send methods
-            // to 1 second (1000 milliseconds.)
-            NativeSocket.SendTimeout = 1000;
-
-            // Set the Time To Live (TTL) to 42 router hops.
-            NativeSocket.Ttl = 64;
-
-            
+            //set some socket options
+            //NativeSocket.SetSocketOption(SocketOptionLevel.IP, SocketOptionName.PacketInformation, true);
         }
     }
 }

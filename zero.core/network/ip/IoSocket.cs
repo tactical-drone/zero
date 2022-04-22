@@ -329,7 +329,7 @@ namespace zero.core.network.ip
                     try
                     {
                         NativeSocket.Shutdown(SocketShutdown.Both);
-                        NativeSocket.Disconnect(true);
+                        NativeSocket.Disconnect(false);
                     }
                     catch
                     {

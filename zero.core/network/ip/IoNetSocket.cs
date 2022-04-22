@@ -59,6 +59,8 @@ namespace zero.core.network.ip
                 return;
             }
 
+            NativeSocket.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.DontLinger, true);
+
             NativeSocket.DontFragment = true;
 
             NativeSocket.Blocking = true;
@@ -73,11 +75,11 @@ namespace zero.core.network.ip
             // Disable the Nagle Algorithm for this tcp socket.
             NativeSocket.NoDelay = true;
 
-            // Set the receive buffer size to 64k
-            NativeSocket.ReceiveBufferSize = 4096;
+            // Set the receive buffer size to MTU times
+            NativeSocket.ReceiveBufferSize = 1492 * ZeroConcurrencyLevel() * 2;
 
-            // Set the send buffer size to 64k.
-            NativeSocket.SendBufferSize = 4096;
+            // Set the send buffer size to MTU times
+            NativeSocket.SendBufferSize = 1492 * ZeroConcurrencyLevel() * 2;
 
             // Set the timeout for synchronous receive methods to
             // 1 second (1000 milliseconds.)
