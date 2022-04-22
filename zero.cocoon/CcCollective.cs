@@ -419,7 +419,7 @@ namespace zero.cocoon
 #if DEBUG
         public int parm_mean_pat_delay_s = 60 * 3;
 #else
-        public int parm_mean_pat_delay_s = 60 * 10;
+        public int parm_mean_pat_delay_s = 60 * 30;
 #endif
 
         /// <summary>

@@ -799,11 +799,11 @@ namespace zero.cocoon.autopeer
                     await ZeroAsync(RoboAsync, this, TaskCreationOptions.LongRunning).FastPath();
                     await AsyncTasks.Token.BlockOnNotCanceledAsync().FastPath();
                 }
-                //else
-                //{
-                //    await ZeroAsync(RoboAsync, this, TaskCreationOptions.LongRunning);
-                //    await AsyncTasks.Token.BlockOnNotCanceledAsync();
-                //}
+                else
+                {
+                    //await ZeroAsync(RoboAsync, this, TaskCreationOptions.LongRunning);
+                    await AsyncTasks.Token.BlockOnNotCanceledAsync();
+                }
             }
             catch when(Zeroed()){}
             catch(Exception e)when (!Zeroed())
@@ -2946,9 +2946,7 @@ namespace zero.cocoon.autopeer
             }
         }
 
-#if DEBUG
-        [MethodImpl(MethodImplOptions.Synchronized)]
-#endif
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public AdjunctState CompareAndEnterState(AdjunctState state, AdjunctState cmp, bool compare = true, int overrideHung = 0)
         {
             var oldValue = _currState.Value;
