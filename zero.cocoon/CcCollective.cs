@@ -180,7 +180,7 @@ namespace zero.cocoon
                         await Task.Delay(@this._random.Next(@this.parm_mean_pat_delay_s * 1000) + @this.parm_mean_pat_delay_s * 1000 / 2, @this.AsyncTasks.Token);
                     }
 
-                    if (@this.EgressCount < @this.parm_max_outbound) 
+                    if (@this.TotalConnections < @this.MaxDrones) 
                         await @this.DeepScanAsync(force).FastPath();
                 }
                 catch when(@this.Zeroed()){}
@@ -1072,6 +1072,8 @@ namespace zero.cocoon
             return false;
         }
 
+        private const int ScanSets = 3;
+        private volatile int _scanSet = 0;
         /// <summary>
         /// Bootstrap node
         /// </summary>
@@ -1104,8 +1106,9 @@ namespace zero.cocoon
                     await Task.Delay(((CcAdjunct)vector).parm_max_network_latency_ms>>1, AsyncTasks.Token);
                 }
 
-                if(foundVector)
+                if(foundVector && Interlocked.Decrement(ref _scanSet) > 0)
                     return;
+                _scanSet = ScanSets;
 
                 _logger.Trace($"Bootstrapping {Description} from {BootstrapAddress.Count} bootnodes...");
                 if (BootstrapAddress != null)

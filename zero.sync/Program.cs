@@ -1191,7 +1191,7 @@ namespace zero.sync
         private static async ValueTask ZeroAsync(int total)
         {
             _running = false;
-            await AutoPeeringEventService.ClearAsync();
+            await AutoPeeringEventService.ClearAsync().FastPath();
             Console.WriteLine("#");
             SemaphoreSlim s = new (10);
             int zeroed = 0;
