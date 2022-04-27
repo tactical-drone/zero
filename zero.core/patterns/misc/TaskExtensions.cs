@@ -3,6 +3,8 @@ using System.Collections.Generic;
 using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Threading.Tasks.Sources;
+using zero.core.patterns.semaphore.core;
 
 namespace zero.core.patterns.misc
 {
@@ -95,11 +97,15 @@ namespace zero.core.patterns.misc
         /// <returns>A ValueTask</returns>
         public static async ValueTask BlockOnNotCanceledAsync(this CancellationToken token)
         {
-            while (token.CanBeCanceled && !token.IsCancellationRequested)
+            IIoManualResetValueTaskSourceCore<bool> source = new IoManualResetValueTaskSourceCore<bool>();
+            var reg = token.Register(static s =>
             {
-                await Task.Delay(120000, token);
-            }
-                
+                ((IoManualResetValueTaskSourceCore<bool>)s).Set(true);
+            }, source);
+
+            var waitForCancellation = new ValueTask<bool>(source, 0);
+            await waitForCancellation.FastPath();
+            await reg.DisposeAsync().FastPath();
         }        
     }    
 }

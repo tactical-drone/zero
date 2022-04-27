@@ -797,11 +797,10 @@ namespace zero.cocoon.autopeer
 
                     //Watchdogs
                     await ZeroAsync(RoboAsync, this, TaskCreationOptions.LongRunning).FastPath();
-                    await AsyncTasks.Token.BlockOnNotCanceledAsync().FastPath();
+                    await AsyncTasks.Token.BlockOnNotCanceledAsync();
                 }
                 else
                 {
-                    //await ZeroAsync(RoboAsync, this, TaskCreationOptions.LongRunning);
                     await AsyncTasks.Token.BlockOnNotCanceledAsync();
                 }
             }

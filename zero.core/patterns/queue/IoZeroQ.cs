@@ -281,11 +281,11 @@ namespace zero.core.patterns.queue
                 {
                     if (race)
                     {
-                        if ((slot = CompareExchange(tail, null, item)) != item)
+                        if ((slot = CompareExchange(tail, null, item)) != item && !Zeroed)
                         {
                             LogManager.GetCurrentClassLogger()
                                 .Fatal(
-                                    $"{nameof(TryEnqueue)}: Unable to restore lock at tail = {tail}, too {slot}, cur = {this[tail]}");
+                                    $"{nameof(TryEnqueue)}: Unable to restore lock at tail = {tail} != {Tail}, slot = `{slot}', cur = `{this[tail]}'");
                         }
                     }
 #if DEBUG
