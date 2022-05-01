@@ -13,6 +13,8 @@ namespace zero.core.patterns.semaphore.core
     [StructLayout(LayoutKind.Auto)]
     public struct IoManualResetValueTaskSourceCore<TResult>: IIoManualResetValueTaskSourceCore<TResult>
     {
+        private static readonly InvalidOperationException _invalidOperationException = new();
+
         /// <summary>
         /// The callback to invoke when the operation completes if <see cref="OnCompleted"/> was called before the operation completed,
         /// or <see cref="ManualResetValueTaskSourceCoreShared.SSentinel"/> if the operation completed before a callback was supplied,
@@ -90,7 +92,7 @@ namespace zero.core.patterns.semaphore.core
         public void SetResult(TResult result)
         {
             if (_completed)
-                throw new InvalidOperationException();
+                throw _invalidOperationException;
 
             _result = result;
             SignalCompletion();
@@ -136,7 +138,7 @@ namespace zero.core.patterns.semaphore.core
 #endif
             if (!_completed)
             {
-                throw new InvalidOperationException();
+                throw _invalidOperationException;
             }
 
             _error?.Throw();
@@ -211,7 +213,7 @@ namespace zero.core.patterns.semaphore.core
                     if (!ReferenceEquals(oldContinuation, ManualResetValueTaskSourceCoreShared.SSentinel))
                     {
                         //Console.WriteLine($"{oldContinuation}, {continuation}, {state}");
-                        throw new InvalidOperationException();
+                        throw _invalidOperationException;
                     }
 
                     switch (_capturedContext)
@@ -249,7 +251,7 @@ namespace zero.core.patterns.semaphore.core
         {
             if (token != _version)
             {
-                throw new InvalidOperationException();
+                throw _invalidOperationException;
             }
         }
 #endif
@@ -260,7 +262,7 @@ namespace zero.core.patterns.semaphore.core
         {
             if (_completed)
             {
-                throw new InvalidOperationException();
+                throw _invalidOperationException;
             }
             _completed = true;
 
@@ -321,7 +323,7 @@ namespace zero.core.patterns.semaphore.core
         internal static readonly Action<object> SSentinel = CompletionSentinel;
         private static void CompletionSentinel(object _) // named method to aid debugging
         {
-            throw new InvalidOperationException();
+            throw new InvalidOperationException($"{nameof(CompletionSentinel)} executed!");
         }
     }
 }
