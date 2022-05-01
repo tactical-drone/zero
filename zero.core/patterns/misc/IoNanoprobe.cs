@@ -277,7 +277,7 @@ namespace zero.core.patterns.misc
                 foreach (var ioZNode in _zeroHiveMind)
                 {
                     if (!ioZNode.Value.Zeroed())
-                        await ioZNode.Value.ZeroPrimeAsync().FastPath();
+                        await ioZNode.Value.ZeroPrimeAsync().FastPath().ConfigureAwait(false);
                 }
             }
         }
@@ -410,11 +410,11 @@ namespace zero.core.patterns.misc
                 if (_zeroHive != null)
                 {
                     IoZeroSub zeroSub;
-                    while((zeroSub = await _zeroHive.DequeueAsync().FastPath()) != null)
+                    while((zeroSub = await _zeroHive.DequeueAsync().FastPath().ConfigureAwait(false)) != null)
                     {
                         if(zeroSub.Executed) continue;
                         
-                        if (!await zeroSub.ExecuteAsync(this).FastPath())
+                        if (!await zeroSub.ExecuteAsync(this).FastPath().ConfigureAwait(false))
                             _logger.Trace($"{zeroSub.From} - zero sub {((IIoNanite)zeroSub.Target)?.Description} on {Description} returned with errors!");
                     }
                 }
@@ -422,10 +422,10 @@ namespace zero.core.patterns.misc
                 if (_zeroHiveMind != null)
                 {
                     IIoNanite zeroSub;
-                    while ((zeroSub = await _zeroHiveMind.DequeueAsync().FastPath()) != null)
+                    while ((zeroSub = await _zeroHiveMind.DequeueAsync().FastPath().ConfigureAwait(false)) != null)
                     {
                         if (zeroSub.Zeroed()) continue;
-                        await zeroSub.Zero(this, $"[ZERO CASCADE] from {desc}").FastPath();
+                        await zeroSub.Zero(this, $"[ZERO CASCADE] from {desc}").FastPath().ConfigureAwait(false);
                     }
                 }
                 
@@ -434,7 +434,7 @@ namespace zero.core.patterns.misc
 
                 try
                 {
-                    await ZeroManagedAsync().FastPath();
+                    await ZeroManagedAsync().FastPath().ConfigureAwait(false);
                 }
 #if DEBUG
                 catch (Exception e) when(!Zeroed())

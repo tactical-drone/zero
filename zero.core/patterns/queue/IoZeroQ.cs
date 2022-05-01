@@ -321,7 +321,7 @@ namespace zero.core.patterns.queue
                 if (_blockingCollection && _blockingConsumers > 0)
                     _blockSync.Release(_blockingConsumers, bestCase: Head != Tail);
 
-                _curEnumerator.IncIteratorCount(); //TODO: is this a good idea?
+                //_curEnumerator.IncIteratorCount(); //TODO: is this a good idea?
 
                 return tail;
             }
@@ -516,9 +516,9 @@ namespace zero.core.patterns.queue
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public IEnumerator<T> GetEnumerator()
         {
-            _curEnumerator = (IoQEnumerator<T>)_curEnumerator.Reuse(this, b => new IoQEnumerator<T>((IoZeroQ<T>)b));
-            return _curEnumerator;
-            //return _curEnumerator = new IoQEnumerator<T>(this);
+            //_curEnumerator = (IoQEnumerator<T>)_curEnumerator.Reuse(this, b => new IoQEnumerator<T>((IoZeroQ<T>)b));
+            //return _curEnumerator;
+            return _curEnumerator = new IoQEnumerator<T>(this);
         }
 
         /// <summary>

@@ -285,8 +285,8 @@ namespace zero.core.patterns.semaphore.core
                 {
                     try
                     {
-                        _signalAwaiter[i] = null;
                         ZeroComply(waiter, _signalAwaiterState[i], _signalExecutionState[i], _signalCapturedContext[i], true, true);
+                        _signalAwaiter[i] = null;
                     }
                     catch
                     {
@@ -615,33 +615,23 @@ namespace zero.core.patterns.semaphore.core
                         if (Interlocked.Increment(ref _curAsyncWorkerCount) <= _maxAsyncWorkers)
                         {
                             _ = Task.Factory.StartNew(callback, state, CancellationToken.None, 
-                                TaskCreationOptions.DenyChildAttach, TaskScheduler.Default)
+                                TaskCreationOptions.DenyChildAttach, TaskScheduler.Current)
                                 .ContinueWith(static (_, zeroRef) => { ((IIoZeroSemaphore)zeroRef).ZeroDecAsyncCount(); }, _zeroRef);
                             break;
                         }
 
                         Interlocked.Decrement(ref _curAsyncWorkerCount);
-                        //race condition
-                        try
-                        {
-                            callback(state);
-                        }
-                        catch (Exception e)
-                        {
-                            LogManager.GetCurrentClassLogger().Error(e, "InvokeContinuation.callback(): ");
-                        }
                     }
-                    else
+                    
+                    try
                     {
-                        try
-                        {
-                            callback(state);
-                        }
-                        catch (Exception e)
-                        {
-                            LogManager.GetCurrentClassLogger().Error(e, "InvokeContinuation.callback(): ");
-                        }
+                        callback(state);
                     }
+                    catch (Exception e)
+                    {
+                        LogManager.GetCurrentClassLogger().Error(e, $"InvokeContinuation.callback(): {state}");
+                    }
+                    
                     break;
                 case SynchronizationContext sc:
                     sc.Post(static s =>
@@ -653,7 +643,7 @@ namespace zero.core.patterns.semaphore.core
                         }
                         catch (Exception e)
                         {
-                            LogManager.GetCurrentClassLogger().Error(e, "InvokeContinuation.callback(): ");
+                            LogManager.GetCurrentClassLogger().Error(e, $"InvokeContinuation.callback(): {tuple.Item2} ");
                         }
                     }, (callback, state));
                     break;
@@ -754,6 +744,7 @@ namespace zero.core.patterns.semaphore.core
         /// Allow waiter(s) to enter the semaphore
         /// </summary>
         /// <param name="releaseCount">The number of waiters to enter</param>
+        /// <param name="bestCase">non blocking if true</param>
         /// <returns>The number of waiters released, -1 on failure</returns>
         /// <exception cref="SemaphoreFullException">Fails when maximum waiters reached</exception>
         public int Release(int releaseCount = 1, bool bestCase = false)

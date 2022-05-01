@@ -25,11 +25,7 @@ namespace zero.core.patterns.queue.enumerator
             try
             {
                 if (Disposed == 0 || Interlocked.CompareExchange(ref Disposed, 0, 1) != 1)
-                {
-                    Interlocked.Exchange(ref Disposed, 0);
                     return make(container);
-                }
-                    
 
                 Collection = container;
                 return this;

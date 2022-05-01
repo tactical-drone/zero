@@ -319,29 +319,24 @@ namespace zero.core.patterns.bushings
         /// <summary>
         /// Produce
         /// </summary>
-        /// <param name="enablePrefetchOption">if set to <c>true</c> block on consumer congestion</param>
         /// <returns></returns>
-        public async ValueTask<bool> ProduceAsync(bool enablePrefetchOption = true) 
+        public async ValueTask<bool> ProduceAsync() 
         {
             IoSink<TJob> nextJob = null;
             try
             {
-                //And the consumer is keeping up, which it should
                 try
                 {
-                    nextJob = await JobHeap.TakeAsync(null, this).FastPath();
-                        
                     //Allocate a job from the heap
+                    nextJob = await JobHeap.TakeAsync(null, this).FastPath();
+                    
                     if (nextJob != null)
                     {
                         nextJob.State = IoJobMeta.JobState.Producing;
 
                         //wait for prefetch pressure
-                        if (enablePrefetchOption)
-                        {
-                            if (!await nextJob.Source.WaitForPrefetchPressureAsync().FastPath())
-                                return false;
-                        }
+                        if (!await nextJob.Source.WaitForPrefetchPressureAsync().FastPath())
+                            return false;
 #if DEBUG
                         //sanity check _previousJobFragment
                         if (ZeroRecoveryEnabled &&
@@ -718,6 +713,7 @@ namespace zero.core.patterns.bushings
                 {
                     var width = @this.Source.PrefetchSize;
                     var preload = new ValueTask<bool>[width];
+
                     //While supposed to be working
                     while (!@this.Zeroed())
                     {
@@ -757,7 +753,7 @@ namespace zero.core.patterns.bushings
                 {
                     @this._logger.Error(e, $"Production failed! {@this.Description}");
                 }
-            },this, TaskCreationOptions.LongRunning); //TODO tuning
+            },this, TaskCreationOptions.DenyChildAttach); //TODO tuning
 
             //Consumer
             _consumerTask = ZeroOptionAsync(static async @this =>
@@ -765,7 +761,6 @@ namespace zero.core.patterns.bushings
                 try
                 {
                     var width = @this.Source.ZeroConcurrencyLevel();
-                    //var width = @this.Source.PrefetchSize;
                     var trigger = Math.Max(@this.Source.PrefetchSize, 1);
                     var preload = new ValueTask<bool>[width];
                     var processed = 0;
@@ -824,7 +819,7 @@ namespace zero.core.patterns.bushings
                 {
                     @this._logger.Error(e, $"Consumption failed! {@this.Description}");
                 }
-            }, this, TaskCreationOptions.LongRunning | TaskCreationOptions.PreferFairness); //TODO tuning
+            }, this, TaskCreationOptions.DenyChildAttach); //TODO tuning
 
             //Wait for tear down                
             await Task.WhenAll(_producerTask.AsTask(), _consumerTask.AsTask());

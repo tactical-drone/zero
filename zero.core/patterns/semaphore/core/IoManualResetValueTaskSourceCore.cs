@@ -218,7 +218,7 @@ namespace zero.core.patterns.semaphore.core
                     {
                         case null:
                         {
-                            Task.Factory.StartNew(continuation, state, CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Default);
+                            Task.Factory.StartNew(continuation, state, CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Current);
                             break;
                         }
                         case SynchronizationContext sc:
@@ -293,7 +293,7 @@ namespace zero.core.patterns.semaphore.core
                 case null:
                     if (RunContinuationsAsynchronously)
                     {
-                        Task.Factory.StartNew(_continuation, _continuationState, CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Default);
+                        Task.Factory.StartNew(_continuation, _continuationState, CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Current);
                     }
                     else
                     {

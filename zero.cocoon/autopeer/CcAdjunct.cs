@@ -786,17 +786,17 @@ namespace zero.cocoon.autopeer
                     await ZeroAsync(static async @this =>
                     {
                         await @this.ProcessDiscoveriesAsync().FastPath();
-                    }, this, TaskCreationOptions.LongRunning | TaskCreationOptions.DenyChildAttach).FastPath();
+                    }, this, TaskCreationOptions.DenyChildAttach).FastPath();
 
                     ////UDP traffic
                     await ZeroAsync(static async state =>
                     {
                         var (@this, assimilateAsync) = state;
                         await assimilateAsync().FastPath();
-                    }, ValueTuple.Create<CcAdjunct, Func<ValueTask>>(this, base.BlockOnReplicateAsync), TaskCreationOptions.LongRunning).FastPath();
+                    }, ValueTuple.Create<CcAdjunct, Func<ValueTask>>(this, base.BlockOnReplicateAsync), TaskCreationOptions.DenyChildAttach).FastPath();
 
                     //Watchdogs
-                    await ZeroAsync(RoboAsync, this, TaskCreationOptions.LongRunning).FastPath();
+                    await ZeroAsync(RoboAsync, this, TaskCreationOptions.DenyChildAttach).FastPath();
                     await AsyncTasks.Token.BlockOnNotCanceledAsync();
                 }
                 else
@@ -1174,7 +1174,7 @@ namespace zero.cocoon.autopeer
                             @this._logger?.Error(e, $"{@this.Description}");
                         }
                     
-                    },this, TaskCreationOptions.LongRunning | TaskCreationOptions.PreferFairness);
+                    },this, TaskCreationOptions.DenyChildAttach);
 
                     consumer = ZeroOptionAsync(static async @this  =>
                     {
@@ -1321,7 +1321,7 @@ namespace zero.cocoon.autopeer
                         {
                             @this._logger?.Error(e, $"{@this.Description}");
                         }
-                    }, this, TaskCreationOptions.LongRunning | TaskCreationOptions.PreferFairness);
+                    }, this, TaskCreationOptions.DenyChildAttach);
                     await Task.WhenAll(producer.AsTask(), consumer.AsTask());
                 }
                 while (!Zeroed());

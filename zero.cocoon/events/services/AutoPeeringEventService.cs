@@ -107,7 +107,11 @@ namespace zero.cocoon.events.services
                 }
                 else
                 {
-                    Console.WriteLine("'");
+                    LogManager.GetCurrentClassLogger().Fatal($"Shutting down event stream, buffers are not being drained by the visualization player!");
+                    LogManager.GetCurrentClassLogger().Fatal($"Shutting down event stream, buffers are not being drained by the visualization player!");
+                    LogManager.GetCurrentClassLogger().Fatal($"Shutting down event stream, buffers are not being drained by the visualization player!");
+                    _operational = 0;
+                    _ = Task.Run(ClearAsync);
                 }
             }
             catch

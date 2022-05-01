@@ -25,16 +25,19 @@ namespace zero.core.runtime.scheduler
         public static bool Enabled = true;
         static IoZeroScheduler()
         {
-            Zero = new IoZeroScheduler();
+            Zero = new IoZeroScheduler(Default);
             ZeroDefault = Zero;
             //ZeroDefault = Default; //TODO: Uncomment to enable native .net scheduler...
         }
-        public IoZeroScheduler(CancellationTokenSource asyncTasks = null)
+
+        public IoZeroScheduler(TaskScheduler fallback, CancellationTokenSource asyncTasks = null)
         {
             _ = base.Id; // force ID creation of the default scheduler
             
             if(!Enabled)
                 return;
+
+            _fallbackScheduler = fallback;
             _asyncTasks = asyncTasks?? new CancellationTokenSource();
             _workerCount = Math.Max(Environment.ProcessorCount >> 1, 2);
             _queenCount = Math.Max(Environment.ProcessorCount >> 4, 1) + 1;
@@ -104,7 +107,7 @@ namespace zero.core.runtime.scheduler
         private readonly int[] _workerPunchCards;
         private readonly int[] _queenPunchCards;
         private volatile int _dropWorker;
-        private IoZeroQ<Task> _workQueue;
+        private readonly IoZeroQ<Task> _workQueue;
         private readonly IoZeroQ<ZeroSignal> _queenQueue;
         private readonly IoHeap<ZeroSignal> _signalHeap;
         private readonly IoHeap<List<int>> _diagnosticsHeap;
@@ -114,6 +117,7 @@ namespace zero.core.runtime.scheduler
         private long _completedWorkItemCount;
         private long _completedQItemCount;
         private volatile int _lastSpawnedWorker = Environment.TickCount;
+        private readonly TaskScheduler _fallbackScheduler;
 
         public List<int> Active
         {
@@ -693,20 +697,6 @@ var d = 0;
 #if _TRACE_
             Console.WriteLine($"<--- Queueing task id = {task.Id}, {task.Status}");
 #endif
-            if (task.CreationOptions.HasFlag(TaskCreationOptions.LongRunning))
-            {
-                new Thread(state =>
-                {
-                    var (@this, t) = (ValueTuple<IoZeroScheduler, Task>)state;
-                    @this.TryExecuteTask(t);
-                })
-                {
-                    IsBackground = true,
-                    Name = ".Zero LongRunning Thread"
-                }.Start((this, task));
-                return;
-            }
-
             //queue the work for processing
             if (_workQueue.TryEnqueue(task) != -1)
             {
@@ -796,12 +786,9 @@ var d = 0;
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         protected override bool TryExecuteTaskInline(Task task, bool taskWasPreviouslyQueued)
         {
-            if (taskWasPreviouslyQueued && !Thread.CurrentThread.IsThreadPoolThread)
-                return false;
-
             return (!taskWasPreviouslyQueued) ?
                 TryExecuteTask(task) :
-                TryExecuteTaskInlineOnTargetScheduler(task);
+                TryExecuteTaskInlineOnTargetScheduler(task, _fallbackScheduler);
         }
 
         /// <summary>
@@ -809,9 +796,10 @@ var d = 0;
         /// which we can't call directly on the underlying scheduler.
         /// </summary>
         /// <param name="task">The task to execute inline if possible.</param>
+        /// <param name="target">Target scheduler</param>
         /// <returns>true if the task was inlined successfully; otherwise, false.</returns>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private bool TryExecuteTaskInlineOnTargetScheduler(Task task)
+        private bool TryExecuteTaskInlineOnTargetScheduler(Task task, TaskScheduler target)
         {
             var t = new Task<bool>(static s =>
             {
@@ -820,7 +808,8 @@ var d = 0;
             }, (this, task));
             try
             {
-                t.RunSynchronously(Default);
+                t.RunSynchronously(target);
+                Console.WriteLine("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
                 return t.Result;
             }
             catch
@@ -839,6 +828,15 @@ var d = 0;
         public void Return(List<int> value)
         {
             _diagnosticsHeap.Return(value);
+        }
+
+        public static void Dump()
+        {
+            foreach (var task in Zero._workQueue)
+            {
+                if(task != null)
+                    Console.WriteLine(task.AsyncState?.ToString());
+            }
         }
     }
 }

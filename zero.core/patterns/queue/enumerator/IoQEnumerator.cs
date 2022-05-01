@@ -1,4 +1,5 @@
-﻿using System.Runtime.CompilerServices;
+﻿using System.Net.Http.Headers;
+using System.Runtime.CompilerServices;
 using System.Threading;
 
 namespace zero.core.patterns.queue.enumerator
@@ -6,8 +7,8 @@ namespace zero.core.patterns.queue.enumerator
     public class IoQEnumerator<T>: IoEnumBase<T> where T : class
     {
         private IoZeroQ<T> ZeroQ => (IoZeroQ<T>)Collection;
-        private long _iteratorIdx = -1;
-        private long _iteratorCount;
+        private long _cur = -1;
+        //private long _iteratorCount;
 
         public IoQEnumerator(IoZeroQ<T> zeroQ):base(zeroQ)
         {
@@ -21,27 +22,16 @@ namespace zero.core.patterns.queue.enumerator
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public override bool MoveNext()
-        {
-            if (Disposed > 0 || ZeroQ.Zeroed || _iteratorCount <= 0)
-                return false;
-
-            var idx = Interlocked.Increment(ref _iteratorIdx) % ZeroQ.Capacity;
-
-            while (Interlocked.Decrement(ref _iteratorCount) > 0 && ZeroQ[(int)idx] == default)
-                idx = Interlocked.Increment(ref _iteratorIdx) % ZeroQ.Capacity;
-
-            return _iteratorCount >= 0 && ZeroQ[(int)idx] != default && Disposed == 0;
-        }
+        public override bool MoveNext() => Interlocked.Increment(ref _cur) < ZeroQ.Tail;
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public sealed override void Reset()
         {
-            Interlocked.Exchange(ref _iteratorIdx, (ZeroQ.Head - 1) % ZeroQ.Capacity);
-            Interlocked.Exchange(ref _iteratorCount, ZeroQ.Count);
+            Interlocked.Exchange(ref _cur, ZeroQ.Head - 1);
+            //Interlocked.Exchange(ref _iteratorCount, ZeroQ.Count);
         }
 
-        public override T Current => ZeroQ[(int)(_iteratorIdx % ZeroQ.Capacity)];
+        public override T Current => ZeroQ[_cur];
 
         public override void Dispose()
         {
@@ -51,10 +41,10 @@ namespace zero.core.patterns.queue.enumerator
             Collection = null;
         }
 
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public void IncIteratorCount()
-        {
-            Interlocked.Increment(ref _iteratorCount);
-        }
+        //[MethodImpl(MethodImplOptions.AggressiveInlining)]
+        //public void IncIteratorCount()
+        //{
+        //    Interlocked.Increment(ref _iteratorCount);
+        //}
     }
 }

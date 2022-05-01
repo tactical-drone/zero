@@ -521,10 +521,10 @@ namespace zero.core.patterns.queue
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public IEnumerator<IoZNode> GetEnumerator()
         {
-            _curEnumerator = (IoQueueEnumerator<T>)_curEnumerator.Reuse(this, c => new IoQueueEnumerator<T>((IoQueue<T>)c));
-            _curEnumerator.Reset();
-            return _curEnumerator;
-            //return _curEnumerator = new IoQueueEnumerator<T>(this);
+            //_curEnumerator = (IoQueueEnumerator<T>)_curEnumerator.Reuse(this, c => new IoQueueEnumerator<T>((IoQueue<T>)c));
+            //_curEnumerator.Reset();
+            //return _curEnumerator;
+            return _curEnumerator = new IoQueueEnumerator<T>(this);
         }
 
         /// <summary>

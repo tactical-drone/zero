@@ -479,6 +479,10 @@ namespace zero.sync
                         }
                     }
 
+                    if (line.StartsWith("W"))
+                    {
+                        IoZeroScheduler.Dump();
+                    }
                     if (line.StartsWith("logf"))
                     {
                         try

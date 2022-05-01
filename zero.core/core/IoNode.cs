@@ -376,7 +376,7 @@ namespace zero.core.core
 
                     if(!@this.Zeroed() && !newNeighbor.Zeroed())
                         @this._logger.Warn($"{nameof(newNeighbor.BlockOnReplicateAsync)}: [FAILED]... restarting...");
-                }, ValueTuple.Create(this, newNeighbor), TaskCreationOptions.DenyChildAttach | TaskCreationOptions.LongRunning | TaskCreationOptions.PreferFairness).AsTask()).FastPath();
+                }, ValueTuple.Create(this, newNeighbor), TaskCreationOptions.DenyChildAttach).AsTask()).FastPath();
 
                 await node.Value.ContinueWith(static async (_, state) =>
                 {
@@ -523,7 +523,7 @@ namespace zero.core.core
 
                 if (!@this.Zeroed())
                     @this._logger.Trace($"{@this.Description}: {(@this._listenerTask.IsCompletedSuccessfully ? "clean" : "dirty")} exit ({@this._listenerTask}), retries left = {retry}");
-            },(this, bootstrapFunc), TaskCreationOptions.DenyChildAttach | TaskCreationOptions.LongRunning, customScheduler??IoZeroScheduler.ZeroDefault, true).FastPath();
+            },(this, bootstrapFunc), TaskCreationOptions.DenyChildAttach, customScheduler??IoZeroScheduler.ZeroDefault, true).FastPath();
             
             _activated = 0;
         }

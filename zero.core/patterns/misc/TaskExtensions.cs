@@ -89,7 +89,6 @@ namespace zero.core.patterns.misc
             return task.IsCompletedSuccessfully ? default : task;
         }
 
-
         /// <summary>
         /// Block on a token until cancelled (wait one causes problems)
         /// </summary>
