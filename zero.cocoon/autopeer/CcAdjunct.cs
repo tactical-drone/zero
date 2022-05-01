@@ -1164,8 +1164,8 @@ namespace zero.cocoon.autopeer
                                 if (j < width)
                                     break;
 
-                                if(!await @this._zeroSync.WaitAsync().FastPath())
-                                    break;
+                                //if(!await @this._zeroSync.WaitAsync().FastPath())
+                                //    break;
                             }
                         }
                         catch when (@this.Zeroed() || @this.Source.Zeroed() || @this._protocolConduit?.UpstreamSource == null) { }
@@ -1181,7 +1181,8 @@ namespace zero.cocoon.autopeer
                         //the consumer
                         try
                         {
-                            var width = @this._protocolConduit.Source.PrefetchSize;
+                            //var width = @this._protocolConduit.Source.PrefetchSize;
+                            var width = @this._protocolConduit.Source.ZeroConcurrencyLevel();
                             var preload = new ValueTask<bool>[width];
 
                             while (!@this.Zeroed() && @this._protocolConduit.UpstreamSource.IsOperational())
@@ -1310,7 +1311,7 @@ namespace zero.cocoon.autopeer
                                 var j = 0;
                                 while (await preload[j].FastPath() && ++j < width) { }
 
-                                @this._zeroSync.SetResult(j == width);
+                                //@this._zeroSync.SetResult(j == width);
 
                                 if (j < width)
                                     break;
