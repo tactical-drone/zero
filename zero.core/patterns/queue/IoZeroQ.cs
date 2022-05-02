@@ -155,15 +155,13 @@ namespace zero.core.patterns.queue
 
                 if (!IsAutoScaling)
                 {
-                    _fastStorage[idx % _capacity] = value;
-                    Interlocked.MemoryBarrier();
+                    Volatile.Write(ref _fastStorage[idx % _capacity], value);
                     return;
                 }
 
                 idx %= Capacity;
                 var i = IoMath.Log2(unchecked((ulong)idx + 1));
-                _storage[i][idx - ((1 << i) - 1)] = value;
-                Interlocked.MemoryBarrier();
+                Volatile.Write(ref _storage[i][idx - ((1 << i) - 1)], value);
             }
         }
 
@@ -302,7 +300,6 @@ namespace zero.core.patterns.queue
                         Interlocked.MemoryBarrier();
 
                     race = false;
-                    Thread.Yield();
                 }
 #if DEBUG
                 Debug.Assert(Zeroed || slot == null);
@@ -389,7 +386,6 @@ namespace zero.core.patterns.queue
 
                     slot = null;
                     //race = false;
-                    Thread.Yield();
                 }
 
 

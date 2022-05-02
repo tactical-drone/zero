@@ -353,7 +353,6 @@ namespace zero.test.core.patterns.queue
                 _output.WriteLine(item.ToString());
                 if(++preload == 3)
                     break;
-                
             }
 
             var insert = new List<Task>();

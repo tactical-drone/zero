@@ -527,30 +527,32 @@ var d = 0;
                                 }
 #endif
                             }
-                            
+
 #if _TRACE_
                             if(queue.Count > 0)
                                 Console.WriteLine($"{desc}[{workerId}]: Q size = {queue.Count}, priority = {priority}, {jobsProcessed}");
 #endif
-
-                            try
+                            int ramp;
+                            //Service the Q
+                            if (!isWorker)
                             {
-                                int ramp;
-                                //Service the Q
-                                if (!isWorker)
-                                {
-                                    ramp = 0;
-                                    Interlocked.Exchange(ref @this._queenPunchCards[xId], 1);
+                                ramp = 0;
+                                if (Interlocked.CompareExchange(ref @this._queenPunchCards[xId], 1, 0) != 0)
+                                    continue;
+
 #if __TRACE__
                                     Console.WriteLine($"[[QUEEN]] CONSUMING FROM Q {workerId},  Q = {queue.Count}/{@this.Active.Count()} - total jobs process = {@this.CompletedWorkItemCount}");
 #endif
-                                }
-                                else
-                                {
-                                    ramp = 10;
-                                    Interlocked.Exchange(ref @this._workerPunchCards[xId], 1);
-                                }
+                            }
+                            else
+                            {
+                                ramp = 10;
+                                if (Interlocked.CompareExchange(ref @this._workerPunchCards[xId], 1, 0) != 0)
+                                    continue;
+                            }
 
+                            try
+                            {
                                 while (queue.TryDequeue(out var work) || ramp --> 0)
                                 {
                                     try
@@ -571,13 +573,14 @@ var d = 0;
                                             //await Task.Yield();
                                         }
                                     }
+#if DEBUG
                                     catch (Exception e)
                                     {
-#if DEBUG
+
                                         LogManager.GetCurrentClassLogger().Error(e,
                                             $"{nameof(IoZeroScheduler)}: wId = {xId}/{@this._workerCount}, this = {@this}, wq = {@this?._workQueue}, work = {work}, q = {syncRoot}");
-#endif
                                     }
+#endif
                                     finally
                                     {
                                         work = null;
@@ -585,28 +588,15 @@ var d = 0;
                                 }
                             }
                             catch (Exception e)
-                            {
+                            { 
                                 Console.WriteLine(e);
-
-                                try
-                                {
-                                    Console.WriteLine($"---> status = {syncRoot.GetStatus((short)syncRoot.Version)}");
-                                }
-                                catch
-                                {
-                                    // ignored
-                                }
                             }
                             finally
                             {
                                 if (isWorker)
-                                {
                                     Interlocked.Exchange(ref @this._workerPunchCards[xId], 0);
-                                }
                                 else
-                                {
                                     Interlocked.Exchange(ref @this._queenPunchCards[xId], 0);
-                                }
                             }
                         }
                         catch (Exception e)
@@ -658,8 +648,9 @@ var d = 0;
                         }
                     }
                 }
-                catch
+                catch (Exception e)
                 {
+                    Console.WriteLine(e);
                     // ignored
                 }
             }
