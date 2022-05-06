@@ -265,3 +265,4 @@ __pycache__/
 *.DotSettings
 /zero.core/zero.key
 /zero.gauge/BenchmarkDotNet.Artifacts/results
+/zero.core/runtime/scheduler/IoZeroScheduler - Copy.cs

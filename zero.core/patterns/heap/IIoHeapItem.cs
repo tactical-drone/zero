@@ -23,6 +23,6 @@ namespace zero.core.patterns.heap
         ///// <param name="context"></param>
         ///// <returns>A task</returns>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        IIoHeapItem HeapConstructAsync(object context);
+        ValueTask<IIoHeapItem> HeapConstructAsync(object context);
     }
 }

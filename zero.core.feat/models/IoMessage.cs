@@ -139,7 +139,7 @@ namespace zero.core.feat.models
         /// <summary>
         /// Pulls previous fragment bytes into this job
         /// </summary>
-        protected override void AddRecoveryBits()
+        protected override async ValueTask AddRecoveryBits()
         {
             var p = (IoMessage<TJob>)PreviousJob;
             try
@@ -149,7 +149,7 @@ namespace zero.core.feat.models
                     Source.Synced = false;
                     DatumCount = 0;
                     BytesRead = 0;
-                    State = IoJobMeta.JobState.RSync;
+                    await SetState(IoJobMeta.JobState.RSync).FastPath();
 
                     DatumFragmentLength = 0;
                     return;

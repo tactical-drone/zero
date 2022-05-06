@@ -132,6 +132,11 @@ namespace zero.cocoon.autopeer
             _stealthy = Environment.TickCount - parm_max_network_latency_ms;
             var nrOfStates = Enum.GetNames(typeof(AdjunctState)).Length;
             _lastScan = Environment.TickCount - CcCollective.parm_mean_pat_delay_s * 1000 * 2;
+
+            if (CcCollective.ZeroDrone)
+                Volatile.Write(ref ZeroRoot, ZeroSyncRoot(concurrencyLevel: Source.ZeroConcurrencyLevel() * 20 + 200, AsyncTasks));
+            else
+                Volatile.Write(ref ZeroRoot, ZeroSyncRoot(concurrencyLevel: (int)(Source.ZeroConcurrencyLevel() * parm_max_swept_drones), AsyncTasks));
         }
 
         public enum AdjunctState
@@ -771,7 +776,9 @@ namespace zero.cocoon.autopeer
                 _logger.Error(e, $"{nameof(EnsureRoboticsAsync)} - {Description}: Send PAT failed!");
             }
         }
-        
+
+        private delegate ValueTask BlockOnReplicateAsyncDelegate();
+
         /// <summary>
         /// Start processors for this neighbor
         /// </summary>
@@ -788,16 +795,11 @@ namespace zero.cocoon.autopeer
                         await @this.ProcessDiscoveriesAsync().FastPath();
                     }, this, TaskCreationOptions.DenyChildAttach).FastPath();
 
-                    ////UDP traffic
-                    await ZeroAsync(static async state =>
-                    {
-                        var (@this, assimilateAsync) = state;
-                        await assimilateAsync().FastPath();
-                    }, ValueTuple.Create<CcAdjunct, Func<ValueTask>>(this, base.BlockOnReplicateAsync), TaskCreationOptions.DenyChildAttach).FastPath();
-
-                    //Watchdogs
+                    //Watchdog
                     await ZeroAsync(RoboAsync, this, TaskCreationOptions.DenyChildAttach).FastPath();
-                    await AsyncTasks.Token.BlockOnNotCanceledAsync();
+
+                    //base
+                    await base.BlockOnReplicateAsync().FastPath();
                 }
                 else
                 {
@@ -997,7 +999,7 @@ namespace zero.cocoon.autopeer
                     }
                 }
 
-                batchJob.State = IoJobMeta.JobState.Consumed;
+                await batchJob.SetState(IoJobMeta.JobState.Consumed).FastPath();
             }
             catch when(Zeroed()){}
             catch (Exception e)when(!Zeroed())
@@ -1135,64 +1137,18 @@ namespace zero.cocoon.autopeer
                     return;
 
                 do{
-//The producer
-                    ValueTask consumer;
-                    var producer = ZeroOptionAsync(static async @this =>
-                    {
-                        try
+                    //The producer
+                    var width = _protocolConduit.Source.ZeroConcurrencyLevel();
+                    for (var i = 0; i < width; i++)
+                        await ZeroAsync(static async @this =>
                         {
-                            var width = @this._protocolConduit.Source.PrefetchSize;
-                            var preload = new ValueTask<bool>[width];
-                            while (!@this.Zeroed() && @this._protocolConduit.UpstreamSource.IsOperational())
+                            //the consumer
+                            try
                             {
-                                for (var i = 0; i < width && @this._protocolConduit.UpstreamSource.IsOperational(); i++)
+                                while (!@this.Zeroed())
                                 {
-                                    try
-                                    {
-                                        preload[i] = @this._protocolConduit.ProduceAsync();
-                                    }
-                                    catch (Exception e)
-                                    {
-                                        @this._logger.Error(e, $"Production failed for {@this.Description}");
-                                        break;
-                                    }
-                                }
-
-                                var j = 0;
-                                while (await preload[j].FastPath() && ++j < width) { }
-
-                                if (j < width)
-                                    break;
-
-                                //if(!await @this._zeroSync.WaitAsync().FastPath())
-                                //    break;
-                            }
-                        }
-                        catch when (@this.Zeroed() || @this.Source.Zeroed() || @this._protocolConduit?.UpstreamSource == null) { }
-                        catch (Exception e) when (!@this.Zeroed())
-                        {
-                            @this._logger?.Error(e, $"{@this.Description}");
-                        }
-                    
-                    },this, TaskCreationOptions.DenyChildAttach);
-
-                    consumer = ZeroOptionAsync(static async @this  =>
-                    {
-                        //the consumer
-                        try
-                        {
-                            //var width = @this._protocolConduit.Source.PrefetchSize;
-                            var width = @this._protocolConduit.Source.ZeroConcurrencyLevel();
-                            var preload = new ValueTask<bool>[width];
-
-                            while (!@this.Zeroed() && @this._protocolConduit.UpstreamSource.IsOperational())
-                            {
-                                //consume
-                                for (var i = 0; i < width && @this._protocolConduit.UpstreamSource.IsOperational(); i++)
-                                {
+                                    await @this._protocolConduit.ConsumeAsync(ProcessMessages(), @this).FastPath();
                                     
-                                    preload[i] = @this._protocolConduit.ConsumeAsync(ProcessMessages(), @this);
-
                                     [MethodImpl(MethodImplOptions.AggressiveInlining)]
                                     static Func<IoSink<CcProtocBatchJob<chroniton, CcDiscoveryBatch>>, CcAdjunct, ValueTask> ProcessMessages()
                                     {
@@ -1216,7 +1172,7 @@ namespace zero.cocoon.autopeer
                                                             @this._logger.Warn($"Got zero message from {CcDesignation.MakeKey(packet.PublicKey.Memory.AsArray())}");
                                                             return;
                                                         }
-                                                        
+
                                                         if (!@this.Zeroed() && !currentRoute.Zeroed())
                                                         {
                                                             try
@@ -1225,7 +1181,7 @@ namespace zero.cocoon.autopeer
                                                                 switch ((CcDiscoveries.MessageTypes)packet.Type)
                                                                 {
                                                                     case CcDiscoveries.MessageTypes.Probe:
-                                                                        if(((CcProbeMessage)message).Timestamp.ElapsedUtcMs() < @this.parm_max_network_latency_ms * 2)
+                                                                        if (((CcProbeMessage)message).Timestamp.ElapsedUtcMs() < @this.parm_max_network_latency_ms * 2)
                                                                             await currentRoute.ProcessAsync((CcProbeMessage)message, srcEndPoint, packet).FastPath();
                                                                         break;
                                                                     case CcDiscoveries.MessageTypes.Probed:
@@ -1252,7 +1208,7 @@ namespace zero.cocoon.autopeer
                                                                             break;
                                                                         }
                                                                         if (((CcAdjunctResponse)message).Timestamp.ElapsedUtcMs() < @this.parm_max_network_latency_ms * 2)
-                                                                            await currentRoute.ProcessAsync((CcAdjunctResponse) message, srcEndPoint, packet).FastPath();
+                                                                            await currentRoute.ProcessAsync((CcAdjunctResponse)message, srcEndPoint, packet).FastPath();
                                                                         break;
                                                                     case CcDiscoveries.MessageTypes.Fuse:
                                                                         //TODO feat: add weak proxy test 
@@ -1269,7 +1225,7 @@ namespace zero.cocoon.autopeer
                                                                         }
 
                                                                         if (((CcFuseResponse)message).Timestamp.ElapsedUtcMs() < @this.parm_max_network_latency_ms * 2)
-                                                                            await currentRoute.ProcessAsync((CcFuseResponse) message, srcEndPoint, packet).FastPath();
+                                                                            await currentRoute.ProcessAsync((CcFuseResponse)message, srcEndPoint, packet).FastPath();
                                                                         break;
                                                                     case CcDiscoveries.MessageTypes.Defuse:
                                                                         if (@this.CcCollective.ZeroDrone || !currentRoute.Verified)
@@ -1280,19 +1236,19 @@ namespace zero.cocoon.autopeer
                                                                             break;
                                                                         }
 
-                                                                        if(((CcDefuseRequest)message).Timestamp.ElapsedUtcMs() < @this.parm_max_network_latency_ms * 2)
-                                                                            await currentRoute.ProcessAsync((CcDefuseRequest) message, srcEndPoint, packet).FastPath();
+                                                                        if (((CcDefuseRequest)message).Timestamp.ElapsedUtcMs() < @this.parm_max_network_latency_ms * 2)
+                                                                            await currentRoute.ProcessAsync((CcDefuseRequest)message, srcEndPoint, packet).FastPath();
                                                                         break;
                                                                 }
                                                             }
-                                                            catch when(@this.Zeroed() || currentRoute.Zeroed()){}
+                                                            catch when (@this.Zeroed() || currentRoute.Zeroed()) { }
                                                             catch (Exception e) when (!@this.Zeroed() && !currentRoute.Zeroed())
                                                             {
                                                                 @this._logger?.Error(e, $"{message!.GetType().Name} [FAILED]: l = {packet!.Data.Length}, {@this.Key}");
                                                             }
                                                         }
                                                     }
-                                                    catch when(@this.Zeroed()) {}
+                                                    catch when (@this.Zeroed()) { }
                                                     catch (Exception e) when (!@this.Zeroed())
                                                     {
                                                         @this._logger?.Error(e, $"{message!.GetType().Name} [FAILED]: l = {packet!.Data.Length}, {@this.Key}");
@@ -1302,30 +1258,68 @@ namespace zero.cocoon.autopeer
                                             finally
                                             {
                                                 if (batchJob != null && batchJob.State != IoJobMeta.JobState.Consumed)
-                                                    batchJob.State = IoJobMeta.JobState.ConsumeErr;
+                                                    await batchJob.SetState(IoJobMeta.JobState.ConsumeErr).FastPath();
                                             }
                                         };
                                     }
                                 }
-
-                                var j = 0;
-                                while (await preload[j].FastPath() && ++j < width) { }
-
-                                //@this._zeroSync.SetResult(j == width);
-
-                                if (j < width)
-                                    break;
                             }
-                        }
-                        catch when(@this.Zeroed() || @this._protocolConduit?.UpstreamSource == null) {}
-                        catch (Exception e) when (!@this.Zeroed() && @this._protocolConduit?.UpstreamSource != null)
+                            catch when (@this.Zeroed() || @this._protocolConduit?.UpstreamSource == null) { }
+                            catch (Exception e) when (!@this.Zeroed() && @this._protocolConduit?.UpstreamSource != null)
+                            {
+                                @this._logger?.Error(e, $"{@this.Description}");
+                            }
+                        }, this, TaskCreationOptions.DenyChildAttach).FastPath();
+
+                    //producer;
+                    width = _protocolConduit.Source.PrefetchSize;
+                    for (var i = 0; i < width ; i++)
+                        await ZeroAsync(static async @this =>
                         {
-                            @this._logger?.Error(e, $"{@this.Description}");
-                        }
-                    }, this, TaskCreationOptions.DenyChildAttach);
-                    await Task.WhenAll(producer.AsTask(), consumer.AsTask());
+                            try
+                            {
+                                var width = @this._protocolConduit.Source.PrefetchSize;
+                                //var preload = new ValueTask<bool>[width];
+                                while (!@this.Zeroed())
+                                {
+                                    //for (var i = 0; i < width && @this._protocolConduit.UpstreamSource.IsOperational(); i++)
+                                    {
+                                        try
+                                        {
+                                            await @this._protocolConduit.ProduceAsync().FastPath();
+                                            //preload[i] = @this._protocolConduit.ProduceAsync();
+                                        }
+                                        catch (Exception e)
+                                        {
+                                            @this._logger.Error(e, $"Production failed for {@this.Description}");
+                                            break;
+                                        }
+                                    }
+
+                                    //var j = 0;
+                                    //while (await preload[j].FastPath() && ++j < width) { }
+
+                                    //if (j < width)
+                                    //    break;
+
+                                    //if(!await @this._zeroSync.WaitAsync().FastPath())
+                                    //    break;
+                                }
+                            }
+                            catch when (@this.Zeroed() || @this.Source.Zeroed() || @this._protocolConduit?.UpstreamSource == null) { }
+                            catch (Exception e) when (!@this.Zeroed())
+                            {
+                                @this._logger?.Error(e, $"{@this.Description}");
+                            }
+                        
+                        },this, TaskCreationOptions.DenyChildAttach).FastPath();
+
+                   
+
+                    await AsyncTasks.Token.BlockOnNotCanceledAsync().FastPath();
+                    //await Task.WhenAll(producer.AsTask(), consumer.AsTask());
                 }
-                while (!Zeroed());
+                while (!Zeroed());  
             }
             catch when(Zeroed()){}
             catch (Exception e) when (!Zeroed())

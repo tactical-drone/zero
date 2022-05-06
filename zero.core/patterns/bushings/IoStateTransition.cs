@@ -19,7 +19,7 @@ namespace zero.core.patterns.bushings
     {
         static IoStateTransition()
         {
-            _states = Enum.GetValues(typeof(TState)).Cast<TState>().ToArray();
+            States = Enum.GetValues(typeof(TState)).Cast<TState>().ToArray();
         }
 
         public IoStateTransition()
@@ -73,7 +73,7 @@ namespace zero.core.patterns.bushings
         /// <summary>
         /// Current state enum value
         /// </summary>
-        public new TState Value => _states[base.Value];
+        public new TState Value => States[Volatile.Read(ref base.Value)];
 
         /// <summary>
         /// The absolute time it took to mechanically transition from the previous state to this state. <see cref="EnterTime"/> - <see cref="IoQueue{T}.IoZNode.Prev"/>. <see cref="EnterTime"/>
@@ -111,7 +111,7 @@ namespace zero.core.patterns.bushings
         /// <summary>
         /// An array of all the states
         /// </summary>
-        private static readonly TState[] _states;
+        private static readonly TState[] States;
 
         /// <summary>
         /// Pads the current state string and returns it
@@ -128,12 +128,12 @@ namespace zero.core.patterns.bushings
         /// <returns>PreviousJob -> Current -> Next</returns>
         public override string ToString()
         {
-            string prevStr = string.Empty;
+            var prevStr = string.Empty;
             if (Prev != null)
                 prevStr = $"{Enum.GetName(typeof(TState), Prev.Value)} ~> ";
 
-            string nextStr = string.Empty;
-            if (Prev != null)
+            var nextStr = string.Empty;
+            if (Next != null)
                 nextStr = $" ~> {Enum.GetName(typeof(TState), Next.Value)}";
 
             return $"{prevStr}[{Enum.GetName(typeof(TState),Value)}]{nextStr}";
@@ -196,12 +196,12 @@ namespace zero.core.patterns.bushings
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public IIoHeapItem HeapConstructAsync(object context)
+        public ValueTask<IIoHeapItem> HeapConstructAsync(object context)
         {
             ExitTime = EnterTime = Environment.TickCount;
             base.Next = null;
             base.Prev = null;
-            return this;
+            return new ValueTask<IIoHeapItem>(this);
         }
     }
 }

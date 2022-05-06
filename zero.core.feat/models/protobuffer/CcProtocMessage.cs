@@ -118,7 +118,7 @@ namespace zero.core.feat.models.protobuffer
         {
             try
             {
-                await MessageService.ProduceAsync(static async (ioSocket, producerPressure, ioZero, ioJob) =>
+                await MessageService.ProduceAsync(static async (ioSocket, backPressure, ioZero, ioJob) =>
                 {
                     var job = (CcProtocMessage<TModel, TBatch>)ioJob;
                     try
@@ -129,15 +129,19 @@ namespace zero.core.feat.models.protobuffer
                         // amount of steps. Instead of say just filling up memory buffers.
                         // This allows us some kind of (anti DOS?) congestion control
                         //----------------------------------------------------------------------------
-                        if (!await producerPressure(ioJob, ioZero).FastPath())
+                        if (!await backPressure(ioJob, ioZero).FastPath())
+                        {
+                            await job.SetState(IoJobMeta.JobState.ProdCancel).FastPath();
                             return false;
+                        }
+                            
 
                         //Async read the message from the message stream
                         if (job.MessageService.IsOperational() && !job.Zeroed())
                         {
 
-                            job.GenerateJobId();
                             var read = await ((IoNetClient<CcProtocMessage<TModel, TBatch>>)ioSocket).IoNetSocket.ReadAsync(job.MemoryBuffer, job.BufferOffset, job.BufferSize, job.RemoteEndPoint).FastPath();
+                            job.GenerateJobId();
 
                             //Drop zero reads
                             if (read == 0)
@@ -145,7 +149,7 @@ namespace zero.core.feat.models.protobuffer
                                 //if (!job.MessageService.IsOperational())
                                 {
                                     await job.MessageService.Zero(ioJob, "ZERO READS!!!").FastPath();
-                                    job.State = IoJobMeta.JobState.Error;
+                                    await job.SetState(IoJobMeta.JobState.Error).FastPath();
                                 }
                                 //else
                                 //{
@@ -157,18 +161,18 @@ namespace zero.core.feat.models.protobuffer
 
                             Interlocked.Add(ref job.BytesRead, read);
 
-                            job.State = IoJobMeta.JobState.Produced;
+                            await job.SetState(IoJobMeta.JobState.Produced).FastPath();
 
                             //_logger.Trace($"{job.Description} => {job.GetType().Name}[{job.Id}]: r = {job.BytesRead}, r = {job.BytesLeftToProcess}, dc = {job.DatumCount}, ds = {job.DatumSize}, f = {job.DatumFragmentLength}, b = {job.BytesLeftToProcess}/{job.BufferSize + job.DatumProvisionLengthMax}, b = {(int)(job.BytesLeftToProcess / (double)(job.BufferSize + job.DatumProvisionLengthMax) * 100)}%");
                         }
                         else
                         {
-                            job.State = IoJobMeta.JobState.Cancelled;
+                            await job.SetState(IoJobMeta.JobState.Cancelled).FastPath();
                         }
 
                         if (job.Zeroed())
                         {
-                            job.State = IoJobMeta.JobState.Cancelled;
+                            await job.SetState(IoJobMeta.JobState.Cancelled).FastPath();
                             return false;
                         }
 
@@ -176,17 +180,18 @@ namespace zero.core.feat.models.protobuffer
                     }
                     catch when (job.Zeroed())
                     {
+                        await job.SetState(IoJobMeta.JobState.Cancelled).FastPath();
                     }
                     catch (Exception e) when (!job.Zeroed())
                     {
-                        job.State = IoJobMeta.JobState.ProduceErr;
+                        await job.SetState(IoJobMeta.JobState.ProduceErr).FastPath();
                         _logger.Error(e, $"ReadAsync {job.Description}:");
                     }
 
                     return false;
                 }, this, barrier, ioZero).FastPath();
             }
-            catch when (Zeroed()) { }
+            catch when (Zeroed()) { await SetState(IoJobMeta.JobState.Cancelled).FastPath();}
             catch (Exception e)when (!Zeroed())
             {
                 _logger?.Warn(e, $"Producing job for {Description} returned with errors:");
@@ -196,7 +201,7 @@ namespace zero.core.feat.models.protobuffer
                 if (State == IoJobMeta.JobState.Producing)
                 {
                     // Set the state to ProduceErr so that the consumer knows to abort consumption
-                    State = IoJobMeta.JobState.ProduceErr;
+                    await SetState(IoJobMeta.JobState.ProduceErr).FastPath();
                 }
             }
 

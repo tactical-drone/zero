@@ -54,7 +54,7 @@ namespace zero.core.patterns.semaphore
             _semaphore.OnCompleted(continuation, state, token, flags);
         }
 
-        public void ZeroRef(ref IIoZeroSemaphore @ref) => _semaphore.ZeroRef(ref @ref);
+        public IIoZeroSemaphore ZeroRef(ref IIoZeroSemaphore @ref) => _semaphore.ZeroRef(ref @ref);
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public int Release(int releaseCount = 1, bool bestCase = false)

@@ -19,7 +19,7 @@ namespace zero.core.patterns.semaphore.core
                 RunContinuationsAsynchronously = runContinuationsAsynchronously,
                 RunContinuationsNatively = runContinuationsNatively
             }; 
-            _coreRef = null;
+            _coreRef = null;    
             ZeroRef(ref coreRef);
         }
 

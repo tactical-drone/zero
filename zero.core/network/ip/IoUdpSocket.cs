@@ -520,14 +520,14 @@ namespace zero.core.network.ip
                         }
                         catch (Exception e)
                         {
-                            Console.WriteLine(e);
+                            _logger.Trace(e, Description);
                             try
                             {
                                 await receive.FastPath();
                             }
                             catch (Exception exception)
                             {
-                                Console.WriteLine(exception);
+                                _logger.Trace(exception, Description);
                             }
                         }
 

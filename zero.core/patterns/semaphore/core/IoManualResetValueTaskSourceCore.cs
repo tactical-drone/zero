@@ -5,6 +5,8 @@ using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Threading.Tasks.Sources;
+using NLog;
+using zero.core.runtime.scheduler;
 
 namespace zero.core.patterns.semaphore.core
 {
@@ -295,7 +297,7 @@ namespace zero.core.patterns.semaphore.core
                 case null:
                     if (RunContinuationsAsynchronously)
                     {
-                        Task.Factory.StartNew(_continuation, _continuationState, CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Current);
+                        Task.Factory.StartNew(_continuation, _continuationState, CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Default);
                     }
                     else
                     {
@@ -311,6 +313,23 @@ namespace zero.core.patterns.semaphore.core
                     }, (_continuation, _continuationState));
                     break;
 
+                case IoZeroScheduler zs:
+                    if (RunContinuationsAsynchronously)
+                    {
+                        IoZeroScheduler.Zero.QueueCallback(_continuation, _continuationState);
+                    }
+                    else
+                    {
+                        try
+                        {
+                            _continuation(_continuationState);
+                        }
+                        catch (Exception e)
+                        {
+                            LogManager.GetCurrentClassLogger().Error(e, $"InvokeContinuation.callback(): {_continuationState}");
+                        }
+                    }
+                    break;
                 case TaskScheduler ts:
                     Task.Factory.StartNew(_continuation, _continuationState, CancellationToken.None, TaskCreationOptions.DenyChildAttach, ts);
                     break;

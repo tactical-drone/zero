@@ -100,7 +100,7 @@ namespace zero.core.patterns.bushings.contracts
         /// <summary>
         /// Print counters
         /// </summary>
-        public void PrintCounters();
+        public string PrintCounters();
 
         /// <summary>
         /// Gets a value indicating whether this instance is operational.

@@ -29,22 +29,23 @@ namespace zero.cocoon.models
             _groupByEp = groupByEp;
         }
 
-        public override IIoHeapItem HeapConstructAsync(object context)
+        public override async ValueTask<IIoHeapItem> HeapConstructAsync(object context)
         {
             if (ProtocolConduit != null)
                 return null;
 
             IoZero = (IoZero<CcProtocMessage<chroniton, CcDiscoveryBatch>>)context;
-
-            var cc = 1;
+            
             var pf = 2;
+            var cc = 1;
             var ac = 0;
 
             if (!Source.Proxy && Adjunct.CcCollective.ZeroDrone)
             {
                 parm_max_msg_batch_size *= 2;
-                cc = 4;
+                
                 pf = 6;
+                cc = 3;
             }
 
 #if DEBUG
@@ -54,17 +55,10 @@ namespace zero.cocoon.models
 #endif
             //Create the conduit source
             const string conduitId = nameof(CcAdjunct);
-            ProtocolConduit = MessageService.CreateConduitOnceAsync<CcProtocBatchJob<chroniton, CcDiscoveryBatch>>(conduitId).GetAwaiter().GetResult();
+            ProtocolConduit = await MessageService.CreateConduitOnceAsync<CcProtocBatchJob<chroniton, CcDiscoveryBatch>>(conduitId).FastPath();
 
             //Set the heap
-            _batchHeap = new IoHeap<CcDiscoveryBatch, CcDiscoveries>(bashDesc, pf+1, static (_, @this) =>
-            {
-                //sentinel
-                if (@this == null)
-                    return new CcDiscoveryBatch(null, 1);
-
-                return new CcDiscoveryBatch(@this._batchHeap, @this.parm_max_msg_batch_size, @this._groupByEp);
-            })
+            _batchHeap = new IoHeap<CcDiscoveryBatch, CcDiscoveries>(bashDesc, pf*2, static (_, @this) => new CcDiscoveryBatch(@this._batchHeap, @this.parm_max_msg_batch_size, @this._groupByEp))
             {
                 Context = this
             };
@@ -78,20 +72,15 @@ namespace zero.cocoon.models
             if (ProtocolConduit == null)
             {
                 //TODO tuning
-                var channelSource = new CcProtocBatchSource<chroniton, CcDiscoveryBatch>(Description, MessageService, parm_max_msg_batch_size, pf, cc);
-                ProtocolConduit = MessageService.CreateConduitOnceAsync(
+                var channelSource = new CcProtocBatchSource<chroniton, CcDiscoveryBatch>(Description, MessageService, pf, cc);
+                ProtocolConduit = await MessageService.CreateConduitOnceAsync(
                     conduitId,
                     channelSource,
-                    static (ioZero, _) =>
-                    {
-                        if (ioZero == null)
-                            return new CcProtocBatchJob<chroniton, CcDiscoveryBatch>();
-                        return new CcProtocBatchJob<chroniton, CcDiscoveryBatch>(
-                            (IoSource<CcProtocBatchJob<chroniton, CcDiscoveryBatch>>)((IIoConduit)ioZero).UpstreamSource, ((IIoConduit)ioZero).ZeroConcurrencyLevel());
-                    }, cc).GetAwaiter().GetResult();
+                    static (ioZero, _) => new CcProtocBatchJob<chroniton, CcDiscoveryBatch>(
+                        (IoSource<CcProtocBatchJob<chroniton, CcDiscoveryBatch>>)((IIoConduit)ioZero).UpstreamSource, ((IIoConduit)ioZero).ZeroConcurrencyLevel()), cc).FastPath();
             }
 
-            return ProtocolConduit != null? this: null;
+            return this;
         }
 
         /// <summary>
@@ -151,7 +140,7 @@ namespace zero.cocoon.models
         /// <summary>
         /// A description
         /// </summary>
-        public override string Description => $"{base.Description}: {Source?.Description}";
+        public override string Description => $"{base.Description} <- {Source?.Description}";
 
         /// <summary>
         /// Batch of messages
@@ -200,7 +189,7 @@ namespace zero.cocoon.models
             {
                 //fail fast
                 if (BytesRead == 0)
-                    return State = IoJobMeta.JobState.BadData;
+                    return await SetState(IoJobMeta.JobState.BadData).FastPath();
 
                 var verified = false;
 
@@ -208,22 +197,22 @@ namespace zero.cocoon.models
                 var prevJob = ((CcDiscoveries)PreviousJob)?.ZeroRecovery;
                 if (prevJob != null)
                 {
-                    fastPath = IoZero.ZeroRecoveryEnabled && prevJob.GetStatus((short)prevJob.Version) == ValueTaskSourceStatus.Succeeded && prevJob.GetResult((short)prevJob.Version);
+                    fastPath = IoZero.ZeroRecoveryEnabled && prevJob.GetStatus((short)prevJob.Version) == ValueTaskSourceStatus.Succeeded;
                     
                     if (zeroRecovery || fastPath)
                     {
-                        if (fastPath)
+                        if (fastPath && prevJob.GetResult((short)prevJob.Version))
                         {
-                            AddRecoveryBits();
+                            await AddRecoveryBits().FastPath();
                         }
                         else
                         {
                             var prevJobTask = new ValueTask<bool>(prevJob, (short)prevJob.Version);
                             if (await prevJobTask.FastPath())
-                                AddRecoveryBits();
+                                await AddRecoveryBits().FastPath();
                         }
                         if (zeroRecovery)
-                            State = IoJobMeta.JobState.Consuming;
+                            await SetState(IoJobMeta.JobState.Consuming).FastPath();
                     }
                 }
                 
@@ -240,7 +229,7 @@ namespace zero.cocoon.models
                         {
                             if (length > BytesLeftToProcess)
                             {
-                                State = IoJobMeta.JobState.Fragmented;
+                                await SetState(IoJobMeta.JobState.Fragmented).FastPath();
                                 break;
                             }
                             
@@ -259,13 +248,13 @@ namespace zero.cocoon.models
 #if DEBUG
                             catch (Exception e)
                             {
-                                State = IoJobMeta.JobState.BadData;
+                                await SetState(IoJobMeta.JobState.BadData).FastPath();
                                 _logger.Trace(e, $"Parse failed: buf[{BufferOffset}], r = {BytesRead - BytesLeftToProcess }/{BytesRead}/{BytesLeftToProcess }, d = {DatumCount}, {Description}");
                             }
 #else
                             catch
                             {
-                                State = IoJobMeta.JobState.BadData;
+                                await SetState(IoJobMeta.JobState.BadData).FastPath();
                                 //_logger.Trace(e, $"Parse failed: buf[{BufferOffset}], r = {BytesRead - BytesLeftToProcess }/{BytesRead}/{BytesLeftToProcess }, d = {DatumCount}, syncing = {InRecovery}, {Description}");
                             }
 #endif
@@ -273,13 +262,13 @@ namespace zero.cocoon.models
 
                         if (read == 0 && length == -1)
                         {
-                            State = IoJobMeta.JobState.Fragmented;
+                            await SetState(IoJobMeta.JobState.Fragmented).FastPath();
                             break;
                         }
                     }
                     catch (Exception e) when(!Zeroed())
                     {
-                        State = IoJobMeta.JobState.ConsumeErr;
+                        await SetState(IoJobMeta.JobState.ConsumeErr).FastPath();
                         _logger.Debug(e, $"Parse failed: buf[{BufferOffset}], r = {BytesRead - BytesLeftToProcess }/{BytesRead}/{BytesLeftToProcess }, d = {DatumCount}, {Description}");
                         break;
                     }
@@ -290,7 +279,7 @@ namespace zero.cocoon.models
                     //Sanity check the data
                     if (packet == null || packet.Data == null || packet.Data.Length == 0)
                     {
-                        State = IoJobMeta.JobState.BadData;
+                        await SetState(IoJobMeta.JobState.BadData).FastPath();
                         continue;
                     }
 
@@ -309,7 +298,7 @@ namespace zero.cocoon.models
                     //Don't process unsigned or unknown messages
                     if (!verified || messageType == null)
                     {
-                        State = IoJobMeta.JobState.BadData;
+                        await SetState(IoJobMeta.JobState.BadData).FastPath();
                         continue;
                     }
                     
@@ -338,7 +327,7 @@ namespace zero.cocoon.models
                             break;
                         default:
                             _logger.Debug($"Unknown auto peer msg type = {packet.Type}");
-                            State = IoJobMeta.JobState.BadData;
+                            await SetState(IoJobMeta.JobState.BadData).FastPath();
                             break;
                     }
                     
@@ -350,10 +339,10 @@ namespace zero.cocoon.models
                 //Release a waiter
                 await ZeroBatchAsync().FastPath();
             }
-            catch when(Zeroed()){State = IoJobMeta.JobState.ConsumeErr;}
+            catch when(Zeroed()){await SetState(IoJobMeta.JobState.ConsumeErr).FastPath();}
             catch (Exception e) when (!Zeroed())
             {
-                State = IoJobMeta.JobState.ConsumeErr;
+                await SetState(IoJobMeta.JobState.ConsumeErr).FastPath();
                 _logger.Error(e, $"Unmarshal chroniton failed in {Description}");
             }
             finally
@@ -362,9 +351,9 @@ namespace zero.cocoon.models
                 {
                     
                     if (BytesLeftToProcess == 0 && State == IoJobMeta.JobState.Consuming)
-                        State = IoJobMeta.JobState.Consumed;
+                        await SetState(IoJobMeta.JobState.Consumed).FastPath();
                     else if(BytesLeftToProcess != BytesRead)
-                        State = IoJobMeta.JobState.Fragmented;
+                        await SetState(IoJobMeta.JobState.Fragmented).FastPath();
 #if DEBUG
                     else switch (zeroRecovery)
                     {
@@ -378,14 +367,14 @@ namespace zero.cocoon.models
 #else
                     else if (State == IoJobMeta.JobState.Fragmented && !IoZero.ZeroRecoveryEnabled)
                     {
-                        State = IoJobMeta.JobState.BadData;
+                        await SetState(IoJobMeta.JobState.BadData).FastPath();
                     }
 #endif
                 }
-                catch when(Zeroed()){ State = IoJobMeta.JobState.ConsumeErr; }
+                catch when(Zeroed()){ await SetState(IoJobMeta.JobState.ConsumeErr).FastPath(); }
                 catch (Exception e) when(!Zeroed())
                 {
-                    State = IoJobMeta.JobState.ConsumeErr;
+                    await SetState(IoJobMeta.JobState.ConsumeErr).FastPath();
                     _logger.Error(e, $"{nameof(State)}: re setting state failed!");
                 }
             }
@@ -393,7 +382,7 @@ namespace zero.cocoon.models
             ////attempt zero recovery
             if (IoZero.ZeroRecoveryEnabled && !Zeroed() && !fastPath && !zeroRecovery && BytesLeftToProcess > 0 && PreviousJob != null)
             {
-                State = IoJobMeta.JobState.ZeroRecovery;
+                await SetState(IoJobMeta.JobState.ZeroRecovery).FastPath();
                 return await ConsumeAsync().FastPath();
             }
 
@@ -448,8 +437,7 @@ namespace zero.cocoon.models
             catch when(Zeroed()){}
             catch (Exception e) when (!Zeroed())
             {
-                _logger.Error(e,
-                    $"Unable to parse request type {typeof(T).Name} from {Convert.ToBase64String(packet.PublicKey.Memory.AsArray())}, size = {packet.Data.Length}");
+                _logger.Error(e,$"Unable to parse request type {typeof(T).Name} from {Convert.ToBase64String(packet.PublicKey.Memory.AsArray())}, size = {packet.Data.Length}");
             }
         }
 

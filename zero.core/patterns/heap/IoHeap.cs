@@ -55,7 +55,7 @@ namespace zero.core.patterns.heap
         /// <summary>
         /// 
         /// </summary>
-        public string Description => $"{nameof(IoHeap<TItem,TContext>)}: {nameof(Count)} = {Count}, capacity = {Capacity}, refs = {_refCount}, desc = {_description}, bag ~> {_ioHeapBuf.Description}";
+        public string Description => $"#{GetHashCode()}:{nameof(IoHeap<TItem,TContext>)}: {nameof(Count)} = {Count}, capacity = {Capacity}, refs = {_refCount}, desc = {_description}, bag ~> {_ioHeapBuf.Description}";
 
         /// <summary>
         /// Config await
@@ -140,6 +140,17 @@ namespace zero.core.patterns.heap
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public TItem Take(object userData = null, Action<TItem, object> customConstructor = null)
         {
+            return Make(userData, customConstructor).item;
+        }
+
+        /// <summary>
+        /// Checks the heap for a free item and returns it. If no free items exists make a new one if we have capacity for it.
+        /// </summary>
+        /// <exception cref="InternalBufferOverflowException">Thrown when the max heap size is breached</exception>
+        /// <returns>True if the item required malloc, false if popped from the heap otherwise<see cref="TItem"/></returns>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public (TItem item,bool malloc) Make(object userData = null, Action<TItem, object> customConstructor = null)
+        {
             try
             {
                 //If the heap is empty
@@ -155,13 +166,13 @@ namespace zero.core.patterns.heap
                     Constructor?.Invoke(heapItem, userData);
                     PopAction?.Invoke(heapItem, userData);
 
-                    return heapItem;
+                    return (heapItem, true);
                 }
                 else //take the item from the heap
                 {
                     Interlocked.Increment(ref _refCount);
                     PopAction?.Invoke(heapItem, userData);
-                    return heapItem;
+                    return (heapItem, false);
                 }
             }
             catch when (_zeroed > 0) { }

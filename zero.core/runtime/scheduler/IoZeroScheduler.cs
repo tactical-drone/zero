@@ -41,10 +41,13 @@ namespace zero.core.runtime.scheduler
             _asyncTasks = asyncTasks?? new CancellationTokenSource();
             _workerCount = Math.Max(Environment.ProcessorCount >> 1, 2);
             _queenCount = Math.Max(Environment.ProcessorCount >> 4, 1) + 1;
+            _asyncCount = _workerCount * 4;
             var capacity = MaxWorker;
 
             //TODO: tuning
             _workQueue = new IoZeroQ<Task>(string.Empty, capacity * 2, true);
+            _asyncQueue = new IoZeroQ<ZeroContinuation>(string.Empty, MaxWorker * 2, true, _asyncTasks, concurrencyLevel:MaxWorker);
+
             _queenQueue = new IoZeroQ<ZeroSignal>(string.Empty, capacity,true);
             _signalHeap = new IoHeap<ZeroSignal>(string.Empty, capacity, (_, _) => new ZeroSignal(), true)
             {
@@ -52,6 +55,15 @@ namespace zero.core.runtime.scheduler
                 {
                     signal.Processed = 0;
                     signal.Task = null;
+                }
+            };
+
+            _callbackHeap = new IoHeap<ZeroContinuation>(string.Empty, capacity, (_, _) => new ZeroContinuation(), true)
+            {
+                PopAction = (signal, _) =>
+                {
+                    signal.Callback = null;
+                    signal.State = null;
                 }
             };
 
@@ -78,15 +90,23 @@ namespace zero.core.runtime.scheduler
             {
                 //spawn worker thread
                 _pollWorker[i] = MallocWorkTaskCore;
-                spawnWorker($"zero scheduler worker thread {i}", i, _workQueue, null, ThreadPriority.Normal, WorkerHandler);
+                spawnWorker($"zero scheduler worker thread {i}", i, _workQueue, null, IoMark.Worker, WorkerHandler);
             }
 
             for (var i = 0; i < _queenCount; i++)
             {
                 //spawn queen thread.
-                _pollQueen[i] =MallocQueenTaskCore;
-                spawnQueen($"zero scheduler queen thread {i}", i, _queenQueue, null,
-                    ThreadPriority.Highest, QueenHandler);
+                _pollQueen[i] = MallocQueenTaskCore;
+                spawnQueen($"zero scheduler queen thread {i}", i, _queenQueue, null, IoMark.Queen, QueenHandler);
+            }
+
+            for (var i = 0; i < _asyncCount; i++)
+            {
+                _ = Task.Factory.StartNew(static async state =>
+                {
+                    var @this = (IoZeroScheduler)state;
+                    await @this.SpawnAsync().FastPath();
+                },this, CancellationToken.None,TaskCreationOptions.DenyChildAttach, fallback);
             }
         }
 
@@ -94,6 +114,20 @@ namespace zero.core.runtime.scheduler
         {
             public volatile Task Task;
             public volatile int Processed = -1;
+        }
+
+        internal class ZeroContinuation
+        {
+            public volatile Action<object> Callback;
+            public volatile object State;
+        }
+
+        [Flags]
+        enum IoMark{
+            Undefined = 0,
+            Worker = 1,
+            Queen = 1 << 1,
+            Async = 1 << 2
         }
 
         //The rate at which the scheduler will be allowed to "burst" allowing per tick unchecked new threads to be spawned until one of them spawns
@@ -108,14 +142,19 @@ namespace zero.core.runtime.scheduler
         private readonly int[] _queenPunchCards;
         private volatile int _dropWorker;
         private readonly IoZeroQ<Task> _workQueue;
+        private readonly IoZeroQ<ZeroContinuation> _asyncQueue;
         private readonly IoZeroQ<ZeroSignal> _queenQueue;
+        
+        private readonly IoHeap<ZeroContinuation> _callbackHeap;
         private readonly IoHeap<ZeroSignal> _signalHeap;
         private readonly IoHeap<List<int>> _diagnosticsHeap;
 
         private volatile int _workerCount;
         private volatile int _queenCount;
+        private volatile int _asyncCount;
         private long _completedWorkItemCount;
         private long _completedQItemCount;
+        private long _completedAsyncCount;
         private volatile int _lastSpawnedWorker = Environment.TickCount;
         private readonly TaskScheduler _fallbackScheduler;
 
@@ -252,6 +291,8 @@ namespace zero.core.runtime.scheduler
         public int QThreadCount => _queenCount;
         public long CompletedWorkItemCount => _completedWorkItemCount;
         public long CompletedQItemCount => _completedWorkItemCount;
+
+        public long CompletedAsyncCount => _completedAsyncCount;
         public double LoadFactor => (double) Load / _workerCount;
         public double QLoadFactor => (double) QLoad / _queenCount;
         public long Capacity => _workQueue.Capacity;
@@ -351,8 +392,14 @@ namespace zero.core.runtime.scheduler
                                     Console.WriteLine($"spawning more workers q[{newWorkerId}] = {@this._workQueue.Count}, l = {@this.Load}, {@this.Free.Count()}/{@this.Blocked.Count()}/{@this.Active.Count()}");
 #endif
                                         @this._pollWorker[newWorkerId] = MallocWorkTaskCore;
-                                        @this.SpawnWorker<Task>($"zero scheduler worker thread {newWorkerId}", newWorkerId, @this._workQueue, s.Task, ThreadPriority.Normal, WorkerHandler);
+                                        @this.SpawnWorker<Task>($"zero scheduler worker thread {newWorkerId}", newWorkerId, @this._workQueue, s.Task, IoMark.Worker, WorkerHandler);
                                         @this._lastSpawnedWorker = Environment.TickCount;
+
+                                        _ = Task.Factory.StartNew(static async state =>
+                                        {
+                                            var @this = (IoZeroScheduler)state;
+                                            await @this.SpawnAsync().FastPath();
+                                        }, @this, CancellationToken.None, TaskCreationOptions.DenyChildAttach, Default);
                                     }
                                     else
                                     {
@@ -410,6 +457,20 @@ namespace zero.core.runtime.scheduler
             return s;
         }
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static bool AsyncHandler(IoZeroScheduler ioZeroScheduler, ZeroContinuation handler, int id)
+        {
+            try
+            {
+                handler.Callback(handler.State);
+                return true;
+            }
+            finally
+            {
+                ioZeroScheduler._callbackHeap.Return(handler);
+            }
+        }
+
         /// <summary>
         /// Spawn a new worker thread
         /// </summary>
@@ -419,7 +480,7 @@ namespace zero.core.runtime.scheduler
         /// <param name="queue">The Q o use</param>
         /// <param name="priority">Thread priority</param>
         /// <param name="callback">work handler</param>
-        private void SpawnWorker<T>(string desc, int id, IoZeroQ<T> queue, Task prime = null, ThreadPriority priority = ThreadPriority.Normal, Func<IoZeroScheduler, T, int, bool> callback = null) where T : class
+        private void SpawnWorker<T>(string desc, int id, IoZeroQ<T> queue, Task prime = null, IoMark mark = IoMark.Undefined, Func<IoZeroScheduler, T, int, bool> callback = null) where T : class
         {
             //Thread.CurrentThread.Priority = priority;
 #if DEBUG
@@ -440,10 +501,10 @@ var d = 0;
             {
                 try
                 {
-                    var (@this, queue, desc, xId, prime, callback, priority) =
-                        (ValueTuple<IoZeroScheduler, IoZeroQ<T>, string, int, Task, Func<IoZeroScheduler, T, int, bool>, ThreadPriority>)state;
+                    var (@this, queue, desc, xId, prime, callback, mark) =
+                        (ValueTuple<IoZeroScheduler, IoZeroQ<T>, string, int, Task, Func<IoZeroScheduler, T, int, bool>, IoMark>)state;
 
-                    bool isWorker = priority != ThreadPriority.Highest;
+                    bool isWorker = mark == IoMark.Worker;
                     //fast prime task to unwind current worker dead lockers
                     if (prime is { Status: <= TaskStatus.WaitingToRun })
                         @this.TryExecuteTask(prime);
@@ -622,12 +683,6 @@ var d = 0;
 
                             Interlocked.Increment(ref @this._dropWorker);
                         }
-
-                        //Oneshot workers end here.
-                        if (priority == ThreadPriority.AboveNormal)
-                        {
-                            break;
-                        }
                     }
 
                     if (isWorker)
@@ -661,12 +716,29 @@ var d = 0;
                 Name = $"{desc}[{id}]"
             };
 
-            t.Start((this, queue, desc, id, prime, callback, priority));
+            t.Start((this, queue, desc, id, prime, callback, mark));
 
-            if (priority == ThreadPriority.Highest)
+            if (mark.HasFlag(IoMark.Queen))
                 _queenPunchCards[id] = 0;
             else
                 _workerPunchCards[id] = 0;
+        }
+
+        private async ValueTask SpawnAsync()
+        {
+            await foreach (var job in _asyncQueue.BalanceOnConsumeAsync())
+            {
+                try
+                {
+                    job.Callback(job.State);
+                    Interlocked.Increment(ref _completedAsyncCount);
+                }
+                catch (Exception e)
+                {
+                    LogManager.GetCurrentClassLogger().Trace(e);
+                    throw;
+                }
+            }
         }
 
         /// <summary>
@@ -800,7 +872,6 @@ var d = 0;
             try
             {
                 t.RunSynchronously(target);
-                Console.WriteLine("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
                 return t.Result;
             }
             catch
@@ -821,6 +892,9 @@ var d = 0;
             _diagnosticsHeap.Return(value);
         }
 
+        public void Queue(Task task) => QueueTask(task);
+        public void Execute(Task task) => TryExecuteTaskInline(task,false);
+
         public static void Dump()
         {
             foreach (var task in Zero._workQueue)
@@ -828,6 +902,17 @@ var d = 0;
                 if(task != null)
                     Console.WriteLine(task.AsyncState?.ToString());
             }
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public bool QueueCallback(Action<object> callback, object state)
+        {
+            var handler = _callbackHeap.Take();
+            if (state == null) return false;
+
+            handler.Callback = callback;
+            handler.State = state;
+            return _asyncQueue.TryEnqueue(handler) != -1;
         }
     }
 }

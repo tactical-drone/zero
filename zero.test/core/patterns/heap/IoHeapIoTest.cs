@@ -173,10 +173,10 @@ namespace zero.test.core.patterns.heap
             return ValueTask.FromResult((IIoHeapItem)this);
         }
 
-        public IIoHeapItem HeapConstructAsync(object context)
+        public ValueTask<IIoHeapItem> HeapConstructAsync(object context)
         {
             TestVar4 = (int)context;
-            return this;
+            return new ValueTask<IIoHeapItem>(this);
         }
     }
 

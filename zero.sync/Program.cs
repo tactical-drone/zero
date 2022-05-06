@@ -184,7 +184,7 @@ namespace zero.sync
             for (var i = 2; i < total; i++)
             {
 
-                tasks.Add(CoCoonAsync(CcDesignation.Generate(), $"tcp://127.0.0.1:{1234 + portOffset + i}", $"udp://127.0.0.1:{1234 + portOffset + i}", $"tcp://127.0.0.1:{1334 + portOffset + i}", $"udp://127.0.0.1:{1234 + portOffset + i}", new[] { $"udp://127.0.0.1:{1234 + i%4}", $"udp://127.0.0.1:{1234 + (i+1) % 4}" }.ToList()));
+                tasks.Add(CoCoonAsync(CcDesignation.Generate(), $"tcp://127.0.0.1:{1234 + portOffset + i}", $"udp://127.0.0.1:{1234 + portOffset + i}", $"tcp://127.0.0.1:{1334 + portOffset + i}", $"udp://127.0.0.1:{1234 + portOffset + i}", new[] { $"udp://127.0.0.1:{1234 + i % 4}", $"udp://127.0.0.1:{1234 + (i + 1) % 4}" }.ToList()));
                 //tasks.Add(CoCoonAsync(CcDesignation.Generate(), $"tcp://127.0.0.1:{1234 + portOffset + i}", $"udp://127.0.0.1:{1234 + portOffset + i}", $"tcp://127.0.0.1:{1334 + portOffset + i}", $"udp://127.0.0.1:{1234 + portOffset + i}", new[] { $"udp://127.0.0.1:{1234}" }.ToList()));
                 if (tasks.Count % 10 == 0)
                     Console.WriteLine($"Spawned {tasks.Count}/{total}...");
@@ -423,6 +423,9 @@ namespace zero.sync
             var QOrig = IoZeroScheduler.Zero.CompletedQItemCount;
             var QC = IoZeroScheduler.Zero.CompletedQItemCount;
 
+            var AS = Environment.TickCount;
+            var AC = IoZeroScheduler.Zero.CompletedAsyncCount;
+
             AppDomain.CurrentDomain.ProcessExit += (sender, eventArgs) =>
             {
                 Console.WriteLine("###");
@@ -464,11 +467,13 @@ namespace zero.sync
                         try
                         {
                             Console.WriteLine($"[{free.Count}/{blocked.Count}/{active.Count}] load = {IoZeroScheduler.Zero.Load}({IoZeroScheduler.Zero.LoadFactor * 100:0.0}%), q time = {IoZeroScheduler.Zero.WLength / ((IoZeroScheduler.Zero.CompletedWorkItemCount - LC) / (double)LS.ElapsedMs()):0}ms, workers = {IoZeroScheduler.Zero.ThreadCount}, p = {IoZeroScheduler.Zero.WLength}, C = {IoZeroScheduler.Zero.CompletedWorkItemCount - LOrig}, {(IoZeroScheduler.Zero.CompletedWorkItemCount - LOrig) / (double)LSOrig.ElapsedMsToSec():0.0} ops, c = {IoZeroScheduler.Zero.CompletedWorkItemCount - LC}, {(IoZeroScheduler.Zero.CompletedWorkItemCount - LC) / (double)LS.ElapsedMsToSec():0.0} tps");
-                            Console.WriteLine($"[{IoZeroScheduler.Zero.QFree.Count}/{IoZeroScheduler.Zero.QBlocked.Count}/{qactive.Count}] load = {IoZeroScheduler.Zero.QLoad}({IoZeroScheduler.Zero.QLoadFactor * 100:0.0}%), q time = {IoZeroScheduler.Zero.QLength / ((IoZeroScheduler.Zero.QLength - QC) / (double)QS.ElapsedMs()):0}ms, poll% = {((IoZeroScheduler.Zero.CompletedWorkItemCount - LOrig - LC) - (IoZeroScheduler.Zero.CompletedQItemCount - QC)) / (double)(IoZeroScheduler.Zero.CompletedWorkItemCount - LC) * 100.0:0.0}%, ({(IoZeroScheduler.Zero.CompletedWorkItemCount - LOrig - (IoZeroScheduler.Zero.CompletedQItemCount - QOrig)) / (double)(IoZeroScheduler.Zero.CompletedWorkItemCount - LOrig) * 100.0:0.00}%) ,queens = {IoZeroScheduler.Zero.QThreadCount}, p = {IoZeroScheduler.Zero.QLength}, C = {IoZeroScheduler.Zero.CompletedQItemCount - QOrig}, {(IoZeroScheduler.Zero.CompletedWorkItemCount - QOrig) / (double)QSOrig.ElapsedMsToSec():0.0} ops, c = {IoZeroScheduler.Zero.CompletedQItemCount- QC}, {(IoZeroScheduler.Zero.CompletedQItemCount - QC) / (double)QS.ElapsedMsToSec():0.0} tps");
+                            Console.WriteLine($"[{IoZeroScheduler.Zero.QFree.Count}/{IoZeroScheduler.Zero.QBlocked.Count}/{qactive.Count}] load = {IoZeroScheduler.Zero.QLoad}({IoZeroScheduler.Zero.QLoadFactor * 100:0.0}%), q time = {IoZeroScheduler.Zero.QLength / ((IoZeroScheduler.Zero.QLength - QC) / (double)QS.ElapsedMs()):0}ms, poll% = {((IoZeroScheduler.Zero.CompletedWorkItemCount - LOrig - LC) - (IoZeroScheduler.Zero.CompletedQItemCount - QC)) / (double)(IoZeroScheduler.Zero.CompletedWorkItemCount - LC) * 100.0:0.0}%, ({(IoZeroScheduler.Zero.CompletedWorkItemCount - LOrig - (IoZeroScheduler.Zero.CompletedQItemCount - QOrig)) / (double)(IoZeroScheduler.Zero.CompletedWorkItemCount - LOrig) * 100.0:0.00}%) ,queens = {IoZeroScheduler.Zero.QThreadCount}, p = {IoZeroScheduler.Zero.QLength}, C = {IoZeroScheduler.Zero.CompletedQItemCount - QOrig}, {(IoZeroScheduler.Zero.CompletedWorkItemCount - QOrig) / (double)QSOrig.ElapsedMsToSec():0.0} ops, c = {IoZeroScheduler.Zero.CompletedQItemCount- QC}, {(IoZeroScheduler.Zero.CompletedQItemCount - QC) / (double)QS.ElapsedMsToSec():0.0} tps, {(IoZeroScheduler.Zero.CompletedAsyncCount - AC) / (double)AS.ElapsedMsToSec():0.0} async/s ({IoZeroScheduler.Zero.CompletedAsyncCount - AC})[{IoZeroScheduler.Zero.CompletedAsyncCount}]");
                             QS = Environment.TickCount;
-                            QC = IoZeroScheduler.Zero.CompletedQItemCount;
+                            AS = Environment.TickCount;
                             LS = Environment.TickCount;
+                            QC = IoZeroScheduler.Zero.CompletedQItemCount;
                             LC = IoZeroScheduler.Zero.CompletedWorkItemCount;
+                            AC = IoZeroScheduler.Zero.CompletedAsyncCount;
                         }
                         finally
                         {
@@ -1276,7 +1281,7 @@ namespace zero.sync
                 IoNodeAddress.Create(fpcAddress),
                 IoNodeAddress.Create(extAddress),
                 bootStrapAddress.Select(IoNodeAddress.Create).Where(a => a.Port.ToString() != peerAddress.Split(":")[2]).ToList(),
-                2, 2, 1, 1, zeroDrone);
+                3, 1, 2, 1, zeroDrone);
 
             _nodes.Add(cocoon);
 

@@ -48,15 +48,7 @@ namespace zero.core.patterns.queue.enumerator
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public sealed override void Reset()
         {
-            try
-            {
-                _iteratorIoZNode = new IoQueue<T>.IoZNode { Next = Q.Head };
-            }
-            catch (Exception e)
-            {
-                Console.WriteLine(e);
-                throw;
-            }
+            _iteratorIoZNode = new IoQueue<T>.IoZNode { Next = Q.Head };
         }
 
         public override IoQueue<T>.IoZNode Current => _iteratorIoZNode;

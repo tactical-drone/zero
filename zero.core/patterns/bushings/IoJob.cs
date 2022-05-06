@@ -76,21 +76,17 @@ namespace zero.core.patterns.bushings
         /// <summary>
         /// Work spanning multiple jobs
         /// </summary>
-        public IIoJob PreviousJob { get; protected internal set; }
+        public IIoJob PreviousJob { get; internal set; }
 
-        private string _description;
         /// <summary>
         /// A description of this kind of work
         /// </summary>
-        public override string Description
-        {
-            get
-            {
-                if(_description == null) 
-                    return _description = $"{Source?.Description} | {_jobDesc}";
-                return _description;
-            }
-        }
+#if DEBUG
+        public override string Description => $"{_jobDesc} -> {StateTransitionHistory?.Tail?.Value}";
+#else
+        public override string Description => _jobDesc;
+#endif
+
 
         /// <summary>
         /// A description of the job and work
@@ -140,11 +136,14 @@ namespace zero.core.patterns.bushings
 #if DEBUG
         public virtual async ValueTask<IIoHeapItem> HeapPopAsync(object context)
 #else
-        public virtual ValueTask<IIoHeapItem> HeapPopAsync(object context)
+        public virtual async ValueTask<IIoHeapItem> HeapPopAsync(object context)
 #endif
         {
             try
             {
+                //_logger.Debug($"{nameof(HeapPopAsync)}: id = {Id}, #{Serial} - {Description}");
+                FinalState = await SetState(IoJobMeta.JobState.Undefined).FastPath();
+
 #if DEBUG
                 await StateTransitionHistory.ZeroManagedAsync(static (s, @this) =>
                 {
@@ -156,13 +155,14 @@ namespace zero.core.patterns.bushings
 #else
                 _stateMeta.Set((int)IoJobMeta.JobState.Undefined);
 #endif
-                FinalState = State = IoJobMeta.JobState.Undefined;
+
+                
                 Id = -1;
                 ZeroRecovery.Reset();
 #if DEBUG
                 return this;
 #else
-                return new ValueTask<IIoHeapItem>(this);
+                return this;
 #endif
             }
             catch when(Zeroed()){}
@@ -180,9 +180,9 @@ namespace zero.core.patterns.bushings
         /// <param name="context"></param>
         /// <returns>A task</returns>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public virtual IIoHeapItem HeapConstructAsync(object context)
+        public virtual ValueTask<IIoHeapItem> HeapConstructAsync(object context)
         {
-            return this;
+            return new ValueTask<IIoHeapItem>(this);
         }
 
         /// <summary>
@@ -329,65 +329,64 @@ namespace zero.core.patterns.bushings
         /// </summary>
         public IoJobMeta.JobState FinalState { get; set; }
 
-        /// <summary>
-        /// Gets and sets the state of the work
-        /// </summary>
-        public IoJobMeta.JobState State
+
+        public async ValueTask<IoJobMeta.JobState> SetState(IoJobMeta.JobState value)
         {
-            get
+            try
             {
-                return _stateMeta.Value;
-            }
-            set
-            {
-                try
-                {
 #if DEBUG
-                    //Update the previous state's exit time
-                    if (_stateMeta != null)
+                //Update the previous state's exit time
+                if (_stateMeta != null)
+                {
+                    Interlocked.MemoryBarrier();
+                    var s = _stateMeta.Value;
+                    if (value == IoJobMeta.JobState.Undefined && s == IoJobMeta.JobState.Consuming)
                     {
-                        if (_stateMeta.Value == IoJobMeta.JobState.Halted && value != IoJobMeta.JobState.Undefined)
-                        {
-                            _stateMeta.Set((int)IoJobMeta.JobState.Race);
-                            PrintStateHistory();
-                            throw new ApplicationException(
-                                $"{TraceDescription} Cannot transition from `{IoJobMeta.JobState.Halted}' to `{value}'");
-                        }
-
-                        if (_stateMeta.Value == value)
-                            return;
-
-                        _stateMeta.ExitTime = Environment.TickCount;
-                        Interlocked.Increment(ref Source.Counters[(int)_stateMeta.Value]);
-                        Interlocked.Add(ref Source.ServiceTimes[(int)_stateMeta.Value], _stateMeta.Mu);
+                        _stateMeta.Set((int)IoJobMeta.JobState.Race);
+                        //PrintStateHistory();
+                        throw new ApplicationException(
+                            $"{TraceDescription} Cannot transition from `{IoJobMeta.JobState.Halted}' to `{value}'");
                     }
-                    else
+
+                    if (_stateMeta.Value == IoJobMeta.JobState.Halted && value != IoJobMeta.JobState.Undefined)
                     {
-                        if (value != IoJobMeta.JobState.Undefined && !Zeroed())
-                        {
-                            PrintStateHistory();
-                            throw new Exception(
-                                $"{TraceDescription} First state transition history's first transition should be `{IoJobMeta.JobState.Undefined}', but is `{value}'");
-                        }
+                        _stateMeta.Set((int)IoJobMeta.JobState.Race);
+                        //PrintStateHistory();
+                        throw new ApplicationException(
+                            $"{TraceDescription} Cannot transition from `{IoJobMeta.JobState.Halted}' to `{value}'");
                     }
+
+                    if (_stateMeta.Value == value)
+                        return value;
+
+                    _stateMeta.ExitTime = Environment.TickCount;
+                    Interlocked.Increment(ref Source.Counters[(int)_stateMeta.Value]);
+                    Interlocked.Add(ref Source.ServiceTimes[(int)_stateMeta.Value], _stateMeta.Mu);
+                }
+                else
+                {
+                    if (value != IoJobMeta.JobState.Undefined && !Zeroed())
+                    {
+                        PrintStateHistory();
+                        throw new Exception(
+                            $"{TraceDescription} First state transition history's first transition should be `{IoJobMeta.JobState.Undefined}', but is `{value}'");
+                    }
+                }
 #endif
 
 #if DEBUG
-                    //Allocate memory for a new current state
-                    var newState = _stateHeap.Take((_stateMeta, (int)value));
-                    if (newState == null)
-                    {
-                        if (!Zeroed())
-                            throw new OutOfMemoryException($"{Description}");
+                //Allocate memory for a new current state
+                var newState = _stateHeap.Take((_stateMeta, (int)value));
+                if (newState == null)
+                {
+                    if (!Zeroed())
+                        throw new OutOfMemoryException($"{Description}");
 
-                        return;
-                    }
+                    return value;
+                }
 
-                    //newState.ConstructorAsync(_stateMeta, (int)value).GetAwaiter().GetResult();
-                    _stateMeta = newState;
-
-                    StateTransitionHistory.EnqueueAsync(_stateMeta).GetAwaiter().GetResult();
-
+                _stateMeta = newState;
+                await StateTransitionHistory.EnqueueAsync(_stateMeta).FastPath();
 #else
                     _stateMeta.ExitTime = Environment.TickCount;
                     Interlocked.Increment(ref Source.Counters[(int)_stateMeta.Value]);
@@ -398,24 +397,32 @@ namespace zero.core.patterns.bushings
                     if (value is IoJobMeta.JobState.Accept or IoJobMeta.JobState.Reject)
                     {
                         FinalState = value;
+                        await SetState(IoJobMeta.JobState.Halted).FastPath();
                     }
                         
 #endif
 #if DEBUG
-                    //terminate
-                    if (value is IoJobMeta.JobState.Accept or IoJobMeta.JobState.Reject)
-                    {
-                        FinalState = value;
-                        //State = IoJobMeta.JobState.Halted;
-                    }
-#endif
-                }
-                catch when (Zeroed()) { }
-                catch (Exception e)when (!Zeroed())
+                //terminate
+                //if (value is IoJobMeta.JobState.Accept or IoJobMeta.JobState.Reject)
+                if (value == IoJobMeta.JobState.Accept || value == IoJobMeta.JobState.Reject)
                 {
-                    _logger.Error(e, $"{nameof(State)}: Setting state failed for {Description}");
+                    FinalState = value;
+                    await SetState(IoJobMeta.JobState.Halted).FastPath();
                 }
+#endif
             }
+            catch when (Zeroed()) { }
+            catch (Exception e) when (!Zeroed())
+            {
+                _logger.Error(e, $"{nameof(SetState)}: Setting state failed for {Description}");
+            }
+
+            return value;
         }
+
+        /// <summary>
+        /// Gets and sets the state of the work
+        /// </summary>
+        public IoJobMeta.JobState State => _stateMeta.Value;
     }
 }

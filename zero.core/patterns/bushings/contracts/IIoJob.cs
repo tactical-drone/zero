@@ -1,4 +1,5 @@
-﻿using zero.core.patterns.heap;
+﻿using System.Threading.Tasks;
+using zero.core.patterns.heap;
 using zero.core.patterns.misc;
 
 namespace zero.core.patterns.bushings.contracts
@@ -18,7 +19,7 @@ namespace zero.core.patterns.bushings.contracts
         /// <summary>
         /// Current state of this production
         /// </summary>
-        IoJobMeta.JobState State { get; set; }
+        IoJobMeta.JobState State { get;}
         
         /// <summary>
         /// A previous incomplete job that needs to be processed with this job
@@ -29,5 +30,7 @@ namespace zero.core.patterns.bushings.contracts
         /// The source of these jobs
         /// </summary>
         IIoSource Source { get; }
+
+        ValueTask<IoJobMeta.JobState> SetState(IoJobMeta.JobState produceErr);
     }
 }

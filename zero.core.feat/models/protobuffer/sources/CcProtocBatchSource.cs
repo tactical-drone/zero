@@ -22,17 +22,19 @@ namespace zero.core.feat.models.protobuffer.sources
         /// </summary>
         /// <param name="description">A description</param>
         /// <param name="ioSource">The source of this model</param>
-        /// <param name="batchSize">Batch size</param>
         /// <param name="prefetchSize">Initial job prefetch from source</param>
         /// <param name="concurrencyLevel"></param>
         /// <param name="maxAsyncSources"></param>
-        public CcProtocBatchSource(string description, IIoSource ioSource, int batchSize, int prefetchSize, int concurrencyLevel, int maxAsyncSources = 0) 
+        public CcProtocBatchSource(string description, IIoSource ioSource, int prefetchSize, int concurrencyLevel, int maxAsyncSources = 0) 
             : base(description, false, prefetchSize, concurrencyLevel, maxAsyncSources, true)//TODO config
         {
             _logger = LogManager.GetCurrentClassLogger();
 
             UpstreamSource = ioSource;
-            BatchQueue = new IoQueue<TBatch>($"{nameof(CcProtocBatchSource<TModel,TBatch>)}: {ioSource.Description}", prefetchSize + 1, concurrencyLevel, IoQueue<TBatch>.Mode.Pressure | IoQueue<TBatch>.Mode.BackPressure); //TODO: fix these smelly booleans
+            //BatchQueue = new IoQueue<TBatch>($"{nameof(CcProtocBatchSource<TModel, TBatch>)}: {ioSource.Description}", prefetchSize + concurrencyLevel, prefetchSize, IoQueue<TBatch>.Mode.Pressure | IoQueue<TBatch>.Mode.BackPressure);
+            //BatchQueue = new IoQueue<TBatch>($"{nameof(CcProtocBatchSource<TModel, TBatch>)}: {ioSource.Description}", (prefetchSize + concurrencyLevel) * 2, prefetchSize, IoQueue<TBatch>.Mode.Pressure | IoQueue<TBatch>.Mode.BackPressure);
+            BatchQueue = new IoQueue<TBatch>($"{nameof(CcProtocBatchSource<TModel, TBatch>)}: {ioSource.Description}", (prefetchSize + concurrencyLevel) * 2, prefetchSize, IoQueue<TBatch>.Mode.Pressure | IoQueue<TBatch>.Mode.BackPressure);
+            //BatchQueue = new IoQueue<TBatch>($"{nameof(CcProtocBatchSource<TModel, TBatch>)}: {ioSource.Description}", (prefetchSize + concurrencyLevel) * 8, concurrencyLevel);
         }
 
         /// <summary>

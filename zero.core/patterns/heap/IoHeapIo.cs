@@ -37,17 +37,16 @@ namespace zero.core.patterns.heap
         public async ValueTask<TItem> TakeAsync<TLocalContext>(Func<TItem, TLocalContext, ValueTask<TItem>> localReuse = null, TLocalContext userData = default)
         {
             TItem next = null;
+            var heapItem = Make(userData);
             try
             {
-                if ((next = Take(userData, (newHeapItem, context) =>
-                    {
-                        if (newHeapItem.HeapConstructAsync(context) == null)
-                        {
-                            throw new InvalidOperationException($"{nameof(newHeapItem.HeapConstructAsync)} FAILED: ");
-                        }
-                    })) == null) 
+                if ((next = heapItem.item) == null) 
                     return null;
 
+                if (heapItem.malloc && await next.HeapConstructAsync(userData).FastPath() == null)
+                {
+                    throw new InvalidOperationException($"{nameof(next.HeapConstructAsync)} FAILED: ");
+                }
                 //init for use
                 if (await next.HeapPopAsync(userData).FastPath() == null)
                 {
@@ -102,7 +101,7 @@ namespace zero.core.patterns.heap
             base.Return(item, zero, deDup);
 
             if (zero || Zeroed)
-                item.Zero(null, $"{nameof(IoHeapIo<TItem, TContext>)}: teardown direct = {zero}, cascade = {Zeroed}");
+                item.Zero(new IoNanoprobe($"{item.Description}"), $"{nameof(IoHeapIo<TItem, TContext>)}: teardown direct = {zero}, cascade = {Zeroed}");
         }
     }
 

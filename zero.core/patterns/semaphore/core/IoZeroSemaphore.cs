@@ -1,5 +1,6 @@
 ﻿
 using System;
+using System.Data;
 using System.IO;
 using System.Runtime.CompilerServices;
 using System.Runtime.ExceptionServices;
@@ -8,6 +9,7 @@ using System.Threading.Tasks;
 using System.Threading.Tasks.Sources;
 using NLog;
 using zero.core.patterns.misc;
+using zero.core.runtime.scheduler;
 
 namespace zero.core.patterns.semaphore.core
 {
@@ -238,18 +240,18 @@ namespace zero.core.patterns.semaphore.core
             {
             }
         }
-        
+
         /// <summary>
         /// Set ref to this (struct address).
-        ///
+        /// 
         /// A struct cannot create a ref pointer to itself in the constructor, because of copy logic. 
         /// 
         /// This means that the user needs to call this function manually from externally when the ref is available or the semaphore will error out.
         /// </summary>
         /// <param name="ref">The ref to this</param>
-        public void ZeroRef(ref IIoZeroSemaphore @ref)
+        public IIoZeroSemaphore ZeroRef(ref IIoZeroSemaphore @ref)
         {
-            _zeroRef = @ref;
+            return _zeroRef = @ref;
         }
 
         /// <summary>
@@ -605,17 +607,17 @@ namespace zero.core.patterns.semaphore.core
                 case null:
                     if (RunContinuationsAsynchronously || forceAsync)
                     {
-                        if (forceAsync)
-                        {
-                            _ = Task.Factory.StartNew(callback, state, CancellationToken.None,
-                                TaskCreationOptions.DenyChildAttach, TaskScheduler.Default);
-                            break;
-                        }
+                        //if (forceAsync)
+                        //{
+                        //    _ = Task.Factory.StartNew(callback, state, CancellationToken.None,
+                        //        TaskCreationOptions.DenyChildAttach, TaskScheduler.Default);
+                        //    break;
+                        //}
 
                         if (Interlocked.Increment(ref _curAsyncWorkerCount) <= _maxAsyncWorkers)
                         {
-                            _ = Task.Factory.StartNew(callback, state, CancellationToken.None, 
-                                TaskCreationOptions.DenyChildAttach, TaskScheduler.Current)
+                            _ = Task.Factory.StartNew(callback, state, CancellationToken.None,
+                                    TaskCreationOptions.DenyChildAttach, TaskScheduler.Default)
                                 .ContinueWith(static (_, zeroRef) => { ((IIoZeroSemaphore)zeroRef).ZeroDecAsyncCount(); }, _zeroRef);
                             break;
                         }
@@ -647,7 +649,24 @@ namespace zero.core.patterns.semaphore.core
                         }
                     }, (callback, state));
                     break;
-
+                case IoZeroScheduler zs:
+                    if (RunContinuationsAsynchronously || forceAsync)
+                    {
+                        IoZeroScheduler.Zero.QueueCallback(callback, state);
+                    }
+                    else
+                    {
+                        try
+                        {
+                            callback(state);
+                        }
+                        catch (Exception e)
+                        {
+                            LogManager.GetCurrentClassLogger().Error(e, $"InvokeContinuation.callback(): {state}");
+                        }
+                    }
+                    break;
+                
                 case TaskScheduler ts:
                     _ = Task.Factory.StartNew(callback, state, CancellationToken.None, TaskCreationOptions.DenyChildAttach, ts);
                     break;
@@ -749,6 +768,7 @@ namespace zero.core.patterns.semaphore.core
         /// <exception cref="SemaphoreFullException">Fails when maximum waiters reached</exception>
         public int Release(int releaseCount = 1, bool bestCase = false)
         {
+            
             //preconditions that reject overflow because every overflowing signal will spin seeking its waiter
             if (Zeroed() || releaseCount < 1 || releaseCount + _curSignalCount > _maxBlockers)
             {
@@ -756,9 +776,18 @@ namespace zero.core.patterns.semaphore.core
             }
 
             //bank a set
-            if(!bestCase)
-                Interlocked.Add(ref _curSignalCount, releaseCount);
-            
+            if (!bestCase)
+            {
+                int latch;
+                int target;
+                while ((target = (latch = _curSignalCount) + releaseCount) > _maxBlockers || Interlocked.CompareExchange(ref _curSignalCount, target = (latch + releaseCount), latch) != latch)
+                {
+                    if (target > _maxBlockers)
+                        return -1;
+                }
+                //Interlocked.Add(ref _curSignalCount, releaseCount);
+            }
+
             //lock in return value
             var released = 0;
 
@@ -888,7 +917,6 @@ namespace zero.core.patterns.semaphore.core
 
             var slot = -1;
             int latch;
-
             //reserve a signal if set
             while ((latch = _curSignalCount) > 0 && _curWaitCount == 0 &&
                    (slot = Interlocked.CompareExchange(ref _curSignalCount, latch - 1, latch)) != latch)
@@ -916,25 +944,10 @@ namespace zero.core.patterns.semaphore.core
 
             //out of capacity
             if (slot != latch || Zeroed())
-                return new ValueTask<bool>(false);
-
-            //race with release after reservation
-            while (_curSignalCount == 1 && _curWaitCount == 1)
-            {
-                if (Zeroed())
-                    break;
-
-                if (Interlocked.CompareExchange(ref _curWaitCount, 0, 1) != 1) continue;
-
-                //>>> FAST PATH on set
-                if (Interlocked.CompareExchange(ref _curSignalCount, 0, 1) == 1)
-                    return new ValueTask<bool>(!Zeroed());
-
-                Interlocked.Increment(ref _curWaitCount);
-            }
+                throw new ZeroValidationException($"Concurrency bug, Semaphore full! {Description}");
 
             //> SLOW PATH
-            return new ValueTask<bool>(_zeroRef, 23);
+            return new ValueTask<bool>(_zeroRef, 0);
         }
 
         /// <summary>Completes with an error.</summary>

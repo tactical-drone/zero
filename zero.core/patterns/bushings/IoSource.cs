@@ -27,7 +27,7 @@ namespace zero.core.patterns.bushings
         {
             _logger = LogManager.GetCurrentClassLogger();
 
-
+            //disableZero = false;
             //if (prefetchSize > concurrencyLevel * 2)
             //    throw new ArgumentOutOfRangeException($"{description}: invalid {nameof(prefetchSize)} = {prefetchSize}, must be at least {nameof(concurrencyLevel)} = {concurrencyLevel*2}");
 
@@ -40,16 +40,20 @@ namespace zero.core.patterns.bushings
             //if (disableZero)
             //{
             //    DisableZero = true;
+            //    PrefetchEnabled = true;
+            //    BackPressureEnabled = true;//TODO: config?
             //    PressureEnabled = false;
-            //    PrefetchEnabled = false;
-            //    BackPressureEnabled = false;
             //}
             //else
             //{
-            //    PrefetchEnabled = prefetchSize > 1;
+            //    //PrefetchEnabled = prefetchSize > 1;
+            //    PrefetchEnabled = true;
+            //    BackPressureEnabled = true;
+            //    PressureEnabled = false;
             //}
 
-            PrefetchEnabled = prefetchSize > concurrencyLevel;
+            PrefetchEnabled = true;
+            BackPressureEnabled = true;
             PrefetchSize = prefetchSize;
             MaxAsyncSources = maxAsyncSources;
             AsyncEnabled = MaxAsyncSources > 0;
@@ -57,14 +61,13 @@ namespace zero.core.patterns.bushings
             Proxy = proxy;
 
             var maxBlockers = PrefetchEnabled ? PrefetchSize : concurrencyLevel;
-
             try
             {
                 if (PressureEnabled)
                 {
                     _pressure = new IoZeroSemaphoreSlim(AsyncTasks, $"{nameof(_pressure)}: {description}",
-                        maxBlockers: maxBlockers, 
-                        0, 
+                        maxBlockers: concurrencyLevel,
+                        0,
                         maxAsyncWork: 0); //TODO Prefetch - 1 or not?
                 }
 
@@ -78,7 +81,7 @@ namespace zero.core.patterns.bushings
 
                 if (PrefetchEnabled)
                 {
-                    _prefetchPressure = new IoZeroSemaphoreSlim(AsyncTasks, $"{nameof(_prefetchPressure)}: {description}", 
+                    _prefetchPressure = new IoZeroSemaphoreSlim(AsyncTasks, $"{nameof(_prefetchPressure)}: {description}",
                         maxBlockers: maxBlockers,
                         initialCount: PrefetchSize,
                         maxAsyncWork: 0);
@@ -89,7 +92,10 @@ namespace zero.core.patterns.bushings
                 _logger.Fatal(e, $"CRITICAL! Failed to configure semaphores! Aborting!");
                 throw;
             }
+            
         }
+
+        public string QueueStatus => $"WAITING FOR: prefetch = {_prefetchPressure?.CurNrOfBlockers}/{_prefetchPressure?.Capacity}, back pressure = {_backPressure?.CurNrOfBlockers}/{_backPressure?.Capacity}, pressure = {_pressure?.CurNrOfBlockers}/{_pressure?.Capacity}";
 
         /// <summary>
         /// logger
@@ -142,18 +148,21 @@ namespace zero.core.patterns.bushings
         /// </summary>
         private IoZeroSemaphoreSlim _prefetchPressure;
 
+        public int PrefetchReady => _prefetchPressure.ReadyCount;
+        public int BackPressureReady => _backPressure.ReadyCount;
+
         /// <summary>
         /// Enable prefetch throttling (only allow a certain amount of prefetch
         /// in the presence of concurrent production
         /// </summary>
-        public bool PrefetchEnabled { get; protected set; } = true;
+        public bool PrefetchEnabled { get; protected set; }
 
-        public bool PressureEnabled { get; protected set; } = true;
+        public bool PressureEnabled { get; protected set; }
 
-        public bool BackPressureEnabled { get; protected set; } = true;
+        public bool BackPressureEnabled { get; protected set; }
 
 
-        public bool DisableZero { get; protected set; } = true;
+        public bool DisableZero { get; protected set; }
         /// <summary>
         /// The next job Id
         /// </summary>
@@ -416,7 +425,7 @@ namespace zero.core.patterns.bushings
         /// <summary>
         /// Print counters
         /// </summary>
-        public void PrintCounters()
+        public string PrintCounters()
         {
             var heading = new StringBuilder();
             var str = new StringBuilder();
@@ -441,7 +450,7 @@ namespace zero.core.patterns.bushings
                 }
             }
 
-            _logger.Info($"{Description} Counters: {heading}{str}");
+            return $"{Description} Counters: {heading}{str}";
         }
 
         /// <summary>
@@ -477,9 +486,7 @@ namespace zero.core.patterns.bushings
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public int Pressure(int releaseCount = 1)
         {
-            if (PressureEnabled && _pressure != null)
-                return PressureEnabled ? _pressure.Release(releaseCount) : releaseCount;
-            return PressureEnabled ? 0 : releaseCount;
+            return PressureEnabled ? _pressure.Release(releaseCount) : releaseCount;
         }
 
         /// <summary>
@@ -490,9 +497,7 @@ namespace zero.core.patterns.bushings
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public ValueTask<bool> WaitForPressureAsync()
         {
-            if (PressureEnabled && _pressure != null)
-                return PressureEnabled? _pressure.WaitAsync() : new ValueTask<bool>(true);
-            return new ValueTask<bool>(!PressureEnabled);
+            return PressureEnabled ? _pressure.WaitAsync() : new ValueTask<bool>(true);
         }
 
         /// <summary>
@@ -503,9 +508,7 @@ namespace zero.core.patterns.bushings
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public int BackPressure(int releaseCount = 1)
         {
-            if (BackPressureEnabled && _backPressure != null)
-                return BackPressureEnabled ? _backPressure.Release(releaseCount) : releaseCount;
-            return BackPressureEnabled ? 0 : releaseCount;
+            return BackPressureEnabled ? _backPressure.Release(releaseCount) : releaseCount;
         }
 
         /// <summary>
@@ -516,9 +519,7 @@ namespace zero.core.patterns.bushings
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public ValueTask<bool> WaitForBackPressureAsync()
         {
-            if (BackPressureEnabled && _backPressure != null)
-                return BackPressureEnabled ? _backPressure.WaitAsync() : new ValueTask<bool>(true);
-            return new ValueTask<bool>(!BackPressureEnabled);
+            return BackPressureEnabled ? _backPressure.WaitAsync() : new ValueTask<bool>(true);
         }
         
         /// <summary>
@@ -528,9 +529,7 @@ namespace zero.core.patterns.bushings
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public int PrefetchPressure(int releaseCount = 1)
         {
-            if(PrefetchEnabled && _prefetchPressure != null)
-                return PrefetchEnabled ? _prefetchPressure.Release(releaseCount) : releaseCount;
-            return PrefetchEnabled ? 0 : releaseCount;
+            return PrefetchEnabled ? _prefetchPressure.Release(releaseCount) : releaseCount;
         }
 
         /// <summary>
@@ -541,9 +540,7 @@ namespace zero.core.patterns.bushings
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public ValueTask<bool> WaitForPrefetchPressureAsync()
         {
-            if (PrefetchEnabled && _prefetchPressure != null)
-                return PrefetchEnabled ? _prefetchPressure.WaitAsync() : new ValueTask<bool>(true);
-            return new ValueTask<bool>(!PrefetchEnabled);
+            return PrefetchEnabled ? _prefetchPressure.WaitAsync() : new ValueTask<bool>(true);
         }
 
         /// <summary>

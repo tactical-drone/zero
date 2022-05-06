@@ -24,13 +24,13 @@
 		<PackageReference Include="JetBrains.DotMemoryUnit" Version="3.1.20200127.214830" />
 		<PackageReference Include="JUnitTestLogger" Version="1.1.0" />
 		<PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.2.0-preview-20220401-08" />
-		<PackageReference Include="System.Diagnostics.PerformanceCounter" Version="7.0.0-preview.5.22251.5" />
+		<PackageReference Include="System.Diagnostics.PerformanceCounter" Version="7.0.0-preview.5.22255.2" />
 		<PackageReference Include="coverlet.collector" Version="3.1.2">
 			<IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
 			<PrivateAssets>all</PrivateAssets>
 		</PackageReference>
 		<PackageReference Include="xunit" Version="2.4.2-pre.12" />
-		<PackageReference Include="xunit.runner.visualstudio" Version="2.4.3">
+		<PackageReference Include="xunit.runner.visualstudio" Version="2.4.5">
 		  <PrivateAssets>all</PrivateAssets>
 		  <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
 		</PackageReference>

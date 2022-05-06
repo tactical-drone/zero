@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using Google.Protobuf;
 using zero.core.core;
 using zero.core.feat.models.protobuffer.sources;
+using zero.core.misc;
 using zero.core.patterns.bushings;
 using zero.core.patterns.bushings.contracts;
 using zero.core.patterns.misc;
@@ -75,7 +76,7 @@ namespace zero.core.feat.models.protobuffer
             await ClearAsync().FastPath();
         }
 
-        protected override void AddRecoveryBits()
+        protected override ValueTask AddRecoveryBits()
         {
             throw new NotImplementedException();
         }
@@ -144,11 +145,11 @@ namespace zero.core.feat.models.protobuffer
                     return job._batch != null;
                 }, this, barrier, ioZero).FastPath())
             {
-                return State = IoJobMeta.JobState.Error;
+                return await SetState(IoJobMeta.JobState.Error).FastPath();
             }
             
             //If the source gave us nothing, mark this production to be skipped            
-            return State = IoJobMeta.JobState.Produced;
+            return await SetState(IoJobMeta.JobState.Produced).FastPath();
         }
 
         /// <summary>
@@ -160,8 +161,7 @@ namespace zero.core.feat.models.protobuffer
         public override ValueTask<IoJobMeta.JobState> ConsumeAsync()
         {
             //No work is needed, we just mark the job as consumed (Batched and forwarded).
-            State = IoJobMeta.JobState.ConInlined;
-            return new ValueTask<IoJobMeta.JobState>(State);
+            return SetState(IoJobMeta.JobState.ConInlined);
         }
     }
 }

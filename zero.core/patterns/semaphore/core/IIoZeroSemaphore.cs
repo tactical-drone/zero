@@ -7,7 +7,7 @@ namespace zero.core.patterns.semaphore.core
 {
     public interface IIoZeroSemaphore: IValueTaskSource<bool>
     {
-        void ZeroRef(ref IIoZeroSemaphore @ref);
+        IIoZeroSemaphore ZeroRef(ref IIoZeroSemaphore @ref);
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         int Release(int releaseCount = 1, bool bestCase = false);
         [MethodImpl(MethodImplOptions.AggressiveInlining)]

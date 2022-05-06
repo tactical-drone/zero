@@ -54,10 +54,10 @@ namespace zero.core.patterns.bushings.contracts
                     return job._produced = ((IoZeroSource)source).Produce();
                 }, this, barrier, ioZero).FastPath())
             {
-                return State = IoJobMeta.JobState.Error;
+                return await SetState(IoJobMeta.JobState.Error).FastPath();
             }
 
-            return State = IoJobMeta.JobState.Produced;
+            return await SetState(IoJobMeta.JobState.Produced).FastPath();
         }
 
         public override async ValueTask<IIoHeapItem> HeapPopAsync(object context)
@@ -65,7 +65,7 @@ namespace zero.core.patterns.bushings.contracts
             await base.HeapPopAsync(context).FastPath();
 
             //user safety, rtfm?/rtfc!
-            State = IoJobMeta.JobState.Undefined;
+            await SetState(IoJobMeta.JobState.Undefined).FastPath();
 
             return this;
         }
@@ -73,10 +73,10 @@ namespace zero.core.patterns.bushings.contracts
         public override ValueTask<IoJobMeta.JobState> ConsumeAsync()
         {
             _consumed = true;
-            return new ValueTask<IoJobMeta.JobState>(State = IoJobMeta.JobState.Consumed);
+            return SetState (IoJobMeta.JobState.Consumed);
         }
 
-        protected internal override void AddRecoveryBits()
+        protected internal override ValueTask AddRecoveryBits()
         {
             throw new NotImplementedException();
         }

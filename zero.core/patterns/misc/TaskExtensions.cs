@@ -97,12 +97,12 @@ namespace zero.core.patterns.misc
         public static async ValueTask BlockOnNotCanceledAsync(this CancellationToken token)
         {
             IIoManualResetValueTaskSourceCore<bool> source = new IoManualResetValueTaskSourceCore<bool>();
+            var waitForCancellation = new ValueTask<bool>(source, 0);
             var reg = token.Register(static s =>
             {
-                ((IoManualResetValueTaskSourceCore<bool>)s).Set(true);
+                ((IIoManualResetValueTaskSourceCore<bool>)s).SetResult(true);
             }, source);
 
-            var waitForCancellation = new ValueTask<bool>(source, 0);
             await waitForCancellation.FastPath();
             await reg.DisposeAsync().FastPath();
         }        

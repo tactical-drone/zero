@@ -70,7 +70,8 @@ namespace zero.core.patterns.misc
             _zeroHive = new IoQueue<IoZeroSub>(string.Empty, 64, _concurrencyLevel, IoQueue<IoZeroSub>.Mode.DynamicSize);
             _zeroHiveMind = new IoQueue<IIoNanite>(string.Empty, 64, _concurrencyLevel, IoQueue<IIoNanite>.Mode.DynamicSize);
 #endif
-            ZeroSyncRoot(concurrencyLevel);
+
+            Volatile.Write(ref ZeroRoot, ZeroSyncRoot(concurrencyLevel, AsyncTasks));
             
             UpTime = Environment.TickCount;
         }
@@ -192,15 +193,18 @@ namespace zero.core.patterns.misc
         /// </summary>
         /// <param name="localContext"></param>
         //public virtual ValueTask<bool> ReuseAsync(object localContext = null) {return new ValueTask<bool>(true);}
-        
+
         /// <summary>
-        /// Initialize concurrency level
+        /// Initialize concurrency level critical region
         /// </summary>
         /// <param name="concurrencyLevel"></param>
-        private void ZeroSyncRoot(int concurrencyLevel)
+        /// <param name="asyncTasks"></param>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        protected static IIoZeroSemaphore ZeroSyncRoot(int concurrencyLevel, CancellationTokenSource asyncTasks)
         {
-            _zeroRoot = new IoZeroSemaphore(string.Empty, concurrencyLevel * 5, 1, cancellationTokenSource:AsyncTasks);
-            _zeroRoot.ZeroRef(ref _zeroRoot);
+            IIoZeroSemaphore z = new IoZeroSemaphore(string.Empty, 10 + concurrencyLevel * 10, 1, cancellationTokenSource: asyncTasks);
+            z.ZeroRef(ref z);
+            return z;
         }
 
         /// <summary>
@@ -225,7 +229,7 @@ namespace zero.core.patterns.misc
         /// <summary>
         /// root sync
         /// </summary>
-        private IIoZeroSemaphore _zeroRoot;
+        protected IIoZeroSemaphore ZeroRoot;
 
         /// <summary>
         /// ZeroAsync
@@ -518,7 +522,7 @@ namespace zero.core.patterns.misc
             ZeroReason = null;
 #endif
             ZeroedFrom = null;
-            _zeroRoot = null;
+            ZeroRoot = null;
 #endif
 
 #if DEBUG
@@ -533,7 +537,7 @@ namespace zero.core.patterns.misc
         {
             await _zeroHive.ZeroManagedAsync<object>(zero:true).FastPath();
             await _zeroHiveMind.ZeroManagedAsync<object>(zero: true).FastPath();
-            _zeroRoot.ZeroSem();
+            ZeroRoot.ZeroSem();
 #if DEBUG
             Interlocked.Increment(ref _extracted);
 #endif
@@ -563,7 +567,7 @@ namespace zero.core.patterns.misc
         {
             try
             {
-                if (!await _zeroRoot.WaitAsync().FastPath())
+                if (!await ZeroRoot.WaitAsync().FastPath())
                 {
                     return false;
                 }
@@ -615,7 +619,7 @@ namespace zero.core.patterns.misc
             {
                 try
                 {
-                    _zeroRoot.Release();
+                    ZeroRoot.Release();
                 }
                 catch
                 {

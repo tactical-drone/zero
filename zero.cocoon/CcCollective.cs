@@ -50,9 +50,9 @@ namespace zero.cocoon
             {
                 _zeroDrone = true;
                 parm_max_drone = 0;
-                parm_max_adjunct = 128; //TODO tuning:
-                udpPrefetch = 2;
-                udpConcurrencyLevel = 1;
+                parm_max_adjunct = 256; //TODO tuning:
+                udpPrefetch = 8;
+                udpConcurrencyLevel = 4;
                 NeighborTasks = new IoQueue<Task>($"{nameof(NeighborTasks)}", parm_max_adjunct + 1, ZeroConcurrencyLevel());
             }
 
@@ -1036,6 +1036,8 @@ namespace zero.cocoon
         /// </summary>
         public bool Online { get; private set; }
 
+        public long MaxReq;
+
         /// <summary>
         /// Boots the node
         /// </summary>
@@ -1065,7 +1067,7 @@ namespace zero.cocoon
 
             if (Neighbors.Count > 0)
             {
-                await WhisperingDrones[_random.Next(0, WhisperingDrones.Count - 1)].EmitTestGossipMsgAsync(v).FastPath();
+                await WhisperingDrones[_random.Next(1, WhisperingDrones.Count) - 1].EmitTestGossipMsgAsync(v).FastPath();
                 return true;
             }
             

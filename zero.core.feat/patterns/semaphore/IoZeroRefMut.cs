@@ -37,7 +37,7 @@ namespace zero.core.feat.patterns.semaphore
             throw new NotImplementedException();
         }
 
-        public void ZeroRef(ref IIoZeroSemaphore @ref)
+        public IIoZeroSemaphore ZeroRef(ref IIoZeroSemaphore @ref)
         {
             throw new NotImplementedException();
         }

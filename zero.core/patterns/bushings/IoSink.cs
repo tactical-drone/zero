@@ -36,10 +36,6 @@ namespace zero.core.patterns.bushings
         /// </summary>
         private readonly string _sinkDesc;
 
-#if DEBUG
-        private string _description;
-#endif
-
         /// <inheritdoc />
         /// <summary>
         /// The overall description of the work that needs to be done and the job that is doing it
@@ -50,9 +46,7 @@ namespace zero.core.patterns.bushings
             get
             {
 #if DEBUG
-                if (_description == null)
-                    return _description = $"{_sinkDesc} ~> {base.Description}";
-                return _description;
+                return $"{_sinkDesc} ~> {base.Description}";
 #else
                 return string.Empty;
 #endif
@@ -67,7 +61,7 @@ namespace zero.core.patterns.bushings
         /// <summary>
         /// Q handler
         /// </summary>
-        public IoQueue<IoSink<TJob>>.IoZNode PrevJobQHook { get; internal set; }
+        public IoQueue<IoSink<TJob>>.IoZNode FragmentIdx { get; internal set; }
 
         /// <summary>
         /// Heap constructor
@@ -77,7 +71,7 @@ namespace zero.core.patterns.bushings
         public override async ValueTask<IIoHeapItem> HeapPopAsync(object context)
         {
             await base.HeapPopAsync(context).FastPath();
-            PrevJobQHook = null;
+            FragmentIdx = null;
             return this;
         }
 
@@ -110,7 +104,7 @@ namespace zero.core.patterns.bushings
         /// <summary>
         /// Handle fragmented jobs
         /// </summary>
-        protected internal abstract void AddRecoveryBits();
+        protected internal abstract ValueTask AddRecoveryBits();
 
         /// <summary>
         /// Updates buffer meta data

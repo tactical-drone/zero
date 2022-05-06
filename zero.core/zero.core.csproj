@@ -47,6 +47,10 @@
   </ItemGroup>
 
   <ItemGroup>
+    <Compile Remove="runtime\scheduler\IoZeroScheduler - Copy.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
     <None Include="..\.editorconfig" Link=".editorconfig" />
     <None Include="..\.gitignore" Link=".gitignore" />
     <None Include="..\readme.md" Link="readme.md" />
