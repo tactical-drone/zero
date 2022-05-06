@@ -202,27 +202,17 @@ namespace zero.test.core.patterns.queue{
                     {
                         try
                         {
-                            var eq1 = @this.context.Q.PushBackAsync(0);
-                            var eq2 = @this.context.Q.EnqueueAsync(1);
-                            var i1 = @this.context.Q.PushBackAsync(2);
-                            var i2 = @this.context.Q.EnqueueAsync(3);
-                            var i4 = @this.context.Q.PushBackAsync(4);
+                            await @this.context.Q.PushBackAsync(0).FastPath();
+                            await @this.context.Q.EnqueueAsync(1).FastPath();
+                            await @this.context.Q.PushBackAsync(2).FastPath();
+                            await @this.context.Q.EnqueueAsync(3).FastPath();
+                            await @this.context.Q.PushBackAsync(4).FastPath();
 
-                            await eq2;
-                            await eq1;
-                            await i4;
-                            await i2;
-                            await i1;
-
-                            
-                            var d2 = @this.context.Q.DequeueAsync();
-                            var d4 = @this.context.Q.DequeueAsync();
-                            var d5 = @this.context.Q.DequeueAsync();
                             await @this.context.Q.DequeueAsync().FastPath();
                             await @this.context.Q.DequeueAsync().FastPath();
-                            await d5;
-                            await d4;
-                            await d2;
+                            await @this.context.Q.DequeueAsync().FastPath();
+                            await @this.context.Q.DequeueAsync().FastPath();
+                            await @this.context.Q.DequeueAsync().FastPath();
                         }
                         catch (Exception e)
                         {
@@ -240,7 +230,7 @@ namespace zero.test.core.patterns.queue{
             Assert.NotNull(context.Q.Head);
             Assert.NotNull(context.Q.Tail);
 
-            var kops = rounds * mult * 6 / (Environment.TickCount - start);
+            var kops = rounds * mult * 6 / (Environment.TickCount - start + 1);
 
 #if DEBUG
             Assert.InRange(kops, 20, int.MaxValue);
@@ -265,7 +255,7 @@ namespace zero.test.core.patterns.queue{
         public async Task IteratorAsync()
         {
 #if DEBUG
-            var threads = 2;
+            var threads = 3;
             var itemsPerThread = 1000;
 #else
             var threads = 10;
@@ -290,17 +280,18 @@ namespace zero.test.core.patterns.queue{
             {
                 insert.Add(Task.Factory.StartNew(static async state =>
                 {
-                    var (@this, q, idx, itemsPerThread) = (ValueTuple<IoQueueTest,IoQueue<int>, int, int>)state!;
+                    var (@this, q, idx, itemsPerThread, output) = (ValueTuple<IoQueueTest,IoQueue<int>, int, int, ITestOutputHelper>)state!;
                     for (var i = 0; i < itemsPerThread; i++)
                     {
                         if(i%2 == 0)
-                            await q.EnqueueAsync(Interlocked.Increment(ref idx));
+                            await q.EnqueueAsync(Interlocked.Increment(ref idx)).FastPath();
                         else
-                            await q.PushBackAsync(Interlocked.Increment(ref idx));
+                            await q.PushBackAsync(Interlocked.Increment(ref idx)).FastPath();
                         Interlocked.Increment(ref @this._inserted);
                     }
                         
-                }, (this, q, idx, itemsPerThread), TaskCreationOptions.DenyChildAttach).Unwrap());
+                    output.WriteLine($"thread[{idx}] = done... {@this._inserted}");
+                }, (this, q, idx, itemsPerThread, _output), TaskCreationOptions.DenyChildAttach).Unwrap());
             }
 
             await Task.WhenAll(insert).WaitAsync(TimeSpan.FromSeconds(10));

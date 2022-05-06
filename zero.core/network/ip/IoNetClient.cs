@@ -188,7 +188,12 @@ namespace zero.core.network.ip
                         if (UpTime.ElapsedMsToSec() > 5)
                             _logger.Error($"DC {IoNetSocket.RemoteNodeAddress} from {IoNetSocket.LocalNodeAddress}, uptime = {TimeSpan.FromMilliseconds(UpTime.ElapsedMs())}");
 
-                        Zero(this, "Disconnected!!");
+                        Task.Factory.StartNew(static s =>
+                        {
+                            var @this = (IoNetClient<TJob>)s;
+                            return @this.Zero(@this, $"Socket disconnected - {@this.IoNetSocket.Description}");
+                        }, this);
+                        
                         //Do cleanup
                         return false;
                     }

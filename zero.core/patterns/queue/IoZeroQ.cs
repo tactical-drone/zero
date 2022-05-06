@@ -72,7 +72,7 @@ namespace zero.core.patterns.queue
 
             if (_blockingCollection)
             {
-                _blockSync = new IoZeroSemaphoreSlim(asyncTasks, $"blocking {description}", concurrencyLevel, zeroAsyncMode: true); //TODO: tuning
+                _blockSync = new IoZeroSemaphoreSlim(asyncTasks, $"blocking {description}", concurrencyLevel, zeroAsyncMode: false); //TODO: tuning
                 _zeroSync = new IoZeroSemaphoreSlim(asyncTasks, $"sharing {description}", concurrencyLevel, zeroAsyncMode: true); //TODO: tuning
             }
             
@@ -91,7 +91,7 @@ namespace zero.core.patterns.queue
         private readonly T[] _fastStorage;
 
         private readonly T _sentinel;
-        //private readonly object _syncRoot = new();
+        private readonly object _syncRoot = new();
         private volatile int _capacity;
         private volatile int _virility;
         private long _hwm;
@@ -168,15 +168,6 @@ namespace zero.core.patterns.queue
             }
         }
 
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public T Get(long idx, T next = null)
-        {
-            if (!IsAutoScaling) return Interlocked.Exchange(ref _storage[0][idx % _capacity], next);
-            idx %= Capacity;
-            var i = IoMath.Log2(unchecked((ulong)idx + 1));
-            return Interlocked.Exchange(ref _storage[i][idx - ((1 << i) - 1)], next);
-        }
-        
         /// <summary>
         /// Horizontal scale
         /// </summary>
@@ -186,7 +177,7 @@ namespace zero.core.patterns.queue
             if (!IsAutoScaling)
                 return false;
 
-            //lock (_syncRoot)
+            lock (_syncRoot)
             {
                 var cap2 = Capacity >> 1;
 
@@ -209,17 +200,6 @@ namespace zero.core.patterns.queue
                 }
                 return false;
             }
-        }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private T Exchange(long idx, T value)
-        {
-            if (!IsAutoScaling) return Interlocked.Exchange(ref _fastStorage[idx % _capacity], value);
-
-            idx %= Capacity;
-            var i = IoMath.Log2(unchecked((ulong)idx + 1));
-            
-            return Interlocked.Exchange(ref _storage[i][idx - ((1 << i) - 1)], value);
         }
 
         /// <summary>
@@ -250,9 +230,6 @@ namespace zero.core.patterns.queue
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public long TryEnqueue<TC>(T item, bool deDup = false, Action<TC> onAtomicAdd = null, TC context = default)
         {
-            if (Zeroed)
-                return -1;
-
             Debug.Assert(Zeroed || item != null);
 
             if (_autoScale && (_primedForScale == 1 || _count >= Capacity >> 1))
@@ -310,7 +287,6 @@ namespace zero.core.patterns.queue
                 Debug.Assert(Zeroed || tail == Tail);
                 Interlocked.MemoryBarrier();
 #endif
-                //Interlocked.MemoryBarrier();
                 //execute atomic action on success
                 onAtomicAdd?.Invoke(context);
                     
@@ -343,8 +319,6 @@ namespace zero.core.patterns.queue
                     }
                 }
 
-                //_blockSync.Release(_blockingConsumers, bestCase: Head != Tail); //TODO: config
-
                 //_curEnumerator.IncIteratorCount(); //TODO: is this a good idea?
 
                 return tail;
@@ -372,12 +346,11 @@ namespace zero.core.patterns.queue
 #else
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
 #endif
-
         public bool TryDequeue([MaybeNullWhen(false)] out T returnValue)
         {
             try
             {
-                if (_count == 0 || Zeroed)
+                if (_count == 0)
                 {
                     returnValue = null;
                     return false;
@@ -389,23 +362,22 @@ namespace zero.core.patterns.queue
                 int c = 0;
 #endif
                 T latch;
-                //bool race = false;
+                bool race = false;
                 while ((head = Head) >= Tail || (latch = this[head]) == _sentinel || latch == null || head != Head ||
-                       (slot = CompareExchange(head, _sentinel, latch)) != latch) //|| (race = head != Head))
+                       (slot = CompareExchange(head, _sentinel, latch)) != latch || (race = head != Head))
                 {
-                    //TODO: I don't think this one is needed, overruns can handle because it looks for non null values
-                    //if (race)
-                    //{
-                    //    if ((slot = CompareExchange(head, latch, _sentinel)) != _sentinel)
-                    //    {
-                    //        LogManager.GetCurrentClassLogger().Fatal($"{nameof(TryEnqueue)}: Unable to restore lock at head = {head}, too {latch}, cur = {this[head]}");
-                    //    }
-                    //}
+                    if (race)
+                    {
+                        if ((slot = CompareExchange(head, slot, _sentinel)) != _sentinel)
+                        {
+                            LogManager.GetCurrentClassLogger().Fatal($"{nameof(TryEnqueue)}: Unable to restore lock at head = {head}, too {slot}, cur = {this[head]}");
+                        }
+                    }
 #if DEBUG
                     if (c++ > 50000)
                         throw new InternalBufferOverflowException($"{Description}");
 #endif
-                    if(slot != null)
+                    if (slot != null)
                         Interlocked.MemoryBarrierProcessWide();
                     else
                         Interlocked.MemoryBarrier();
@@ -417,7 +389,7 @@ namespace zero.core.patterns.queue
                     }
 
                     slot = null;
-                    //race = false;
+                    race = false;
                 }
 
 
@@ -454,7 +426,7 @@ namespace zero.core.patterns.queue
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public bool TryPeek([MaybeNullWhen(false)] out T result)
         {
-            return (result = this[Head % Capacity]) != null;
+            return (result = this[Head]) != null;
         }
 
         /// <summary>
@@ -601,7 +573,6 @@ namespace zero.core.patterns.queue
                             break;
 
                         TryDequeue(out next);
-
                     }
                     catch (Exception e)
                     {

@@ -67,14 +67,14 @@ namespace zero.core.patterns.queue
             if (_configuration.HasFlag(Mode.Pressure))
             {
                 _pressure = new IoZeroSemaphore($"qp {description}",
-                    maxBlockers: concurrencyLevel, cancellationTokenSource: _asyncTasks);
+                    maxBlockers: concurrencyLevel, cancellationTokenSource: _asyncTasks, zeroAsyncMode:false);
                 _pressure.ZeroRef(ref _pressure);
             }
             
             if (_configuration.HasFlag(Mode.BackPressure))
             {
                 _backPressure = new IoZeroSemaphore($"qbp {description}",
-                    maxBlockers: concurrencyLevel, initialCount: concurrencyLevel, cancellationTokenSource: _asyncTasks, enableAutoScale:true);
+                    maxBlockers: concurrencyLevel, initialCount: concurrencyLevel, cancellationTokenSource: _asyncTasks, zeroAsyncMode: false);
                 _backPressure.ZeroRef(ref _backPressure);
             }
 
@@ -290,7 +290,7 @@ namespace zero.core.patterns.queue
                         }
                     }
 
-                    if (_pressure!= null && success)
+                    if (_pressure != null && success)
                         _pressure.Release();
                     else
                         _backPressure?.Release();

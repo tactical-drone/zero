@@ -715,76 +715,84 @@ namespace zero.core.patterns.bushings
         /// </summary>
         public virtual async ValueTask BlockOnReplicateAsync()
         {
-            var desc = Description;
+            try
+            {
+                var desc = Description;
 #if DEBUG
-            _logger.Trace($"{GetType().Name}: Assimulating {desc}");
+                _logger.Trace($"{GetType().Name}: Assimulating {desc}");
 #endif
-            //Consumer
-            var width = Source.ZeroConcurrencyLevel();
-            for (var i = 0; i < width; i++)
-                await ZeroAsync(static async @this =>
-                {
-                    try
+                //Consumer
+                var width = Source.ZeroConcurrencyLevel();
+                for (var i = 0; i < width; i++)
+                    await ZeroAsync(static async @this =>
                     {
-                        //While supposed to be working
-                        while (!@this.Zeroed())
+                        try
                         {
-                            try
+                            //While supposed to be working
+                            while (!@this.Zeroed())
                             {
-                                await @this.ConsumeAsync<object>().FastPath();
-                            }
-                            catch when (@this.Zeroed()) { }
-                            catch (Exception e) when (!@this.Zeroed())
-                            {
-                                @this._logger.Error(e, $"Consumption failed {@this.Description}");
+                                try
+                                {
+                                    await @this.ConsumeAsync<object>().FastPath();
+                                }
+                                catch when (@this.Zeroed()) { }
+                                catch (Exception e) when (!@this.Zeroed())
+                                {
+                                    @this._logger.Error(e, $"Consumption failed {@this.Description}");
 
-                                break;
+                                    break;
+                                }
                             }
                         }
-                    }
-                    catch when (@this.Zeroed())
-                    {
-                    }
-                    catch (Exception e) when (!@this.Zeroed())
-                    {
-                        @this._logger.Error(e, $"Consumption failed! {@this.Description}");
-                    }
-                }, this, TaskCreationOptions.DenyChildAttach).FastPath(); //TODO tuning
-
-            //Producer
-            width = Source.PrefetchSize;
-            for (var i = 0; i < width; i++)
-                await ZeroAsync(static async @this =>
-                {
-                    try
-                    {
-                        //While supposed to be working
-                        while (!@this.Zeroed())
+                        catch when (@this.Zeroed())
                         {
-                            try
+                        }
+                        catch (Exception e) when (!@this.Zeroed())
+                        {
+                            @this._logger.Error(e, $"Consumption failed! {@this.Description}");
+                        }
+                    }, this, TaskCreationOptions.DenyChildAttach).FastPath(); //TODO tuning
+
+                //Producer
+                width = Source.PrefetchSize;
+                for (var i = 0; i < width; i++)
+                    await ZeroAsync(static async @this =>
+                    {
+                        try
+                        {
+                            //While supposed to be working
+                            while (!@this.Zeroed())
                             {
-                                await @this.ProduceAsync().FastPath();
-                            }
-                            catch (Exception e)
-                            {
-                                @this._logger.Error(e, $"Production failed: {@this.Description}");
-                                break;
+                                try
+                                {
+                                    await @this.ProduceAsync().FastPath();
+                                }
+                                catch (Exception e)
+                                {
+                                    @this._logger.Error(e, $"Production failed: {@this.Description}");
+                                    break;
+                                }
                             }
                         }
-                    }
-                    catch when (@this.Zeroed())
-                    {
-                    }
-                    catch (Exception e) when (!@this.Zeroed())
-                    {
-                        @this._logger.Error(e, $"Production failed! {@this.Description}");
-                    }
-                }, this, TaskCreationOptions.DenyChildAttach).FastPath(); //TODO tuning
+                        catch when (@this.Zeroed())
+                        {
+                        }
+                        catch (Exception e) when (!@this.Zeroed())
+                        {
+                            @this._logger.Error(e, $"Production failed! {@this.Description}");
+                        }
+                    }, this, TaskCreationOptions.DenyChildAttach).FastPath(); //TODO tuning
 
-            await AsyncTasks.Token.BlockOnNotCanceledAsync().FastPath();
+                await AsyncTasks.Token.BlockOnNotCanceledAsync().FastPath();
 #if DEBUG
-            _logger?.Trace($"{GetType().Name}: Processing for {desc} stopped");
+                _logger?.Trace($"{GetType().Name}: Processing for {desc} stopped");
 #endif
+            }
+            catch when(Zeroed()){}
+            catch (Exception e) when(!Zeroed())
+            {
+                _logger?.Error(e,Description);
+            }
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]

@@ -462,15 +462,13 @@ namespace zero.core.patterns.semaphore.core
                     if (slot == null)
                     {
                         //fast path, RACES with SetResult 
-                        while (_curSignalCount == 1 && _curWaitCount == 1)
+                        while (_curWaitCount == 1 && _curSignalCount == 1)
                         {
-                            if (Zeroed()) break;
-
                             //reserve a signal
-                            if (Interlocked.CompareExchange(ref _curSignalCount, 0, 1) == 1)
+                            if (Interlocked.CompareExchange(ref _curWaitCount, 0, 1) == 1)
                             {
                                 //race for a waiter
-                                if (Interlocked.CompareExchange(ref _curWaitCount, 0, 1) == 1)
+                                if (Interlocked.CompareExchange(ref _curSignalCount, 0, 1) == 1)
                                 {
                                     TaskScheduler cc = null;
                                     if (TaskScheduler.Current != TaskScheduler.Default) cc = TaskScheduler.Current;
@@ -480,7 +478,7 @@ namespace zero.core.patterns.semaphore.core
                                     return;
                                 }
 
-                                Interlocked.Increment(ref _curSignalCount); //dine on deadlock
+                                Interlocked.Increment(ref _curWaitCount); //dine on deadlock
                             }
                         }
 
@@ -600,11 +598,14 @@ namespace zero.core.patterns.semaphore.core
 #if ZERO_CORE
                         _ = Task.Factory.StartNew(callback, state, CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Default);
 #else
-                        ThreadPool.UnsafeQueueUserWorkItem(static delegate(object s)
+                        if (!ThreadPool.UnsafeQueueUserWorkItem(static delegate(object s)
+                            {
+                                var (callback, state) = (ValueTuple<Action<object>, object>)s;
+                                callback(state);
+                            }, (callback, state)))
                         {
-                            var(callback,state) = (ValueTuple<Action<object>,object>)s;
-                            callback(state);
-                        }, (callback,state));
+                            _ = Task.Factory.StartNew(callback, state, CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Default);
+                        };
 #endif
                     }
                     else
@@ -657,7 +658,11 @@ namespace zero.core.patterns.semaphore.core
                     
                     _ = Task.Factory.StartNew(callback, state, CancellationToken.None, TaskCreationOptions.DenyChildAttach, ts);
 #else
-                    ThreadPool.QueueUserWorkItem(callback, state, true);
+                    if (!ThreadPool.QueueUserWorkItem(callback, state, true))
+                    {
+                        if(!ThreadPool.QueueUserWorkItem(callback, state,false))
+                            _ = Task.Factory.StartNew(callback, state, CancellationToken.None, TaskCreationOptions.DenyChildAttach, ts);
+                    }
 #endif
                     break;
             }
@@ -774,6 +779,9 @@ namespace zero.core.patterns.semaphore.core
                 {
                     if (target > _maxBlockers)
                         return -1;
+
+                    if (Zeroed())
+                        break;
                 }
                 //Interlocked.Add(ref _curSignalCount, releaseCount);
             }
@@ -884,7 +892,7 @@ namespace zero.core.patterns.semaphore.core
 #endif
                 //execute continuation
                 if (!ZeroComply(worker.Continuation, worker.State, worker.ExecutionContext, worker.CapturedContext,
-                        Zeroed() || worker.State is IIoNanite nanite && nanite.Zeroed()))
+                        worker.State is IIoNanite nanite && nanite.Zeroed()))
                 {
                     return -1;
                 }
@@ -901,14 +909,10 @@ namespace zero.core.patterns.semaphore.core
         /// <returns>True if waiting, false otherwise. If the semaphore is awaited on more than <see cref="_maxBlockers"/>, false is returned</returns>
         public ValueTask<bool> WaitAsync()
         {
-            //insane checks
-            if (Zeroed())
-                return new ValueTask<bool>(false);
-
             var slot = -1;
-            int latch;
+            int latch = 0;
             //reserve a signal if set
-            while ((latch = _curSignalCount) > 0 && _curWaitCount == 0 &&
+            while (_curWaitCount == 0 && (latch = _curSignalCount) > 0 &&
                    (slot = Interlocked.CompareExchange(ref _curSignalCount, latch - 1, latch)) != latch)
             {
                 if (Zeroed())
@@ -919,7 +923,7 @@ namespace zero.core.patterns.semaphore.core
             
             //>>> FAST PATH on set
             if (slot == latch)
-                return new ValueTask<bool>(!Zeroed());
+                return new ValueTask<bool>(true);
 
             slot = -1;
             //reserve a wait slot
@@ -933,8 +937,8 @@ namespace zero.core.patterns.semaphore.core
             }
 
             //out of capacity
-            if (slot != latch || Zeroed())
-                throw new ZeroValidationException($"Concurrency bug, Semaphore full! {Description}");
+            if (slot != latch)
+                throw new ZeroValidationException($"WAIT: Concurrency bug, Semaphore full! {Description}");
 
             //> SLOW PATH
             return new ValueTask<bool>(_zeroRef, 0);

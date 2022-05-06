@@ -300,11 +300,14 @@ namespace zero.core.patterns.semaphore.core
 #if ZERO_CORE
                         _ = Task.Factory.StartNew(_continuation, Task.Factory.StartNew(_continuation, _continuationState, CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Default));
 #else
-                        ThreadPool.UnsafeQueueUserWorkItem(static delegate(object s)
+                        if (!ThreadPool.UnsafeQueueUserWorkItem(static delegate(object s)
+                            {
+                                var (callback, state) = (ValueTuple<Action<object>, object>)s;
+                                callback(state);
+                            }, (_continuation, _continuationState)))
                         {
-                            var(callback,state) = (ValueTuple<Action<object>,object>)s;
-                            callback(state);
-                        }, (_continuation, _continuationState));
+                            _ = Task.Factory.StartNew(_continuation, Task.Factory.StartNew(_continuation, _continuationState, CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Default));
+                        }
 #endif
 
                     }
@@ -344,7 +347,11 @@ namespace zero.core.patterns.semaphore.core
                     
                     _ = Task.Factory.StartNew(_continuation, _continuationState, CancellationToken.None, TaskCreationOptions.DenyChildAttach, ts);
 #else
-                    ThreadPool.QueueUserWorkItem(_continuation, _continuationState, true);
+                    if (!ThreadPool.QueueUserWorkItem(_continuation, _continuationState, true))
+                    {
+                        if (!ThreadPool.QueueUserWorkItem(_continuation, _continuationState, false))
+                            _ = Task.Factory.StartNew(_continuation, _continuationState, CancellationToken.None, TaskCreationOptions.DenyChildAttach, ts);
+                    }
 #endif
                     break;
             }

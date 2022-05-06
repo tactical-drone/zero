@@ -37,21 +37,6 @@ namespace zero.core.patterns.bushings
             //if (zeroAsyncMode > concurrencyLevel)
             //    throw new ArgumentOutOfRangeException($"{description}: invalid {nameof(concurrencyLevel)} = {concurrencyLevel}, must be at least {nameof(zeroAsyncMode)} = {zeroAsyncMode}");
 
-            //if (disableZero)
-            //{
-            //    DisableZero = true;
-            //    PrefetchEnabled = true;
-            //    BackPressureEnabled = true;//TODO: config?
-            //    PressureEnabled = false;
-            //}
-            //else
-            //{
-            //    //PrefetchEnabled = prefetchSize > 1;
-            //    PrefetchEnabled = true;
-            //    BackPressureEnabled = true;
-            //    PressureEnabled = false;
-            //}
-
             PrefetchEnabled = true;
             BackPressureEnabled = true;
             PrefetchSize = prefetchSize;

@@ -908,7 +908,7 @@ var d = 0;
         public bool QueueCallback(Action<object> callback, object state)
         {
             var handler = _callbackHeap.Take();
-            if (state == null) return false;
+            if (handler == null) return false;
 
             handler.Callback = callback;
             handler.State = state;
