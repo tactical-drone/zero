@@ -74,7 +74,7 @@ namespace zero.core.patterns.queue
             if (_configuration.HasFlag(Mode.BackPressure))
             {
                 _backPressure = new IoZeroSemaphore($"qbp {description}",
-                    maxBlockers: concurrencyLevel, initialCount: concurrencyLevel, cancellationTokenSource: _asyncTasks);
+                    maxBlockers: concurrencyLevel, initialCount: concurrencyLevel, cancellationTokenSource: _asyncTasks, enableAutoScale:true);
                 _backPressure.ZeroRef(ref _backPressure);
             }
 

@@ -466,7 +466,7 @@ namespace zero.cocoon.models
                     }
 
 
-                    //if (req > 2 && Source.Rate.ElapsedMs() < 4000)// && req - _maxReq < 10)
+                    //if (req > 2 && Source.Rate.ElapsedMs() < 3000)// && req - _maxReq < 10)
                     //    continue;
 
                     //await Task.Delay(RandomNumberGenerator.GetInt32(5, 350));

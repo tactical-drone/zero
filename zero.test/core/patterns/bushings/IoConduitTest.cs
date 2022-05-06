@@ -132,7 +132,7 @@ namespace zero.test.core.patterns.bushings
                 _output.WriteLine($"{c1.EventCount}/{count}");
                 await Task.Delay(2000);
             }
-            await z1.WaitAsync(TimeSpan.FromMilliseconds(targetTime));
+            await z1.WaitAsync(TimeSpan.FromMilliseconds(targetTime * 3));
 
             var fpses = c1.EventCount / (double)ts.ElapsedMsToSec()/ 1000;
 
