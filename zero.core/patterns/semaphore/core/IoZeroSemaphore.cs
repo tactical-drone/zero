@@ -467,10 +467,10 @@ namespace zero.core.patterns.semaphore.core
                             if (Zeroed()) break;
 
                             //reserve a signal
-                            if (Interlocked.CompareExchange(ref _curWaitCount, 0, 1) == 1)
+                            if (Interlocked.CompareExchange(ref _curSignalCount, 0, 1) == 1)
                             {
                                 //race for a waiter
-                                if (Interlocked.CompareExchange(ref _curSignalCount, 0, 1) == 1)
+                                if (Interlocked.CompareExchange(ref _curWaitCount, 0, 1) == 1)
                                 {
                                     TaskScheduler cc = null;
                                     if (TaskScheduler.Current != TaskScheduler.Default) cc = TaskScheduler.Current;
@@ -480,7 +480,7 @@ namespace zero.core.patterns.semaphore.core
                                     return;
                                 }
 
-                                Interlocked.Increment(ref _curWaitCount); //dine on deadlock
+                                Interlocked.Increment(ref _curSignalCount); //dine on deadlock
                             }
                         }
 
