@@ -94,7 +94,7 @@ namespace zero.test.core.patterns.semaphore
         [Fact]
         async Task ReleaseAsync()
         {
-            var m = new IoZeroSemaphoreSlim(new CancellationTokenSource(), "test mutex", maxBlockers: 10, initialCount: 3, maxAsyncWork: 0);
+            var m = new IoZeroSemaphoreSlim(new CancellationTokenSource(), "test mutex", maxBlockers: 10, initialCount: 3, zeroAsyncMode: false);
             
             await Task.Factory.StartNew(async () =>
             {

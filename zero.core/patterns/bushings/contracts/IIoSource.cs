@@ -139,12 +139,7 @@ namespace zero.core.patterns.bushings.contracts
         /// <summary>
         /// The number of concurrent sources allowed
         /// </summary>
-        int MaxAsyncSources { get; }
-
-        /// <summary>
-        /// If async workers are currently enabled
-        /// </summary>
-        public bool AsyncEnabled { get; }
+        bool ZeroAsyncMode { get; }
 
         /// <summary>
         /// Whether this source is a proxy

@@ -24,9 +24,9 @@ namespace zero.core.feat.models.protobuffer.sources
         /// <param name="ioSource">The source of this model</param>
         /// <param name="prefetchSize">Initial job prefetch from source</param>
         /// <param name="concurrencyLevel"></param>
-        /// <param name="maxAsyncSources"></param>
-        public CcProtocBatchSource(string description, IIoSource ioSource, int prefetchSize, int concurrencyLevel, int maxAsyncSources = 0) 
-            : base(description, false, prefetchSize, concurrencyLevel, maxAsyncSources, true)//TODO config
+        /// <param name="zeroAsyncMode"></param>
+        public CcProtocBatchSource(string description, IIoSource ioSource, int prefetchSize, int concurrencyLevel, bool zeroAsyncMode = false) 
+            : base(description, false, prefetchSize, concurrencyLevel, zeroAsyncMode)//TODO config
         {
             _logger = LogManager.GetCurrentClassLogger();
 

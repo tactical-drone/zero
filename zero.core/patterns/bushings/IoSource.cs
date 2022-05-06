@@ -23,7 +23,7 @@ namespace zero.core.patterns.bushings
         /// Constructor
         /// </summary>
         protected IoSource(string description, bool proxy, int prefetchSize = 1, int concurrencyLevel = 1,
-            int maxAsyncSources = 0, bool disableZero = false) : base(description, concurrencyLevel)
+            bool zeroAsyncMode = false) : base(description, concurrencyLevel)
         {
             _logger = LogManager.GetCurrentClassLogger();
 
@@ -34,8 +34,8 @@ namespace zero.core.patterns.bushings
             //if (maxAsyncSinks > concurrencyLevel)
             //    throw new ArgumentOutOfRangeException($"{description}: invalid {nameof(concurrencyLevel)} = {concurrencyLevel}, must be at least {nameof(maxAsyncSinks)} = {maxAsyncSinks}");
 
-            //if (maxAsyncSources > concurrencyLevel)
-            //    throw new ArgumentOutOfRangeException($"{description}: invalid {nameof(concurrencyLevel)} = {concurrencyLevel}, must be at least {nameof(maxAsyncSources)} = {maxAsyncSources}");
+            //if (zeroAsyncMode > concurrencyLevel)
+            //    throw new ArgumentOutOfRangeException($"{description}: invalid {nameof(concurrencyLevel)} = {concurrencyLevel}, must be at least {nameof(zeroAsyncMode)} = {zeroAsyncMode}");
 
             //if (disableZero)
             //{
@@ -55,8 +55,7 @@ namespace zero.core.patterns.bushings
             PrefetchEnabled = true;
             BackPressureEnabled = true;
             PrefetchSize = prefetchSize;
-            MaxAsyncSources = maxAsyncSources;
-            AsyncEnabled = MaxAsyncSources > 0;
+            ZeroAsyncMode = zeroAsyncMode;
 
             Proxy = proxy;
 
@@ -68,7 +67,7 @@ namespace zero.core.patterns.bushings
                     _pressure = new IoZeroSemaphoreSlim(AsyncTasks, $"{nameof(_pressure)}: {description}",
                         maxBlockers: concurrencyLevel,
                         0,
-                        maxAsyncWork: 0); //TODO Prefetch - 1 or not?
+                        zeroAsyncMode: ZeroAsyncMode); //TODO Prefetch - 1 or not?
                 }
 
                 if (BackPressureEnabled)
@@ -76,7 +75,7 @@ namespace zero.core.patterns.bushings
                     _backPressure = new IoZeroSemaphoreSlim(AsyncTasks, $"{nameof(_backPressure)}: {description}",
                         maxBlockers: maxBlockers,
                         initialCount: concurrencyLevel,
-                        maxAsyncWork: 0); //TODO Prefetch - 1 or not?
+                        zeroAsyncMode: ZeroAsyncMode); //TODO Prefetch - 1 or not?
                 }
 
                 if (PrefetchEnabled)
@@ -84,7 +83,7 @@ namespace zero.core.patterns.bushings
                     _prefetchPressure = new IoZeroSemaphoreSlim(AsyncTasks, $"{nameof(_prefetchPressure)}: {description}",
                         maxBlockers: maxBlockers,
                         initialCount: PrefetchSize,
-                        maxAsyncWork: 0);
+                        zeroAsyncMode: true);
                 }
             }
             catch (Exception e)
@@ -204,12 +203,7 @@ namespace zero.core.patterns.bushings
         /// <summary>
         /// The number of concurrent sources allowed
         /// </summary>
-        public int MaxAsyncSources { get; protected set; }
-
-        /// <summary>
-        /// If async workers are enabled
-        /// </summary>
-        public bool AsyncEnabled { get; set; }
+        public bool ZeroAsyncMode { get; protected set; }
 
         public bool Proxy { get; }
 

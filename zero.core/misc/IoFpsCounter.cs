@@ -30,7 +30,7 @@ namespace zero.core.misc
 
             if (!_disabled)
             {
-                _mutex = new IoZeroSemaphore($"{nameof(IoFpsCounter)}", maxConcurrency, 1, cancellationTokenSource:_asyncTasks);
+                _mutex = new IoZeroSemaphore($"{nameof(IoFpsCounter)}", maxConcurrency, 1, cancellationTokenSource: _asyncTasks);
                 _mutex.ZeroRef(ref _mutex);
             }
             else

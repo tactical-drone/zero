@@ -31,7 +31,7 @@ namespace zero.core.network.ip
         /// <param name="ioSocket">The socket the listener created</param>
         /// <param name="prefetch">Read ahead size</param>
         /// <param name="concurrencyLevel">Level of concurrency</param>
-        public IoUdpClient(string description, IoSocket ioSocket, int prefetch, int concurrencyLevel) : base(description, new IoUdpSocket(ioSocket.NativeSocket, new IPEndPoint(IPAddress.Any, 305), prefetch), prefetch, concurrencyLevel, 0)
+        public IoUdpClient(string description, IoSocket ioSocket, int prefetch, int concurrencyLevel) : base(description, new IoUdpSocket(ioSocket.NativeSocket, new IPEndPoint(IPAddress.Any, 305), prefetch), prefetch, concurrencyLevel, false)
         {
             
         }
@@ -48,7 +48,7 @@ namespace zero.core.network.ip
         /// <param name="description"></param>
         /// <param name="clone"></param>
         /// <param name="newRemoteEp"></param>
-        public IoUdpClient(string description, IoNetClient<TJob> clone, IPEndPoint newRemoteEp) : base(description , new IoUdpSocket(clone.IoNetSocket.NativeSocket, newRemoteEp, clone.PrefetchSize, true), clone.PrefetchSize, clone.ZeroConcurrencyLevel(), 0,true)
+        public IoUdpClient(string description, IoNetClient<TJob> clone, IPEndPoint newRemoteEp) : base(description , new IoUdpSocket(clone.IoNetSocket.NativeSocket, newRemoteEp, clone.PrefetchSize, true), clone.PrefetchSize, clone.ZeroConcurrencyLevel(), false,true)
         {
             
         }

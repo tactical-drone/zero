@@ -72,8 +72,8 @@ namespace zero.core.patterns.queue
 
             if (_blockingCollection)
             {
-                _blockSync = new IoZeroSemaphoreSlim(asyncTasks, $"blocking {description}", concurrencyLevel, maxAsyncWork: concurrencyLevel); //TODO: tuning
-                _shareSync = new IoZeroSemaphoreSlim(asyncTasks, $"sharing {description}", concurrencyLevel, maxAsyncWork: concurrencyLevel); //TODO: tuning
+                _blockSync = new IoZeroSemaphoreSlim(asyncTasks, $"blocking {description}", concurrencyLevel, zeroAsyncMode: true); //TODO: tuning
+                _zeroSync = new IoZeroSemaphoreSlim(asyncTasks, $"sharing {description}", concurrencyLevel, zeroAsyncMode: true); //TODO: tuning
             }
             
             _curEnumerator = new IoQEnumerator<T>(this);
@@ -108,7 +108,7 @@ namespace zero.core.patterns.queue
         private volatile int _sharingConsumers;
         private volatile int _primedForScale;
         private readonly IoZeroSemaphoreSlim _blockSync;
-        private readonly IoZeroSemaphoreSlim _shareSync;
+        private readonly IoZeroSemaphoreSlim _zeroSync;
 
         /// <summary>
         /// ZeroAsync status
@@ -323,7 +323,7 @@ namespace zero.core.patterns.queue
                 {
                     try
                     {
-                        _shareSync.Release(1, bestCase: Head != tail);
+                        _zeroSync.Release(1, bestCase: Head != tail);
                     }
                     catch
                     {
@@ -592,12 +592,22 @@ namespace zero.core.patterns.queue
             try
             {
                 Interlocked.Increment(ref _sharingConsumers);
-                while (!_shareSync.Zeroed())
+                while (!_zeroSync.Zeroed())
                 {
-                    if (!await _shareSync.WaitAsync().FastPath())
-                        break;
+                    T next = null;
+                    try
+                    {
+                        if (!await _zeroSync.WaitAsync().FastPath())
+                            break;
 
-                    if (TryDequeue(out var next))
+                        TryDequeue(out next);
+
+                    }
+                    catch (Exception e)
+                    {
+                        LogManager.GetCurrentClassLogger().Error(e,Description);
+                    }
+                    if(next != null)
                         yield return next;
                 }
             }

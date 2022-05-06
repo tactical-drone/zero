@@ -23,7 +23,7 @@ namespace zero.test.core.patterns.bushings
         {
             var concurrencyLevel = 1;
             var count = 20;
-            var s1 = new IoZeroSource("zero source 1", false, concurrencyLevel + 1, concurrencyLevel, 0, disableZero:true);
+            var s1 = new IoZeroSource("zero source 1", false, concurrencyLevel + 1, concurrencyLevel, false, disableZero:true);
             var c1 = new IoConduit<IoZeroProduct>("conduit smoke test 1", s1, static (ioZero, _) =>
             {
                 //sentinel
@@ -69,7 +69,7 @@ namespace zero.test.core.patterns.bushings
             var concurrencyLevel = 10;
             var count = 500;
             
-            var s1 = new IoZeroSource("zero source 1", false, concurrencyLevel<<1, concurrencyLevel, 0, disableZero:true);
+            var s1 = new IoZeroSource("zero source 1", false, concurrencyLevel<<1, concurrencyLevel, false, disableZero:true);
             var c1 = new IoConduit<IoZeroProduct>("conduit smoke test 1", s1, static (ioZero, _) 
                 => new IoZeroProduct("test product 1", ((IoConduit<IoZeroProduct>)ioZero)?.Source, 100), concurrencyLevel);
 
@@ -113,7 +113,7 @@ namespace zero.test.core.patterns.bushings
 #endif
 
 
-            var s1 = new IoZeroSource("zero source 1", false, concurrencyLevel*2, concurrencyLevel, 0, true);
+            var s1 = new IoZeroSource("zero source 1", false, concurrencyLevel*2, concurrencyLevel, false, true);
             var c1 = new IoConduit<IoZeroProduct>("conduit smoke test 1", s1, static (ioZero, _) 
                 => new IoZeroProduct("test product 1", ((IoConduit<IoZeroProduct>)ioZero).Source, 0), s1.ZeroConcurrencyLevel());
 
@@ -151,7 +151,7 @@ namespace zero.test.core.patterns.bushings
             var count = 200;
             var totalTimeMs = count * 100;
             var concurrencyLevel = 8;
-            var s1 = new IoZeroSource("zero source 1", false, concurrencyLevel<<1, concurrencyLevel, 0, true);
+            var s1 = new IoZeroSource("zero source 1", false, concurrencyLevel<<1, concurrencyLevel, false, true);
             var c1 = new IoConduit<IoZeroProduct>("conduit smoke test 1", s1, static (ioZero, _) => new IoZeroProduct("test product 1", ((IoConduit<IoZeroProduct>)ioZero).Source, 100), concurrencyLevel);
 
             var z1 = Task.Factory.StartNew(async () => await c1.BlockOnReplicateAsync(), TaskCreationOptions.DenyChildAttach).Unwrap();

@@ -25,7 +25,7 @@ namespace zero.core.patterns.semaphore
 
         public int ReadyCount => _pressure.GetStatus((short)_pressure.Version) == ValueTaskSourceStatus.Succeeded ? 1 : 0;
 
-        public int MaxAsyncWorkers => 0;
+        public bool ZeroAsyncMode => false;
 
         public int Capacity => 1;
         public bool RunContinuationsAsynchronously => _pressure.RunContinuationsAsynchronously;

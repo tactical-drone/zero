@@ -297,7 +297,16 @@ namespace zero.core.patterns.semaphore.core
                 case null:
                     if (RunContinuationsAsynchronously)
                     {
-                        Task.Factory.StartNew(_continuation, _continuationState, CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Default);
+#if ZERO_CORE
+                        _ = Task.Factory.StartNew(_continuation, Task.Factory.StartNew(_continuation, _continuationState, CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Default));
+#else
+                        ThreadPool.UnsafeQueueUserWorkItem(static delegate(object s)
+                        {
+                            var(callback,state) = (ValueTuple<Action<object>,object>)s;
+                            callback(state);
+                        }, (_continuation, _continuationState));
+#endif
+
                     }
                     else
                     {
@@ -318,7 +327,7 @@ namespace zero.core.patterns.semaphore.core
                     {
                         IoZeroScheduler.Zero.QueueCallback(_continuation, _continuationState);
                     }
-                    else
+                    else //inline
                     {
                         try
                         {
@@ -331,7 +340,12 @@ namespace zero.core.patterns.semaphore.core
                     }
                     break;
                 case TaskScheduler ts:
-                    Task.Factory.StartNew(_continuation, _continuationState, CancellationToken.None, TaskCreationOptions.DenyChildAttach, ts);
+#if ZERO_CORE
+                    
+                    _ = Task.Factory.StartNew(_continuation, _continuationState, CancellationToken.None, TaskCreationOptions.DenyChildAttach, ts);
+#else
+                    ThreadPool.QueueUserWorkItem(_continuation, _continuationState, true);
+#endif
                     break;
             }
         }

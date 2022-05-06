@@ -15,9 +15,8 @@ namespace zero.core.patterns.semaphore.core
         void ZeroSem();
         int ReadyCount { get; }
         int CurNrOfBlockers { get; }
-        public int MaxAsyncWorkers { get; }
+        public bool ZeroAsyncMode { get; }
         public int Capacity { get; }
-        bool RunContinuationsAsynchronously { get; }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         protected internal int ZeroDecAsyncCount();

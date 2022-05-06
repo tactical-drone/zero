@@ -26,7 +26,7 @@
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|AnyCPU'">
-    <DefineConstants>SAFE_RELEASE;</DefineConstants>
+    <DefineConstants>SAFE_RELEASE</DefineConstants>
     <CheckForOverflowUnderflow>True</CheckForOverflowUnderflow>
     <Optimize>True</Optimize>
   </PropertyGroup>

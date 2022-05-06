@@ -26,17 +26,17 @@ namespace zero.core.patterns.semaphore.core
         /// <param name="description">A description of this semaphore</param>
         /// <param name="maxBlockers">The maximum number of blockers this semaphore has capacity for</param>
         /// <param name="initialCount">The initial number of requests that will be non blocking</param>
-        /// <param name="asyncWorkerCount">The maximum "not-inline" or concurrent workers that this semaphore executes.</param>
+        /// <param name="zeroAsyncMode"></param>
         /// <param name="enableAutoScale">Experimental/dev: Cope with real time concurrency demand changes at the cost of undefined behavior in high GC pressured environments. DISABLE if CPU usage and memory snowballs and set <see cref="maxBlockers"/> more accurately instead. Scaling down is not supported</param>
         /// <param name="enableFairQ">Enable fair queueing at the cost of performance. If not, sometimes <see cref="OnCompleted"/> might jump the queue to save queue performance and resources. Some continuations are effectively not queued in <see cref="OnCompleted"/> when set to true</param>
         /// <param name="enableDeadlockDetection">When <see cref="enableAutoScale"/> is enabled checks for deadlocks within a thread and throws when found</param>
         /// <param name="cancellationTokenSource">Optional cancellation source</param>
-        public IoZeroSemaphore(
-            string description, 
-            int maxBlockers = 1, 
+        public IoZeroSemaphore(string description,
+            int maxBlockers = 1,
             int initialCount = 0,
-            int asyncWorkerCount = 0,
-            bool enableAutoScale = false, bool enableFairQ = true, bool enableDeadlockDetection = false, CancellationTokenSource cancellationTokenSource = default) : this()
+            bool zeroAsyncMode = false,
+            bool enableAutoScale = false, bool enableFairQ = true, bool enableDeadlockDetection = false,
+            CancellationTokenSource cancellationTokenSource = default) : this()
         {
 #if DEBUG
             _description = description;
@@ -49,12 +49,9 @@ namespace zero.core.patterns.semaphore.core
                 throw new ZeroValidationException($"{_description}: invalid {nameof(maxBlockers)} = {maxBlockers} specified, value must be larger than 0");
             if(initialCount < 0)
                 throw new ZeroValidationException($"{_description}: invalid {nameof(initialCount)} = {initialCount} specified, value may not be less than 0");
-            if(asyncWorkerCount > maxBlockers)
-                throw new ZeroValidationException($"{_description}: invalid {nameof(asyncWorkerCount)} = {asyncWorkerCount} specified, must less of equal to maxBlockers");
 
-            _maxBlockers = maxBlockers;
-            _maxAsyncWorkers = asyncWorkerCount;
-            RunContinuationsAsynchronously = _maxAsyncWorkers > 0;
+            _maxBlockers = maxBlockers + 1;
+            _zeroAsyncMode = zeroAsyncMode;
             _curSignalCount = initialCount;
             _zeroRef = null;
             _asyncTasks = cancellationTokenSource;
@@ -122,7 +119,7 @@ namespace zero.core.patterns.semaphore.core
         /// <summary>
         /// A semaphore description
         /// </summary>
-        private string Description => $"{nameof(IoZeroSemaphore)}[{_description}]: z = {_zeroed > 0},  ready = {_curSignalCount}, wait = {_curWaitCount}/{_maxBlockers}, async = {_curAsyncWorkerCount}/{_maxAsyncWorkers}, head = {Head}/{Tail} (D:{Tail - Head})";
+        private string Description => $"{nameof(IoZeroSemaphore)}[{_description}]: z = {_zeroed > 0},  ready = {_curSignalCount}, wait = {_curWaitCount}/{_maxBlockers}, async = {_curAsyncWorkerCount}/{_zeroAsyncMode}, head = {Head}/{Tail} (D:{Tail - Head})";
 
         /// <summary>
         /// The maximum threads that can be blocked by this semaphore. This blocking takes storage
@@ -137,12 +134,7 @@ namespace zero.core.patterns.semaphore.core
         /// <summary>
         /// Max number of async workers
         /// </summary>
-        private readonly int _maxAsyncWorkers;
-
-        /// <summary>
-        /// Whether we support async continuations 
-        /// </summary>
-        public bool RunContinuationsAsynchronously { get; }
+        private readonly bool _zeroAsyncMode;
 
         /// <summary>
         /// Current number of async workers
@@ -173,7 +165,7 @@ namespace zero.core.patterns.semaphore.core
         /// Maximum allowed concurrent "not inline" continuations before
         /// they become inline.
         /// </summary>
-        public int MaxAsyncWorkers => _maxAsyncWorkers;
+        public bool ZeroAsyncMode => _zeroAsyncMode;
 
         /// <summary>
         /// Maximum concurrent blockers this semaphore can accomodate. Each extra thread
@@ -439,97 +431,95 @@ namespace zero.core.patterns.semaphore.core
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void OnCompleted(Action<object> continuation, object state, short token, ValueTaskSourceOnCompletedFlags flags)
         {
-            try
+            int r = 2;
+            while (r-->0)
             {
-#if DEBUG
-                ZeroLock();
-#endif
-                Action<object> slot;
-
-#if DEBUG
-                int c = 0;
-#endif
-                long tailMod;
-                while ((slot = Interlocked.CompareExchange(ref _signalAwaiter[tailMod = Tail % _maxBlockers], ZeroSentinel, null)) != null)
+                try
                 {
 #if DEBUG
-                    if (c++ > 500000)
-                        throw new InternalBufferOverflowException($"{Description}");
+                    ZeroLock();
 #endif
-                    if (_zeroed > 0)
-                        break;
+                    Action<object> slot;
 
-                    //TODO: What is this?
-                    if (Tail % 2 == 0)
-                        Interlocked.MemoryBarrierProcessWide();
-                    else
-                        Interlocked.MemoryBarrier();
-                }
-
-                if (slot == null)
-                {
-                    //fast path, RACES with SetResult 
-                    while (_curSignalCount == 1 && _curWaitCount == 1)
+#if DEBUG
+                    int c = 0;
+#endif
+                    long tailMod;
+                    while ((slot = Interlocked.CompareExchange(ref _signalAwaiter[tailMod = Tail % _maxBlockers], ZeroSentinel, null)) != null)
                     {
-                        if (Zeroed())
-                            break;
+#if DEBUG
+                        if (c++ > 500000) throw new InternalBufferOverflowException($"{Description}");
+#endif
+                        if (_zeroed > 0) break;
 
-                        //reserve a signal
-                        if (Interlocked.CompareExchange(ref _curWaitCount, 0, 1) == 1)
-                        {
-                            //race for a waiter
-                            if (Interlocked.CompareExchange(ref _curSignalCount, 0, 1) == 1)
-                            {
-
-                                TaskScheduler cc = null;
-                                if (TaskScheduler.Current != TaskScheduler.Default)
-                                    cc = TaskScheduler.Current;
-
-                                Interlocked.Exchange(ref _signalAwaiter[tailMod], null);
-                                InvokeContinuation(continuation, state, cc, false);
-                                return;
-                            }
-
-                            Interlocked.Increment(ref _curWaitCount); //dine on deadlock
-                        }
+                        //TODO: What is this?
+                        if (Tail % 2 == 0)
+                            Interlocked.MemoryBarrierProcessWide();
+                        else
+                            Interlocked.MemoryBarrier();
                     }
 
-                    Interlocked.Exchange(ref _signalAwaiter[tailMod], continuation);
-                    Interlocked.Exchange(ref _signalAwaiterState[tailMod], state);
-                    ExtractContext(out _signalExecutionState[tailMod], out _signalCapturedContext[tailMod], flags);
-                    Interlocked.MemoryBarrier();
-                    Interlocked.Increment(ref _tail);
-                    
-                    return;
-                }
-#if DEBUG
-                ZeroUnlock();
-
-                if (_enableAutoScale) //EXPERIMENTAL: double concurrent capacity
-                {
-                    //release lock
-
-                    ZeroUnlock();
-
-                    //Scale
-                    if (_enableAutoScale)
+                    if (slot == null)
                     {
-                        ZeroScale();
-                        OnCompleted(continuation, state, token, flags);
+                        //fast path, RACES with SetResult 
+                        while (_curSignalCount == 1 && _curWaitCount == 1)
+                        {
+                            if (Zeroed()) break;
+
+                            //reserve a signal
+                            if (Interlocked.CompareExchange(ref _curWaitCount, 0, 1) == 1)
+                            {
+                                //race for a waiter
+                                if (Interlocked.CompareExchange(ref _curSignalCount, 0, 1) == 1)
+                                {
+                                    TaskScheduler cc = null;
+                                    if (TaskScheduler.Current != TaskScheduler.Default) cc = TaskScheduler.Current;
+
+                                    Interlocked.Exchange(ref _signalAwaiter[tailMod], null);
+                                    InvokeContinuation(continuation, state, cc, false);
+                                    return;
+                                }
+
+                                Interlocked.Increment(ref _curWaitCount); //dine on deadlock
+                            }
+                        }
+
+                        Interlocked.Exchange(ref _signalAwaiter[tailMod], continuation);
+                        Interlocked.Exchange(ref _signalAwaiterState[tailMod], state);
+                        ExtractContext(out _signalExecutionState[tailMod], out _signalCapturedContext[tailMod], flags);
+                        Interlocked.MemoryBarrier();
+                        Interlocked.Increment(ref _tail);
+
                         return;
                     }
+#if DEBUG
+                    ZeroUnlock();
 
-                    throw new ZeroValidationException(
-                        $"{_description}: FATAL!, {nameof(_curWaitCount)} = {_curWaitCount}/{_maxBlockers}, {nameof(_curAsyncWorkerCount)} = {_curAsyncWorkerCount}/{_maxAsyncWorkers}");
-                }
+                    if (_enableAutoScale) //EXPERIMENTAL: double concurrent capacity
+                    {
+                        //release lock
+
+                        ZeroUnlock();
+
+                        //Scale
+                        if (_enableAutoScale)
+                        {
+                            ZeroScale();
+                            OnCompleted(continuation, state, token, flags);
+                            return;
+                        }
+
+                        throw new ZeroValidationException($"{_description}: FATAL!, {nameof(_curWaitCount)} = {_curWaitCount}/{_maxBlockers}, {nameof(_curAsyncWorkerCount)} = {_curAsyncWorkerCount}/{_zeroAsyncMode}");
+                    }
 #endif
-            }
-            catch when (Zeroed())
-            {
-            }
-            catch (Exception e) when (!Zeroed())
-            {
-                LogManager.GetCurrentClassLogger().Error(e, $"{nameof(OnCompleted)}:");
+                }
+                catch when (Zeroed())
+                {
+                }
+                catch (Exception e) when (!Zeroed())
+                {
+                    LogManager.GetCurrentClassLogger().Error(e, $"{nameof(OnCompleted)}:");
+                }
             }
 
             if(!Zeroed())
@@ -605,35 +595,30 @@ namespace zero.core.patterns.semaphore.core
             switch (capturedContext)
             {
                 case null:
-                    if (RunContinuationsAsynchronously || forceAsync)
+                    if (_zeroAsyncMode || forceAsync)
                     {
-                        //if (forceAsync)
-                        //{
-                        //    _ = Task.Factory.StartNew(callback, state, CancellationToken.None,
-                        //        TaskCreationOptions.DenyChildAttach, TaskScheduler.Default);
-                        //    break;
-                        //}
-
-                        if (Interlocked.Increment(ref _curAsyncWorkerCount) <= _maxAsyncWorkers)
+#if ZERO_CORE
+                        _ = Task.Factory.StartNew(callback, state, CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Default);
+#else
+                        ThreadPool.UnsafeQueueUserWorkItem(static delegate(object s)
                         {
-                            _ = Task.Factory.StartNew(callback, state, CancellationToken.None,
-                                    TaskCreationOptions.DenyChildAttach, TaskScheduler.Default)
-                                .ContinueWith(static (_, zeroRef) => { ((IIoZeroSemaphore)zeroRef).ZeroDecAsyncCount(); }, _zeroRef);
-                            break;
+                            var(callback,state) = (ValueTuple<Action<object>,object>)s;
+                            callback(state);
+                        }, (callback,state));
+#endif
+                    }
+                    else
+                    {
+                        try
+                        {
+                            callback(state);
                         }
+                        catch (Exception e)
+                        {
+                            LogManager.GetCurrentClassLogger().Error(e, $"InvokeContinuation.callback(): {state}");
+                        }
+                    }
 
-                        Interlocked.Decrement(ref _curAsyncWorkerCount);
-                    }
-                    
-                    try
-                    {
-                        callback(state);
-                    }
-                    catch (Exception e)
-                    {
-                        LogManager.GetCurrentClassLogger().Error(e, $"InvokeContinuation.callback(): {state}");
-                    }
-                    
                     break;
                 case SynchronizationContext sc:
                     sc.Post(static s =>
@@ -650,7 +635,7 @@ namespace zero.core.patterns.semaphore.core
                     }, (callback, state));
                     break;
                 case IoZeroScheduler zs:
-                    if (RunContinuationsAsynchronously || forceAsync)
+                    if (_zeroAsyncMode || forceAsync)
                     {
                         IoZeroScheduler.Zero.QueueCallback(callback, state);
                     }
@@ -668,7 +653,12 @@ namespace zero.core.patterns.semaphore.core
                     break;
                 
                 case TaskScheduler ts:
+#if ZERO_CORE
+                    
                     _ = Task.Factory.StartNew(callback, state, CancellationToken.None, TaskCreationOptions.DenyChildAttach, ts);
+#else
+                    ThreadPool.QueueUserWorkItem(callback, state, true);
+#endif
                     break;
             }
         }
@@ -991,7 +981,7 @@ namespace zero.core.patterns.semaphore.core
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public override string ToString()
         {
-            return $"{_description}: sync = {_curWaitCount}/{_maxBlockers}, async = {_curAsyncWorkerCount}/{_maxAsyncWorkers}, ready = {_curSignalCount}";
+            return $"{_description}: sync = {_curWaitCount}/{_maxBlockers}, async = {_curAsyncWorkerCount}/{_zeroAsyncMode}, ready = {_curSignalCount}";
         }
 
         /// <summary>

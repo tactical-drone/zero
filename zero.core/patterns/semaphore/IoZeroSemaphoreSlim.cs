@@ -15,10 +15,10 @@ namespace zero.core.patterns.semaphore
     {
         public IoZeroSemaphoreSlim(CancellationTokenSource asyncTasks,
             string description = "IoZeroSemaphoreSlim", int maxBlockers = 1, int initialCount = 0,
-            int maxAsyncWork = 0,
+            bool zeroAsyncMode = false,
             bool enableAutoScale = false, bool enableFairQ = false, bool enableDeadlockDetection = false) : base($"{nameof(IoZeroSemaphoreSlim)}: {description}", maxBlockers)
         {
-            _semaphore = new IoZeroSemaphore(description, maxBlockers, initialCount, maxAsyncWork, enableAutoScale: enableAutoScale, enableFairQ: enableFairQ, enableDeadlockDetection: enableDeadlockDetection, cancellationTokenSource: asyncTasks);
+            _semaphore = new IoZeroSemaphore(description, maxBlockers, initialCount, zeroAsyncMode, enableAutoScale: enableAutoScale, enableFairQ: enableFairQ, enableDeadlockDetection: enableDeadlockDetection, cancellationTokenSource: asyncTasks);
             _semaphore.ZeroRef(ref _semaphore);
         }
 
@@ -77,9 +77,8 @@ namespace zero.core.patterns.semaphore
         public int ReadyCount => _semaphore.ReadyCount;
         
         public int CurNrOfBlockers => _semaphore.CurNrOfBlockers;
-        public int MaxAsyncWorkers => _semaphore.MaxAsyncWorkers;
+        public bool ZeroAsyncMode => _semaphore.ZeroAsyncMode;
         public int Capacity => _semaphore.Capacity;
-        public bool RunContinuationsAsynchronously => _semaphore.RunContinuationsAsynchronously;
 
         public long Tail => ((IoZeroSemaphore)_semaphore).Tail;
         public long Head => ((IoZeroSemaphore)_semaphore).Head;

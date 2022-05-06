@@ -63,7 +63,7 @@ namespace zero.core.feat.patterns.semaphore
 
         int IIoZeroSemaphore.CurNrOfBlockers => 0;
 
-        int IIoZeroSemaphore.MaxAsyncWorkers => 0;
+        bool IIoZeroSemaphore.ZeroAsyncMode => false;
 
         public int Capacity => 1;
         public bool RunContinuationsAsynchronously { get; }
