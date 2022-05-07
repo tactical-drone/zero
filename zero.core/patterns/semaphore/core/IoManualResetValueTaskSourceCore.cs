@@ -330,7 +330,7 @@ namespace zero.core.patterns.semaphore.core
                     {
                         IoZeroScheduler.Zero.QueueCallback(_continuation, _continuationState);
                     }
-                    else //inline
+                    else //inline super fast!!!
                     {
                         try
                         {
@@ -343,16 +343,7 @@ namespace zero.core.patterns.semaphore.core
                     }
                     break;
                 case TaskScheduler ts:
-#if ZERO_CORE
-                    
                     _ = Task.Factory.StartNew(_continuation, _continuationState, CancellationToken.None, TaskCreationOptions.DenyChildAttach, ts);
-#else
-                    if (!ThreadPool.QueueUserWorkItem(_continuation, _continuationState, true))
-                    {
-                        if (!ThreadPool.QueueUserWorkItem(_continuation, _continuationState, false))
-                            _ = Task.Factory.StartNew(_continuation, _continuationState, CancellationToken.None, TaskCreationOptions.DenyChildAttach, ts);
-                    }
-#endif
                     break;
             }
         }
