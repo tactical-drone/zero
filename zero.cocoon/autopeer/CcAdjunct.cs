@@ -155,19 +155,17 @@ namespace zero.cocoon.autopeer
         /// <summary>
         /// The current state
         /// </summary>
-
 #if DEBUG
-        private IoStateTransition<AdjunctState> _currState = new()
-        {
-            FinalState = AdjunctState.FinalState
-        };
-#else
         private volatile IoStateTransition<AdjunctState> _currState = new()
         {
             FinalState = AdjunctState.FinalState
         };
+#else
+        private readonly IoStateTransition<AdjunctState> _currState = new()
+        {
+            FinalState = AdjunctState.FinalState
+        };
 #endif
-
 
         /// <summary>
         /// logger

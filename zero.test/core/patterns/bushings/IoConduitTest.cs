@@ -120,7 +120,7 @@ namespace zero.test.core.patterns.bushings
             var z1 = Task.Factory.StartNew(async () => await c1.BlockOnReplicateAsync(), TaskCreationOptions.DenyChildAttach).Unwrap();
 
             var ts = Environment.TickCount;
-            var expectedFps = 191;
+            
             var targetTime = 6000;
             while (!z1.IsCompleted)
             {

@@ -72,7 +72,7 @@ namespace zero.core.patterns.queue
 
             if (_blockingCollection)
             {
-                _blockSync = new IoZeroSemaphoreSlim(asyncTasks, $"blocking {description}", concurrencyLevel, zeroAsyncMode: false); //TODO: tuning
+                _blockSync = new IoZeroSemaphoreSlim(asyncTasks, $"blocking {description}", concurrencyLevel, zeroAsyncMode: true); //TODO: tuning
                 _zeroSync = new IoZeroSemaphoreSlim(asyncTasks, $"sharing {description}", concurrencyLevel, zeroAsyncMode: true); //TODO: tuning
             }
             
@@ -247,13 +247,10 @@ namespace zero.core.patterns.queue
             try
             {
                 long tail;
-#if DEBUG
-                int c = 0;
-#endif
-
                 T slot = null;
                 long cap;
                 var race = false;
+
                 while ((tail = Tail) >= Head + (cap = Capacity) || _count >= cap || tail != Tail ||
                        (slot = CompareExchange(tail, item, null)) != null || (race = tail != Tail))
                 {
@@ -266,10 +263,6 @@ namespace zero.core.patterns.queue
                                     $"{nameof(TryEnqueue)}: Unable to restore lock at tail = {tail} != {Tail}, slot = `{slot}', cur = `{this[tail]}'");
                         }
                     }
-#if DEBUG
-                    //if (!blocked && c++ > 100000)
-                    //    throw new InternalBufferOverflowException($"{Description}");
-#endif
 
                     if (Zeroed || !_autoScale && _count >= cap)
                         return -1;
@@ -358,11 +351,9 @@ namespace zero.core.patterns.queue
 
                 long head;
                 T slot = null;
-#if DEBUG
-                int c = 0;
-#endif
                 T latch;
-                bool race = false;
+                var race = false;
+
                 while ((head = Head) >= Tail || (latch = this[head]) == _sentinel || latch == null || head != Head ||
                        (slot = CompareExchange(head, _sentinel, latch)) != latch || (race = head != Head))
                 {
@@ -373,10 +364,7 @@ namespace zero.core.patterns.queue
                             LogManager.GetCurrentClassLogger().Fatal($"{nameof(TryEnqueue)}: Unable to restore lock at head = {head}, too {slot}, cur = {this[head]}");
                         }
                     }
-#if DEBUG
-                    if (c++ > 50000)
-                        throw new InternalBufferOverflowException($"{Description}");
-#endif
+
                     if (slot != null)
                         Interlocked.MemoryBarrierProcessWide();
                     else
@@ -536,13 +524,13 @@ namespace zero.core.patterns.queue
                 var cur = Head;
                 while (!_blockSync.Zeroed())
                 {
-                    if (cur == Tail && !await _blockSync.WaitAsync().FastPath())
+                    if (cur >= Tail && !await _blockSync.WaitAsync().FastPath())
                         break;
 
                     var newItem = this[cur];
                     if (newItem != _sentinel && newItem != null)
                         yield return newItem;
-                    
+
                     cur++;
                 }
             }
@@ -564,6 +552,12 @@ namespace zero.core.patterns.queue
             try
             {
                 Interlocked.Increment(ref _sharingConsumers);
+
+                //drain the head
+                while (!_zeroSync.Zeroed() && TryDequeue(out var next))
+                    yield return next;
+
+                //follow the tail
                 while (!_zeroSync.Zeroed())
                 {
                     T next = null;
@@ -578,7 +572,8 @@ namespace zero.core.patterns.queue
                     {
                         LogManager.GetCurrentClassLogger().Error(e,Description);
                     }
-                    if(next != null)
+
+                    if (next != null)
                         yield return next;
                 }
             }

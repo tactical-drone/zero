@@ -44,7 +44,6 @@ namespace zero.core.patterns.bushings
 
             Proxy = proxy;
 
-            var maxBlockers = PrefetchEnabled ? PrefetchSize : concurrencyLevel;
             try
             {
                 if (PressureEnabled)
@@ -58,7 +57,7 @@ namespace zero.core.patterns.bushings
                 if (BackPressureEnabled)
                 {
                     _backPressure = new IoZeroSemaphoreSlim(AsyncTasks, $"{nameof(_backPressure)}: {description}",
-                        maxBlockers: maxBlockers,
+                        maxBlockers: PrefetchSize,
                         initialCount: concurrencyLevel,
                         zeroAsyncMode: ZeroAsyncMode); //TODO Prefetch - 1 or not?
                 }
@@ -66,8 +65,8 @@ namespace zero.core.patterns.bushings
                 if (PrefetchEnabled)
                 {
                     _prefetchPressure = new IoZeroSemaphoreSlim(AsyncTasks, $"{nameof(_prefetchPressure)}: {description}",
-                        maxBlockers: maxBlockers,
-                        initialCount: PrefetchSize,
+                        maxBlockers: PrefetchSize,
+                        initialCount: PrefetchSize + concurrencyLevel,
                         zeroAsyncMode: true);
                 }
             }
@@ -322,7 +321,6 @@ namespace zero.core.patterns.bushings
         /// <param name="jobMalloc">Used to allocate jobs</param>
         /// <returns></returns>
         public async ValueTask<IoConduit<TFJob>> CreateConduitOnceAsync<TFJob>(string id,
-            
             IoSource<TFJob> channelSource = null,
             Func<object, IIoNanite, IoSink<TFJob>> jobMalloc = null, int concurrencyLevel = 1) where TFJob : IIoJob
         {

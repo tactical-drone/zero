@@ -76,19 +76,17 @@ namespace zero.core.patterns.bushings
         {
             _description = description;
             Source = source;
-            var capacity = Source.PrefetchSize;
+            var capacity = Source.PrefetchSize * 3 + 1;
 
             //These numbers were numerically established
             if (ZeroRecoveryEnabled)
-                capacity *= 8;
-            else
                 capacity *= 4;
-            
+
             try
             {
                 //TODO tuning
-                _queue = new IoZeroQ<IoSink<TJob>>($"zero Q: {_description}", capacity * 2, asyncTasks:AsyncTasks, concurrencyLevel:ZeroConcurrencyLevel() * 2);
-                JobHeap = new IoHeapIo<IoSink<TJob>>($"{nameof(JobHeap)}: {_description}", capacity * 2, jobMalloc) {
+                _queue = new IoZeroQ<IoSink<TJob>>($"zero Q: {_description}", capacity, asyncTasks:AsyncTasks, concurrencyLevel:ZeroConcurrencyLevel());
+                JobHeap = new IoHeapIo<IoSink<TJob>>($"{nameof(JobHeap)}: {_description}", capacity, jobMalloc) {
                     Constructor = (sink, zero) =>
                     {
                         sink.IoZero = (IoZero<TJob>)zero;
@@ -105,7 +103,7 @@ namespace zero.core.patterns.bushings
 
             //TODO tuning
             if (ZeroRecoveryEnabled)
-                Volatile.Write(ref _previousJobFragment, new IoQueue<IoSink<TJob>>($"{description}", capacity * 3, ZeroConcurrencyLevel()));
+                Volatile.Write(ref _previousJobFragment, new IoQueue<IoSink<TJob>>($"{description}", capacity, ZeroConcurrencyLevel()));
         }
 
         /// <summary>
@@ -579,7 +577,7 @@ namespace zero.core.patterns.bushings
                         {
                             _previousJobFragment.Modified = false;
                             var cur = _previousJobFragment.Head;
-                            var c = _previousJobFragment.Count * 2;
+                            var c = _previousJobFragment.Count << 1;
                             while (cur != null && c-- > 0)
                             {
                                 if (_previousJobFragment.Modified)
@@ -596,6 +594,7 @@ namespace zero.core.patterns.bushings
                                         curJob.PreviousJob = cur.Value;
                                         curJob.FragmentIdx = null;
                                         await _previousJobFragment.RemoveAsync(cur).FastPath();
+                                        break;
                                     }
                                     else if (cur.Value.Id < curJob.Id - _previousJobFragment.Capacity>>1)
                                     {

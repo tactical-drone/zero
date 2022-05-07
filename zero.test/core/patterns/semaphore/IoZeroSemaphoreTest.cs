@@ -65,6 +65,65 @@ namespace zero.test.core.patterns.semaphore
         }
 
 
+        private volatile int _releaseCount;
+        [Fact]
+        async Task PrefetchRushAsync()
+        {
+            var threads = 100;
+            var preloadCount = 3000000;
+            var m = new IoZeroSemaphoreSlim(new CancellationTokenSource(), "test mutex", maxBlockers: 1, initialCount: preloadCount);
+
+            var c = 0;
+            while (true)
+            {
+                if (Interlocked.Increment(ref _releaseCount) < preloadCount)
+                    await m.WaitAsync().FastPath();
+                else
+                    break;
+
+                if(++c % 500000 == 0)
+                    _output.WriteLine($"-> {c}");
+            }
+            
+            Assert.Equal(_releaseCount, preloadCount);
+
+            for (int i = 0; i < threads; i++)
+            {
+                _ = Task.Factory.StartNew(async () =>
+                {
+                    while (!m.Zeroed() && _releaseCount > 0)
+                    {
+                        if (Interlocked.Decrement(ref _releaseCount) >= 0)
+                        {
+                            if (m.Release() == -1)
+                                await Task.Delay(100);
+                        }
+                    }
+
+                    return Task.CompletedTask;
+                });
+            }
+
+            while (true)
+            {
+                await m.WaitAsync().FastPath();
+
+                if (_releaseCount > preloadCount - 5)
+                    _output.WriteLine($"<- {_releaseCount}");
+
+                if (_releaseCount < 5)
+                    _output.WriteLine($"<- {_releaseCount}");
+                if (_releaseCount == 0)
+                {
+                    await m.Zero(null, "test done");
+                    break;
+                }
+            }
+
+            Assert.Equal(0, _releaseCount);
+
+        }
+
         [Fact]
         async Task PrefetchAsync()
         {
@@ -122,7 +181,7 @@ namespace zero.test.core.patterns.semaphore
         {
             var m = new IoZeroSemaphoreSlim(new CancellationTokenSource(), "test mutex", maxBlockers: 1, initialCount: 3);
             var running = true;
-            var done = false;
+
             var waits = 0;
             var t1 = Task.Factory.StartNew(async () =>
             {
@@ -144,7 +203,6 @@ namespace zero.test.core.patterns.semaphore
 
                 while(m.Release() == 1){}
 
-                done = true;
                 _output.WriteLine("Release done");
             },TaskCreationOptions.DenyChildAttach);
 

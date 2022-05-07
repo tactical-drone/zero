@@ -765,7 +765,7 @@ namespace zero.core.patterns.semaphore.core
         {
             
             //preconditions that reject overflow because every overflowing signal will spin seeking its waiter
-            if (Zeroed() || releaseCount < 1 || releaseCount + _curSignalCount > _maxBlockers)
+            if (Zeroed() || releaseCount < 1 )//|| releaseCount + _curSignalCount > _maxBlockers)
             {
                 return -1;
             }
@@ -778,8 +778,13 @@ namespace zero.core.patterns.semaphore.core
                 while ((target = (latch = _curSignalCount) + releaseCount) > _maxBlockers || Interlocked.CompareExchange(ref _curSignalCount, target = (latch + releaseCount), latch) != latch)
                 {
                     if (target > _maxBlockers)
-                        return -1;
+                    {
+                        if(_curWaitCount > 0)
+                            break;
 
+                        return -1;
+                    }
+                    
                     if (Zeroed())
                         break;
                 }
