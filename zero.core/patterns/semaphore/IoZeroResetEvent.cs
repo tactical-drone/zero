@@ -41,15 +41,6 @@ namespace zero.core.patterns.semaphore
             return _pressure.GetStatus(token);
         }
 
-        public bool IsCancellationRequested()
-        {
-            return _pressure.GetStatus((short)_pressure.Version) == ValueTaskSourceStatus.Canceled;
-        }
-
-        public void ZeroThrow()
-        {
-            throw new NotImplementedException();
-        }
 
         public void OnCompleted(Action<object> continuation, object state, short token, ValueTaskSourceOnCompletedFlags flags)
         {
@@ -71,6 +62,26 @@ namespace zero.core.patterns.semaphore
             return releaseCount;
         }
 
+        public IIoZeroSemaphoreBase<bool> ZeroRef(ref IIoZeroSemaphoreBase<bool> @ref, bool init)
+        {
+            throw new NotImplementedException();
+        }
+
+        public int Release(bool value, int releaseCount, bool bestCase = false)
+        {
+            throw new NotImplementedException();
+        }
+
+        public int Release(bool value, bool bestCase = false)
+        {
+            throw new NotImplementedException();
+        }
+
+        public int Release(bool[] value, bool bestCase = false)
+        {
+            throw new NotImplementedException();
+        }
+
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public ValueTask<bool> WaitAsync()
         {
@@ -84,16 +95,13 @@ namespace zero.core.patterns.semaphore
         {
             _pressure.SetResult(false);
         }
-        int IIoZeroSemaphore.ZeroDecAsyncCount()
-        {
-            throw new NotImplementedException();
-        }
-        public bool Zeroed()
+
+        int IIoZeroSemaphoreBase<bool>.ZeroDecAsyncCount()
         {
             throw new NotImplementedException();
         }
 
-        public IIoZeroSemaphore ZeroRef(ref IIoZeroSemaphore @ref)
+        public bool Zeroed()
         {
             throw new NotImplementedException();
         }

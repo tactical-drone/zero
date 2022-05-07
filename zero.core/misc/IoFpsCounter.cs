@@ -30,8 +30,8 @@ namespace zero.core.misc
 
             if (!_disabled)
             {
-                _mutex = new IoZeroSemaphore($"{nameof(IoFpsCounter)}", maxConcurrency, 1, cancellationTokenSource: _asyncTasks);
-                _mutex.ZeroRef(ref _mutex);
+                _mutex = new IoZeroSemaphore<bool>($"{nameof(IoFpsCounter)}", maxConcurrency, 1, cancellationTokenSource: _asyncTasks);
+                _mutex.ZeroRef(ref _mutex, true);
             }
             else
             {
@@ -46,7 +46,7 @@ namespace zero.core.misc
         private readonly int[] _range;
         private long _total;
         private readonly int _time;
-        private readonly IIoZeroSemaphore _mutex;
+        private readonly IIoZeroSemaphoreBase<bool> _mutex;
         private readonly CancellationTokenSource _asyncTasks;
 
         /// <summary>
@@ -71,7 +71,7 @@ namespace zero.core.misc
                 _index %= 2;
                 Volatile.Write(ref _count[_index], 0);
                 _timeStamp[_index] = DateTime.Now;
-                _mutex.Release();
+                _mutex.Release(true);
             }            
         }
 

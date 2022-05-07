@@ -1,17 +1,25 @@
 ﻿using System.Runtime.CompilerServices;
-using System.Threading;
 using System.Threading.Tasks;
 using System.Threading.Tasks.Sources;
 
 namespace zero.core.patterns.semaphore.core
 {
-    public interface IIoZeroSemaphore: IValueTaskSource<bool>
+    public interface IIoZeroSemaphore : IIoZeroSemaphoreBase<bool>{}
+    public interface IIoZeroSemaphoreBase<T>: IValueTaskSource<T>
     {
-        IIoZeroSemaphore ZeroRef(ref IIoZeroSemaphore @ref);
+        IIoZeroSemaphoreBase<T> ZeroRef(ref IIoZeroSemaphoreBase<T> @ref, T init);
+
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        int Release(int releaseCount = 1, bool bestCase = false);
+        int Release(T value, int releaseCount, bool bestCase = false);
+
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        ValueTask<bool> WaitAsync();
+        int Release(T value, bool bestCase = false);
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        int Release(T[] value, bool bestCase = false);
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        ValueTask<T> WaitAsync();
         void ZeroSem();
         int ReadyCount { get; }
         int CurNrOfBlockers { get; }

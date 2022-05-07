@@ -200,10 +200,10 @@ namespace zero.core.patterns.misc
         /// <param name="concurrencyLevel"></param>
         /// <param name="asyncTasks"></param>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        protected static IIoZeroSemaphore ZeroSyncRoot(int concurrencyLevel, CancellationTokenSource asyncTasks)
+        protected static IIoZeroSemaphoreBase<bool> ZeroSyncRoot(int concurrencyLevel, CancellationTokenSource asyncTasks)
         {
-            IIoZeroSemaphore z = new IoZeroSemaphore(string.Empty, 10 + concurrencyLevel * 10, 1, cancellationTokenSource: asyncTasks);
-            z.ZeroRef(ref z);
+            IIoZeroSemaphoreBase<bool> z = new IoZeroSemaphore<bool>(string.Empty, Math.Min(10 + concurrencyLevel * 10, short.MaxValue), 1, cancellationTokenSource: asyncTasks);
+            z.ZeroRef(ref z, true);
             return z;
         }
 
@@ -229,7 +229,7 @@ namespace zero.core.patterns.misc
         /// <summary>
         /// root sync
         /// </summary>
-        protected IIoZeroSemaphore ZeroRoot;
+        protected IIoZeroSemaphoreBase<bool> ZeroRoot;
 
         /// <summary>
         /// ZeroAsync
@@ -619,7 +619,7 @@ namespace zero.core.patterns.misc
             {
                 try
                 {
-                    ZeroRoot.Release();
+                    ZeroRoot.Release(true);
                 }
                 catch
                 {

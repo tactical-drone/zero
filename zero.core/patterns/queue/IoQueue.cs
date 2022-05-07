@@ -61,21 +61,21 @@ namespace zero.core.patterns.queue
                 }
             };
 
-            _syncRoot = new IoZeroSemaphore(desc, maxBlockers: concurrencyLevel, initialCount: 1, zeroAsyncMode: false,enableDeadlockDetection: true, cancellationTokenSource: _asyncTasks);
-            _syncRoot.ZeroRef(ref _syncRoot);
+            _syncRoot = new IoZeroSemaphore<bool>(desc, maxBlockers: concurrencyLevel, initialCount: 1, zeroAsyncMode: false,enableDeadlockDetection: true, cancellationTokenSource: _asyncTasks);
+            _syncRoot.ZeroRef(ref _syncRoot, true);
 
             if (_configuration.HasFlag(Mode.Pressure))
             {
-                _pressure = new IoZeroSemaphore($"qp {description}",
+                _pressure = new IoZeroSemaphore<bool>($"qp {description}",
                     maxBlockers: concurrencyLevel, cancellationTokenSource: _asyncTasks, zeroAsyncMode:false);
-                _pressure.ZeroRef(ref _pressure);
+                _pressure.ZeroRef(ref _pressure, true);
             }
             
             if (_configuration.HasFlag(Mode.BackPressure))
             {
-                _backPressure = new IoZeroSemaphore($"qbp {description}",
+                _backPressure = new IoZeroSemaphore<bool>($"qbp {description}",
                     maxBlockers: concurrencyLevel, initialCount: concurrencyLevel, cancellationTokenSource: _asyncTasks, zeroAsyncMode: false);
-                _backPressure.ZeroRef(ref _backPressure);
+                _backPressure.ZeroRef(ref _backPressure, true);
             }
 
             _curEnumerator = new IoQueueEnumerator<T>(this);
@@ -85,9 +85,9 @@ namespace zero.core.patterns.queue
         private readonly string _description; 
         private volatile int _zeroed;
         private readonly bool Zc = IoNanoprobe.ContinueOnCapturedContext;
-        private IIoZeroSemaphore _syncRoot;
-        private IIoZeroSemaphore _pressure;
-        private IIoZeroSemaphore _backPressure;
+        private IIoZeroSemaphoreBase<bool> _syncRoot;
+        private IIoZeroSemaphoreBase<bool> _pressure;
+        private IIoZeroSemaphoreBase<bool> _backPressure;
         private CancellationTokenSource _asyncTasks = new CancellationTokenSource();
         private IoHeap<IoZNode> _nodeHeap;
         
@@ -102,7 +102,7 @@ namespace zero.core.patterns.queue
         public IoZNode Tail => _tail;
 
         public IoHeap<IoZNode> NodeHeap => _nodeHeap;
-        public IIoZeroSemaphore Pressure => _backPressure;
+        public IIoZeroSemaphoreBase<bool> Pressure => _backPressure;
 
         private IoQueueEnumerator<T> _curEnumerator;
 
@@ -166,7 +166,7 @@ namespace zero.core.patterns.queue
             }
             finally
             {
-                _syncRoot.Release();
+                _syncRoot.Release(true);
 
                 if (zero)
                 {
@@ -286,14 +286,14 @@ namespace zero.core.patterns.queue
                         }
                         finally
                         {
-                            _syncRoot.Release();
+                            _syncRoot.Release(true);
                         }
                     }
 
                     if (_pressure != null && success)
-                        _pressure.Release();
+                        _pressure.Release(true);
                     else
-                        _backPressure?.Release();
+                        _backPressure?.Release(true);
                 }
                 catch when (Zeroed) { }
                 catch (Exception e) when (!Zeroed)
@@ -360,12 +360,12 @@ namespace zero.core.patterns.queue
             finally
             {
                 if (entered)
-                    _syncRoot.Release();
+                    _syncRoot.Release(true);
 
                 if (retVal != default)
-                    _pressure?.Release();
+                    _pressure?.Release(true);
                 else
-                    _backPressure?.Release();
+                    _backPressure?.Release(true);
             }
         }
 
@@ -426,7 +426,7 @@ namespace zero.core.patterns.queue
                 {
                     Interlocked.Decrement(ref _entered);
                     Debug.Assert(_syncRoot.ReadyCount == 0);
-                    _syncRoot.Release();
+                    _syncRoot.Release(true);
                     
                 }
 
@@ -441,7 +441,7 @@ namespace zero.core.patterns.queue
                     var retVal = dq.Value;
                     dq.Value = default;
                     _nodeHeap.Return(dq);
-                    _backPressure?.Release();
+                    _backPressure?.Release(true);
                     return retVal;
                 }
             }
@@ -512,7 +512,7 @@ namespace zero.core.patterns.queue
             }
             finally
             {
-                _syncRoot.Release();
+                _syncRoot.Release(true);
                 node.Value = default;
                 _nodeHeap.Return(node, deDup);
             }
@@ -565,7 +565,7 @@ namespace zero.core.patterns.queue
             }
             finally
             {
-                _syncRoot.Release();
+                _syncRoot.Release(true);
             }
         }
 
@@ -596,7 +596,7 @@ namespace zero.core.patterns.queue
             }
             finally
             {
-                _syncRoot.Release();
+                _syncRoot.Release(true);
             }
         }
 

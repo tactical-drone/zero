@@ -18,11 +18,11 @@ namespace zero.core.patterns.semaphore
             bool zeroAsyncMode = false,
             bool enableAutoScale = false, bool enableFairQ = false, bool enableDeadlockDetection = false) : base($"{nameof(IoZeroSemaphoreSlim)}: {description}", maxBlockers)
         {
-            _semaphore = new IoZeroSemaphore(description, maxBlockers, initialCount, zeroAsyncMode, enableAutoScale: enableAutoScale, enableFairQ: enableFairQ, enableDeadlockDetection: enableDeadlockDetection, cancellationTokenSource: asyncTasks);
-            _semaphore.ZeroRef(ref _semaphore);
+            _semaphore = new IoZeroSemaphore<bool>(description, maxBlockers, initialCount, zeroAsyncMode, enableAutoScale: enableAutoScale, enableFairQ: enableFairQ, enableDeadlockDetection: enableDeadlockDetection, cancellationTokenSource: asyncTasks);
+            _semaphore.ZeroRef(ref _semaphore, true);
         }
 
-        private IIoZeroSemaphore _semaphore;
+        private IIoZeroSemaphoreBase<bool> _semaphore;
 
         public override void ZeroUnmanaged()
         {
@@ -54,12 +54,27 @@ namespace zero.core.patterns.semaphore
             _semaphore.OnCompleted(continuation, state, token, flags);
         }
 
-        public IIoZeroSemaphore ZeroRef(ref IIoZeroSemaphore @ref) => _semaphore.ZeroRef(ref @ref);
+        public IIoZeroSemaphoreBase<bool> ZeroRef(ref IIoZeroSemaphoreBase<bool> @ref, bool init) => _semaphore.ZeroRef(ref @ref, init);
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public int Release(int releaseCount = 1, bool bestCase = false)
         {
-            return _semaphore.Release(releaseCount, bestCase);
+            return Release(true, releaseCount, bestCase);
+        }
+
+        public int Release(bool value, int releaseCount, bool bestCase = false)
+        {
+            return _semaphore.Release(value, releaseCount, bestCase);
+        }
+
+        public int Release(bool value, bool bestCase = false)
+        {
+            return _semaphore.Release(value, bestCase);
+        }
+
+        public int Release(bool[] value, bool bestCase = false)
+        {
+            return _semaphore.Release(value, bestCase);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -79,13 +94,12 @@ namespace zero.core.patterns.semaphore
         public int CurNrOfBlockers => _semaphore.CurNrOfBlockers;
         public bool ZeroAsyncMode => _semaphore.ZeroAsyncMode;
         public int Capacity => _semaphore.Capacity;
-
-        public long Tail => ((IoZeroSemaphore)_semaphore).Tail;
-        public long Head => ((IoZeroSemaphore)_semaphore).Head;
-
-        int IIoZeroSemaphore.ZeroDecAsyncCount()
+        int IIoZeroSemaphoreBase<bool>.ZeroDecAsyncCount()
         {
             throw new NotImplementedException();
         }
+
+        public long Tail => ((IoZeroSemaphore<bool>)_semaphore).Tail;
+        public long Head => ((IoZeroSemaphore<bool>)_semaphore).Head;
     }
 }

@@ -254,13 +254,17 @@ namespace zero.core.patterns.queue
                 while ((tail = Tail) >= Head + (cap = Capacity) || _count >= cap || tail != Tail ||
                        (slot = CompareExchange(tail, item, null)) != null || (race = tail != Tail))
                 {
-                    if (race)
+                    if (race)// && slot != _sentinel && slot != null)//TODO: What is going on here?
                     {
-                        if ((slot = CompareExchange(tail, null, item)) != item && !Zeroed)
+                        if (CompareExchange(tail, slot, item) != item && !Zeroed)
                         {
-                            LogManager.GetCurrentClassLogger()
-                                .Fatal(
-                                    $"{nameof(TryEnqueue)}: Unable to restore lock at tail = {tail} != {Tail}, slot = `{slot}', cur = `{this[tail]}'");
+                            T tmpSlot;
+                            if ((tmpSlot = CompareExchange(tail, slot, null)) != null && !Zeroed)
+                            {
+                                LogManager.GetCurrentClassLogger()
+                                    .Fatal(
+                                        $"{nameof(TryEnqueue)}: Unable to restore lock at tail = {tail} != {Tail}, slot = `{tmpSlot}', cur = `{this[tail]}'");
+                            }
                         }
                     }
 
@@ -352,18 +356,18 @@ namespace zero.core.patterns.queue
                 long head;
                 T slot = null;
                 T latch;
-                var race = false;
+                //var race = false;
 
                 while ((head = Head) >= Tail || (latch = this[head]) == _sentinel || latch == null || head != Head ||
-                       (slot = CompareExchange(head, _sentinel, latch)) != latch || (race = head != Head))
+                       (slot = CompareExchange(head, _sentinel, latch)) != latch) //|| (race = head != Head))
                 {
-                    if (race)
-                    {
-                        if ((slot = CompareExchange(head, slot, _sentinel)) != _sentinel)
-                        {
-                            LogManager.GetCurrentClassLogger().Fatal($"{nameof(TryEnqueue)}: Unable to restore lock at head = {head}, too {slot}, cur = {this[head]}");
-                        }
-                    }
+                    //if (race)
+                    //{
+                    //    if ((slot = CompareExchange(head, slot, _sentinel)) != _sentinel)
+                    //    {
+                    //        LogManager.GetCurrentClassLogger().Fatal($"{nameof(TryEnqueue)}: Unable to restore lock at head = {head}, too {slot}, cur = {this[head]}");
+                    //    }
+                    //}
 
                     if (slot != null)
                         Interlocked.MemoryBarrierProcessWide();
@@ -377,7 +381,7 @@ namespace zero.core.patterns.queue
                     }
 
                     slot = null;
-                    race = false;
+                    //race = false;
                 }
 
 

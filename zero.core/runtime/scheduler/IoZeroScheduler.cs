@@ -42,11 +42,11 @@ namespace zero.core.runtime.scheduler
             _workerCount = Math.Max(Environment.ProcessorCount >> 1, 2);
             _queenCount = Math.Max(Environment.ProcessorCount >> 4, 1) + 1;
             _asyncCount = _workerCount * 4;
-            var capacity = MaxWorker;
+            var capacity = MaxWorker + 1;
 
             //TODO: tuning
             _workQueue = new IoZeroQ<Task>(string.Empty, capacity * 2, true);
-            _asyncQueue = new IoZeroQ<ZeroContinuation>(string.Empty, MaxWorker * 2, true, _asyncTasks, concurrencyLevel:MaxWorker);
+            _asyncQueue = new IoZeroQ<ZeroContinuation>(string.Empty, (MaxWorker + 1) * 2, true, _asyncTasks, concurrencyLevel:MaxWorker - 1);
 
             _queenQueue = new IoZeroQ<ZeroSignal>(string.Empty, capacity,true);
             _signalHeap = new IoHeap<ZeroSignal>(string.Empty, capacity, (_, _) => new ZeroSignal(), true)
@@ -132,7 +132,7 @@ namespace zero.core.runtime.scheduler
 
         //The rate at which the scheduler will be allowed to "burst" allowing per tick unchecked new threads to be spawned until one of them spawns
         private static readonly int WorkerSpawnBurstTimeMs = 100;
-        private static readonly int MaxWorker = (int)Math.Pow(2, Math.Max((Environment.ProcessorCount >> 1) + 1, 17));
+        private static readonly int MaxWorker = short.MaxValue;
         public static readonly TaskScheduler ZeroDefault;
         public static readonly IoZeroScheduler Zero;
         private readonly CancellationTokenSource _asyncTasks;
@@ -634,14 +634,14 @@ var d = 0;
                                             //await Task.Yield();
                                         }
                                     }
-#if DEBUG
+//#if DEBUG
                                     catch (Exception e)
                                     {
 
                                         LogManager.GetCurrentClassLogger().Error(e,
                                             $"{nameof(IoZeroScheduler)}: wId = {xId}/{@this._workerCount}, this = {@this}, wq = {@this?._workQueue}, work = {work}, q = {syncRoot}");
                                     }
-#endif
+//#endif
                                     finally
                                     {
                                         work = null;

@@ -18,8 +18,13 @@ namespace zero.core.patterns.semaphore.core
     /// 
     /// Experimental auto capacity scaling (disabled by default), set max count manually instead for max performance.
     /// </summary>
-    public struct IoZeroSemaphore : IIoZeroSemaphore
+    public struct IoZeroSemaphore<T> : IIoZeroSemaphoreBase<T>
     {
+        static IoZeroSemaphore()
+        {
+            ZeroSentinel = CompletionSentinel;
+        }
+
         /// <summary>
         /// Constructor
         /// </summary>
@@ -47,7 +52,11 @@ namespace zero.core.patterns.semaphore.core
             //validation
             if (maxBlockers < 1)
                 throw new ZeroValidationException($"{_description}: invalid {nameof(maxBlockers)} = {maxBlockers} specified, value must be larger than 0");
-            if(initialCount < 0)
+
+            if (maxBlockers > short.MaxValue)
+                throw new ZeroValidationException($"{_description}: invalid {nameof(maxBlockers)} = {maxBlockers} specified, value must be smaller than {short.MaxValue}. see OnComplete framework limitation");
+
+            if (initialCount < 0)
                 throw new ZeroValidationException($"{_description}: invalid {nameof(initialCount)} = {initialCount} specified, value may not be less than 0");
 
             _maxBlockers = maxBlockers + 1;
@@ -65,6 +74,7 @@ namespace zero.core.patterns.semaphore.core
             _signalAwaiterState = new object[_maxBlockers];
             _signalExecutionState = new ExecutionContext[_maxBlockers];
             _signalCapturedContext = new object[_maxBlockers];
+            _result = new T[_maxBlockers<<1];
 
             _curAsyncWorkerCount = 0;
             _curWaitCount = 0;
@@ -73,7 +83,6 @@ namespace zero.core.patterns.semaphore.core
 
             _tail = 0;
             _head = 0;
-            ZeroSentinel = CompletionSentinel;
         }
 
         /// <summary>
@@ -119,7 +128,7 @@ namespace zero.core.patterns.semaphore.core
         /// <summary>
         /// A semaphore description
         /// </summary>
-        private string Description => $"{nameof(IoZeroSemaphore)}[{_description}]: z = {_zeroed > 0},  ready = {_curSignalCount}, wait = {_curWaitCount}/{_maxBlockers}, async = {_curAsyncWorkerCount}/{_zeroAsyncMode}, head = {Head}/{Tail} (D:{Tail - Head})";
+        private string Description => $"{nameof(IoZeroSemaphore<T>)}[{_description}]: z = {_zeroed > 0},  ready = {_curSignalCount}, wait = {_curWaitCount}/{_maxBlockers}, async = {_curAsyncWorkerCount}/{_zeroAsyncMode}, head = {Head}/{Tail} (D:{Tail - Head})";
 
         /// <summary>
         /// The maximum threads that can be blocked by this semaphore. This blocking takes storage
@@ -152,6 +161,16 @@ namespace zero.core.patterns.semaphore.core
         private volatile int _curWaitCount;
 
         /// <summary>
+        /// Token registry
+        /// </summary>
+        private long _ingressToken;
+
+        /// <summary>
+        /// Token registry
+        /// </summary>
+        private long _egressToken;
+
+        /// <summary>
         /// The number of threads that can enter the semaphore without blocking 
         /// </summary>
         public int ReadyCount => _curSignalCount;
@@ -176,7 +195,7 @@ namespace zero.core.patterns.semaphore.core
         /// <summary>
         /// Allows for zero alloc <see cref="ValueTask"/> to be emitted. 
         /// </summary>
-        private volatile IIoZeroSemaphore _zeroRef;
+        private IIoZeroSemaphoreBase<T> _zeroRef;
 
         /// <summary>
         /// A queue of waiting continuations. The queue has strong order guarantees, FIFO
@@ -198,6 +217,11 @@ namespace zero.core.patterns.semaphore.core
         /// </summary>
         private object[] _signalCapturedContext;
 
+        /// <summary>
+        /// Where results are stored
+        /// </summary>
+        private T[] _result;
+
         public long Head => Interlocked.Read(ref _head);
         public long Tail => Interlocked.Read(ref _tail);
         
@@ -209,7 +233,7 @@ namespace zero.core.patterns.semaphore.core
         /// <summary>
         /// Used for locking
         /// </summary>
-        internal static Action<object> ZeroSentinel;
+        internal static readonly Action<object> ZeroSentinel;
 
         /// <summary>
         /// error info
@@ -241,9 +265,22 @@ namespace zero.core.patterns.semaphore.core
         /// This means that the user needs to call this function manually from externally when the ref is available or the semaphore will error out.
         /// </summary>
         /// <param name="ref">The ref to this</param>
-        public IIoZeroSemaphore ZeroRef(ref IIoZeroSemaphore @ref)
+        /// <param name="init"></param>
+        public IIoZeroSemaphoreBase<T> ZeroRef(ref IIoZeroSemaphoreBase<T> @ref, T init)
         {
-            return _zeroRef = @ref;
+            try
+            {
+                Interlocked.Exchange(ref _ingressToken, Math.Min(_curSignalCount, _maxBlockers << 1));
+
+                for (var i = 0; i < _ingressToken; i++)
+                    _result[i] = init;
+                
+                return _zeroRef = @ref;
+            }
+            finally
+            {
+                Interlocked.MemoryBarrier();
+            }
         }
 
         /// <summary>
@@ -358,16 +395,23 @@ namespace zero.core.patterns.semaphore.core
         /// <param name="token">Not used</param>
         /// <returns>True if exit was clean, false on <see cref="CancellationToken.IsCancellationRequested"/> </returns>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public bool GetResult(short token)
+        public T GetResult(short token)
         {
+            long idx = 0;
             try
             {
                 ZeroThrow();
-                return !Zeroed();
+                idx = (Interlocked.Increment(ref _egressToken) - 1) % (_maxBlockers << 1);
+                Thread.MemoryBarrier();
+                return _result[idx];
             }
             catch
             {
-                return false;
+                return default;
+            }
+            finally
+            {
+                _result[idx] = default;
             }
         }
 
@@ -445,10 +489,24 @@ namespace zero.core.patterns.semaphore.core
                     int c = 0;
 #endif
                     long tailMod;
-                    while ((slot = Interlocked.CompareExchange(ref _signalAwaiter[tailMod = Tail % _maxBlockers], ZeroSentinel, null)) != null)
+                    var race = false;
+
+                    while ((slot = Interlocked.CompareExchange(ref _signalAwaiter[tailMod = Tail % _maxBlockers], ZeroSentinel, null)) != null || (race = tailMod != Tail % _maxBlockers))
                     {
+                        if (race && slot != ZeroSentinel && slot != null)
+                        {
+                            if (Interlocked.CompareExchange(ref _signalAwaiter[tailMod], slot, ZeroSentinel) != ZeroSentinel)
+                            {
+                                Action<object> tmpSlot;
+                                if ((tmpSlot = Interlocked.CompareExchange(ref _signalAwaiter[tailMod], slot, null)) != null)
+                                {
+                                    LogManager.GetCurrentClassLogger().Fatal($"{nameof(OnCompleted)}: Unable to restore lock at head = {tailMod}, too {tmpSlot}, cur = {_signalAwaiter[tailMod]}");
+                                }
+                            }
+                        }
 #if DEBUG
-                        if (c++ > 500000) throw new InternalBufferOverflowException($"{Description}");
+                        if (c++ > 500000) 
+                            throw new InternalBufferOverflowException($"OnComplete lock spinning!!! {Description}");
 #endif
                         if (_zeroed > 0) break;
 
@@ -551,7 +609,7 @@ namespace zero.core.patterns.semaphore.core
                         static s =>
                         {
                             var (@this, callback, state, capturedContext) =
-                                (ValueTuple<IoZeroSemaphore, Action<object>, object, object>)s;
+                                (ValueTuple<IoZeroSemaphore<T>, Action<object>, object, object>)s;
 
                             try
                             {
@@ -754,7 +812,6 @@ namespace zero.core.patterns.semaphore.core
         /// <exception cref="SemaphoreFullException">Fails when maximum waiters reached</exception>
         public int Release(int releaseCount = 1, bool bestCase = false)
         {
-            
             //preconditions that reject overflow because every overflowing signal will spin seeking its waiter
             if (Zeroed() || releaseCount < 1 )//|| releaseCount + _curSignalCount > _maxBlockers)
             {
@@ -800,7 +857,7 @@ namespace zero.core.patterns.semaphore.core
                 {
 #if DEBUG
                     if (c++ > 500000)
-                        throw new InternalBufferOverflowException($"{Description}");
+                        throw new InternalBufferOverflowException($"Release lock spinning{Description}");
 #endif
                     if (Zeroed())
                         break;
@@ -898,12 +955,60 @@ namespace zero.core.patterns.semaphore.core
 
             return released;
         }
-        
+
+        public int Release(T value, int releaseCount, bool bestCase = false)
+        {
+            //overfull semaphore exit here
+            if (_curSignalCount + releaseCount > _maxBlockers)
+                return Release(releaseCount, bestCase);
+
+            var released = 0;
+            for (int i = 0; i < releaseCount; i++)
+            {
+                if (_curSignalCount > _maxBlockers << 1)
+                    return released;
+
+                _result[(Interlocked.Increment(ref _ingressToken) - 1) % (_maxBlockers << 1)] = value;
+            }
+            Thread.MemoryBarrier();
+            return Release(releaseCount, bestCase);
+        }
+
+        public int Release(T value, bool bestCase = false)
+        {
+            //overfull semaphore exit here
+            if (_curSignalCount + 1 > _maxBlockers)
+                return Release(1, bestCase);
+
+            _result[(Interlocked.Increment(ref _ingressToken) - 1) % (_maxBlockers << 1)] = value;
+            Thread.MemoryBarrier();
+            return Release(1,bestCase);
+        }
+
+        public int Release(T[] value, bool bestCase = false)
+        {
+            var releaseCount = value.Length;
+            //overfull semaphore exit here
+            if (_curSignalCount + releaseCount > _maxBlockers)
+                return Release(releaseCount, bestCase);
+
+            var released = 0;
+            for (int i = 0; i < releaseCount; i++)
+            {
+                if (_curSignalCount > _maxBlockers << 1)
+                    return released;
+
+                _result[(Interlocked.Increment(ref _ingressToken) - 1) % (_maxBlockers << 1)] = value[i];
+            }
+            Thread.MemoryBarrier();
+            return Release(releaseCount, bestCase);
+        }
+
         /// <summary>
         /// Waits on this semaphore
         /// </summary>
         /// <returns>True if waiting, false otherwise. If the semaphore is awaited on more than <see cref="_maxBlockers"/>, false is returned</returns>
-        public ValueTask<bool> WaitAsync()
+        public ValueTask<T> WaitAsync()
         {
             var slot = -1;
             int latch = 0;
@@ -919,7 +1024,10 @@ namespace zero.core.patterns.semaphore.core
             
             //>>> FAST PATH on set
             if (slot == latch)
-                return new ValueTask<bool>(true);
+            {
+                return new ValueTask<T>(_result[(Interlocked.Increment(ref _egressToken) - 1) % (_maxBlockers << 1)]);
+            }
+                
 
             slot = -1;
             //reserve a wait slot
@@ -937,7 +1045,7 @@ namespace zero.core.patterns.semaphore.core
                 throw new ZeroValidationException($"WAIT: Concurrency bug, Semaphore full! {Description}");
 
             //> SLOW PATH
-            return new ValueTask<bool>(_zeroRef, 0);
+            return new ValueTask<T>(_zeroRef, 0);
         }
 
         /// <summary>Completes with an error.</summary>
@@ -950,7 +1058,7 @@ namespace zero.core.patterns.semaphore.core
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        int IIoZeroSemaphore.ZeroDecAsyncCount()
+        int IIoZeroSemaphoreBase<T>.ZeroDecAsyncCount()
         {
             return Interlocked.Decrement(ref _curAsyncWorkerCount);
         }

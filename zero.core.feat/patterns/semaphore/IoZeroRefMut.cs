@@ -42,10 +42,25 @@ namespace zero.core.feat.patterns.semaphore
             throw new NotImplementedException();
         }
 
-        public int Release(int releaseCount, bool bestCase = false)
+        public IIoZeroSemaphoreBase<bool> ZeroRef(ref IIoZeroSemaphoreBase<bool> @ref, bool init)
+        {
+            throw new NotImplementedException();
+        }
+
+        public int Release(bool value, int releaseCount, bool bestCase = false)
+        {
+            throw new NotImplementedException();
+        }
+
+        public int Release(bool value, bool bestCase = false)
         {
             _semaphore.Set();
             return 1;
+        }
+
+        public int Release(bool[] value, bool bestCase = false)
+        {
+            throw new NotImplementedException();
         }
 
         public async ValueTask<bool> WaitAsync()
@@ -60,15 +75,14 @@ namespace zero.core.feat.patterns.semaphore
         }
 
         public int ReadyCount => 0;
+        public int CurNrOfBlockers { get; }
+        public bool ZeroAsyncMode { get; }
 
-        int IIoZeroSemaphore.CurNrOfBlockers => 0;
-
-        bool IIoZeroSemaphore.ZeroAsyncMode => false;
-
+        
         public int Capacity => 1;
         public bool RunContinuationsAsynchronously { get; }
 
-        int IIoZeroSemaphore.ZeroDecAsyncCount()
+        int IIoZeroSemaphoreBase<bool>.ZeroDecAsyncCount()
         {
             throw new NotImplementedException();
         }
