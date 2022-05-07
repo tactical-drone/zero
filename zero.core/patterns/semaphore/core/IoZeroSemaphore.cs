@@ -200,27 +200,27 @@ namespace zero.core.patterns.semaphore.core
         /// <summary>
         /// A queue of waiting continuations. The queue has strong order guarantees, FIFO
         /// </summary>
-        private Action<object>[] _signalAwaiter;
+        private readonly Action<object>[] _signalAwaiter;
 
         /// <summary>
         /// Holds the state of a queued item
         /// </summary>
-        private object[] _signalAwaiterState;
+        private readonly object[] _signalAwaiterState;
 
         /// <summary>
         /// Holds the state of a queued item
         /// </summary>
-        private ExecutionContext[] _signalExecutionState;
+        private readonly ExecutionContext[] _signalExecutionState;
 
         /// <summary>
         /// Holds the state of a queued item
         /// </summary>
-        private object[] _signalCapturedContext;
+        private readonly object[] _signalCapturedContext;
 
         /// <summary>
         /// Where results are stored
         /// </summary>
-        private T[] _result;
+        private readonly T[] _result;
 
         public long Head => Interlocked.Read(ref _head);
         public long Tail => Interlocked.Read(ref _tail);
@@ -333,10 +333,6 @@ namespace zero.core.patterns.semaphore.core
             Array.Clear(_signalCapturedContext, 0, _maxBlockers);
 
 #if SAFE_RELEASE
-            _signalAwaiter = null;
-            _signalAwaiterState = null;
-            _signalExecutionState = null;
-            _signalCapturedContext = null;
             _asyncTasks = null;
             _zeroRef = null;
 #endif
@@ -402,7 +398,6 @@ namespace zero.core.patterns.semaphore.core
             {
                 ZeroThrow();
                 idx = (Interlocked.Increment(ref _egressToken) - 1) % (_maxBlockers << 1);
-                Thread.MemoryBarrier();
                 return _result[idx];
             }
             catch
@@ -411,6 +406,7 @@ namespace zero.core.patterns.semaphore.core
             }
             finally
             {
+                Interlocked.MemoryBarrier();
                 _result[idx] = default;
             }
         }
@@ -493,15 +489,11 @@ namespace zero.core.patterns.semaphore.core
 
                     while ((slot = Interlocked.CompareExchange(ref _signalAwaiter[tailMod = Tail % _maxBlockers], ZeroSentinel, null)) != null || (race = tailMod != Tail % _maxBlockers))
                     {
-                        if (race && slot != ZeroSentinel && slot != null)
+                        if (race)
                         {
-                            if (Interlocked.CompareExchange(ref _signalAwaiter[tailMod], slot, ZeroSentinel) != ZeroSentinel)
+                            if (Interlocked.CompareExchange(ref _signalAwaiter[tailMod], null, ZeroSentinel) != ZeroSentinel)
                             {
-                                Action<object> tmpSlot;
-                                if ((tmpSlot = Interlocked.CompareExchange(ref _signalAwaiter[tailMod], slot, null)) != null)
-                                {
-                                    LogManager.GetCurrentClassLogger().Fatal($"{nameof(OnCompleted)}: Unable to restore lock at head = {tailMod}, too {tmpSlot}, cur = {_signalAwaiter[tailMod]}");
-                                }
+                                LogManager.GetCurrentClassLogger().Fatal($"{nameof(OnCompleted)}: Unable to restore lock at head = {tailMod}, too {null}, cur = {_signalAwaiter[tailMod]}");
                             }
                         }
 #if DEBUG
@@ -531,7 +523,8 @@ namespace zero.core.patterns.semaphore.core
                                     TaskScheduler cc = null;
                                     if (TaskScheduler.Current != TaskScheduler.Default) cc = TaskScheduler.Current;
 
-                                    Interlocked.Exchange(ref _signalAwaiter[tailMod], null);
+                                    _signalAwaiter[tailMod] = null;
+                                    Interlocked.MemoryBarrier();
                                     InvokeContinuation(continuation, state, cc, false);
                                     return;
                                 }
@@ -540,8 +533,8 @@ namespace zero.core.patterns.semaphore.core
                             }
                         }
 
-                        Interlocked.Exchange(ref _signalAwaiter[tailMod], continuation);
-                        Interlocked.Exchange(ref _signalAwaiterState[tailMod], state);
+                        _signalAwaiter[tailMod] = continuation;
+                        _signalAwaiterState[tailMod] = state;
                         ExtractContext(out _signalExecutionState[tailMod], out _signalCapturedContext[tailMod], flags);
                         Interlocked.MemoryBarrier();
                         Interlocked.Increment(ref _tail);
@@ -932,10 +925,13 @@ namespace zero.core.patterns.semaphore.core
                 if (worker.Continuation == null)
                     break;
 
-                worker.State = Interlocked.Exchange(ref _signalAwaiterState[headMod], null);
-                worker.ExecutionContext = Interlocked.Exchange(ref _signalExecutionState[headMod], null);
-                worker.CapturedContext = Interlocked.Exchange(ref _signalCapturedContext[headMod], null);
-                Interlocked.Exchange(ref _signalAwaiter[headMod], null);
+                worker.State = _signalAwaiterState[headMod];
+                _signalAwaiterState[headMod] = null;
+                worker.ExecutionContext = _signalExecutionState[headMod];
+                _signalExecutionState[headMod] = null;
+                worker.CapturedContext = _signalCapturedContext[headMod];
+                _signalCapturedContext[headMod] = null;
+                _signalAwaiter[headMod] = null;
                 
                 Interlocked.MemoryBarrier();
                 Interlocked.Increment(ref _head);
@@ -956,24 +952,25 @@ namespace zero.core.patterns.semaphore.core
             return released;
         }
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public int Release(T value, int releaseCount, bool bestCase = false)
         {
             //overfull semaphore exit here
             if (_curSignalCount + releaseCount > _maxBlockers)
                 return Release(releaseCount, bestCase);
 
-            var released = 0;
-            for (int i = 0; i < releaseCount; i++)
+            for (var i = 0; i < releaseCount; i++)
             {
                 if (_curSignalCount > _maxBlockers << 1)
-                    return released;
+                    break;
 
                 _result[(Interlocked.Increment(ref _ingressToken) - 1) % (_maxBlockers << 1)] = value;
+                
             }
-            Thread.MemoryBarrier();
             return Release(releaseCount, bestCase);
         }
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public int Release(T value, bool bestCase = false)
         {
             //overfull semaphore exit here
@@ -981,26 +978,26 @@ namespace zero.core.patterns.semaphore.core
                 return Release(1, bestCase);
 
             _result[(Interlocked.Increment(ref _ingressToken) - 1) % (_maxBlockers << 1)] = value;
-            Thread.MemoryBarrier();
             return Release(1,bestCase);
         }
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public int Release(T[] value, bool bestCase = false)
         {
             var releaseCount = value.Length;
+
             //overfull semaphore exit here
             if (_curSignalCount + releaseCount > _maxBlockers)
                 return Release(releaseCount, bestCase);
 
-            var released = 0;
             for (int i = 0; i < releaseCount; i++)
             {
                 if (_curSignalCount > _maxBlockers << 1)
-                    return released;
+                    break;
 
                 _result[(Interlocked.Increment(ref _ingressToken) - 1) % (_maxBlockers << 1)] = value[i];
             }
-            Thread.MemoryBarrier();
+
             return Release(releaseCount, bestCase);
         }
 
@@ -1017,16 +1014,15 @@ namespace zero.core.patterns.semaphore.core
                    (slot = Interlocked.CompareExchange(ref _curSignalCount, latch - 1, latch)) != latch)
             {
                 if (Zeroed())
-                    break;
+                    return default;
 
                 slot = -1;
             }
             
             //>>> FAST PATH on set
             if (slot == latch)
-            {
                 return new ValueTask<T>(_result[(Interlocked.Increment(ref _egressToken) - 1) % (_maxBlockers << 1)]);
-            }
+            
                 
 
             slot = -1;
@@ -1035,7 +1031,7 @@ namespace zero.core.patterns.semaphore.core
                    (slot = Interlocked.CompareExchange(ref _curWaitCount, latch + 1, latch)) != latch)
             {
                 if (Zeroed())
-                    break;
+                    return default;
 
                 slot = -1;
             }

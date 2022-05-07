@@ -660,14 +660,21 @@ var d = 0;
                                     Interlocked.Exchange(ref @this._queenPunchCards[xId], 0);
                             }
                         }
+#if DEBUG
                         catch (Exception e)
                         {
-#if DEBUG
+
                             LogManager.GetCurrentClassLogger().Error(e,
                                 $"{nameof(IoZeroScheduler)}: wId = {xId}/{@this._workerCount}, this = {@this != null}, wq = {@this?._workQueue}, q = {syncRoot != null}");
-#endif
+
                         }
-                        
+#else
+                        catch
+                        {
+                            // ignored
+                        }
+#endif
+
 
                         //drop zombie workers
                         if (@this._dropWorker > 0 && isWorker && xId == @this._workerCount - 1)
@@ -726,7 +733,7 @@ var d = 0;
 
         private async ValueTask SpawnAsync()
         {
-            await foreach (var job in _asyncQueue.BalanceOnConsumeAsync())
+            await foreach (var job in _asyncQueue.PumpOnConsumeAsync())
             {
                 try
                 {

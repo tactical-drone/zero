@@ -560,7 +560,6 @@ namespace zero.core.patterns.bushings
             try
             {
                 //A job was produced. Dequeue it and process
-                //if(_queue.TryDequeue(out curJob))
                 await foreach (var curJob in _queue.BalanceOnConsumeAsync())
                 {
                     Debug.Assert(curJob != null);
@@ -662,10 +661,8 @@ namespace zero.core.patterns.bushings
                             }
 
                             await ZeroJobAsync(curJob).FastPath();
-                            //curJob = null;
 
                             Source.BackPressure();
-                            //Source.PrefetchPressure();
                         }
                         catch when (Zeroed() || curJob != null && curJob.Zeroed())
                         {

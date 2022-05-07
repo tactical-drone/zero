@@ -72,8 +72,9 @@ namespace zero.core.patterns.queue
 
             if (_blockingCollection)
             {
-                _blockSync = new IoZeroSemaphoreSlim(asyncTasks, $"blocking {description}", concurrencyLevel, zeroAsyncMode: true); //TODO: tuning
-                _zeroSync = new IoZeroSemaphoreSlim(asyncTasks, $"sharing {description}", concurrencyLevel, zeroAsyncMode: true); //TODO: tuning
+                _fanSync = new IoZeroSemaphoreSlim(asyncTasks, $"fan {description}", concurrencyLevel, zeroAsyncMode: true); //TODO: tuning
+                _balanceSync = new IoZeroSemaphoreSlim(asyncTasks, $"balance {description}", concurrencyLevel, zeroAsyncMode: true); //TODO: tuning
+                _zeroSync = new IoZeroSemaphorePump<T>(asyncTasks, $"pump  {description}", concurrencyLevel, zeroAsyncMode: true); //TODO: tuning
             }
             
             _curEnumerator = new IoQEnumerator<T>(this);
@@ -87,7 +88,7 @@ namespace zero.core.patterns.queue
         private volatile int _zeroed;
         private readonly string _description;
 
-        private T[][] _storage;
+        private readonly T[][] _storage;
         private readonly T[] _fastStorage;
 
         private readonly T _sentinel;
@@ -97,8 +98,6 @@ namespace zero.core.patterns.queue
         private long _hwm;
         public long Tail => Interlocked.Read(ref _tail);
         public long Head => Interlocked.Read(ref _head);
-        //public long Tail => _tail;
-        //public long Head => _head;
         private volatile IoQEnumerator<T> _curEnumerator;
 
         private volatile int _count;
@@ -106,9 +105,11 @@ namespace zero.core.patterns.queue
         private readonly bool _blockingCollection;
         private volatile int _blockingConsumers;
         private volatile int _sharingConsumers;
+        private volatile int _pumpingConsumers;
         private volatile int _primedForScale;
-        private readonly IoZeroSemaphoreSlim _blockSync;
-        private readonly IoZeroSemaphoreSlim _zeroSync;
+        private readonly IoZeroSemaphoreSlim _fanSync;
+        private readonly IoZeroSemaphorePump<T> _zeroSync;
+        private readonly IoZeroSemaphoreSlim _balanceSync;
 
         /// <summary>
         /// ZeroAsync status
@@ -146,11 +147,13 @@ namespace zero.core.patterns.queue
             {
                 Debug.Assert(idx >= 0);
 
-                if (!IsAutoScaling) return Volatile.Read(ref _fastStorage[idx % _capacity]);
-                
+                //if (!IsAutoScaling) return Volatile.Read(ref _fastStorage[idx % _capacity]);
+                if (!IsAutoScaling) return _fastStorage[idx % _capacity];
+
                 idx %= Capacity;
                 var i = IoMath.Log2(unchecked((ulong)idx + 1));
-                return Volatile.Read(ref _storage[i][idx - ((1 << i) - 1)]);
+                //return Volatile.Read(ref _storage[i][idx - ((1 << i) - 1)]);
+                return _storage[i][idx - ((1 << i) - 1)];
             }
             protected set
             {
@@ -158,13 +161,15 @@ namespace zero.core.patterns.queue
 
                 if (!IsAutoScaling)
                 {
-                    Interlocked.Exchange(ref _fastStorage[idx % _capacity], value);
+                    _fastStorage[idx % _capacity] = value;
+                    //Interlocked.Exchange(ref _fastStorage[idx % _capacity], value);
                     return;
                 }
 
                 idx %= Capacity;
                 var i = IoMath.Log2(unchecked((ulong)idx + 1));
-                Interlocked.Exchange(ref _storage[i][idx - ((1 << i) - 1)], value);
+                _storage[i][idx - ((1 << i) - 1)] = value;
+                //Interlocked.Exchange(ref _storage[i][idx - ((1 << i) - 1)], value);
             }
         }
 
@@ -246,25 +251,35 @@ namespace zero.core.patterns.queue
 
             try
             {
+                //message pump
+                if (_blockingCollection && _pumpingConsumers > 0)
+                {
+                    try
+                    {
+                        return _zeroSync.Release(item, 1, false);
+                    }
+                    catch
+                    {
+                        // ignored
+                    }
+                }
+
+
                 long tail;
                 T slot = null;
                 long cap;
                 var race = false;
 
-                while ((tail = Tail) >= Head + (cap = Capacity) || _count >= cap || tail != Tail ||
-                       (slot = CompareExchange(tail, item, null)) != null || (race = tail != Tail))
+                while ((tail = Tail) >= Head + (cap = Capacity) || _count >= cap || this[tail] != null || tail != Tail ||
+                       (slot = CompareExchange(tail, _sentinel, null)) != null || (race = tail != Tail))
                 {
-                    if (race)// && slot != _sentinel && slot != null)//TODO: What is going on here?
+                    if (race)
                     {
-                        if (CompareExchange(tail, slot, item) != item && !Zeroed)
+                        if (CompareExchange(tail, null, _sentinel) != _sentinel && !Zeroed)
                         {
-                            T tmpSlot;
-                            if ((tmpSlot = CompareExchange(tail, slot, null)) != null && !Zeroed)
-                            {
-                                LogManager.GetCurrentClassLogger()
-                                    .Fatal(
-                                        $"{nameof(TryEnqueue)}: Unable to restore lock at tail = {tail} != {Tail}, slot = `{tmpSlot}', cur = `{this[tail]}'");
-                            }
+                            LogManager.GetCurrentClassLogger()
+                                .Fatal(
+                                    $"{nameof(TryEnqueue)}: Unable to restore lock at tail = {tail} != {Tail}, slot = `{null}', cur = `{this[tail]}'");
                         }
                     }
 
@@ -288,6 +303,7 @@ namespace zero.core.patterns.queue
                 onAtomicAdd?.Invoke(context);
                     
                 Interlocked.Increment(ref _count);
+                this[tail] = item;
                 Interlocked.MemoryBarrier();
                 Interlocked.Increment(ref _tail);
 
@@ -296,7 +312,7 @@ namespace zero.core.patterns.queue
                 {
                     try
                     {
-                        _zeroSync.Release(1, bestCase: Head != tail);
+                        _balanceSync.Release( true, bestCase: Head == Tail);
                     }
                     catch
                     {
@@ -308,7 +324,7 @@ namespace zero.core.patterns.queue
                 {
                     try
                     {
-                        _blockSync.Release(_blockingConsumers, bestCase: Head != Tail);
+                        _fanSync.Release(_blockingConsumers, bestCase: Head == Tail);
                     }
                     catch
                     {
@@ -474,11 +490,6 @@ namespace zero.core.patterns.queue
             finally
             {
                 _count = 0;
-
-                if (zero)
-                {
-                    _storage = null;
-                }
             }
 
             return true;
@@ -526,9 +537,9 @@ namespace zero.core.patterns.queue
             {
                 Interlocked.Increment(ref _blockingConsumers);
                 var cur = Head;
-                while (!_blockSync.Zeroed())
+                while (!_fanSync.Zeroed())
                 {
-                    if (cur >= Tail && !await _blockSync.WaitAsync().FastPath())
+                    if (cur >= Tail && !await _fanSync.WaitAsync().FastPath())
                         break;
 
                     var newItem = this[cur];
@@ -558,6 +569,46 @@ namespace zero.core.patterns.queue
                 Interlocked.Increment(ref _sharingConsumers);
 
                 //drain the head
+                while (!_balanceSync.Zeroed() && TryDequeue(out var next))
+                    yield return next;
+
+                //follow the tail
+                while (!_balanceSync.Zeroed())
+                {
+                    try
+                    {
+                        if (!await _balanceSync.WaitAsync().FastPath())
+                            break;
+                    }
+                    catch (Exception e)
+                    {
+                        LogManager.GetCurrentClassLogger().Error(e, Description);
+                    }
+
+                    while (TryDequeue(out var next))
+                        yield return next;
+                }
+            }
+            finally
+            {
+                Interlocked.Decrement(ref _sharingConsumers);
+            }
+        }
+
+        /// <summary>
+        /// Async pump consumer support
+        /// </summary>
+        /// <returns>The next inserted item</returns>
+        public async IAsyncEnumerable<T> PumpOnConsumeAsync()
+        {
+            if (!_blockingCollection)
+                yield return null;
+
+            try
+            {
+                Interlocked.Increment(ref _pumpingConsumers);
+
+                //drain the head
                 while (!_zeroSync.Zeroed() && TryDequeue(out var next))
                     yield return next;
 
@@ -567,23 +618,20 @@ namespace zero.core.patterns.queue
                     T next = null;
                     try
                     {
-                        if (!await _zeroSync.WaitAsync().FastPath())
+                        if ((next = await _zeroSync.WaitAsync().FastPath()) == null)
                             break;
-
-                        TryDequeue(out next);
                     }
                     catch (Exception e)
                     {
                         LogManager.GetCurrentClassLogger().Error(e,Description);
                     }
 
-                    if (next != null)
-                        yield return next;
+                    yield return next;
                 }
             }
             finally
             {
-                Interlocked.Decrement(ref _sharingConsumers);
+                Interlocked.Decrement(ref _pumpingConsumers);
             }
         }
 
