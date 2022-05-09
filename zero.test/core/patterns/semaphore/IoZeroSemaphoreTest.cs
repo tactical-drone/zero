@@ -199,12 +199,12 @@ namespace zero.test.core.patterns.semaphore
         [Fact]
         async Task MutexSpamAsync()
         {
-            var m = new IoZeroSemaphoreSlim(new CancellationTokenSource(), "test mutex", maxBlockers: 1, initialCount: 3, zeroAsyncMode:true);
+            var m = new IoZeroSemaphoreSlim(new CancellationTokenSource(), "test mutex", maxBlockers: 1, initialCount: 3, zeroAsyncMode:false);
             var running = true;
 
             var waits = 0;
             //var scheduler = IoZeroScheduler.ZeroDefault;
-            var scheduler = TaskScheduler.Default;
+            var scheduler = IoZeroScheduler.ZeroDefault;
             var t1 = Task.Factory.StartNew(async () =>
             {
 
@@ -219,13 +219,17 @@ namespace zero.test.core.patterns.semaphore
                         int r = m.Release(true);
                         if (r > 0)
                         {
-                            Assert.InRange(ts.ElapsedMs(), 0, 1);
+                            Assert.InRange(ts.ElapsedMs(), 0, 16*2);
                             ts = Environment.TickCount;
                         }
                         else if (++s % 1000 == 0)
                         {
-                            _output.WriteLine($"RELEASE Stalled! -> {ts.ElapsedMs()} ms, waiters = {m.CurNrOfBlockers}");
+                            _output.WriteLine($"RELEASE Stalled! -> {ts.ElapsedMs()} ms, waiters = {m.CurNrOfBlockers}, r = {r}");
                             await Task.Delay(1000);
+                        }
+                        else
+                        {
+                            await Task.Yield();
                         }
 
                         Assert.InRange(r, -1, 1);
@@ -235,7 +239,7 @@ namespace zero.test.core.patterns.semaphore
                     }
                     catch (Exception e)
                     {
-                        await Task.Delay(1);
+                        await Task.Yield();
                         _output.WriteLine($"FAIL! -> {ts.ElapsedMs()} ms ({e.Message})");
                         ts = Environment.TickCount;
                     }
@@ -244,7 +248,6 @@ namespace zero.test.core.patterns.semaphore
                 while(m.Release(true) == 1){}
 
                 _output.WriteLine("Release done");
-            var scheduler = IoZeroScheduler.ZeroDefault;
             },CancellationToken.None,TaskCreationOptions.DenyChildAttach, scheduler).Unwrap();
 
             var t2 = Task.Factory.StartNew(async () =>
@@ -253,7 +256,7 @@ namespace zero.test.core.patterns.semaphore
                 {
                     var ts = Environment.TickCount;
                     Assert.True(await m.WaitAsync().FastPath());
-                    if (ts.ElapsedMs() > 1)
+                    if (ts.ElapsedMs() > 15*2)
                     {
                         _output.WriteLine($"DQ took {ts.ElapsedMs()} ms!!!");
                     }
@@ -261,7 +264,7 @@ namespace zero.test.core.patterns.semaphore
 
                     waits++;
 
-                    if (waits % 10000 == 0)
+                    if (waits % 1000000 == 0)
                     {
                         _output.WriteLine($"-> {waits}");
                     }
@@ -281,7 +284,7 @@ namespace zero.test.core.patterns.semaphore
 
             }
 
-            _output.WriteLine($"Test done... {ts.ElapsedMs()}ms - {waits*1000/ts.ElapsedMs()} dq/ps");
+            _output.WriteLine($"Test done... {ts.ElapsedMs()}ms - {waits/((double)(ts.ElapsedMs()/1000+1))} dq/ps");
             running = false;
             await Task.Delay(1000);
             Assert.Equal(0, m.CurNrOfBlockers);

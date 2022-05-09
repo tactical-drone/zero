@@ -528,16 +528,20 @@ namespace zero.core.patterns.semaphore.core
                             }
                         }
 #if DEBUG
-                        if (c++ > 500000) 
+                        if (c++ > 500000)
+                        {
+                            Debug.Fail($"OnComplete lock spinning!!! {Description}");
                             throw new InternalBufferOverflowException($"OnComplete lock spinning!!! {Description}");
+                        }
+                            
 #endif
                         if (_zeroed > 0) break;
 
                         //TODO: What is this?
-                        //if (Tail % 2 == 0)
-                        //    Interlocked.MemoryBarrierProcessWide();
-                        //else
-                        //    Interlocked.MemoryBarrier();
+                        if (Tail % 2 == 0)
+                            Interlocked.MemoryBarrierProcessWide();
+                        else
+                            Interlocked.MemoryBarrier();
 
                         race = false;
                     }
@@ -573,20 +577,6 @@ namespace zero.core.patterns.semaphore.core
                                 }
                                 Interlocked.Increment(ref _curSignalCount); //dine on deadlock
                             }
-
-                            //    if (s >= 0)
-                            //    {
-                            //        TaskScheduler cc = null;
-                            //        if (TaskScheduler.Current != TaskScheduler.Default) cc = TaskScheduler.Current;
-
-                            //        Interlocked.MemoryBarrier();
-                            //        _signalAwaiter[tailMod] = null;
-
-                            //        InvokeContinuation(continuation, state, cc, ZeroAsyncMode);
-                            //        return;
-                            //    }
-                            //}
-                            //Interlocked.Increment(ref _curWaitCount); //dine on deadlock
                         }
 
                         _signalAwaiter[tailMod] = continuation;
@@ -894,7 +884,7 @@ namespace zero.core.patterns.semaphore.core
             while (released < releaseCount && _curWaitCount > 0 && (_curSignalCount > 0 || bestCase) && !Zeroed())
             {
                 int latch = 0;
-                var slot = 0;
+                var slot = -1;
 
                 //reserve a waiter
 
@@ -908,13 +898,16 @@ namespace zero.core.patterns.semaphore.core
                 {
 #if DEBUG
                     if (c++ > 500000)
+                    {
+                        Debug.Fail($"OnComplete lock spinning!!! {Description}");
                         throw new InternalBufferOverflowException($"{Description}");
+                    }
 #endif
 
                     if (Zeroed())
                         break;
 
-                    slot = 0;
+                    slot = -1;
                 }
 
                 if (slot != latch)
@@ -927,6 +920,7 @@ namespace zero.core.patterns.semaphore.core
 #if DEBUG
                 c = 0;
 #endif
+                slot = -1;
                 while ((latch = _curWaitCount) > 0 &&
                        (slot = Interlocked.CompareExchange(ref _curWaitCount, latch - 1, latch)) != latch)
                 {
@@ -937,12 +931,12 @@ namespace zero.core.patterns.semaphore.core
                     if (Zeroed())
                         break;
 
-                    //if (slot != -1)
-                    //    Interlocked.MemoryBarrierProcessWide();
-                    //else
-                    //    Interlocked.MemoryBarrier();
+                    if (slot != -1)
+                        Interlocked.MemoryBarrierProcessWide();
+                    else
+                        Interlocked.MemoryBarrier();
 
-                    slot = 0;
+                    slot = -1;
                 }
 
                 if (slot != latch)

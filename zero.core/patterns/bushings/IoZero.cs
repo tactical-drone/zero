@@ -80,7 +80,7 @@ namespace zero.core.patterns.bushings
 
             //These numbers were numerically established
             if (ZeroRecoveryEnabled)
-                capacity *= 40;
+                capacity *= 2;
 
             try
             {

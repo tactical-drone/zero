@@ -291,10 +291,10 @@ namespace zero.core.patterns.queue
                     if (Zeroed || !_autoScale && _count >= cap)
                         return -1;
 
-                    //if (slot != null)
-                    //    Interlocked.MemoryBarrierProcessWide();
-                    //else
-                    //    Interlocked.MemoryBarrier();
+                    if (slot != null)
+                        Interlocked.MemoryBarrierProcessWide();
+                    else
+                        Interlocked.MemoryBarrier();
 
                     race = false;
                 }
@@ -317,7 +317,7 @@ namespace zero.core.patterns.queue
                 {
                     try
                     {
-                        _balanceSync.Release( true, bestCase: Head == Tail);
+                        _balanceSync.Release( true, false);
                     }
                     catch
                     {
@@ -329,9 +329,7 @@ namespace zero.core.patterns.queue
                 {
                     try
                     {
-                        //_fanSync.Release(true, _blockingConsumers, true);
-                        _fanSync.Release(true,_blockingConsumers, bestCase: Head == Tail);
-                        //_fanSync.Release(true, bestCase: Head == Tail);
+                        _fanSync.Release(true,_blockingConsumers, false);
                     }
                     catch
                     {
