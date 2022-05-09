@@ -692,7 +692,6 @@ namespace zero.core.patterns.semaphore.core
                 case null:
                     if (_zeroAsyncMode || forceAsync)
                     {
-      //                  _ = Task.Factory.StartNew(callback, state, CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Default);
 #if ZERO_CORE
                         _ = Task.Factory.StartNew(callback, state, CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Default);
 #else
@@ -708,14 +707,7 @@ namespace zero.core.patterns.semaphore.core
                     }
                     else
                     {
-                        try
-                        {
-                            callback(state);
-                        }
-                        catch (Exception e)
-                        {
-                            LogManager.GetCurrentClassLogger().Error(e, $"InvokeContinuation.callback(): {state}");
-                        }
+                        callback(state);
                     }
 
                     break;
@@ -734,20 +726,14 @@ namespace zero.core.patterns.semaphore.core
                     }, (callback, state));
                     break;
                 case IoZeroScheduler zs:
+                    //async
                     if (_zeroAsyncMode || forceAsync)
                     {
                         IoZeroScheduler.Zero.QueueCallback(callback, state);
                     }
-                    else
+                    else //sync
                     {
-                        try
-                        {
-                            callback(state);
-                        }
-                        catch (Exception e)
-                        {
-                            LogManager.GetCurrentClassLogger().Error(e, $"InvokeContinuation.callback(): {state}");
-                        }
+                        callback(state);
                     }
                     break;
 

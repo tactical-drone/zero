@@ -298,19 +298,18 @@ namespace zero.core.patterns.semaphore.core
                 case null:
                     if (RunContinuationsAsynchronously)
                     {
-                        _ = Task.Factory.StartNew(_continuation, _continuationState, CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Default);
-//#if ZERO_CORE
-//                        _ = Task.Factory.StartNew(_continuation, _continuationState, CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Default));
-//#else
-//                        if (!ThreadPool.UnsafeQueueUserWorkItem(static delegate (object s)
-//                            {
-//                                var (callback, state) = (ValueTuple<Action<object>, object>)s;
-//                                callback(state);
-//                            }, (_continuation, _continuationState)))
-//                        {
-//                            _ = Task.Factory.StartNew(_continuation, _continuationState, CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Default);
-//                        }
-//#endif
+#if ZERO_CORE
+                        _ = Task.Factory.StartNew(_continuation, _continuationState, CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Default));
+#else
+                        if (!ThreadPool.UnsafeQueueUserWorkItem(static delegate (object s)
+                            {
+                                var (callback, state) = (ValueTuple<Action<object>, object>)s;
+                                callback(state);
+                            }, (_continuation, _continuationState)))
+                        {
+                            _ = Task.Factory.StartNew(_continuation, _continuationState, CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Default);
+                        }
+#endif
                     }
                     else
                     {
@@ -327,20 +326,14 @@ namespace zero.core.patterns.semaphore.core
                     break;
 
                 case IoZeroScheduler zs:
+                    //async
                     if (RunContinuationsAsynchronously)
                     {
                         IoZeroScheduler.Zero.QueueCallback(_continuation, _continuationState);
                     }
-                    else //inline super fast!!!
+                    else //sync
                     {
-                        try
-                        {
-                            _continuation(_continuationState);
-                        }
-                        catch (Exception e)
-                        {
-                            LogManager.GetCurrentClassLogger().Error(e, $"InvokeContinuation.callback(): {_continuationState}");
-                        }
+                        _continuation(_continuationState);
                     }
                     break;
                 case TaskScheduler ts:
