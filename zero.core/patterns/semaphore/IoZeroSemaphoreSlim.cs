@@ -18,8 +18,8 @@ namespace zero.core.patterns.semaphore
             bool zeroAsyncMode = false,
             bool enableAutoScale = false, bool enableFairQ = false, bool enableDeadlockDetection = false) : base($"{nameof(IoZeroSemaphoreSlim)}: {description}", maxBlockers)
         {
-            _semaphore = new IoZeroSemaphore<bool>(description, maxBlockers, initialCount, zeroAsyncMode, enableAutoScale: enableAutoScale, enableFairQ: enableFairQ, enableDeadlockDetection: enableDeadlockDetection, cancellationTokenSource: asyncTasks);
-            _semaphore.ZeroRef(ref _semaphore, true);
+            IIoZeroSemaphoreBase<bool> newSem = new IoZeroSemaphore<bool>(description, maxBlockers, initialCount, zeroAsyncMode, enableAutoScale: enableAutoScale, cancellationTokenSource: asyncTasks);
+            _semaphore = newSem.ZeroRef(ref newSem, true);
         }
 
         private IIoZeroSemaphoreBase<bool> _semaphore;
@@ -56,12 +56,7 @@ namespace zero.core.patterns.semaphore
 
         public IIoZeroSemaphoreBase<bool> ZeroRef(ref IIoZeroSemaphoreBase<bool> @ref, bool init) => _semaphore.ZeroRef(ref @ref, init);
 
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public int Release(int releaseCount = 1, bool bestCase = false)
-        {
-            return Release(true, releaseCount, bestCase);
-        }
-
+        
         public int Release(bool value, int releaseCount, bool bestCase = false)
         {
             return _semaphore.Release(value, releaseCount, bestCase);
@@ -90,7 +85,7 @@ namespace zero.core.patterns.semaphore
         }
 
         public int ReadyCount => _semaphore.ReadyCount;
-        
+
         public int CurNrOfBlockers => _semaphore.CurNrOfBlockers;
         public bool ZeroAsyncMode => _semaphore.ZeroAsyncMode;
         public int Capacity => _semaphore.Capacity;
@@ -101,5 +96,6 @@ namespace zero.core.patterns.semaphore
 
         public long Tail => ((IoZeroSemaphore<bool>)_semaphore).Tail;
         public long Head => ((IoZeroSemaphore<bool>)_semaphore).Head;
+        public long EgressCount => ((IoZeroSemaphore<bool>)_semaphore).EgressCount;
     }
 }

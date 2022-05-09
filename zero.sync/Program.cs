@@ -68,7 +68,7 @@ namespace zero.sync
 
             //Task.Factory.StartNew(async () =>
             //{
-            //    await SemTestAsync();
+            //    //await SemTestAsync();
             //    await QueueTestAsync();
             //}, CancellationToken.None, TaskCreationOptions.DenyChildAttach, IoZeroScheduler.ZeroDefault).Unwrap().GetAwaiter().GetResult();
 
@@ -921,13 +921,14 @@ namespace zero.sync
 
             //.NET RUNTIME REFERENCE MUTEX FOR TESTING
             //var mutex = new IoZeroRefMut(asyncTasks.Token);
-            var mutex = new IoZeroSemaphoreSlim(asyncTasks, "zero slim", maxBlockers: capacity, initialCount: 0, zeroAsyncMode: false, enableAutoScale: false, enableFairQ: false, enableDeadlockDetection: true);
+            var mutex = new IoZeroSemaphoreSlim(asyncTasks, "zero slim", maxBlockers: capacity, initialCount: 1, zeroAsyncMode: false, enableAutoScale: false, enableFairQ: false, enableDeadlockDetection: true);
 
             var releaseCount = 2;
             var waiters = 3;
-            var releasers = 2;
+            var releasers = 3;
+            var disableRelease = false;
             var targetSleep = (long)0;
-            var logSpam = 40000;//at least 1
+            var logSpam = 30000;//at least 1
 
             var targetSleepMult = waiters > 1 ? 2 : 1;
             var sw = new Stopwatch();
@@ -1133,61 +1134,61 @@ namespace zero.sync
                }
            }, CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Current);
             
+            if(!disableRelease)
+                for (int i = 0; i < releasers; i++)
+                {
+                    var i1 = i;
+                    var r3 = Task.Factory.StartNew(async o =>
+                    {
+                        try
+                        {
+                            var curCount = 0;
 
-           for (int i = 0; i < releasers; i++)
-           {
-               var i1 = i;
-               var r3 = Task.Factory.StartNew(async o =>
-               {
-                   try
-                   {
-                       var curCount = 0;
-                       
-                       while (releasers > 0)
-                       {
-                           try
-                           {
-                               if ((curCount = mutex.Release(releaseCount)) > 0)
-                               {
-                                   Interlocked.Add(ref semCount, curCount);
-                                   Interlocked.Increment(ref semPollCount);
-                                   Interlocked.Add(ref dq[i1], releaseCount);
-                               }
-                               else
-                               {
-                                   var ts = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-                                   await Task.Delay(1, asyncTasks.Token);
-                               }
+                            while (releasers > 0)
+                            {
+                                try
+                                {
+                                    if ((curCount = mutex.Release(true, releaseCount)) > 0)
+                                    {
+                                        Interlocked.Add(ref semCount, curCount);
+                                        Interlocked.Increment(ref semPollCount);
+                                        Interlocked.Add(ref dq[i1], releaseCount);
+                                    }
+                                    else
+                                    {
+                                        await Task.Yield();
+                                        //await Task.Delay(0, asyncTasks.Token);
+                                    }
 
-                           }
-                           catch (SemaphoreFullException)
-                           {
+                                }
+                                catch (InvalidOperationException e)
+                                {
 
+                                    Console.WriteLine($"Failed... {e.Message}");
+                                }
+                                catch (TaskCanceledException)
+                                {
+                                    return;
+                                }
+                                catch (Exception e)
+                                {
+                                    Console.WriteLine($"Failed... {e.Message}");
+                                }
+                                finally
+                                {
+                                    if (targetSleep > 0)
+                                        await Task.Delay((int)targetSleep, asyncTasks.Token);
+                                }
+                            }
 
-                           }
-                           catch (TaskCanceledException)
-                           {
-                               return;
-                           }
-                           catch (Exception e)
-                           {
-                               Console.WriteLine($"Failed... {e.Message}");
-                           }
-                           finally
-                           {
-                               if (targetSleep > 0)
-                                   await Task.Delay((int)targetSleep, asyncTasks.Token);
-                           }
-                       }
-                       
-                   }
-                   catch (Exception e)
-                   {
-                       Console.WriteLine($"3:{e}");
-                       throw;
-                   }
-               }, asyncTasks.Token, options);
-           }
+                        }
+                        catch (Exception e)
+                        {
+                            Console.WriteLine($"3:{e}");
+                            throw;
+                        }
+                    }, asyncTasks.Token, options);
+                }
 
             Console.ReadLine();
             Console.WriteLine("TEARDOWN");

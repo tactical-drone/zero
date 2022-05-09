@@ -1,11 +1,13 @@
 ﻿using System;
 using System.Threading;
 using System.Threading.Tasks;
+using NuGet.Frameworks;
 using Xunit;
 using Xunit.Abstractions;
 using zero.core.misc;
 using zero.core.patterns.misc;
 using zero.core.patterns.semaphore;
+using zero.core.runtime.scheduler;
 
 namespace zero.test.core.patterns.semaphore
 {
@@ -42,7 +44,7 @@ namespace zero.test.core.patterns.semaphore
                 while(@this._running)
                 {
                     await Task.Delay(targetSleep);
-                    m.Release();
+                    m.Release(true);
                 }
             },(this,m,targetSleep), TaskCreationOptions.DenyChildAttach);
 
@@ -69,82 +71,100 @@ namespace zero.test.core.patterns.semaphore
         [Fact]
         async Task PrefetchRushAsync()
         {
-            var threads = 100;
-            var preloadCount = 3000000;
-            var m = new IoZeroSemaphoreSlim(new CancellationTokenSource(), "test mutex", maxBlockers: 1, initialCount: preloadCount);
-
-            var c = 0;
-            while (true)
+            await Task.Factory.StartNew(async state =>
             {
-                if (Interlocked.Increment(ref _releaseCount) < preloadCount)
-                    await m.WaitAsync().FastPath();
-                else
-                    break;
+                var threads = 1;
+                var preloadCount = 300;
+                var m = new IoZeroSemaphoreSlim(new CancellationTokenSource(), "test mutex", maxBlockers: threads, initialCount: preloadCount, zeroAsyncMode:true);
 
-                if(++c % 500000 == 0)
-                    _output.WriteLine($"-> {c}");
-            }
-            
-            Assert.Equal(_releaseCount, preloadCount);
+                //_ = Task.Factory.StartNew(async () =>
+                //{
+                //    var done = false;
+                //    while (true)
+                //    {
+                //        await Task.Delay(5000);
+                //        if (done)
+                //        {
+                //            await m.WaitAsync().FastPath();
+                //        }
+                //    }
+                //});
 
-            for (int i = 0; i < threads; i++)
-            {
-                _ = Task.Factory.StartNew(async () =>
+                var c = 0;
+                while (true)
                 {
-                    while (!m.Zeroed() && _releaseCount > 0)
-                    {
-                        if (Interlocked.Decrement(ref _releaseCount) >= 0)
-                        {
-                            if (m.Release() == -1)
-                                await Task.Delay(100);
-                        }
-                    }
+                    if (Interlocked.Increment(ref _releaseCount) < preloadCount)
+                        await m.WaitAsync().FastPath();
+                    else
+                        break;
 
-                    return Task.CompletedTask;
-                });
-            }
-
-            while (true)
-            {
-                await m.WaitAsync().FastPath();
-
-                if (_releaseCount > preloadCount - 5)
-                    _output.WriteLine($"<- {_releaseCount}");
-
-                if (_releaseCount < 5)
-                    _output.WriteLine($"<- {_releaseCount}");
-                if (_releaseCount == 0)
-                {
-                    await m.Zero(null, "test done");
-                    break;
+                    if (++c % 1000 == 0)
+                        _output.WriteLine($"-> {c}");
                 }
-            }
 
-            Assert.Equal(0, _releaseCount);
+                Assert.Equal(_releaseCount, preloadCount);
 
+                for (int i = 0; i < threads; i++)
+                {
+                    _ = Task.Factory.StartNew(async () =>
+                    {
+                        while (!m.Zeroed() && _releaseCount > 0)
+                        {
+                            if (Interlocked.Decrement(ref _releaseCount) >= 0)
+                            {
+                                if (m.Release(true) == -1)
+                                    await Task.Delay(100);
+                            }
+                        }
+
+                        return Task.CompletedTask;
+                    });
+                }
+
+                while (true)
+                {
+                    await m.WaitAsync().FastPath();
+
+                    if (_releaseCount > preloadCount - 5)
+                        _output.WriteLine($"<- {_releaseCount}");
+
+                    if (_releaseCount < 5)
+                        _output.WriteLine($"<- {_releaseCount}");
+                    if (_releaseCount == 0)
+                    {
+                        await m.Zero(null, "test done");
+                        break;
+                    }
+                }
+
+                Assert.Equal(0, _releaseCount);
+            },this, CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Default).Unwrap();
         }
 
         [Fact]
         async Task PrefetchAsync()
         {
-            var m = new IoZeroSemaphoreSlim(new CancellationTokenSource(), "test mutex", maxBlockers: 1, initialCount: 3);
+            var m = new IoZeroSemaphoreSlim(new CancellationTokenSource(), "test mutex", maxBlockers: 1, initialCount: 3, zeroAsyncMode:false);
 
             await Task.Factory.StartNew(async () =>
             {
                 await Task.Delay(500);
-                m.Release();
+                m.Release(true);
             });
 
             var ts = Environment.TickCount;
             Assert.Equal(3, m.ReadyCount);
-            await m.WaitAsync();
+            await m.WaitAsync().FastPath();
+            Assert.Equal(2, m.ReadyCount);
             Assert.Equal(0, m.CurNrOfBlockers);
-            await m.WaitAsync();
+            await m.WaitAsync().FastPath();
+            Assert.Equal(1, m.ReadyCount);
             Assert.Equal(0, m.CurNrOfBlockers);
-            await m.WaitAsync();
+            await m.WaitAsync().FastPath();
+            Assert.Equal(0, m.ReadyCount);
             Assert.Equal(0, m.CurNrOfBlockers);
             Assert.InRange(ts.ElapsedMs(), 0, 50);
-            await m.WaitAsync();
+            await m.WaitAsync().FastPath();
             Assert.InRange(ts.ElapsedMs(),400, 2000);
             Assert.Equal(0, m.CurNrOfBlockers);
         }
@@ -157,9 +177,9 @@ namespace zero.test.core.patterns.semaphore
             
             await Task.Factory.StartNew(async () =>
             {
-                m.Release(2);
+                m.Release(true, 2);
                 await Task.Delay(500);
-                m.Release();
+                m.Release(true);
             });
 
             var ts = Environment.TickCount;
@@ -179,43 +199,76 @@ namespace zero.test.core.patterns.semaphore
         [Fact]
         async Task MutexSpamAsync()
         {
-            var m = new IoZeroSemaphoreSlim(new CancellationTokenSource(), "test mutex", maxBlockers: 1, initialCount: 3);
+            var m = new IoZeroSemaphoreSlim(new CancellationTokenSource(), "test mutex", maxBlockers: 1, initialCount: 3, zeroAsyncMode:true);
             var running = true;
 
             var waits = 0;
+            //var scheduler = IoZeroScheduler.ZeroDefault;
+            var scheduler = TaskScheduler.Default;
             var t1 = Task.Factory.StartNew(async () =>
             {
+
+                var ts = Environment.TickCount;
+                await Task.Delay(2000);
+                var s = 0;
                 while (running)
                 {
                     try
                     {
-                        int r = m.Release();
-                        Assert.InRange(r, 0, 1);
+                        //Assert.Equal(1, m.CurNrOfBlockers);
+                        int r = m.Release(true);
+                        if (r > 0)
+                        {
+                            Assert.InRange(ts.ElapsedMs(), 0, 1);
+                            ts = Environment.TickCount;
+                        }
+                        else if (++s % 1000 == 0)
+                        {
+                            _output.WriteLine($"RELEASE Stalled! -> {ts.ElapsedMs()} ms, waiters = {m.CurNrOfBlockers}");
+                            await Task.Delay(1000);
+                        }
 
-                        if (r != 1) 
-                            await Task.Delay(1);
+                        Assert.InRange(r, -1, 1);
+                        
+                        //if (r != 1) 
+                        //    await Task.Delay(1);
                     }
-                    catch
+                    catch (Exception e)
                     {
                         await Task.Delay(1);
+                        _output.WriteLine($"FAIL! -> {ts.ElapsedMs()} ms ({e.Message})");
+                        ts = Environment.TickCount;
                     }
                 }
 
-                while(m.Release() == 1){}
+                while(m.Release(true) == 1){}
 
                 _output.WriteLine("Release done");
-            },TaskCreationOptions.DenyChildAttach);
+            var scheduler = IoZeroScheduler.ZeroDefault;
+            },CancellationToken.None,TaskCreationOptions.DenyChildAttach, scheduler).Unwrap();
 
-            var t2 = await Task.Factory.StartNew(async () =>
+            var t2 = Task.Factory.StartNew(async () =>
             {
                 while (running)
                 {
+                    var ts = Environment.TickCount;
                     Assert.True(await m.WaitAsync().FastPath());
+                    if (ts.ElapsedMs() > 1)
+                    {
+                        _output.WriteLine($"DQ took {ts.ElapsedMs()} ms!!!");
+                    }
+                    //Assert.InRange(ts.ElapsedMs(), 0, 1);
+
                     waits++;
+
+                    if (waits % 10000 == 0)
+                    {
+                        _output.WriteLine($"-> {waits}");
+                    }
                 }
 
                 _output.WriteLine($"Wait done {waits/1000000}M");
-            });
+            },CancellationToken.None, TaskCreationOptions.DenyChildAttach, scheduler).Unwrap();
 
             var ts = Environment.TickCount;
 
@@ -228,9 +281,9 @@ namespace zero.test.core.patterns.semaphore
 
             }
 
-            _output.WriteLine($"Test done... {ts.ElapsedMs()}ms");
+            _output.WriteLine($"Test done... {ts.ElapsedMs()}ms - {waits*1000/ts.ElapsedMs()} dq/ps");
             running = false;
-
+            await Task.Delay(1000);
             Assert.Equal(0, m.CurNrOfBlockers);
             Assert.InRange(waits, 553624, int.MaxValue);
         }
@@ -347,27 +400,53 @@ namespace zero.test.core.patterns.semaphore
         {
             var count = 50;
             var minDelay = 16 * 2;
-            var v = new IoZeroSemaphoreSlim(new CancellationTokenSource(), string.Empty, 1, 1);
-
+            var v = new IoZeroSemaphoreSlim(new CancellationTokenSource(), string.Empty, 1, 0);
+            //v.Release(true);
             var t = Task.Factory.StartNew(async () =>
             {
                 for (int i = 0; i < count; i++)
                 {
                     await Task.Delay(minDelay);
-                    v.Release();
+                    //_output.WriteLine($"R");
+                    try
+                    {
+                        Assert.Equal(0, v.ReadyCount);
+                    }
+                    catch (Exception e)
+                    {
+                        _output.WriteLine($"{e.Message}: RELEASE FAILED!");
+                    }
+                    v.Release(true);
                 }
             }).Unwrap();
 
             var ts = Environment.TickCount;
-            Assert.True(await v.WaitAsync().FastPath());
-            //Assert.InRange(ts.ElapsedMs(), 0, 16 * 2);
+            //Assert.True(await v.WaitAsync().FastPath());
+            //Assert.Equal(0,v.ReadyCount);
+            //Assert.InRange(ts.ElapsedMs(), 0, minDelay * 2);
 
             for (var i = 0; i < count; i++)
             {
                 ts = Environment.TickCount;
-                Assert.True(await v.WaitAsync().FastPath());
+                Assert.Equal(0, v.ReadyCount);
+                if (!await v.WaitAsync().FastPath())
+                {
+                    Assert.Equal(0, v.ReadyCount);
+                    _output.WriteLine($"FAIL[{Thread.CurrentThread.ManagedThreadId}] -> {i} -> {v.EgressCount}, r = {v.ReadyCount}");
+                    Assert.Fail("Expected true");
+                }
+                else
+                    //if (i % 10 == 0)
+                {
+                    Assert.Equal(0, v.ReadyCount);
+                    //_output.WriteLine($"DQ[{Thread.CurrentThread.ManagedThreadId}] -> {i} -> {v.EgressCount}, r = {v.ReadyCount}");
+                }
                 Assert.InRange(ts.ElapsedMs(), minDelay / 2, minDelay * 2);
             }
+
+            await t;
+            if(!t.IsCompletedSuccessfully)
+                Assert.Fail($"Enqueue failed {t.Exception}");
         }
 
         [Fact]
@@ -388,7 +467,7 @@ namespace zero.test.core.patterns.semaphore
                 int i = 0;
                 while (!v.Zeroed())
                 {
-                    if (v.Release() != 1)
+                    if (v.Release(true) != 1)
                         await Task.Delay(1);
                     else
                         i++;

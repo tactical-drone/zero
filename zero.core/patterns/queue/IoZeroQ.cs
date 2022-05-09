@@ -30,8 +30,9 @@ namespace zero.core.patterns.queue
         /// <param name="autoScale">This is pseudo scaling: If set, allows the internal buffers to grow (amortized) if buffer pressure drops below 50% after exceeding it, otherwise scaling is not possible</param>
         /// <param name="asyncTasks">When used as async blocking collection</param>
         /// <param name="concurrencyLevel">Max expected concurrency</param>
+        /// <param name="zeroAsyncMode"></param>
         /// <exception cref="ArgumentOutOfRangeException"></exception>
-        public IoZeroQ(string description, int capacity, bool autoScale = false, CancellationTokenSource asyncTasks = null, int concurrencyLevel = 1)
+        public IoZeroQ(string description, int capacity, bool autoScale = false, CancellationTokenSource asyncTasks = null, int concurrencyLevel = 1, bool zeroAsyncMode = false)
         {
 #if DEBUG
             _description = description;
@@ -72,9 +73,9 @@ namespace zero.core.patterns.queue
 
             if (_blockingCollection)
             {
-                _fanSync = new IoZeroSemaphoreSlim(asyncTasks, $"fan {description}", concurrencyLevel, zeroAsyncMode: true); //TODO: tuning
-                _balanceSync = new IoZeroSemaphoreSlim(asyncTasks, $"balance {description}", concurrencyLevel, zeroAsyncMode: true); //TODO: tuning
-                _zeroSync = new IoZeroSemaphorePump<T>(asyncTasks, $"pump  {description}", concurrencyLevel, zeroAsyncMode: true); //TODO: tuning
+                _fanSync = new IoZeroSemaphoreSlim(asyncTasks, $"fan {description}", concurrencyLevel, zeroAsyncMode: zeroAsyncMode); //TODO: tuning
+                _balanceSync = new IoZeroSemaphoreSlim(asyncTasks, $"balance {description}", concurrencyLevel, zeroAsyncMode: zeroAsyncMode); //TODO: tuning
+                _zeroSync = new IoZeroSemaphorePump<T>(asyncTasks, $"pump  {description}", concurrencyLevel, zeroAsyncMode: zeroAsyncMode); //TODO: tuning
             }
             
             _curEnumerator = new IoQEnumerator<T>(this);
@@ -82,10 +83,11 @@ namespace zero.core.patterns.queue
             _sentinel = Unsafe.As<T>(new object());
         }
 
+        #region packed
         private long _head; 
         private long _tail;
+        private long _hwm;
 
-        private volatile int _zeroed;
         private readonly string _description;
 
         private readonly T[][] _storage;
@@ -93,23 +95,26 @@ namespace zero.core.patterns.queue
 
         private readonly T _sentinel;
         private readonly object _syncRoot = new();
+        
+        private volatile IoQEnumerator<T> _curEnumerator;
+        private readonly IoZeroSemaphoreSlim _fanSync;
+        private readonly IoZeroSemaphorePump<T> _zeroSync;
+        private readonly IoZeroSemaphoreSlim _balanceSync;
+
+        private volatile int _zeroed;
         private volatile int _capacity;
         private volatile int _virility;
-        private long _hwm;
-        public long Tail => Interlocked.Read(ref _tail);
-        public long Head => Interlocked.Read(ref _head);
-        private volatile IoQEnumerator<T> _curEnumerator;
-
         private volatile int _count;
-        private readonly bool _autoScale;
-        private readonly bool _blockingCollection;
         private volatile int _blockingConsumers;
         private volatile int _sharingConsumers;
         private volatile int _pumpingConsumers;
         private volatile int _primedForScale;
-        private readonly IoZeroSemaphoreSlim _fanSync;
-        private readonly IoZeroSemaphorePump<T> _zeroSync;
-        private readonly IoZeroSemaphoreSlim _balanceSync;
+        private readonly bool _autoScale;
+        private readonly bool _blockingCollection;
+        #endregion
+
+        public long Tail => _tail;
+        public long Head => _head;
 
         /// <summary>
         /// ZeroAsync status
@@ -286,16 +291,16 @@ namespace zero.core.patterns.queue
                     if (Zeroed || !_autoScale && _count >= cap)
                         return -1;
 
-                    if (slot != null)
-                        Interlocked.MemoryBarrierProcessWide();
-                    else
-                        Interlocked.MemoryBarrier();
+                    //if (slot != null)
+                    //    Interlocked.MemoryBarrierProcessWide();
+                    //else
+                    //    Interlocked.MemoryBarrier();
 
                     race = false;
                 }
 #if DEBUG
                 Debug.Assert(Zeroed || slot == null);
-                Debug.Assert(Zeroed || this[tail] == item);
+                Debug.Assert(Zeroed || this[tail] == _sentinel);
                 Debug.Assert(Zeroed || tail == Tail);
                 Interlocked.MemoryBarrier();
 #endif
@@ -324,7 +329,9 @@ namespace zero.core.patterns.queue
                 {
                     try
                     {
-                        _fanSync.Release(_blockingConsumers, bestCase: Head == Tail);
+                        //_fanSync.Release(true, _blockingConsumers, true);
+                        _fanSync.Release(true,_blockingConsumers, bestCase: Head == Tail);
+                        //_fanSync.Release(true, bestCase: Head == Tail);
                     }
                     catch
                     {
@@ -385,10 +392,10 @@ namespace zero.core.patterns.queue
                     //    }
                     //}
 
-                    if (slot != null)
-                        Interlocked.MemoryBarrierProcessWide();
-                    else
-                        Interlocked.MemoryBarrier();
+                    //if (slot != null)
+                    //    Interlocked.MemoryBarrierProcessWide();
+                    //else
+                    //    Interlocked.MemoryBarrier();
 
                     if (_count == 0 || Zeroed)
                     {
@@ -625,7 +632,6 @@ namespace zero.core.patterns.queue
                     {
                         LogManager.GetCurrentClassLogger().Error(e,Description);
                     }
-
                     yield return next;
                 }
             }

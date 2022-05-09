@@ -619,7 +619,7 @@ namespace zero.test.core.patterns.queue{
                 
             }, _output).Unwrap();
 
-            await Task.WhenAll(q,dq).WithTimeout(TimeSpan.FromSeconds(BlockDelay * NrOfItems / Concurrency * 2));
+            await Task.WhenAll(q,dq).WithTimeout(TimeSpan.FromMilliseconds(BlockDelay * NrOfItems / Concurrency * 2));
 
         }
 

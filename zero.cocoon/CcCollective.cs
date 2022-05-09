@@ -51,8 +51,8 @@ namespace zero.cocoon
                 _zeroDrone = true;
                 parm_max_drone = 0;
                 parm_max_adjunct = 512; //TODO tuning:
-                udpPrefetch = 32;
-                udpConcurrencyLevel = 16;
+                udpPrefetch = 3;
+                udpConcurrencyLevel = 2;
                 NeighborTasks = new IoQueue<Task>($"{nameof(NeighborTasks)}", parm_max_adjunct + 1, ZeroConcurrencyLevel());
             }
 

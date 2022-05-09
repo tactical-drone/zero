@@ -1,13 +1,16 @@
 ﻿
 using System;
 using System.Data;
+using System.Diagnostics;
 using System.IO;
 using System.Runtime.CompilerServices;
 using System.Runtime.ExceptionServices;
+using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Threading.Tasks.Sources;
 using NLog;
+using zero.core.misc;
 using zero.core.patterns.misc;
 using zero.core.runtime.scheduler;
 
@@ -18,6 +21,7 @@ namespace zero.core.patterns.semaphore.core
     /// 
     /// Experimental auto capacity scaling (disabled by default), set max count manually instead for max performance.
     /// </summary>
+    [StructLayout(LayoutKind.Sequential, Pack = 64)]
     public struct IoZeroSemaphore<T> : IIoZeroSemaphoreBase<T>
     {
         static IoZeroSemaphore()
@@ -33,14 +37,12 @@ namespace zero.core.patterns.semaphore.core
         /// <param name="initialCount">The initial number of requests that will be non blocking</param>
         /// <param name="zeroAsyncMode"></param>
         /// <param name="enableAutoScale">Experimental/dev: Cope with real time concurrency demand changes at the cost of undefined behavior in high GC pressured environments. DISABLE if CPU usage and memory snowballs and set <see cref="maxBlockers"/> more accurately instead. Scaling down is not supported</param>
-        /// <param name="enableFairQ">Enable fair queueing at the cost of performance. If not, sometimes <see cref="OnCompleted"/> might jump the queue to save queue performance and resources. Some continuations are effectively not queued in <see cref="OnCompleted"/> when set to true</param>
-        /// <param name="enableDeadlockDetection">When <see cref="enableAutoScale"/> is enabled checks for deadlocks within a thread and throws when found</param>
         /// <param name="cancellationTokenSource">Optional cancellation source</param>
         public IoZeroSemaphore(string description,
             int maxBlockers = 1,
             int initialCount = 0,
             bool zeroAsyncMode = false,
-            bool enableAutoScale = false, bool enableFairQ = true, bool enableDeadlockDetection = false,
+            bool enableAutoScale = false,
             CancellationTokenSource cancellationTokenSource = default) : this()
         {
 #if DEBUG
@@ -65,11 +67,9 @@ namespace zero.core.patterns.semaphore.core
             _zeroRef = null;
             _asyncTasks = cancellationTokenSource;
 #if DEBUG
-            _useMemoryBarrier = enableFairQ;
             _enableAutoScale = enableAutoScale;
-            _lock = new SpinLock(enableDeadlockDetection);
+            _lock = new SpinLock(true);
 #endif
-            _enableDeadlockPrevention = enableDeadlockDetection;
             _signalAwaiter = new Action<object>[_maxBlockers];
             _signalAwaiterState = new object[_maxBlockers];
             _signalExecutionState = new ExecutionContext[_maxBlockers];
@@ -83,6 +83,8 @@ namespace zero.core.patterns.semaphore.core
 
             _tail = 0;
             _head = 0;
+            _ingressToken = 0;
+            _egressToken = 0;
         }
 
         /// <summary>
@@ -98,10 +100,6 @@ namespace zero.core.patterns.semaphore.core
         #region settings
 
 #if DEBUG
-        /// <summary>
-        /// use memory barrier setting
-        /// </summary>
-        private readonly bool _useMemoryBarrier;
 #endif
         #endregion
 
@@ -118,6 +116,86 @@ namespace zero.core.patterns.semaphore.core
         /// A pointer to the tail of the Q, separate from _head
         /// </summary>
         private long _tail;
+
+        /// <summary>
+        /// Token registry
+        /// </summary>
+        private long _ingressToken;
+
+        public long IngressToken => _ingressToken % (_maxBlockers << 1);
+
+        /// <summary>
+        /// Token registry
+        /// </summary>
+        private long _egressToken;
+
+        public long EgressToken => _egressToken % (_maxBlockers << 1);
+
+        /// <summary>
+        /// Current number of async workers
+        /// </summary>
+        private volatile int _curAsyncWorkerCount;
+
+        /// <summary>
+        /// The current available number of threads that can enter the semaphore without blocking 
+        /// </summary>
+        private volatile int _curSignalCount;
+
+        /// <summary>
+        /// The current number of threads blocking on this semaphore
+        /// </summary>
+        private volatile int _curWaitCount;
+
+        /// <summary>
+        /// Whether this semaphore has been cleared out
+        /// </summary>
+        private volatile int _zeroed;
+
+#if DEBUG
+        /// <summary>
+        /// A queue of waiting continuations. The queue has strong order guarantees, FIFO
+        /// </summary>
+        private Action<object>[] _signalAwaiter;
+
+        /// <summary>
+        /// Holds the state of a queued item
+        /// </summary>
+        private object[] _signalAwaiterState;
+
+        /// <summary>
+        /// Holds the state of a queued item
+        /// </summary>
+        private ExecutionContext[] _signalExecutionState;
+
+        /// <summary>
+        /// Holds the state of a queued item
+        /// </summary>
+        private object[] _signalCapturedContext;
+
+#else
+        /// <summary>
+        /// A queue of waiting continuations. The queue has strong order guarantees, FIFO
+        /// </summary>
+        private readonly Action<object>[] _signalAwaiter;
+
+        /// <summary>
+        /// Holds the state of a queued item
+        /// </summary>
+        private readonly object[] _signalAwaiterState;
+
+        /// <summary>
+        /// Holds the state of a queued item
+        /// </summary>
+        private readonly ExecutionContext[] _signalExecutionState;
+
+        /// <summary>
+        /// Holds the state of a queued item
+        /// </summary>
+        private readonly object[] _signalCapturedContext;
+
+#endif
+
+
         #endregion
 
         /// <summary>
@@ -145,31 +223,7 @@ namespace zero.core.patterns.semaphore.core
         /// </summary>
         private readonly bool _zeroAsyncMode;
 
-        /// <summary>
-        /// Current number of async workers
-        /// </summary>
-        private volatile int _curAsyncWorkerCount;
-
-        /// <summary>
-        /// The current available number of threads that can enter the semaphore without blocking 
-        /// </summary>
-        private volatile int _curSignalCount;
-
-        /// <summary>
-        /// The current number of threads blocking on this semaphore
-        /// </summary>
-        private volatile int _curWaitCount;
-
-        /// <summary>
-        /// Token registry
-        /// </summary>
-        private long _ingressToken;
-
-        /// <summary>
-        /// Token registry
-        /// </summary>
-        private long _egressToken;
-
+        
         /// <summary>
         /// The number of threads that can enter the semaphore without blocking 
         /// </summary>
@@ -198,37 +252,12 @@ namespace zero.core.patterns.semaphore.core
         private IIoZeroSemaphoreBase<T> _zeroRef;
 
         /// <summary>
-        /// A queue of waiting continuations. The queue has strong order guarantees, FIFO
-        /// </summary>
-        private readonly Action<object>[] _signalAwaiter;
-
-        /// <summary>
-        /// Holds the state of a queued item
-        /// </summary>
-        private readonly object[] _signalAwaiterState;
-
-        /// <summary>
-        /// Holds the state of a queued item
-        /// </summary>
-        private readonly ExecutionContext[] _signalExecutionState;
-
-        /// <summary>
-        /// Holds the state of a queued item
-        /// </summary>
-        private readonly object[] _signalCapturedContext;
-
-        /// <summary>
         /// Where results are stored
         /// </summary>
         private readonly T[] _result;
-
-        public long Head => Interlocked.Read(ref _head);
-        public long Tail => Interlocked.Read(ref _tail);
-        
-        /// <summary>
-        /// Whether this semaphore has been cleared out
-        /// </summary>
-        private volatile int _zeroed;
+        public long Tail => _tail;
+        public long Head => _head;
+        public long EgressCount => _egressToken % (_maxBlockers<<1);
 
         /// <summary>
         /// Used for locking
@@ -273,7 +302,10 @@ namespace zero.core.patterns.semaphore.core
                 Interlocked.Exchange(ref _ingressToken, Math.Min(_curSignalCount, _maxBlockers << 1));
 
                 for (var i = 0; i < _ingressToken; i++)
+                {
                     _result[i] = init;
+                }
+                    
                 
                 return _zeroRef = @ref;
             }
@@ -367,7 +399,7 @@ namespace zero.core.patterns.semaphore.core
             if (!_enableAutoScale)
                 return;
             
-            _lock.Exit(_useMemoryBarrier);
+            _lock.Exit(true);
         }
 
         /// <summary>
@@ -381,7 +413,6 @@ namespace zero.core.patterns.semaphore.core
         /// </summary>
         private readonly bool _enableAutoScale;
 #endif
-        private bool _enableDeadlockPrevention;
 
         #endregion
 
@@ -396,17 +427,17 @@ namespace zero.core.patterns.semaphore.core
             long idx = 0;
             try
             {
-                ZeroThrow();
                 idx = (Interlocked.Increment(ref _egressToken) - 1) % (_maxBlockers << 1);
+                ZeroThrow();
+                
                 return _result[idx];
             }
             catch
             {
-                return default;
+                return _result[idx];
             }
             finally
             {
-                Interlocked.MemoryBarrier();
                 _result[idx] = default;
             }
         }
@@ -471,7 +502,7 @@ namespace zero.core.patterns.semaphore.core
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void OnCompleted(Action<object> continuation, object state, short token, ValueTaskSourceOnCompletedFlags flags)
         {
-            int r = 2;
+            int r = 3;
             while (r-->0)
             {
                 try
@@ -503,34 +534,59 @@ namespace zero.core.patterns.semaphore.core
                         if (_zeroed > 0) break;
 
                         //TODO: What is this?
-                        if (Tail % 2 == 0)
-                            Interlocked.MemoryBarrierProcessWide();
-                        else
-                            Interlocked.MemoryBarrier();
+                        //if (Tail % 2 == 0)
+                        //    Interlocked.MemoryBarrierProcessWide();
+                        //else
+                        //    Interlocked.MemoryBarrier();
+
+                        race = false;
                     }
 
                     if (slot == null)
                     {
-                        //fast path, RACES with SetResult 
-                        while (_curWaitCount == 1 && _curSignalCount == 1)
+                        //fast path, RACES with SetResult
+                        if (_curWaitCount == 1)
                         {
-                            //reserve a signal
-                            if (Interlocked.CompareExchange(ref _curWaitCount, 0, 1) == 1)
+                            //race for a waiter
+                            var latch = _curSignalCount;
+                            var s = -1;
+                            while (latch > 0 && (s = Interlocked.CompareExchange(ref _curSignalCount, latch - 1, latch)) != latch)
                             {
-                                //race for a waiter
-                                if (Interlocked.CompareExchange(ref _curSignalCount, 0, 1) == 1)
+                                if (_curSignalCount == 0)
+                                {
+                                    s = -1;
+                                    break;
+                                }
+
+                                latch = _curSignalCount;
+                            }
+
+                            if (s >= 0)
+                            {
+                                if(Interlocked.CompareExchange(ref _curWaitCount, 0, 1) == 1)
                                 {
                                     TaskScheduler cc = null;
                                     if (TaskScheduler.Current != TaskScheduler.Default) cc = TaskScheduler.Current;
-
                                     _signalAwaiter[tailMod] = null;
-                                    Interlocked.MemoryBarrier();
-                                    InvokeContinuation(continuation, state, cc, false);
+                                    InvokeContinuation(continuation, state, cc, _zeroAsyncMode);
                                     return;
                                 }
-
-                                Interlocked.Increment(ref _curWaitCount); //dine on deadlock
+                                Interlocked.Increment(ref _curSignalCount); //dine on deadlock
                             }
+
+                            //    if (s >= 0)
+                            //    {
+                            //        TaskScheduler cc = null;
+                            //        if (TaskScheduler.Current != TaskScheduler.Default) cc = TaskScheduler.Current;
+
+                            //        Interlocked.MemoryBarrier();
+                            //        _signalAwaiter[tailMod] = null;
+
+                            //        InvokeContinuation(continuation, state, cc, ZeroAsyncMode);
+                            //        return;
+                            //    }
+                            //}
+                            //Interlocked.Increment(ref _curWaitCount); //dine on deadlock
                         }
 
                         _signalAwaiter[tailMod] = continuation;
@@ -646,10 +702,11 @@ namespace zero.core.patterns.semaphore.core
                 case null:
                     if (_zeroAsyncMode || forceAsync)
                     {
+      //                  _ = Task.Factory.StartNew(callback, state, CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Default);
 #if ZERO_CORE
                         _ = Task.Factory.StartNew(callback, state, CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Default);
 #else
-                        if (!ThreadPool.UnsafeQueueUserWorkItem(static delegate(object s)
+                        if (!ThreadPool.UnsafeQueueUserWorkItem(static delegate (object s)
                             {
                                 var (callback, state) = (ValueTuple<Action<object>, object>)s;
                                 callback(state);
@@ -691,7 +748,7 @@ namespace zero.core.patterns.semaphore.core
                     {
                         IoZeroScheduler.Zero.QueueCallback(callback, state);
                     }
-                    else //inline super fast!!!
+                    else
                     {
                         try
                         {
@@ -703,7 +760,7 @@ namespace zero.core.patterns.semaphore.core
                         }
                     }
                     break;
-                
+
                 case TaskScheduler ts:
                     _ = Task.Factory.StartNew(callback, state, CancellationToken.None, TaskCreationOptions.DenyChildAttach, ts); 
                     break;
@@ -744,13 +801,12 @@ namespace zero.core.patterns.semaphore.core
 
                 //allocate memory
                 _maxBlockers *= 2;
-                _signalAwaiter = new Action<object>[_maxBlockers];
-                _signalAwaiterState = new object[_maxBlockers];
-                _signalExecutionState = new ExecutionContext[_maxBlockers];
-                _signalCapturedContext = new object[_maxBlockers];
+                Volatile.Write(ref _signalAwaiter, new Action<object>[_maxBlockers]);
+                Volatile.Write(ref _signalAwaiterState, new object[_maxBlockers]);
+                Volatile.Write(ref _signalExecutionState , new ExecutionContext[_maxBlockers]);
+                Volatile.Write(ref _signalCapturedContext, new object[_maxBlockers]); 
 
                 //copy Q
-
                 var j = 0;
                 //special zero case
                 if (Head % _maxBlockers != Tail % _maxBlockers || prevZeroState[_head % _maxBlockers] != null && prevZeroQ.Length == 1)
@@ -808,7 +864,7 @@ namespace zero.core.patterns.semaphore.core
             //preconditions that reject overflow because every overflowing signal will spin seeking its waiter
             if (Zeroed() || releaseCount < 1 )//|| releaseCount + _curSignalCount > _maxBlockers)
             {
-                return -1;
+                return 0;
             }
 
             //bank a set
@@ -823,13 +879,12 @@ namespace zero.core.patterns.semaphore.core
                         if(_curWaitCount > 0)
                             break;
 
-                        return -1;
+                        return 0;
                     }
                     
                     if (Zeroed())
                         break;
                 }
-                //Interlocked.Add(ref _curSignalCount, releaseCount);
             }
 
             //lock in return value
@@ -838,41 +893,16 @@ namespace zero.core.patterns.semaphore.core
             //release waiters
             while (released < releaseCount && _curWaitCount > 0 && (_curSignalCount > 0 || bestCase) && !Zeroed())
             {
-                int latch;
-                var slot = -1;
+                int latch = 0;
+                var slot = 0;
 
                 //reserve a waiter
+
 #if DEBUG
                 var c = 0;
 #endif
-                while ((latch = _curWaitCount) > 0 &&
-                       (slot = Interlocked.CompareExchange(ref _curWaitCount, latch - 1, latch)) != latch)
-                {
-#if DEBUG
-                    if (c++ > 500000)
-                        throw new InternalBufferOverflowException($"Release lock spinning{Description}");
-#endif
-                    if (Zeroed())
-                        break;
-
-                    if (slot != -1)
-                        Interlocked.MemoryBarrierProcessWide();
-                    else
-                        Interlocked.MemoryBarrier();
-
-                    slot = -1;
-                }
-
-                if (slot != latch)
-                {
-                    if (bestCase)
-                        return -1;
-                    continue;
-                }
-#if DEBUG
-                c = 0;
-#endif
                 //race for a signal
+
                 while (!bestCase && (latch = _curSignalCount) > 0 &&
                        (slot = Interlocked.CompareExchange(ref _curSignalCount, latch - 1, latch)) != latch)
                 {
@@ -884,12 +914,45 @@ namespace zero.core.patterns.semaphore.core
                     if (Zeroed())
                         break;
 
-                    slot = -1;
+                    slot = 0;
                 }
 
-                if (!bestCase && slot != latch)
+                if (slot != latch)
                 {
-                    Interlocked.Increment(ref _curWaitCount); //dine on deadlock
+                    if (bestCase)
+                        return released;
+                    continue;
+                }
+
+#if DEBUG
+                c = 0;
+#endif
+                while ((latch = _curWaitCount) > 0 &&
+                       (slot = Interlocked.CompareExchange(ref _curWaitCount, latch - 1, latch)) != latch)
+                {
+#if DEBUG
+                    if (c++ > 500000)
+                        throw new InternalBufferOverflowException($"Release lock spinning{Description}");
+#endif
+                    if (Zeroed())
+                        break;
+
+                    //if (slot != -1)
+                    //    Interlocked.MemoryBarrierProcessWide();
+                    //else
+                    //    Interlocked.MemoryBarrier();
+
+                    slot = 0;
+                }
+
+                if (slot != latch)
+                {
+                    
+                    if (bestCase)
+                        return released;
+                    else
+                        Interlocked.Increment(ref _curSignalCount); //dine on deadlock
+
                     continue;
                 }
 
@@ -912,12 +975,11 @@ namespace zero.core.patterns.semaphore.core
                 {
 #if DEBUG
                     if (c++ > 500000)
-                        throw new InternalBufferOverflowException($"{Description}");
+                        throw new InternalBufferOverflowException($"spin fail {Description}");
 #endif
                     if (Zeroed())
                         break;
 
-                    Interlocked.MemoryBarrierProcessWide();
                     worker.Continuation = null;//retry
                 }
 
@@ -955,9 +1017,10 @@ namespace zero.core.patterns.semaphore.core
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public int Release(T value, int releaseCount, bool bestCase = false)
         {
+            Debug.Assert(value != null);
             //overfull semaphore exit here
-            if (_curSignalCount + releaseCount > _maxBlockers)
-                return Release(releaseCount, bestCase);
+            if (_curSignalCount + releaseCount > _maxBlockers && _ingressToken - _egressToken > _maxBlockers)
+                return Release(releaseCount, true);
 
             for (var i = 0; i < releaseCount; i++)
             {
@@ -965,7 +1028,6 @@ namespace zero.core.patterns.semaphore.core
                     break;
 
                 _result[(Interlocked.Increment(ref _ingressToken) - 1) % (_maxBlockers << 1)] = value;
-                
             }
             return Release(releaseCount, bestCase);
         }
@@ -973,9 +1035,10 @@ namespace zero.core.patterns.semaphore.core
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public int Release(T value, bool bestCase = false)
         {
+            Debug.Assert(value != null);
             //overfull semaphore exit here
-            if (_curSignalCount + 1 > _maxBlockers)
-                return Release(1, bestCase);
+            if (_curSignalCount + 1 > _maxBlockers && _ingressToken - _egressToken > _maxBlockers)
+                return Release(1, true);
 
             _result[(Interlocked.Increment(ref _ingressToken) - 1) % (_maxBlockers << 1)] = value;
             return Release(1,bestCase);
@@ -984,11 +1047,12 @@ namespace zero.core.patterns.semaphore.core
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public int Release(T[] value, bool bestCase = false)
         {
+            Debug.Assert(value is { Length: > 0 });
             var releaseCount = value.Length;
 
             //overfull semaphore exit here
-            if (_curSignalCount + releaseCount > _maxBlockers)
-                return Release(releaseCount, bestCase);
+            if (_curSignalCount + releaseCount > _maxBlockers && _ingressToken - _egressToken > _maxBlockers)
+                return Release(releaseCount, true);
 
             for (int i = 0; i < releaseCount; i++)
             {
@@ -997,7 +1061,6 @@ namespace zero.core.patterns.semaphore.core
 
                 _result[(Interlocked.Increment(ref _ingressToken) - 1) % (_maxBlockers << 1)] = value[i];
             }
-
             return Release(releaseCount, bestCase);
         }
 
@@ -1018,30 +1081,15 @@ namespace zero.core.patterns.semaphore.core
 
                 slot = -1;
             }
-            
+
             //>>> FAST PATH on set
             if (slot == latch)
-                return new ValueTask<T>(_result[(Interlocked.Increment(ref _egressToken) - 1) % (_maxBlockers << 1)]);
+                return new ValueTask<T>(GetResult(0));
             
-                
+            if(Interlocked.Increment(ref _curWaitCount) <= _maxBlockers)
+                return new ValueTask<T>(_zeroRef, 0);
 
-            slot = -1;
-            //reserve a wait slot
-            while ((latch = _curWaitCount) < _maxBlockers &&
-                   (slot = Interlocked.CompareExchange(ref _curWaitCount, latch + 1, latch)) != latch)
-            {
-                if (Zeroed())
-                    return default;
-
-                slot = -1;
-            }
-
-            //out of capacity
-            if (slot != latch)
-                throw new ZeroValidationException($"WAIT: Concurrency bug, Semaphore full! {Description}");
-
-            //> SLOW PATH
-            return new ValueTask<T>(_zeroRef, 0);
+            throw new ZeroValidationException($"WAIT: Concurrency bug, Semaphore full! {Description}");
         }
 
         /// <summary>Completes with an error.</summary>

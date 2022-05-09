@@ -43,8 +43,8 @@ namespace zero.cocoon.models
             {
                 parm_max_msg_batch_size *= 2;
                 
-                pf = 32;
-                cc = 16;
+                pf = 3;
+                cc = 2;
             }
 
 #if DEBUG
@@ -71,7 +71,7 @@ namespace zero.cocoon.models
             if (ProtocolConduit == null)
             {
                 //TODO tuning
-                var channelSource = new CcProtocBatchSource<chroniton, CcDiscoveryBatch>(Description, MessageService, pf, cc);
+                var channelSource = new CcProtocBatchSource<chroniton, CcDiscoveryBatch>(Description, MessageService, pf, cc, true);
                 ProtocolConduit = await MessageService.CreateConduitOnceAsync(
                     conduitId,
                     channelSource,

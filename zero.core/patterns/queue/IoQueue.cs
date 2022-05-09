@@ -61,7 +61,7 @@ namespace zero.core.patterns.queue
                 }
             };
 
-            _syncRoot = new IoZeroSemaphore<bool>(desc, maxBlockers: concurrencyLevel, initialCount: 1, zeroAsyncMode: false,enableDeadlockDetection: true, cancellationTokenSource: _asyncTasks);
+            _syncRoot = new IoZeroSemaphore<bool>(desc, maxBlockers: concurrencyLevel, initialCount: 1, zeroAsyncMode: false, cancellationTokenSource: _asyncTasks);
             _syncRoot.ZeroRef(ref _syncRoot, true);
 
             if (_configuration.HasFlag(Mode.Pressure))

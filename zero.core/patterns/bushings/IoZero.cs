@@ -80,12 +80,12 @@ namespace zero.core.patterns.bushings
 
             //These numbers were numerically established
             if (ZeroRecoveryEnabled)
-                capacity *= 4;
+                capacity *= 40;
 
             try
             {
                 //TODO tuning
-                _queue = new IoZeroQ<IoSink<TJob>>($"zero Q: {_description}", capacity, asyncTasks:AsyncTasks, concurrencyLevel:ZeroConcurrencyLevel());
+                _queue = new IoZeroQ<IoSink<TJob>>($"zero Q: {_description}", capacity, asyncTasks:AsyncTasks, concurrencyLevel:ZeroConcurrencyLevel(),zeroAsyncMode:false);
                 JobHeap = new IoHeapIo<IoSink<TJob>>($"{nameof(JobHeap)}: {_description}", capacity, jobMalloc) {
                     Constructor = (sink, zero) =>
                     {

@@ -46,7 +46,7 @@ namespace zero.core.runtime.scheduler
 
             //TODO: tuning
             _workQueue = new IoZeroQ<Task>(string.Empty, capacity * 2, true);
-            _asyncQueue = new IoZeroQ<ZeroContinuation>(string.Empty, (MaxWorker + 1) * 2, true, _asyncTasks, concurrencyLevel:MaxWorker - 1);
+            _asyncQueue = new IoZeroQ<ZeroContinuation>(string.Empty, (MaxWorker + 1) * 2, true, _asyncTasks, concurrencyLevel:MaxWorker - 1, zeroAsyncMode:true);
 
             _queenQueue = new IoZeroQ<ZeroSignal>(string.Empty, capacity,true);
             _signalHeap = new IoHeap<ZeroSignal>(string.Empty, capacity, (_, _) => new ZeroSignal(), true)
@@ -106,7 +106,7 @@ namespace zero.core.runtime.scheduler
                 {
                     var @this = (IoZeroScheduler)state;
                     await @this.SpawnAsync().FastPath();
-                },this, CancellationToken.None,TaskCreationOptions.DenyChildAttach, fallback);
+                },this, CancellationToken.None,TaskCreationOptions.DenyChildAttach, Default);
             }
         }
 
@@ -297,8 +297,8 @@ namespace zero.core.runtime.scheduler
         public double QLoadFactor => (double) QLoad / _queenCount;
         public long Capacity => _workQueue.Capacity;
 
-        static IoZeroResetValueTaskSource<bool> MallocWorkTaskCore => new IoZeroResetValueTaskSource<bool>();
-        static IoZeroResetValueTaskSource<bool> MallocQueenTaskCore => new IoZeroResetValueTaskSource<bool>();
+        static IoZeroResetValueTaskSource<bool> MallocWorkTaskCore => new IoZeroResetValueTaskSource<bool>(false);
+        static IoZeroResetValueTaskSource<bool> MallocQueenTaskCore => new IoZeroResetValueTaskSource<bool>(false);
 
         /// <summary>
         /// Queens wake worker threads if there is work to be done.
@@ -733,7 +733,7 @@ var d = 0;
 
         private async ValueTask SpawnAsync()
         {
-            await foreach (var job in _asyncQueue.PumpOnConsumeAsync())
+            await foreach (var job in _asyncQueue.BalanceOnConsumeAsync())
             {
                 try
                 {
@@ -743,7 +743,6 @@ var d = 0;
                 catch (Exception e)
                 {
                     LogManager.GetCurrentClassLogger().Trace(e);
-                    throw;
                 }
             }
         }

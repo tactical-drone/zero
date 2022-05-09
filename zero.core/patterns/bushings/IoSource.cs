@@ -463,7 +463,7 @@ namespace zero.core.patterns.bushings
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public int Pressure(int releaseCount = 1)
         {
-            return PressureEnabled ? _pressure.Release(releaseCount) : releaseCount;
+            return PressureEnabled ? _pressure.Release(true, releaseCount) : releaseCount;
         }
 
         /// <summary>
@@ -485,7 +485,7 @@ namespace zero.core.patterns.bushings
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public int BackPressure(int releaseCount = 1)
         {
-            return BackPressureEnabled ? _backPressure.Release(releaseCount) : releaseCount;
+            return BackPressureEnabled ? _backPressure.Release(true, releaseCount) : releaseCount;
         }
 
         /// <summary>
@@ -506,7 +506,7 @@ namespace zero.core.patterns.bushings
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public int PrefetchPressure(int releaseCount = 1)
         {
-            return PrefetchEnabled ? _prefetchPressure.Release(releaseCount) : releaseCount;
+            return PrefetchEnabled ? _prefetchPressure.Release(true, releaseCount) : releaseCount;
         }
 
         /// <summary>
