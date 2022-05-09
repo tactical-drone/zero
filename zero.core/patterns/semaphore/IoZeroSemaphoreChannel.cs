@@ -11,9 +11,9 @@ namespace zero.core.patterns.semaphore
     /// <summary>
     /// Wraps a <see cref="IIoZeroSemaphoreBase{T}"/> for use
     /// </summary>
-    public class IoZeroSemaphorePump<T>: IoNanoprobe, IIoZeroSemaphoreBase<T>
+    public class IoZeroSemaphoreChannel<T>: IoNanoprobe, IIoZeroSemaphoreBase<T>
     {
-        public IoZeroSemaphorePump(CancellationTokenSource asyncTasks,
+        public IoZeroSemaphoreChannel(CancellationTokenSource asyncTasks,
             string description = "IoZeroSemaphoreSlim", int maxBlockers = 1, int initialCount = 0,
             bool zeroAsyncMode = false,
             bool enableAutoScale = false, bool enableFairQ = false, bool enableDeadlockDetection = false) : base($"{nameof(IoZeroSemaphoreSlim)}: {description}", maxBlockers)

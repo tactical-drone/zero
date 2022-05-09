@@ -75,7 +75,7 @@ namespace zero.core.patterns.queue
             {
                 _fanSync = new IoZeroSemaphoreSlim(asyncTasks, $"fan {description}", concurrencyLevel, zeroAsyncMode: zeroAsyncMode); //TODO: tuning
                 _balanceSync = new IoZeroSemaphoreSlim(asyncTasks, $"balance {description}", concurrencyLevel, zeroAsyncMode: zeroAsyncMode); //TODO: tuning
-                _zeroSync = new IoZeroSemaphorePump<T>(asyncTasks, $"pump  {description}", concurrencyLevel, zeroAsyncMode: zeroAsyncMode); //TODO: tuning
+                _zeroSync = new IoZeroSemaphoreChannel<T>(asyncTasks, $"pump  {description}", concurrencyLevel, zeroAsyncMode: zeroAsyncMode); //TODO: tuning
             }
             
             _curEnumerator = new IoQEnumerator<T>(this);
@@ -98,7 +98,7 @@ namespace zero.core.patterns.queue
         
         private volatile IoQEnumerator<T> _curEnumerator;
         private readonly IoZeroSemaphoreSlim _fanSync;
-        private readonly IoZeroSemaphorePump<T> _zeroSync;
+        private readonly IoZeroSemaphoreChannel<T> _zeroSync;
         private readonly IoZeroSemaphoreSlim _balanceSync;
 
         private volatile int _zeroed;
