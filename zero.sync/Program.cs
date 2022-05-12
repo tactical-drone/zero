@@ -195,7 +195,7 @@ namespace zero.sync
                 Console.WriteLine($"Starting auto peering...  {tasks.Count}");
                 var c = 1;
                 var rateLimit = 9000;
-                var injectionCount = 75;
+                var injectionCount = 50;
                 var rampDelay = 250;
                 foreach (var task in tasks)
                 {

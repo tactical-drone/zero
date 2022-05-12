@@ -280,12 +280,11 @@ namespace zero.core.patterns.queue
 
 
                 long tail;
-                T slot = null;
                 long cap;
                 var race = false;
 
                 while ((tail = Tail) >= Head + (cap = Capacity) || _count >= cap || this[tail] != null || tail != Tail ||
-                       (slot = CompareExchange(tail, _sentinel, null)) != null || (race = tail != Tail))
+                       CompareExchange(tail, _sentinel, null) != null || (race = tail != Tail))
                 {
                     if (race)
                     {
@@ -308,7 +307,6 @@ namespace zero.core.patterns.queue
                     race = false;
                 }
 #if DEBUG
-                Debug.Assert(Zeroed || slot == null);
                 Debug.Assert(Zeroed || this[tail] == _sentinel);
                 Debug.Assert(Zeroed || tail == Tail);
                 Interlocked.MemoryBarrier();
@@ -326,7 +324,7 @@ namespace zero.core.patterns.queue
                 {
                     try
                     {
-                        _balanceSync.Release( true, false);
+                        _balanceSync.Release( true);
                     }
                     catch
                     {
@@ -366,25 +364,24 @@ namespace zero.core.patterns.queue
         /// <summary>
         /// Try take from the Q, round robin
         /// </summary>
-        /// <param name="returnValue">The item to be fetched</param>
+        /// <param name="slot">The item to be fetched</param>
         /// <returns>True if an item was found and returned, false otherwise</returns>
 #if DEBUG
     [MethodImpl(MethodImplOptions.NoInlining)]
 #else
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
 #endif
-        public bool TryDequeue([MaybeNullWhen(false)] out T returnValue)
+        public bool TryDequeue([MaybeNullWhen(false)] out T slot)
         {
             try
             {
                 if (_count == 0)
                 {
-                    returnValue = null;
+                    slot = null;
                     return false;
                 }
 
                 long head;
-                T slot = null;
                 T latch;
                 
                 while ((head = Head) >= Tail || (latch = this[head]) == _sentinel || latch == null || head != Head ||
@@ -397,18 +394,16 @@ namespace zero.core.patterns.queue
 
                     if (_count == 0 || Zeroed)
                     {
-                        returnValue = null;
+                        slot = null;
                         return false;
                     }
-
-                    slot = null;
                 }
 
 
 #if DEBUG
                 Interlocked.MemoryBarrier();
                 Debug.Assert(Zeroed || this[head] == _sentinel);
-                Debug.Assert(Zeroed || slot != null);
+                //Debug.Assert(Zeroed || slot != null);
                 Debug.Assert(Zeroed || _count > 0);
                 Debug.Assert(Zeroed || head == Head);
                 Debug.Assert(Zeroed || head != Tail);
@@ -418,7 +413,6 @@ namespace zero.core.patterns.queue
                 Interlocked.MemoryBarrier();
                 Interlocked.Increment(ref _head);
                 
-                returnValue = slot;
                 return true;
             }
             catch (Exception e)
@@ -426,7 +420,7 @@ namespace zero.core.patterns.queue
                 LogManager.LogFactory.GetCurrentClassLogger().Error(e, $"{nameof(TryDequeue)} failed!");
             }
             
-            returnValue = null;
+            slot = null;
             return false;
         }
 
