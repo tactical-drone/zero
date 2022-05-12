@@ -3,7 +3,6 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Threading.Tasks.Sources;
 using Microsoft.VisualStudio.Threading;
-using zero.core.patterns.misc;
 using zero.core.patterns.semaphore.core;
 //#if REF
 
@@ -47,18 +46,18 @@ namespace zero.core.feat.patterns.semaphore
             throw new NotImplementedException();
         }
 
-        public int Release(bool value, int releaseCount, bool bestCase = false)
+        public int Release(bool value, int releaseCount, bool forceAsync = false)
         {
             throw new NotImplementedException();
         }
 
-        public int Release(bool value, bool bestCase = false)
+        public int Release(bool value, bool async = false)
         {
             _semaphore.Set();
             return 1;
         }
 
-        public int Release(bool[] value, bool bestCase = false)
+        public int Release(bool[] value, bool async = false)
         {
             throw new NotImplementedException();
         }

@@ -61,20 +61,20 @@ namespace zero.core.patterns.queue
                 }
             };
 
-            _syncRoot = new IoZeroSemaphore<bool>(desc, maxBlockers: concurrencyLevel, initialCount: 1, zeroAsyncMode: false, cancellationTokenSource: _asyncTasks);
+            _syncRoot = new IoZeroSemaphore<bool>(desc, maxBlockers: concurrencyLevel, initialCount: 1, cancellationTokenSource: _asyncTasks, runContinuationsAsynchronously:true);
             _syncRoot.ZeroRef(ref _syncRoot, true);
 
             if (_configuration.HasFlag(Mode.Pressure))
             {
                 _pressure = new IoZeroSemaphore<bool>($"qp {description}",
-                    maxBlockers: concurrencyLevel, cancellationTokenSource: _asyncTasks, zeroAsyncMode:true);
-                _pressure.ZeroRef(ref _pressure, true);
+                    maxBlockers: concurrencyLevel, cancellationTokenSource: _asyncTasks, runContinuationsAsynchronously:false);
+                _pressure.ZeroRef(ref _pressure, default);
             }
             
             if (_configuration.HasFlag(Mode.BackPressure))
             {
                 _backPressure = new IoZeroSemaphore<bool>($"qbp {description}",
-                    maxBlockers: concurrencyLevel, initialCount: concurrencyLevel, cancellationTokenSource: _asyncTasks, zeroAsyncMode: false);
+                    maxBlockers: concurrencyLevel, initialCount: concurrencyLevel, cancellationTokenSource: _asyncTasks, runContinuationsAsynchronously: false);
                 _backPressure.ZeroRef(ref _backPressure, true);
             }
 
@@ -84,10 +84,9 @@ namespace zero.core.patterns.queue
         #region memory
         private readonly string _description; 
         private volatile int _zeroed;
-        private readonly bool Zc = IoNanoprobe.ContinueOnCapturedContext;
-        private IIoZeroSemaphoreBase<bool> _syncRoot;
-        private IIoZeroSemaphoreBase<bool> _pressure;
-        private IIoZeroSemaphoreBase<bool> _backPressure;
+        private readonly IIoZeroSemaphoreBase<bool> _syncRoot;
+        private readonly IIoZeroSemaphoreBase<bool> _pressure;
+        private readonly IIoZeroSemaphoreBase<bool> _backPressure;
         private CancellationTokenSource _asyncTasks = new CancellationTokenSource();
         private IoHeap<IoZNode> _nodeHeap;
         
@@ -115,9 +114,9 @@ namespace zero.core.patterns.queue
         public bool Zeroed => _zeroed > 0 || _pressure != null && _pressure.Zeroed() || _backPressure != null && _backPressure.Zeroed();
 
         public bool IsAutoScaling => _nodeHeap.IsAutoScaling;
-        public async ValueTask<bool> ZeroManagedAsync<TC>(Func<T,TC, ValueTask> op = null, TC nanite = default, bool zero = false)
+        public async ValueTask<bool> ZeroManagedAsync<TC>(Func<IoZNode, TC, ValueTask> op = null, TC nanite = default, bool zero = false)
         {
-            if (zero && Interlocked.CompareExchange(ref _zeroed, 1, 0) != 0)
+            if (zero && (_zeroed > 0 || Interlocked.CompareExchange(ref _zeroed, 1, 0) != 0))
                 return true;
 
             //Prime zero
@@ -130,6 +129,7 @@ namespace zero.core.patterns.queue
                 {
                     return false;
                 }
+                Debug.Assert(_syncRoot.Zeroed() || _syncRoot.ReadyCount == 0);
 
 #if DEBUG
                 if (zero && nanite != null && nanite is not IIoNanite)
@@ -143,7 +143,7 @@ namespace zero.core.patterns.queue
                     try
                     {
                         if (op != null)
-                            await op(cur.Value, nanite).FastPath();
+                            await op(cur, nanite).FastPath();
                         if (cur.Value is IIoNanite ioNanite)
                         {
                             if (!ioNanite.Zeroed())
@@ -186,11 +186,7 @@ namespace zero.core.patterns.queue
                     _backPressure?.ZeroSem();
 
                     //unmanaged
-                    _pressure = null;
-                    _backPressure = null;
-
                     _syncRoot.ZeroSem();
-                    _syncRoot = null;
                 }
             }
 
@@ -202,7 +198,6 @@ namespace zero.core.patterns.queue
         /// </summary>
         /// <param name="item">The item to enqueue</param>
         /// <returns>The queued item's linked list node</returns>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public ValueTask<IoZNode> EnqueueAsync(T item)
         {
             return EnqueueAsync<object>(item);
@@ -215,7 +210,6 @@ namespace zero.core.patterns.queue
         /// <param name="onAtomicAdd">Additional actions to perform in the critical area</param>
         /// <param name="context">atomic context</param>
         /// <returns>The queued item's linked list node</returns>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public async ValueTask<IoZNode> EnqueueAsync<TC>(T item, Func<TC,ValueTask> onAtomicAdd = null, TC context = default)
         {
             var entered = false;
@@ -291,7 +285,7 @@ namespace zero.core.patterns.queue
                     }
 
                     if (_pressure != null && success)
-                        _pressure.Release(true);
+                        _pressure.Release(true, true);
                     else
                         _backPressure?.Release(true);
                 }
@@ -392,10 +386,9 @@ namespace zero.core.patterns.queue
                     return default;
 
                 if (!await _syncRoot.WaitAsync().FastPath())
-                {
                     return default;
-                }
-                Debug.Assert(_syncRoot.ReadyCount == 0);
+                
+                Debug.Assert(_syncRoot.Zeroed() || _syncRoot.ReadyCount == 0);
                 Interlocked.Increment(ref _entered);
                 entered = true;
                 Debug.Assert(_entered < 2);
@@ -441,7 +434,7 @@ namespace zero.core.patterns.queue
                     var retVal = dq.Value;
                     dq.Value = default;
                     _nodeHeap.Return(dq);
-                    _backPressure?.Release(true);
+                    _backPressure?.Release(true, true);//TODO: Why does this one need to be false? Every time it is set to async strange things start to happen.
                     return retVal;
                 }
             }
@@ -471,9 +464,10 @@ namespace zero.core.patterns.queue
             try
             {
                 if (!await _syncRoot.WaitAsync().FastPath())
-                {
                     return false;
-                }
+
+                if (node.Value == null)
+                    return true;
                 
                 deDup = false;
 

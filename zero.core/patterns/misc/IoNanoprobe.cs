@@ -41,7 +41,7 @@ namespace zero.core.patterns.misc
         public IoNanoprobe(string reason)
         {
             _zId = Interlocked.Increment(ref _uidSeed);
-            AsyncTasks = new CancellationTokenSource();
+            //AsyncTasks = new CancellationTokenSource();
             Description = reason;
         }
         
@@ -202,7 +202,8 @@ namespace zero.core.patterns.misc
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         protected static IIoZeroSemaphoreBase<bool> ZeroSyncRoot(int concurrencyLevel, CancellationTokenSource asyncTasks)
         {
-            IIoZeroSemaphoreBase<bool> z = new IoZeroSemaphore<bool>(string.Empty, Math.Min(10 + concurrencyLevel * 20, short.MaxValue), 1, cancellationTokenSource: asyncTasks);
+            //TODO: tuning
+            IIoZeroSemaphoreBase<bool> z = new IoZeroSemaphore<bool>(string.Empty, Math.Min(20 + concurrencyLevel * 20, short.MaxValue), 1, cancellationTokenSource: asyncTasks, runContinuationsAsynchronously:true);
             z.ZeroRef(ref z, true);
             return z;
         }
@@ -247,7 +248,11 @@ namespace zero.core.patterns.misc
             await ZeroAsync(static async @this =>
             {
                 //prime garbage
+#if ZERO_DISABLE_SCH
                 await @this.ZeroPrimeAsync().FastPath().ConfigureAwait(false);
+#else
+                IoZeroScheduler.Zero.QueueOneShot(@this.ZeroPrime);
+#endif
                 await @this.ZeroAsync(true).FastPath().ConfigureAwait(false);
             }, this, default,TaskCreationOptions.DenyChildAttach, TaskScheduler.Default, filePath:filePath, methodName:methodName, lineNumber:lineNumber);
 #pragma warning restore CS4014
@@ -258,31 +263,27 @@ namespace zero.core.patterns.misc
             }
         }
 
+        //private void ZeroPrimed(object _) => ZeroPrimeAsync();
+
         /// <summary>
         /// Prime for zero
         /// </summary>
-        public virtual async ValueTask ZeroPrimeAsync()
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public virtual void ZeroPrime()
         {
             if (_zeroPrimed > 0 || Interlocked.CompareExchange(ref _zeroPrimed, 1, 0) != 0)
                 return;
 
-            try
-            {
-                if (!(AsyncTasks?.IsCancellationRequested ?? true) && AsyncTasks.Token.CanBeCanceled)
-                    AsyncTasks.Cancel(false);
-            }
-            catch (Exception e)
-            {
-                _logger.Trace(e);
-            }
+            if (_zeroHiveMind == null) return;
 
-            if (_zeroHiveMind != null)
+            foreach (var ioZNode in _zeroHiveMind)
             {
-                foreach (var ioZNode in _zeroHiveMind)
-                {
-                    if (!ioZNode.Value.Zeroed())
-                        await ioZNode.Value.ZeroPrimeAsync().FastPath().ConfigureAwait(false);
-                }
+                if (!ioZNode.Value.Zeroed())
+#if ZERO_DISABLE_SCH
+                        await @this.ZeroPrimeAsync().FastPath().ConfigureAwait(false);
+#else
+                    IoZeroScheduler.Zero.QueueOneShot(ioZNode.Value.ZeroPrime);
+#endif
             }
         }
 
@@ -312,7 +313,7 @@ namespace zero.core.patterns.misc
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public virtual bool Zeroed()
         {
-            return _zeroed > 0 || AsyncTasks.IsCancellationRequested;
+            return _zeroPrimed > 0 || _zeroed > 0 || AsyncTasks.IsCancellationRequested;
         }
 
         /// <summary>
@@ -425,12 +426,8 @@ namespace zero.core.patterns.misc
 
                 if (_zeroHiveMind != null)
                 {
-                    IIoNanite zeroSub;
-                    while ((zeroSub = await _zeroHiveMind.DequeueAsync().FastPath().ConfigureAwait(false)) != null)
-                    {
-                        if (zeroSub.Zeroed()) continue;
+                    while (await _zeroHiveMind.DequeueAsync().FastPath().ConfigureAwait(false) is { } zeroSub)
                         await zeroSub.Zero(this, $"[ZERO CASCADE] from {desc}").FastPath().ConfigureAwait(false);
-                    }
                 }
                 
                 CascadeTime = CascadeTime.ElapsedMs();
@@ -451,6 +448,8 @@ namespace zero.core.patterns.misc
 #endif
             }
 
+
+
             //Dispose unmanaged
             try
             {
@@ -464,12 +463,19 @@ namespace zero.core.patterns.misc
             //Dispose async task cancellation token registrations etc.
             try
             {
+                if (!(AsyncTasks?.IsCancellationRequested ?? true) && AsyncTasks.Token.CanBeCanceled)
+                    AsyncTasks.Cancel(false);
                 AsyncTasks?.Dispose();
+
             }
 #if DEBUG
-            catch (Exception e) when(!Zeroed())
+            catch (Exception e) when (!Zeroed())
             {
                 _logger.Error(e, $"ZeroAsync [Un]managed errors: {Description}");
+            }
+            finally
+            {
+                AsyncTasks = null;
             }
 #else
             catch
@@ -514,7 +520,6 @@ namespace zero.core.patterns.misc
         public virtual void ZeroUnmanaged()
         {
 #if SAFE_RELEASE
-            AsyncTasks = null;
             ZeroedFrom = null;
             _zeroHive = null;
             _zeroHiveMind = null;
@@ -533,14 +538,15 @@ namespace zero.core.patterns.misc
         /// <summary>
         /// Manages managed objects
         /// </summary>
-        public virtual async ValueTask ZeroManagedAsync()
+        public virtual ValueTask ZeroManagedAsync()
         {
-            await _zeroHive.ZeroManagedAsync<object>(zero:true).FastPath();
-            await _zeroHiveMind.ZeroManagedAsync<object>(zero: true).FastPath();
-            ZeroRoot.ZeroSem();
+            //await _zeroHive.ZeroManagedAsync<object>(zero:true).FastPath();
+            //await _zeroHiveMind.ZeroManagedAsync<object>(zero: true).FastPath();
+            //ZeroRoot.ZeroSem();
 #if DEBUG
             Interlocked.Increment(ref _extracted);
 #endif
+            return default;
         }
 
         /// <summary>

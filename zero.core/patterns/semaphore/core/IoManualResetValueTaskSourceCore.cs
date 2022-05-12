@@ -299,7 +299,7 @@ namespace zero.core.patterns.semaphore.core
                     if (RunContinuationsAsynchronously)
                     {
 #if ZERO_CORE
-                        _ = Task.Factory.StartNew(_continuation, _continuationState, CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Default));
+                        _ = Task.Factory.StartNew(_continuation, _continuationState, CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Default);
 #else
                         if (!ThreadPool.UnsafeQueueUserWorkItem(static delegate (object s)
                             {

@@ -113,7 +113,7 @@ namespace zero.test.core.patterns.bushings
 #endif
 
 
-            var s1 = new IoZeroSource("zero source 1", false, concurrencyLevel*2, concurrencyLevel, false, false);
+            var s1 = new IoZeroSource("zero source 1", false, concurrencyLevel*2, concurrencyLevel, false, true);
             var c1 = new IoConduit<IoZeroProduct>("conduit smoke test 1", s1, static (ioZero, _) 
                 => new IoZeroProduct("test product 1", ((IoConduit<IoZeroProduct>)ioZero).Source, 0), s1.ZeroConcurrencyLevel());
 
@@ -136,7 +136,11 @@ namespace zero.test.core.patterns.bushings
 
             var fpses = c1.EventCount / (double)ts.ElapsedMsToSec()/ 1000;
 
-            Assert.InRange(fpses, 10, int.MaxValue);
+#if DEBUG
+            Assert.InRange(fpses, 5, int.MaxValue);
+#else
+            Assert.InRange(fpses, 100, int.MaxValue);
+#endif
             _output.WriteLine($"FPSes = {fpses:0.0} kub/s, {ts.ElapsedMs()}ms ~ {targetTime}ms");
 
             await Task.Delay(100);

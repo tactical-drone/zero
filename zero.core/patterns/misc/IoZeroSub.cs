@@ -54,7 +54,7 @@ namespace zero.core.patterns.misc
             }
             catch (Exception e)
             {
-                LogManager.GetCurrentClassLogger().Trace(e, $"{ZeroAction}, {Target}, {_state}");
+                LogManager.GetCurrentClassLogger().Fatal(e, $"{ZeroAction}, {Target}, {_state}");
                 return new ValueTask<bool>(false);
             }
             finally

@@ -72,11 +72,8 @@ namespace zero.core.patterns.misc
         /// <param name="task">The value task to be fast pathed</param>
         /// <returns>The result of the async op</returns>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static ValueTask<T> FastPath<T>(this ValueTask<T> task)
-        {
-            return task.IsCompletedSuccessfully ? new ValueTask<T>(task.Result) : task;
-        }
-
+        public static ValueTask<T> FastPath<T>(this ValueTask<T> task) => task.IsCompletedSuccessfully ? new ValueTask<T>(task.Result) : task;
+        
         /// <summary>
         /// Fast path for value tasks
         /// </summary>

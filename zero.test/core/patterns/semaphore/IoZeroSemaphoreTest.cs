@@ -73,9 +73,9 @@ namespace zero.test.core.patterns.semaphore
         {
             await Task.Factory.StartNew(async state =>
             {
-                var threads = 1;
-                var preloadCount = 300;
-                var m = new IoZeroSemaphoreSlim(new CancellationTokenSource(), "test mutex", maxBlockers: threads, initialCount: preloadCount, zeroAsyncMode:true);
+                var threads = 4;
+                var preloadCount = 3000000;
+                var m = new IoZeroSemaphoreSlim(new CancellationTokenSource(), "test mutex", maxBlockers: threads, initialCount: preloadCount, zeroAsyncMode:false);
 
                 //_ = Task.Factory.StartNew(async () =>
                 //{
@@ -98,7 +98,7 @@ namespace zero.test.core.patterns.semaphore
                     else
                         break;
 
-                    if (++c % 1000 == 0)
+                    if (++c % 1000000 == 0)
                         _output.WriteLine($"-> {c}");
                 }
 
@@ -130,14 +130,14 @@ namespace zero.test.core.patterns.semaphore
 
                     if (_releaseCount < 5)
                         _output.WriteLine($"<- {_releaseCount}");
-                    if (_releaseCount == 0)
+                    if (_releaseCount <= 0)
                     {
                         await m.Zero(null, "test done");
                         break;
                     }
                 }
 
-                Assert.Equal(0, _releaseCount);
+                Assert.InRange(_releaseCount, -1, 0);
             },this, CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Default).Unwrap();
         }
 
@@ -471,7 +471,7 @@ namespace zero.test.core.patterns.semaphore
                 while (!v.Zeroed())
                 {
                     if (v.Release(true) != 1)
-                        await Task.Delay(1);
+                        await Task.Yield();
                     else
                         i++;
                 }
@@ -489,11 +489,12 @@ namespace zero.test.core.patterns.semaphore
                 }
 
                 Assert.InRange(ave / count, 0, 16);
+                v.ZeroSem();
             });
 
             
-            await v.ZeroManagedAsync();
-            await Task.WhenAll(t,t2).WaitAsync(TimeSpan.FromSeconds(15));
+            
+            await Task.WhenAll(t,t2).WaitAsync(TimeSpan.FromSeconds(10));
             
             var maps = count * 1000 / (totalTime.ElapsedMs() + 1) / 1000;
             _output.WriteLine($"MAPS = {maps} K/s, t = {totalTime.ElapsedMs()}ms");

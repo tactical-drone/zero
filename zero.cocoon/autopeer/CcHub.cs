@@ -48,7 +48,7 @@ namespace zero.cocoon.autopeer
         /// <summary>
         /// The cocoon node this discovery service belongs to 
         /// </summary>
-        public CcCollective CcCollective;
+        public readonly CcCollective CcCollective;
 
         /// <summary>
         /// Services Proxy request helper
@@ -67,7 +67,6 @@ namespace zero.cocoon.autopeer
         {
             base.ZeroUnmanaged();
 #if SAFE_RELEASE
-            CcCollective = null;
             Router = null;
 #endif
         }

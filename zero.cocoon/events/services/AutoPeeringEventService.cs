@@ -17,13 +17,13 @@ namespace zero.cocoon.events.services
             _logger = logger;
         }
 
-        private const int EventBatchSize = 16384<<2;
+        private const int EventBatchSize = 2048;
         private const int TotalBatches = 10;
         private readonly ILogger<AutoPeeringEventService> _logger;
         public static IoZeroQ<AutoPeerEvent>[] QueuedEvents =
         {
             //TODO tuning
-            new IoZeroQ<AutoPeerEvent>($"{nameof(AutoPeeringEventService)}", EventBatchSize<<4, true ),
+            new IoZeroQ<AutoPeerEvent>($"{nameof(AutoPeeringEventService)}", EventBatchSize<<5, true, new CancellationTokenSource(), 1 ),
             //new IoZeroQ<AutoPeerEvent>($"{nameof(AutoPeeringEventService)}", 16384, true )
         };
 
@@ -57,7 +57,7 @@ namespace zero.cocoon.events.services
                 int c = 0;
 
                 while (curQ.Count == 0 && c++ < 100)
-                    await Task.Delay(50);
+                    await Task.Delay(16<<1);
 
                 c = 0;
                 AutoPeerEvent cur;
@@ -99,7 +99,7 @@ namespace zero.cocoon.events.services
             try
             {
                 var curQ = QueuedEvents[_curIdx % 2];
-                if (_operational > 0 && curQ.Count < EventBatchSize)
+                if (_operational > 0 && curQ.Count < curQ.Capacity)
                 {
                     newAutoPeerEvent.Timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
                     newAutoPeerEvent.Seq = Interlocked.Increment(ref _seq);
@@ -107,9 +107,9 @@ namespace zero.cocoon.events.services
                 }
                 else
                 {
-                    LogManager.GetCurrentClassLogger().Fatal($"Shutting down event stream, buffers are not being drained by the visualization player!");
-                    LogManager.GetCurrentClassLogger().Fatal($"Shutting down event stream, buffers are not being drained by the visualization player!");
-                    LogManager.GetCurrentClassLogger().Fatal($"Shutting down event stream, buffers are not being drained by the visualization player!");
+                    LogManager.GetCurrentClassLogger().Fatal($"Shutting down event stream! {curQ.Description}");
+                    LogManager.GetCurrentClassLogger().Fatal($"Shutting down event stream! {curQ.Description}");
+                    LogManager.GetCurrentClassLogger().Fatal($"Shutting down event stream! {curQ.Description}");
                     _operational = 0;
                     _ = Task.Run(ClearAsync);
                 }

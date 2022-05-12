@@ -74,6 +74,8 @@ namespace zero.core.feat.models
         /// </summary>
         public int BytesLeftToProcess => BytesRead - (BufferOffset - DatumProvisionLengthMax);
 
+        public int BytesFree => Buffer.Length - DatumProvisionLengthMax - BytesRead;
+
         /// <summary>
         /// The current offset
         /// </summary>
@@ -144,22 +146,41 @@ namespace zero.core.feat.models
             var p = (IoMessage<TJob>)PreviousJob;
             try
             {
-                if (p.DatumFragmentLength > DatumProvisionLengthMax)
+                if (p.BytesLeftToProcess != p.BytesRead)
                 {
-                    Source.Synced = false;
-                    DatumCount = 0;
-                    BytesRead = 0;
-                    await SetState(IoJobMeta.JobState.RSync).FastPath();
+                    if (p.DatumFragmentLength > DatumProvisionLengthMax)
+                    {
+                        Source.Synced = false;
+                        DatumCount = 0;
+                        BytesRead = 0;
+                        await SetState(IoJobMeta.JobState.RSync).FastPath();
 
-                    DatumFragmentLength = 0;
-                    return;
+                        DatumFragmentLength = 0;
+                        return;
+                    }
+
+                    var bytesLeft = p.DatumFragmentLength;
+
+                    Interlocked.Add(ref BufferOffset, -bytesLeft);
+
+                    p.MemoryBuffer.Slice(p.BufferOffset, bytesLeft).CopyTo(MemoryBuffer.Slice(BufferOffset, MemoryBuffer.Length - BufferOffset));
                 }
+                else
+                {
+                    var count = Math.Min(p.BytesLeftToProcess, BytesFree);
+                    if (!p.MemoryBuffer[p.BufferOffset.. count].TryCopyTo(MemoryBuffer[BufferOffset..]))
+                    {
+                        Source.Synced = false;
+                        DatumCount = 0;
+                        BytesRead = 0;
+                        await SetState(IoJobMeta.JobState.RSync).FastPath();
 
-                var bytesLeft = p.DatumFragmentLength;
+                        DatumFragmentLength = 0;
+                        return;
+                    }
 
-                Interlocked.Add(ref BufferOffset, -bytesLeft);
-
-                p.MemoryBuffer.Slice(p.BufferOffset,bytesLeft).CopyTo(MemoryBuffer.Slice(BufferOffset, MemoryBuffer.Length - BufferOffset));
+                    Interlocked.Add(ref BytesRead, count);
+                }
             }
             catch when(Zeroed()){}
             catch (Exception e)when(!Zeroed())

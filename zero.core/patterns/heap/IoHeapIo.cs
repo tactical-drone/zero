@@ -47,6 +47,18 @@ namespace zero.core.patterns.heap
                 {
                     throw new InvalidOperationException($"{nameof(next.HeapConstructAsync)} FAILED: ");
                 }
+
+#if DEBUG
+                if (heapItem.malloc)
+                {
+                    await heapItem.item.ZeroSubAsync<object>((t, u) =>
+                    {
+                        LogManager.GetCurrentClassLogger().Fatal($"SAFE_RELEASE -> {u.ToString()}");
+                        return default;
+                    }, heapItem.item);
+                }
+#endif
+
                 //init for use
                 if (await next.HeapPopAsync(userData).FastPath() == null)
                 {
@@ -100,7 +112,7 @@ namespace zero.core.patterns.heap
 
             base.Return(item, zero, deDup);
 
-            if (zero || Zeroed)
+            if (zero && !deDup || Zeroed)//hack
                 item.Zero(new IoNanoprobe($"{item.Description}"), $"{nameof(IoHeapIo<TItem, TContext>)}: teardown direct = {zero}, cascade = {Zeroed}");
         }
     }

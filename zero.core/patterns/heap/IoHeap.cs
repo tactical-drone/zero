@@ -138,10 +138,8 @@ namespace zero.core.patterns.heap
         /// <exception cref="InternalBufferOverflowException">Thrown when the max heap size is breached</exception>
         /// <returns>True if the item required malloc, false if popped from the heap otherwise<see cref="TItem"/></returns>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public TItem Take(object userData = null, Action<TItem, object> customConstructor = null)
-        {
-            return Make(userData, customConstructor).item;
-        }
+        public TItem Take(object userData = null, Action<TItem, object> customConstructor = null) => Make(userData, customConstructor).item;
+        
 
         /// <summary>
         /// Checks the heap for a free item and returns it. If no free items exists make a new one if we have capacity for it.
@@ -159,19 +157,19 @@ namespace zero.core.patterns.heap
                     if (_refCount == _ioHeapBuf.Capacity && !IsAutoScaling)
                         throw new OutOfMemoryException($"{nameof(_ioHeapBuf)}: Heap -> {Description}: Q -> {_ioHeapBuf.Description}");
 
-                    Interlocked.Increment(ref _refCount);
                     heapItem = Malloc(userData, Context);
 
                     customConstructor?.Invoke(heapItem, userData);
                     Constructor?.Invoke(heapItem, userData);
                     PopAction?.Invoke(heapItem, userData);
 
+                    Interlocked.Increment(ref _refCount);
                     return (heapItem, true);
                 }
                 else //take the item from the heap
                 {
-                    Interlocked.Increment(ref _refCount);
                     PopAction?.Invoke(heapItem, userData);
+                    Interlocked.Increment(ref _refCount);
                     return (heapItem, false);
                 }
             }
@@ -197,14 +195,15 @@ namespace zero.core.patterns.heap
             if (item == null)
                  return;
 
+            Interlocked.Decrement(ref _refCount);
+
             try
             {
                 if (!zero)
                     _ioHeapBuf.TryEnqueue(item, deDup);
-                Interlocked.Decrement(ref _refCount);
             }
-            catch (Exception) when(_zeroed > 0){ }
-            catch (Exception) when(_ioHeapBuf.Zeroed){ }
+            catch when(_zeroed > 0){ }
+            catch when(_ioHeapBuf.Zeroed){ }
             catch (Exception e) when (!Zeroed)
             {
                 _logger.Error(e, $"{GetType().Name}: Failed malloc {typeof(TItem)}");

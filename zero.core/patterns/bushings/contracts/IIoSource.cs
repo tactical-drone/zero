@@ -37,7 +37,7 @@ namespace zero.core.patterns.bushings.contracts
         /// <summary>
         /// Apply sink "back" pressure
         /// </summary>
-        public int BackPressure(int releaseCount = 1);
+        public int BackPressure(int releaseCount = 1, bool zeroAsync = false);
 
         /// <summary>
         /// Wait for sink back pressure
@@ -64,7 +64,7 @@ namespace zero.core.patterns.bushings.contracts
         /// <summary>
         /// Apply prefetch pressure
         /// </summary>
-        public int PrefetchPressure(int releaseCount = 1);
+        public int PrefetchPressure(int releaseCount = 1, bool zeroAsync = false);
         
         /// <summary>
         /// Wait on prefetch pressure
@@ -91,6 +91,12 @@ namespace zero.core.patterns.bushings.contracts
         /// Generated Unique job Ids seed
         /// </summary>
         public long NextJobIdSeed();
+
+        /// <summary>
+        /// The current job id
+        /// </summary>
+        /// <returns></returns>
+        public long CurJobId { get; }
 
         /// <summary>
         /// Total service times per <see cref="Counters"/>

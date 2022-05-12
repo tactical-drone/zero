@@ -34,8 +34,8 @@ namespace zero.core.patterns.bushings
             //if (maxAsyncSinks > concurrencyLevel)
             //    throw new ArgumentOutOfRangeException($"{description}: invalid {nameof(concurrencyLevel)} = {concurrencyLevel}, must be at least {nameof(maxAsyncSinks)} = {maxAsyncSinks}");
 
-            //if (zeroAsyncMode > concurrencyLevel)
-            //    throw new ArgumentOutOfRangeException($"{description}: invalid {nameof(concurrencyLevel)} = {concurrencyLevel}, must be at least {nameof(zeroAsyncMode)} = {zeroAsyncMode}");
+            //if (runContinuationsAsync > concurrencyLevel)
+            //    throw new ArgumentOutOfRangeException($"{description}: invalid {nameof(concurrencyLevel)} = {concurrencyLevel}, must be at least {nameof(runContinuationsAsync)} = {runContinuationsAsync}");
 
             PrefetchEnabled = true;
             BackPressureEnabled = true;
@@ -59,15 +59,15 @@ namespace zero.core.patterns.bushings
                     _backPressure = new IoZeroSemaphoreSlim(AsyncTasks, $"{nameof(_backPressure)}: {description}",
                         maxBlockers: PrefetchSize,
                         initialCount: concurrencyLevel,
-                        zeroAsyncMode: ZeroAsyncMode); //TODO Prefetch - 1 or not?
+                        zeroAsyncMode: false); //TODO Prefetch - 1 or not?
                 }
 
                 if (PrefetchEnabled)
                 {
                     _prefetchPressure = new IoZeroSemaphoreSlim(AsyncTasks, $"{nameof(_prefetchPressure)}: {description}",
                         maxBlockers: PrefetchSize,
-                        initialCount: PrefetchSize + concurrencyLevel,
-                        zeroAsyncMode: ZeroAsyncMode);
+                        initialCount: PrefetchSize,
+                        zeroAsyncMode: false);
                 }
             }
             catch (Exception e)
@@ -481,11 +481,12 @@ namespace zero.core.patterns.bushings
         /// Wait for source pressure
         /// </summary>
         /// <param name="releaseCount">Number of waiters to unblock</param>
+        /// <param name="zeroAsync"></param>
         /// <exception cref="NotImplementedException"></exception>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public int BackPressure(int releaseCount = 1)
+        public int BackPressure(int releaseCount = 1, bool zeroAsync = false)
         {
-            return BackPressureEnabled ? _backPressure.Release(true, releaseCount) : releaseCount;
+            return BackPressureEnabled ? _backPressure.Release(true, releaseCount, zeroAsync) : releaseCount;
         }
 
         /// <summary>
@@ -504,9 +505,9 @@ namespace zero.core.patterns.bushings
         /// </summary>
         /// <exception cref="NotImplementedException"></exception>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public int PrefetchPressure(int releaseCount = 1)
+        public int PrefetchPressure(int releaseCount = 1, bool zeroAsync = false)
         {
-            return PrefetchEnabled ? _prefetchPressure.Release(true, releaseCount) : releaseCount;
+            return PrefetchEnabled ? _prefetchPressure.Release(true, releaseCount, zeroAsync) : releaseCount;
         }
 
         /// <summary>
@@ -529,5 +530,7 @@ namespace zero.core.patterns.bushings
         {
             return Interlocked.Increment(ref _jobIdSeed);
         }
+
+        public long CurJobId => _jobIdSeed;
     }
 }

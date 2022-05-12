@@ -33,7 +33,7 @@ namespace zero.core.feat.models.protobuffer.sources
             UpstreamSource = ioSource;
             //BatchQueue = new IoQueue<TBatch>($"{nameof(CcProtocBatchSource<TModel, TBatch>)}: {ioSource.Description}", prefetchSize + concurrencyLevel, prefetchSize, IoQueue<TBatch>.Mode.Pressure | IoQueue<TBatch>.Mode.BackPressure);
             //BatchQueue = new IoQueue<TBatch>($"{nameof(CcProtocBatchSource<TModel, TBatch>)}: {ioSource.Description}", (prefetchSize + concurrencyLevel) * 2, prefetchSize, IoQueue<TBatch>.Mode.Pressure | IoQueue<TBatch>.Mode.BackPressure);
-            BatchQueue = new IoQueue<TBatch>($"{nameof(CcProtocBatchSource<TModel, TBatch>)}: {ioSource.Description}", (prefetchSize + concurrencyLevel) * 2, prefetchSize, IoQueue<TBatch>.Mode.Pressure | IoQueue<TBatch>.Mode.BackPressure);
+            BatchQueue = new IoQueue<TBatch>($"{nameof(CcProtocBatchSource<TModel, TBatch>)}: {ioSource.Description}", (prefetchSize + concurrencyLevel), prefetchSize, IoQueue<TBatch>.Mode.Pressure | IoQueue<TBatch>.Mode.BackPressure);
             //BatchQueue = new IoQueue<TBatch>($"{nameof(CcProtocBatchSource<TModel, TBatch>)}: {ioSource.Description}", (prefetchSize + concurrencyLevel) * 8, concurrencyLevel);
         }
 
@@ -87,7 +87,7 @@ namespace zero.core.feat.models.protobuffer.sources
 
             await BatchQueue.ZeroManagedAsync(static (msgBatch,_) =>
             {
-                msgBatch.Dispose();
+                msgBatch.Value.Dispose();
                 return default;
             },this, zero:true).FastPath();
         }

@@ -111,6 +111,7 @@ namespace zero.core.patterns.misc
         /// <summary>
         /// Cancels all processing
         /// </summary>
-        ValueTask ZeroPrimeAsync();
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        void ZeroPrime();
     }
 }

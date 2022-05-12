@@ -622,11 +622,11 @@ namespace zero.cocoon.models
             }
 
             //////attempt zero recovery
-            //if (IoZero.ZeroRecoveryEnabled && !Zeroed() && !zeroRecovery && !fastPath && BytesLeftToProcess > 0 && PreviousJob != null)
-            //{
-            //    State = IoJobMeta.JobState.ZeroRecovery;
-            //    return await ConsumeAsync();
-            //}
+            if (IoZero.ZeroRecoveryEnabled && !Zeroed() && !zeroRecovery && !fastPath && BytesLeftToProcess > 0 && PreviousJob != null)
+            {
+                await SetState(IoJobMeta.JobState.ZeroRecovery).FastPath();
+                return await ConsumeAsync();
+            }
 
             return State;
         }

@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Diagnostics;
 using System.Globalization;
 using System.Runtime.CompilerServices;
 using System.Threading;
@@ -60,7 +61,7 @@ namespace zero.core.patterns.bushings
             };
 #endif
 
-            ZeroRecovery = new IoManualResetValueTaskSource<bool>();
+            ZeroRecovery = new IoManualResetValueTaskSource<bool>(true);
         }
 
         /// <summary>
@@ -122,6 +123,11 @@ namespace zero.core.patterns.bushings
         protected internal IoManualResetValueTaskSource<bool> ZeroRecovery;
 
         /// <summary>
+        /// Indicates that for a particular run, the recovery be disabled. Jobs that know mark other jobs as recovery redundant    
+        /// </summary>
+        protected internal volatile bool EnableRecoveryOneshot;
+
+        /// <summary>
         /// Uses <see cref="Source"/> to produce a job
         /// </summary>
         /// <param name="barrier">Congestion control</param>
@@ -147,7 +153,7 @@ namespace zero.core.patterns.bushings
 #if DEBUG
                 await StateTransitionHistory.ZeroManagedAsync(static (s, @this) =>
                 {
-                    @this._stateHeap.Return(s);
+                    @this._stateHeap.Return(s.Value);
                     return default;
                 }, this).FastPath();
 
@@ -156,9 +162,12 @@ namespace zero.core.patterns.bushings
                 _stateMeta.Set((int)IoJobMeta.JobState.Undefined);
 #endif
 
-                
+                Debug.Assert(PreviousJob == null);
+                PreviousJob = null;
                 Id = -1;
                 ZeroRecovery.Reset();
+                EnableRecoveryOneshot = false;
+                
 #if DEBUG
                 return this;
 #else
@@ -218,7 +227,7 @@ namespace zero.core.patterns.bushings
 
             await StateTransitionHistory.ZeroManagedAsync(static (s, @this) =>
             {
-                @this._stateHeap.Return(s);
+                @this._stateHeap.Return(s.Value);
                 return default;
             }, this, zero:true).FastPath();
 
@@ -338,7 +347,7 @@ namespace zero.core.patterns.bushings
                 //Update the previous state's exit time
                 if (_stateMeta != null)
                 {
-                    Interlocked.MemoryBarrier();
+#if DEBUG
                     var s = _stateMeta.Value;
                     if (value == IoJobMeta.JobState.Undefined && s == IoJobMeta.JobState.Consuming)
                     {
@@ -355,6 +364,7 @@ namespace zero.core.patterns.bushings
                         throw new ApplicationException(
                             $"{TraceDescription} Cannot transition from `{IoJobMeta.JobState.Halted}' to `{value}'");
                     }
+#endif
 
                     if (_stateMeta.Value == value)
                         return value;
@@ -376,16 +386,24 @@ namespace zero.core.patterns.bushings
 
 #if DEBUG
                 //Allocate memory for a new current state
-                var newState = _stateHeap.Take((_stateMeta, (int)value));
-                if (newState == null)
+                try
                 {
-                    if (!Zeroed())
-                        throw new OutOfMemoryException($"{Description}");
+                    var newState = _stateHeap.Take((_stateMeta, (int)value));
+                    if (newState == null)
+                    {
+                        if (!Zeroed())
+                            throw new OutOfMemoryException($"{Description}");
 
-                    return value;
+                        return value;
+                    }
+
+                    _stateMeta = newState;
                 }
-
-                _stateMeta = newState;
+                catch (Exception e)
+                {
+                    Console.WriteLine(e);
+                    throw;
+                }
                 await StateTransitionHistory.EnqueueAsync(_stateMeta).FastPath();
 #else
                     _stateMeta.ExitTime = Environment.TickCount;

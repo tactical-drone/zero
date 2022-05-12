@@ -196,9 +196,10 @@ namespace zero.core.network.ip
         /// prime for zero
         /// </summary>
         /// <returns>The task</returns>
-        public override async ValueTask ZeroPrimeAsync()
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public override void ZeroPrime()
         {
-            await base.ZeroPrimeAsync();
+            base.ZeroPrime();
             if (!Proxy)
             {
                 try

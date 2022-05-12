@@ -61,7 +61,7 @@ namespace zero.core.patterns.bushings
         /// <summary>
         /// Q handler
         /// </summary>
-        public IoQueue<IoSink<TJob>>.IoZNode FragmentIdx { get; internal set; }
+        protected internal volatile IoQueue<IoSink<TJob>>.IoZNode FragmentIdx;
 
         /// <summary>
         /// Heap constructor

@@ -1138,14 +1138,15 @@ namespace zero.cocoon.autopeer
                     //The producer
                     var width = _protocolConduit.Source.ZeroConcurrencyLevel();
                     for (var i = 0; i < width; i++)
-                        await ZeroAsync(static async @this =>
+                        await ZeroAsync(static async state =>
                         {
+                            var (@this, i) = state;
                             //the consumer
                             try
                             {
                                 while (!@this.Zeroed())
                                 {
-                                    await @this._protocolConduit.ConsumeAsync(ProcessMessages(), @this).FastPath();
+                                    await @this._protocolConduit.ConsumeAsync(i,ProcessMessages(), @this).FastPath();
                                     
                                     [MethodImpl(MethodImplOptions.AggressiveInlining)]
                                     static Func<IoSink<CcProtocBatchJob<chroniton, CcDiscoveryBatch>>, CcAdjunct, ValueTask> ProcessMessages()
@@ -1187,7 +1188,7 @@ namespace zero.cocoon.autopeer
                                                                             await currentRoute.ProcessAsync((CcProbeResponse)message, srcEndPoint, packet).FastPath();
                                                                         break;
                                                                     case CcDiscoveries.MessageTypes.Scan:
-                                                                        if (!currentRoute.Verified)
+                                                                        if (!currentRoute.Verified && !@this.CcCollective.ZeroDrone)
                                                                         {
 #if DEBUG
                                                                             @this._logger.Warn($"{nameof(CcDiscoveries.MessageTypes.Scan)}: Unrouted request from {srcEndPoint} ~> {@this.MessageService.IoNetSocket.LocalNodeAddress.IpPort}");
@@ -1267,7 +1268,7 @@ namespace zero.cocoon.autopeer
                             {
                                 @this._logger?.Error(e, $"{@this.Description}");
                             }
-                        }, this, TaskCreationOptions.DenyChildAttach).FastPath();
+                        }, (this,i), TaskCreationOptions.DenyChildAttach).FastPath();
 
                     //producer;
                     width = _protocolConduit.Source.PrefetchSize;

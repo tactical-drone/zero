@@ -1282,7 +1282,7 @@ namespace zero.sync
                 IoNodeAddress.Create(fpcAddress),
                 IoNodeAddress.Create(extAddress),
                 bootStrapAddress.Select(IoNodeAddress.Create).Where(a => a.Port.ToString() != peerAddress.Split(":")[2]).ToList(),
-                3, 1, 2, 1, zeroDrone);
+                3, 2, 2, 1, zeroDrone);
 
             _nodes.Add(cocoon);
 

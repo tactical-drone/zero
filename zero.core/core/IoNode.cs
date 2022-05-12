@@ -2,6 +2,7 @@
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
+using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
 using NLog;
@@ -102,7 +103,7 @@ namespace zero.core.core
         /// </summary>
         [IoParameter]
         // ReSharper disable once InconsistentNaming
-        protected int parm_nb_teardown_timeout_s  = 3; //currently takes 2 seconds to up
+        protected int parm_nb_teardown_timeout_s  = 60; //currently takes 2 seconds to up
 
         /// <summary>
         /// Read ahead
@@ -159,9 +160,9 @@ namespace zero.core.core
 
             await NeighborTasks.ZeroManagedAsync(static (neighborTask, @this) =>
             {
-                if (!neighborTask.Wait(TimeSpan.FromSeconds(@this.parm_nb_teardown_timeout_s)))
+                if (!neighborTask.Value.Wait(TimeSpan.FromSeconds(@this.parm_nb_teardown_timeout_s)))
                 {
-                    @this._logger.Warn(neighborTask.Exception, $"{nameof(IoNode<TJob>)}.{nameof(ZeroManagedAsync)}: {nameof(neighborTask)} exit slow...");
+                    @this._logger.Warn(neighborTask.Value.Exception, $"{nameof(IoNode<TJob>)}.{nameof(ZeroManagedAsync)}: {nameof(neighborTask)} exit slow...");
                 }
                 return default;
             }, this, zero: true).FastPath();
@@ -171,11 +172,12 @@ namespace zero.core.core
         /// Primes for Zero
         /// </summary>
         /// <returns>The task</returns>
-        public override async ValueTask ZeroPrimeAsync()
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public override void ZeroPrime()
         {
-            await base.ZeroPrimeAsync().FastPath();
+            base.ZeroPrime();
             foreach (var ioNeighbor in Neighbors.Values)
-                await ioNeighbor.ZeroPrimeAsync().FastPath();
+                ioNeighbor.ZeroPrime();
         }
 
         /// <summary>

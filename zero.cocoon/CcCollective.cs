@@ -51,8 +51,8 @@ namespace zero.cocoon
                 _zeroDrone = true;
                 parm_max_drone = 0;
                 parm_max_adjunct = 512; //TODO tuning:
-                udpPrefetch = 3;
-                udpConcurrencyLevel = 2;
+                udpPrefetch = 4;
+                udpConcurrencyLevel = 3;
                 NeighborTasks = new IoQueue<Task>($"{nameof(NeighborTasks)}", parm_max_adjunct + 1, ZeroConcurrencyLevel());
             }
 
@@ -262,10 +262,11 @@ namespace zero.cocoon
         /// Primes for Zero
         /// </summary>
         /// <returns>The task</returns>
-        public override async ValueTask ZeroPrimeAsync()
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public override void ZeroPrime()
         {
-            await base.ZeroPrimeAsync().FastPath();
-            await _autoPeering.ZeroPrimeAsync().FastPath();
+            base.ZeroPrime();
+            _autoPeering.ZeroPrime();
         }
 
         private Logger _logger;

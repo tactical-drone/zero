@@ -43,8 +43,8 @@ namespace zero.cocoon.models
             {
                 parm_max_msg_batch_size *= 2;
                 
-                pf = 3;
-                cc = 2;
+                pf = 4;
+                cc = 3;
             }
 
 #if DEBUG
@@ -71,7 +71,7 @@ namespace zero.cocoon.models
             if (ProtocolConduit == null)
             {
                 //TODO tuning
-                var channelSource = new CcProtocBatchSource<chroniton, CcDiscoveryBatch>(Description, MessageService, pf, cc, true);
+                var channelSource = new CcProtocBatchSource<chroniton, CcDiscoveryBatch>(Description, MessageService, pf, cc);
                 ProtocolConduit = await MessageService.CreateConduitOnceAsync(
                     conduitId,
                     channelSource,
@@ -382,7 +382,9 @@ namespace zero.cocoon.models
             if (IoZero.ZeroRecoveryEnabled && !Zeroed() && !fastPath && !zeroRecovery && BytesLeftToProcess > 0 && PreviousJob != null)
             {
                 await SetState(IoJobMeta.JobState.ZeroRecovery).FastPath();
-                return await ConsumeAsync().FastPath();
+                if(await IoZero.PrimeForRecovery(this))
+                    return await ConsumeAsync().FastPath();
+                await SetState(IoJobMeta.JobState.BadData).FastPath();
             }
 
             return State;

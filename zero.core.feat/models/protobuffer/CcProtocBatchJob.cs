@@ -122,8 +122,7 @@ namespace zero.core.feat.models.protobuffer
         /// <returns>
         /// The state to indicated failure or success
         /// </returns>
-        public override async ValueTask<IoJobMeta.JobState> ProduceAsync<T>(IIoSource.IoZeroCongestion<T> barrier,
-            T ioZero)
+        public override async ValueTask<IoJobMeta.JobState> ProduceAsync<T>(IIoSource.IoZeroCongestion<T> barrier, T ioZero)
         {
             if (!await Source.ProduceAsync(static async (_, backPressure, state, ioJob )=>
                 {

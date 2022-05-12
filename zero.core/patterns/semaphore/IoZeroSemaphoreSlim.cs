@@ -57,19 +57,19 @@ namespace zero.core.patterns.semaphore
         public IIoZeroSemaphoreBase<bool> ZeroRef(ref IIoZeroSemaphoreBase<bool> @ref, bool init) => _semaphore.ZeroRef(ref @ref, init);
 
         
-        public int Release(bool value, int releaseCount, bool bestCase = false)
+        public int Release(bool value, int releaseCount, bool forceAsync = false)
         {
-            return _semaphore.Release(value, releaseCount, bestCase);
+            return _semaphore.Release(value, releaseCount, forceAsync);
         }
 
-        public int Release(bool value, bool bestCase = false)
+        public int Release(bool value, bool async = false)
         {
-            return _semaphore.Release(value, bestCase);
+            return _semaphore.Release(value, async);
         }
 
-        public int Release(bool[] value, bool bestCase = false)
+        public int Release(bool[] value, bool async = false)
         {
-            return _semaphore.Release(value, bestCase);
+            return _semaphore.Release(value, async);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -97,5 +97,10 @@ namespace zero.core.patterns.semaphore
         public long Tail => ((IoZeroSemaphore<bool>)_semaphore).Tail;
         public long Head => ((IoZeroSemaphore<bool>)_semaphore).Head;
         public long EgressCount => ((IoZeroSemaphore<bool>)_semaphore).EgressCount;
+
+        public override bool Zeroed()
+        {
+            return _semaphore.Zeroed() || base.Zeroed();
+        }
     }
 }
