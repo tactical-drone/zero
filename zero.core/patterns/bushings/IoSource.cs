@@ -78,7 +78,7 @@ namespace zero.core.patterns.bushings
             
         }
 
-        public string QueueStatus => $"WAITING FOR: prefetch = {_prefetchPressure?.CurNrOfBlockers}/{_prefetchPressure?.Capacity}, back pressure = {_backPressure?.CurNrOfBlockers}/{_backPressure?.Capacity}, pressure = {_pressure?.CurNrOfBlockers}/{_pressure?.Capacity}";
+        public string QueueStatus => $"WAITING FOR: prefetch = {_prefetchPressure?.WaitCount}/{_prefetchPressure?.Capacity}, back pressure = {_backPressure?.WaitCount}/{_backPressure?.Capacity}, pressure = {_pressure?.WaitCount}/{_pressure?.Capacity}";
 
         /// <summary>
         /// logger
@@ -194,7 +194,7 @@ namespace zero.core.patterns.bushings
         /// <summary>
         /// Current number of items in the Q
         /// </summary>
-        public int BacklogCount => _backPressure?.CurNrOfBlockers?? 0;
+        public int BacklogCount => _backPressure?.WaitCount?? 0;
 
         private volatile int _rate;
 

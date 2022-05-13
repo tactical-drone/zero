@@ -61,8 +61,10 @@ namespace zero.core.patterns.queue
                 }
             };
 
-            _syncRoot = new IoZeroSemaphore<bool>(desc, maxBlockers: concurrencyLevel, initialCount: 1, cancellationTokenSource: _asyncTasks, runContinuationsAsynchronously:true);
-            _syncRoot.ZeroRef(ref _syncRoot, true);
+            _syncRoot = new IoZeroSemaphore<bool>(desc, maxBlockers: concurrencyLevel, initialCount: 1, cancellationTokenSource: _asyncTasks, runContinuationsAsynchronously: true);
+            _syncRoot.ZeroRef(ref _syncRoot, _ => true);
+            //_syncRoot = new IoZeroSemCore<bool>(desc, concurrencyLevel, 1, false);
+            //_syncRoot.ZeroRef(ref _syncRoot, _ => true);
 
             if (_configuration.HasFlag(Mode.Pressure))
             {
@@ -75,7 +77,7 @@ namespace zero.core.patterns.queue
             {
                 _backPressure = new IoZeroSemaphore<bool>($"qbp {description}",
                     maxBlockers: concurrencyLevel, initialCount: concurrencyLevel, cancellationTokenSource: _asyncTasks, runContinuationsAsynchronously: false);
-                _backPressure.ZeroRef(ref _backPressure, true);
+                _backPressure.ZeroRef(ref _backPressure, _ => true);
             }
 
             _curEnumerator = new IoQueueEnumerator<T>(this);
@@ -388,7 +390,7 @@ namespace zero.core.patterns.queue
                 if (!await _syncRoot.WaitAsync().FastPath())
                     return default;
                 
-                Debug.Assert(_syncRoot.Zeroed() || _syncRoot.ReadyCount == 0);
+                Debug.Assert(_syncRoot.Zeroed() || _syncRoot.ReadyCount <= 0);
                 Interlocked.Increment(ref _entered);
                 entered = true;
                 Debug.Assert(_entered < 2);

@@ -379,9 +379,9 @@ namespace zero.core.network.ip
             EndPoint endPoint, int timeout = 0)
         {
             //#if DEBUG
-            //                if (_sendSync.CurNrOfBlockers >= _sendArgs.Capacity / 2)
+            //                if (_sendSync.WaitCount >= _sendArgs.Capacity / 2)
             //                    _logger.Warn(
-            //                        $"{Description}: Send semaphore is running lean {_sendSync.CurNrOfBlockers}/{_sendArgs.Capacity}");
+            //                        $"{Description}: Send semaphore is running lean {_sendSync.WaitCount}/{_sendArgs.Capacity}");
 
             //                Debug.Assert(endPoint != null);
             //#endif

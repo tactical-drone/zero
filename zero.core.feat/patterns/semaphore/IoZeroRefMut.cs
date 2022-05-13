@@ -41,7 +41,8 @@ namespace zero.core.feat.patterns.semaphore
             throw new NotImplementedException();
         }
 
-        public IIoZeroSemaphoreBase<bool> ZeroRef(ref IIoZeroSemaphoreBase<bool> @ref, bool init)
+        public IIoZeroSemaphoreBase<bool> ZeroRef(ref IIoZeroSemaphoreBase<bool> @ref, Func<object, bool> primeResult,
+            object context = null)
         {
             throw new NotImplementedException();
         }
@@ -74,7 +75,7 @@ namespace zero.core.feat.patterns.semaphore
         }
 
         public int ReadyCount => 0;
-        public int CurNrOfBlockers { get; }
+        public int WaitCount { get; }
         public bool ZeroAsyncMode { get; }
 
         

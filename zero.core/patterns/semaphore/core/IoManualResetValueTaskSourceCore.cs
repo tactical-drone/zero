@@ -40,10 +40,10 @@ namespace zero.core.patterns.semaphore.core
         /// <summary>The exception with which the operation failed, or null if it hasn't yet completed or completed successfully.</summary>
         private volatile ExceptionDispatchInfo _error;
 
-#if DEBUG
+//#if DEBUG
         /// <summary>The current version of this value, used to help prevent misuse.</summary>
         private volatile int _version;
-#endif
+//#endif
 
         /// <summary>Gets or sets whether to force continuations to run asynchronously.</summary>
         /// <remarks>Continuations may run asynchronously if this is false, but they'll never run synchronously if this is true.</remarks>
@@ -73,6 +73,12 @@ namespace zero.core.patterns.semaphore.core
 #endif
         }
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public void Reset(short index)
+        {
+            Reset();
+            _version = index;
+        }
 
         /// <summary>
         /// If this primitive has been cocked

@@ -204,7 +204,7 @@ namespace zero.core.patterns.misc
         {
             //TODO: tuning
             IIoZeroSemaphoreBase<bool> z = new IoZeroSemaphore<bool>(string.Empty, Math.Min(20 + concurrencyLevel * 20, short.MaxValue), 1, cancellationTokenSource: asyncTasks, runContinuationsAsynchronously:true);
-            z.ZeroRef(ref z, true);
+            z.ZeroRef(ref z, _ => true);
             return z;
         }
 

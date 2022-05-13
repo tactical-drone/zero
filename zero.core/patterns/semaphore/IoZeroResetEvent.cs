@@ -21,7 +21,7 @@ namespace zero.core.patterns.semaphore
 
         private readonly IoZeroResetValueTaskSource<bool> _pressure = new();
 
-        public int CurNrOfBlockers => _pressure.GetStatus((short)_pressure.Version) == ValueTaskSourceStatus.Pending ? 1 : 0;
+        public int WaitCount => _pressure.GetStatus((short)_pressure.Version) == ValueTaskSourceStatus.Pending ? 1 : 0;
 
         public int ReadyCount => _pressure.GetStatus((short)_pressure.Version) == ValueTaskSourceStatus.Succeeded ? 1 : 0;
 
@@ -62,7 +62,8 @@ namespace zero.core.patterns.semaphore
             return releaseCount;
         }
 
-        public IIoZeroSemaphoreBase<bool> ZeroRef(ref IIoZeroSemaphoreBase<bool> @ref, bool init)
+        public IIoZeroSemaphoreBase<bool> ZeroRef(ref IIoZeroSemaphoreBase<bool> @ref, Func<object, bool> primeResult,
+            object context = null)
         {
             throw new NotImplementedException();
         }

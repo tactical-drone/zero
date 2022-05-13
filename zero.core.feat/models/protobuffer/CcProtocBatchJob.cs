@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Concurrent;
+using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
@@ -135,12 +136,13 @@ namespace zero.core.feat.models.protobuffer
                     {
                         job._batch = await ((CcProtocBatchSource<TModel, TBatch>) job.Source).DequeueAsync().FastPath();
                         job.GenerateJobId();
+                        Debug.Assert(job._batch != null);
                     }
                     catch (Exception e) when(!job.Zeroed())
                     {
                         _logger.Fatal(e,$"BatchQueue.TryDequeueAsync failed: {job.Description}"); 
                     }
-                
+
                     return job._batch != null;
                 }, this, barrier, ioZero).FastPath())
             {

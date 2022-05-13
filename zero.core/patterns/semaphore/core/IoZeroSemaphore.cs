@@ -233,7 +233,7 @@ namespace zero.core.patterns.semaphore.core
         /// <summary>
         /// Nr of threads currently waiting on this semaphore
         /// </summary>
-        public int CurNrOfBlockers => _curWaitCount;
+        public int WaitCount => _curWaitCount;
 
         /// <summary>
         /// Maximum allowed concurrent "not inline" continuations before
@@ -295,16 +295,17 @@ namespace zero.core.patterns.semaphore.core
         /// This means that the user needs to call this function manually from externally when the ref is available or the semaphore will error out.
         /// </summary>
         /// <param name="ref">The ref to this</param>
-        /// <param name="init"></param>
-        public IIoZeroSemaphoreBase<T> ZeroRef(ref IIoZeroSemaphoreBase<T> @ref, T init)
+        /// <param name="primeResult"></param>
+        /// <param name="context"></param>
+        public IIoZeroSemaphoreBase<T> ZeroRef(ref IIoZeroSemaphoreBase<T> @ref, Func<object, T> primeResult,
+            object context = null)
         {
             Interlocked.Exchange(ref _ingressToken, Math.Min(_curSignalCount, _maxBlockers << 1));
 
             for (var i = 0; i < _ingressToken; i++)
             {
-                _result[i] = init;
+                _result[i] = primeResult(context);
             }
-                
             
             return _zeroRef = @ref;
         }
@@ -844,7 +845,8 @@ namespace zero.core.patterns.semaphore.core
                 var c = 0;
 #endif
                 while ((head = Head) == Tail || //buffer overrun
-                       (latched = _signalAwaiter[headMod = head % _maxBlockers]) == null || latched == ZeroSentinel || //or bad latches
+                       (latched = _signalAwaiter[headMod = head % _maxBlockers]) == null || 
+                       latched == ZeroSentinel || //or bad latches
                        head != Head || //head has moved since
                        (worker.Continuation = Interlocked.CompareExchange(ref _signalAwaiter[headMod], ZeroSentinel, latched)) != latched|| //or race for latch failed
                         worker.Continuation == ZeroSentinel) // or race

@@ -18,7 +18,8 @@ namespace zero.core.patterns.semaphore
             bool zeroAsyncMode = false,
             bool enableAutoScale = false, bool enableFairQ = false, bool enableDeadlockDetection = false) : base($"{nameof(IoZeroSemaphoreSlim)}: {description}", maxBlockers)
         {
-            _semaphore = new IoZeroSemaphore<T>(description, maxBlockers, initialCount, zeroAsyncMode, enableAutoScale: enableAutoScale, cancellationTokenSource: asyncTasks);
+            //_semaphore = new IoZeroSemaphore<T>(description, maxBlockers, initialCount, zeroAsyncMode, enableAutoScale: enableAutoScale, cancellationTokenSource: asyncTasks);
+            _semaphore = new IoZeroSemCore<T>(description, maxBlockers, initialCount, zeroAsyncMode);
             _semaphore.ZeroRef(ref _semaphore, default);
         }
 
@@ -54,7 +55,8 @@ namespace zero.core.patterns.semaphore
             _semaphore.OnCompleted(continuation, state, token, flags);
         }
 
-        public IIoZeroSemaphoreBase<T> ZeroRef(ref IIoZeroSemaphoreBase<T> @ref, T init) => _semaphore.ZeroRef(ref @ref, init);
+        public IIoZeroSemaphoreBase<T> ZeroRef(ref IIoZeroSemaphoreBase<T> @ref, Func<object, T> primeResult,
+            object context = null) => _semaphore.ZeroRef(ref @ref, primeResult);
 
         public int Release(T value, int releaseCount, bool forceAsync = false)
         {
@@ -85,7 +87,7 @@ namespace zero.core.patterns.semaphore
 
         public int ReadyCount => _semaphore.ReadyCount;
         
-        public int CurNrOfBlockers => _semaphore.CurNrOfBlockers;
+        public int WaitCount => _semaphore.WaitCount;
         public bool ZeroAsyncMode => _semaphore.ZeroAsyncMode;
         public int Capacity => _semaphore.Capacity;
         int IIoZeroSemaphoreBase<T>.ZeroDecAsyncCount()

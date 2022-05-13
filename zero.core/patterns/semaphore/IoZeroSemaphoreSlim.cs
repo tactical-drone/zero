@@ -18,8 +18,9 @@ namespace zero.core.patterns.semaphore
             bool zeroAsyncMode = false,
             bool enableAutoScale = false, bool enableFairQ = false, bool enableDeadlockDetection = false) : base($"{nameof(IoZeroSemaphoreSlim)}: {description}", maxBlockers)
         {
-            IIoZeroSemaphoreBase<bool> newSem = new IoZeroSemaphore<bool>(description, maxBlockers, initialCount, zeroAsyncMode, enableAutoScale: enableAutoScale, cancellationTokenSource: asyncTasks);
-            _semaphore = newSem.ZeroRef(ref newSem, true);
+            //IIoZeroSemaphoreBase<bool> newSem = new IoZeroSemaphore<bool>(description, maxBlockers, initialCount, zeroAsyncMode, enableAutoScale: enableAutoScale, cancellationTokenSource: asyncTasks);
+            IIoZeroSemaphoreBase<bool> newSem = new IoZeroSemCore<bool>(description, maxBlockers, initialCount, zeroAsyncMode);
+            _semaphore = newSem.ZeroRef(ref newSem, _ => true);
         }
 
         private IIoZeroSemaphoreBase<bool> _semaphore;
@@ -54,7 +55,8 @@ namespace zero.core.patterns.semaphore
             _semaphore.OnCompleted(continuation, state, token, flags);
         }
 
-        public IIoZeroSemaphoreBase<bool> ZeroRef(ref IIoZeroSemaphoreBase<bool> @ref, bool init) => _semaphore.ZeroRef(ref @ref, init);
+        public IIoZeroSemaphoreBase<bool> ZeroRef(ref IIoZeroSemaphoreBase<bool> @ref, Func<object, bool> primeResult,
+            object context = null) => _semaphore.ZeroRef(ref @ref, primeResult);
 
         
         public int Release(bool value, int releaseCount, bool forceAsync = false)
@@ -86,7 +88,7 @@ namespace zero.core.patterns.semaphore
 
         public int ReadyCount => _semaphore.ReadyCount;
 
-        public int CurNrOfBlockers => _semaphore.CurNrOfBlockers;
+        public int WaitCount => _semaphore.WaitCount;
         public bool ZeroAsyncMode => _semaphore.ZeroAsyncMode;
         public int Capacity => _semaphore.Capacity;
         int IIoZeroSemaphoreBase<bool>.ZeroDecAsyncCount()
@@ -94,8 +96,8 @@ namespace zero.core.patterns.semaphore
             throw new NotImplementedException();
         }
 
-        public long Tail => ((IoZeroSemaphore<bool>)_semaphore).Tail;
-        public long Head => ((IoZeroSemaphore<bool>)_semaphore).Head;
+        public long Tail => ((IoZeroSemCore<bool>)_semaphore).Tail;
+        public long Head => ((IoZeroSemCore<bool>)_semaphore).Head;
         public long EgressCount => ((IoZeroSemaphore<bool>)_semaphore).EgressCount;
 
         public override bool Zeroed()

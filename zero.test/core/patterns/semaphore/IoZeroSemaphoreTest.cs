@@ -144,7 +144,7 @@ namespace zero.test.core.patterns.semaphore
         [Fact]
         async Task PrefetchAsync()
         {
-            var m = new IoZeroSemaphoreSlim(new CancellationTokenSource(), "test mutex", maxBlockers: 1, initialCount: 3, zeroAsyncMode:false);
+            var m = new IoZeroSemaphoreSlim(new CancellationTokenSource(), "test mutex", maxBlockers: 3, initialCount: 3, zeroAsyncMode:false);
 
             await Task.Factory.StartNew(async () =>
             {
@@ -156,17 +156,17 @@ namespace zero.test.core.patterns.semaphore
             Assert.Equal(3, m.ReadyCount);
             await m.WaitAsync().FastPath();
             Assert.Equal(2, m.ReadyCount);
-            Assert.Equal(0, m.CurNrOfBlockers);
+            Assert.Equal(0, m.WaitCount);
             await m.WaitAsync().FastPath();
             Assert.Equal(1, m.ReadyCount);
-            Assert.Equal(0, m.CurNrOfBlockers);
+            Assert.Equal(0, m.WaitCount);
             await m.WaitAsync().FastPath();
             Assert.Equal(0, m.ReadyCount);
-            Assert.Equal(0, m.CurNrOfBlockers);
+            Assert.Equal(0, m.WaitCount);
             Assert.InRange(ts.ElapsedMs(), 0, 50);
             await m.WaitAsync().FastPath();
             Assert.InRange(ts.ElapsedMs(),400, 2000);
-            Assert.Equal(0, m.CurNrOfBlockers);
+            Assert.Equal(0, m.WaitCount);
         }
 
 
@@ -199,7 +199,7 @@ namespace zero.test.core.patterns.semaphore
         [Fact]
         async Task MutexSpamAsync()
         {
-            var m = new IoZeroSemaphoreSlim(new CancellationTokenSource(), "test mutex", maxBlockers: 1, initialCount: 3, zeroAsyncMode:false);
+            var m = new IoZeroSemaphoreSlim(new CancellationTokenSource(), "test mutex", maxBlockers: 3, initialCount: 3, zeroAsyncMode:false);
             var running = true;
 
             var waits = 0;
@@ -215,7 +215,7 @@ namespace zero.test.core.patterns.semaphore
                 {
                     try
                     {
-                        //Assert.Equal(1, m.CurNrOfBlockers);
+                        //Assert.Equal(1, m.WaitCount);
                         int r = m.Release(true);
                         if (r > 0)
                         {
@@ -224,7 +224,7 @@ namespace zero.test.core.patterns.semaphore
                         }
                         else if (++s % 1000 == 0)
                         {
-                            _output.WriteLine($"RELEASE Stalled! -> {ts.ElapsedMs()} ms, waiters = {m.CurNrOfBlockers}, r = {r}");
+                            _output.WriteLine($"RELEASE Stalled! -> {ts.ElapsedMs()} ms, waiters = {m.WaitCount}, r = {r}");
                             await Task.Delay(1000);
                         }
                         else
@@ -287,7 +287,7 @@ namespace zero.test.core.patterns.semaphore
             _output.WriteLine($"Test done... {ts.ElapsedMs()}ms - {waits/((double)(ts.ElapsedMs()/1000+1))} dq/ps");
             running = false;
             await Task.Delay(1000);
-            Assert.Equal(0, m.CurNrOfBlockers);
+            Assert.Equal(0, m.WaitCount);
             Assert.InRange(waits, 553624, int.MaxValue);
         }
 

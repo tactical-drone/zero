@@ -23,6 +23,7 @@ using zero.core.network.ip;
 using zero.core.patterns.misc;
 using zero.core.patterns.queue;
 using zero.core.patterns.semaphore;
+using zero.core.patterns.semaphore.core;
 using zero.core.runtime.scheduler;
 using LogLevel = Microsoft.Extensions.Logging.LogLevel;
 
@@ -66,11 +67,11 @@ namespace zero.sync
         {
             Console.WriteLine($"zero ({Environment.OSVersion}: {Environment.MachineName} - dotnet v{Environment.Version}, CPUs = {Environment.ProcessorCount})");
 
-            //Task.Factory.StartNew(async () =>
-            //{
-            //    //await SemTestAsync();
-            //    await QueueTestAsync();
-            //}, CancellationToken.None, TaskCreationOptions.DenyChildAttach, IoZeroScheduler.ZeroDefault).Unwrap().GetAwaiter().GetResult();
+            Task.Factory.StartNew(async () =>
+            {
+                await SemTestAsync();
+                await QueueTestAsync();
+            }, CancellationToken.None, TaskCreationOptions.DenyChildAttach, IoZeroScheduler.ZeroDefault).Unwrap().GetAwaiter().GetResult();
 
             //Tune dotnet for large tests
             ThreadPool.GetMinThreads(out var wt, out var cp);
@@ -88,10 +89,10 @@ namespace zero.sync
 
             var random = new Random((int)DateTime.Now.Ticks);
             //Tangle("tcp://192.168.1.2:15600");
-            var total = 1000;
+            var total = 2;
             var maxDrones = 3;
             var maxAdjuncts = 16;
-            var boot = true;
+            var boot = false;
 
             var tasks  = new ConcurrentBag<Task<CcCollective>>();
             if (boot)
@@ -921,11 +922,13 @@ namespace zero.sync
 
             //.NET RUNTIME REFERENCE MUTEX FOR TESTING
             //var mutex = new IoZeroRefMut(asyncTasks.Token);
-            var mutex = new IoZeroSemaphoreSlim(asyncTasks, "zero slim", maxBlockers: capacity, initialCount: 1, zeroAsyncMode: false, enableAutoScale: false, enableFairQ: false, enableDeadlockDetection: true);
-
+            //var mutex = new IoZeroSemaphoreSlim(asyncTasks, "zero slim", maxBlockers: capacity, initialCount: 1, zeroAsyncMode: false, enableAutoScale: false, enableFairQ: false, enableDeadlockDetection: true);
+            IIoZeroSemaphoreBase<bool> mutex = new IoZeroSemCore<bool>("zero core", capacity, 0);
+            mutex.ZeroRef(ref mutex, o => true);
+                 
             var releaseCount = 2;
             var waiters = 3;
-            var releasers = 3;
+            var releasers = 4;
             var disableRelease = false;
             var targetSleep = (long)0;
             var logSpam = 30000;//at least 1
@@ -998,7 +1001,7 @@ namespace zero.sync
                              if (Interlocked.Increment(ref c) % logSpam == 0)
                              {
                                  var totalDq = dq.Aggregate((u, u1) => u + u1);
-                                 Console.WriteLine($"T1:{mutex}({c}) t = {tt - targetSleep * targetSleepMult}ms, [{eq1_fps + eq2_fps + eq3_fps: 0}, ({eq1_fps: 0}, {eq2_fps: 0}, {eq3_fps: 0})], [{totalDq/delta: 0.0} ({dq_fps[0]: 0}, {dq_fps[1]: 0}, {dq_fps[2]: 0}, {dq_fps[3]: 0})], s = {semCount / (double)(semPollCount+1):0.0}, S = {mutex.ReadyCount}, D = {(int)(eq1 + eq2 + eq3) - (int)totalDq}");
+                                 Console.WriteLine($"[{Thread.CurrentThread.ManagedThreadId}] T1:{mutex}({c}) t = {tt - targetSleep * targetSleepMult}ms, [{eq1_fps + eq2_fps + eq3_fps: 0}, ({eq1_fps: 0}, {eq2_fps: 0}, {eq3_fps: 0})], [{totalDq/delta: 0.0} ({dq_fps[0]: 0}, {dq_fps[1]: 0}, {dq_fps[2]: 0}, {dq_fps[3]: 0})], s = {semCount / (double)(semPollCount+1):0.0}, S = {mutex.ReadyCount}, D = {(int)(eq1 + eq2 + eq3) - (int)totalDq}");
                                  Console.ResetColor();
                              }
                               
@@ -1063,7 +1066,7 @@ namespace zero.sync
                             if (Interlocked.Increment(ref c) % logSpam == 0)
                             {
                                 var totalDq = dq.Aggregate((u, u1) => u + u1);
-                                Console.WriteLine($"T2:{mutex}({c}) t = {tt - targetSleep * targetSleepMult}ms, [{eq1_fps + eq2_fps + eq3_fps: 0}, ({eq1_fps: 0}, {eq2_fps: 0}, {eq3_fps: 0})], [{totalDq/delta: 0.0} ({dq_fps[0]: 0}, {dq_fps[1]: 0}, {dq_fps[2]: 0}, {dq_fps[3]: 0})], s = {semCount / (double)(semPollCount+1):0.0}, S = {mutex.ReadyCount}, D = {(int)(eq1 + eq2 + eq3) - (int)totalDq}");
+                                Console.WriteLine($"[{Thread.CurrentThread.ManagedThreadId}] T2:{mutex}({c}) t = {tt - targetSleep * targetSleepMult}ms, [{eq1_fps + eq2_fps + eq3_fps: 0}, ({eq1_fps: 0}, {eq2_fps: 0}, {eq3_fps: 0})], [{totalDq/delta: 0.0} ({dq_fps[0]: 0}, {dq_fps[1]: 0}, {dq_fps[2]: 0}, {dq_fps[3]: 0})], s = {semCount / (double)(semPollCount+1):0.0}, S = {mutex.ReadyCount}, D = {(int)(eq1 + eq2 + eq3) - (int)totalDq}");
                                 Console.ResetColor();
                             }
                             
@@ -1115,7 +1118,7 @@ namespace zero.sync
                             if (Interlocked.Increment(ref c) % logSpam == 0)
                             {
                                 var totalDq = dq.Aggregate((u, u1) => u + u1);
-                                Console.WriteLine($"T3:{mutex}({c}) t = {tt - targetSleep * targetSleepMult}ms, [{eq1_fps + eq2_fps + eq3_fps: 0}, ({eq1_fps: 0}, {eq2_fps: 0}, {eq3_fps: 0})], [{totalDq/delta: 0.0} ({dq_fps[0]: 0}, {dq_fps[1]: 0}, {dq_fps[2]: 0}, {dq_fps[3]: 0})], s = {semCount / (double)(semPollCount+1):0.0}, S = {mutex.ReadyCount}, D = {(int)(eq1 + eq2 + eq3) - (int)totalDq}");
+                                Console.WriteLine($"[{Thread.CurrentThread.ManagedThreadId}] T3:{mutex}({c}) t = {tt - targetSleep * targetSleepMult}ms, [{eq1_fps + eq2_fps + eq3_fps: 0}, ({eq1_fps: 0}, {eq2_fps: 0}, {eq3_fps: 0})], [{totalDq/delta: 0.0} ({dq_fps[0]: 0}, {dq_fps[1]: 0}, {dq_fps[2]: 0}, {dq_fps[3]: 0})], s = {semCount / (double)(semPollCount+1):0.0}, S = {mutex.ReadyCount}, D = {(int)(eq1 + eq2 + eq3) - (int)totalDq}");
                                 Console.ResetColor();
                             }
                                
