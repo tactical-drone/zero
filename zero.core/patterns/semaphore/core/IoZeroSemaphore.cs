@@ -206,7 +206,7 @@ namespace zero.core.patterns.semaphore.core
         /// <summary>
         /// A semaphore description
         /// </summary>
-        private string Description => $"{nameof(IoZeroSemaphore<T>)}[{_description}]: z = {_zeroed > 0},  ready = {_curSignalCount}, wait = {_curWaitCount}/{_maxBlockers}, async = {_curAsyncWorkerCount}/{RunContinuationsAsynchronously}, head = {Head}/{Tail} (D:{Tail - Head})";
+        public string Description => $"{nameof(IoZeroSemaphore<T>)}[{_description}]: z = {_zeroed > 0},  ready = {_curSignalCount}, wait = {_curWaitCount}/{_maxBlockers}, async = {_curAsyncWorkerCount}/{RunContinuationsAsynchronously}, head = {Head}/{Tail} (D:{Tail - Head})";
 
         /// <summary>
         /// The maximum threads that can be blocked by this semaphore. This blocking takes storage
@@ -822,10 +822,10 @@ namespace zero.core.patterns.semaphore.core
         /// Allow waiter(s) to enter the semaphore
         /// </summary>
         /// <param name="releaseCount">The number of waiters to enter</param>
-        /// <param name="async">non blocking if true</param>
+        /// <param name="forceAsync">non blocking if true</param>
         /// <returns>The number of waiters released, -1 on failure</returns>
         /// <exception cref="SemaphoreFullException">Fails when maximum waiters reached</exception>
-        public int Release(int releaseCount = 1, bool async = false)
+        public int Release(int releaseCount = 1, bool forceAsync = false)
         {
             //lock in return value
             var released = 0;
@@ -881,7 +881,7 @@ namespace zero.core.patterns.semaphore.core
 #endif
                 //execute continuation
                 if (!ZeroComply(worker.Continuation, worker.State, worker.ExecutionContext, worker.CapturedContext,
-                        worker.State is IIoNanite nanite && nanite.Zeroed(), async))
+                        worker.State is IIoNanite nanite && nanite.Zeroed(), forceAsync))
                 {
                     Interlocked.Add(ref _curSignalCount, releaseCount - released);
                     return -1;
@@ -914,7 +914,7 @@ namespace zero.core.patterns.semaphore.core
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public int Release(T value, bool async = false)
+        public int Release(T value, bool forceAsync = false)
         {
             Debug.Assert(value != null);
             //overfull semaphore exit here
@@ -922,11 +922,11 @@ namespace zero.core.patterns.semaphore.core
                 return Release(1, true);
 
             _result[(Interlocked.Increment(ref _ingressToken) - 1) % (_maxBlockers << 1)] = value;
-            return Release(1,async);
+            return Release(1,forceAsync);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public int Release(T[] value, bool async = false)
+        public int Release(T[] value, bool forceAsync = false)
         {
             Debug.Assert(value is { Length: > 0 });
             var releaseCount = value.Length;
@@ -942,7 +942,7 @@ namespace zero.core.patterns.semaphore.core
 
                 _result[(Interlocked.Increment(ref _ingressToken) - 1) % (_maxBlockers << 1)] = value[i];
             }
-            return Release(releaseCount, async);
+            return Release(releaseCount, forceAsync);
         }
 
         /// <summary>

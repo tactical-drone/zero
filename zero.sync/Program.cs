@@ -67,11 +67,11 @@ namespace zero.sync
         {
             Console.WriteLine($"zero ({Environment.OSVersion}: {Environment.MachineName} - dotnet v{Environment.Version}, CPUs = {Environment.ProcessorCount})");
 
-            Task.Factory.StartNew(async () =>
-            {
-                await SemTestAsync();
-                await QueueTestAsync();
-            }, CancellationToken.None, TaskCreationOptions.DenyChildAttach, IoZeroScheduler.ZeroDefault).Unwrap().GetAwaiter().GetResult();
+            //Task.Factory.StartNew(async () =>
+            //{
+            //    //await SemTestAsync();
+            //    await QueueTestAsync();
+            //}, CancellationToken.None, TaskCreationOptions.DenyChildAttach, IoZeroScheduler.ZeroDefault).Unwrap().GetAwaiter().GetResult();
 
             //Tune dotnet for large tests
             ThreadPool.GetMinThreads(out var wt, out var cp);
@@ -89,10 +89,10 @@ namespace zero.sync
 
             var random = new Random((int)DateTime.Now.Ticks);
             //Tangle("tcp://192.168.1.2:15600");
-            var total = 2;
+            var total = 700;
             var maxDrones = 3;
             var maxAdjuncts = 16;
-            var boot = false;
+            var boot = true;
 
             var tasks  = new ConcurrentBag<Task<CcCollective>>();
             if (boot)
@@ -923,12 +923,12 @@ namespace zero.sync
             //.NET RUNTIME REFERENCE MUTEX FOR TESTING
             //var mutex = new IoZeroRefMut(asyncTasks.Token);
             //var mutex = new IoZeroSemaphoreSlim(asyncTasks, "zero slim", maxBlockers: capacity, initialCount: 1, zeroAsyncMode: false, enableAutoScale: false, enableFairQ: false, enableDeadlockDetection: true);
-            IIoZeroSemaphoreBase<bool> mutex = new IoZeroSemCore<bool>("zero core", capacity, 0);
-            mutex.ZeroRef(ref mutex, o => true);
+            IIoZeroSemaphoreBase<int> mutex = new IoZeroSemCore<int>("zero core", capacity, 0);
+            mutex = mutex.ZeroRef(ref mutex, o => Environment.TickCount);
                  
-            var releaseCount = 2;
+            var releaseCount = 1;
             var waiters = 3;
-            var releasers = 4;
+            var releasers = 2;
             var disableRelease = false;
             var targetSleep = (long)0;
             var logSpam = 30000;//at least 1
@@ -954,6 +954,7 @@ namespace zero.sync
             var dq_fps = new double[10];
             var r = new Random();
             var dq = new long[10];
+            var ERR_T = 16 << 1;
 
             //TaskCreationOptions options = TaskCreationOptions.LongRunning | TaskCreationOptions.PreferFairness | TaskCreationOptions.RunContinuationsAsynchronously;
             //TaskCreationOptions options = TaskCreationOptions.None;
@@ -968,7 +969,9 @@ namespace zero.sync
                      while (waiters>0)
                      {
                          sw.Restart();
-                         if (await mutex.WaitAsync().FastPath())
+                         var qt = await mutex.WaitAsync().FastPath();
+                         Debug.Assert(qt.ElapsedMs() < ERR_T);
+                         if (qt.ElapsedMs() < ERR_T)
                          {
                              var tt = sw.ElapsedMilliseconds;
                              Interlocked.Increment(ref eq1);
@@ -1010,6 +1013,7 @@ namespace zero.sync
                          }
                          else
                          {
+                             Console.WriteLine($"[{Thread.CurrentThread.ManagedThreadId}] T1: {qt.ElapsedMs()}ms");
                              //break;
                          }
 
@@ -1034,8 +1038,10 @@ namespace zero.sync
                         //     break;
            
                         sw2.Restart();
-                       if (await mutex.WaitAsync().FastPath())
-                       {
+                        var qt = await mutex.WaitAsync().FastPath();
+                        Debug.Assert(qt.ElapsedMs() < ERR_T);
+                        if (qt.ElapsedMs() < ERR_T)
+                        {
                            var tt = sw2.ElapsedMilliseconds;
                            Interlocked.Increment(ref eq2);
 
@@ -1075,7 +1081,7 @@ namespace zero.sync
                        }
                        else
                        {
-                           
+                           Console.WriteLine($"[{Thread.CurrentThread.ManagedThreadId}] T2: {qt.ElapsedMs()}ms");
                            //break;
                        }
            
@@ -1100,8 +1106,10 @@ namespace zero.sync
                         //     break;
            
                         sw2.Restart();
-                       if (await mutex.WaitAsync().FastPath())
-                       {
+                        var qt = await mutex.WaitAsync().FastPath();
+                        Debug.Assert(qt.ElapsedMs() < ERR_T);
+                        if (qt.ElapsedMs() < ERR_T)
+                        {
                            var tt = sw2.ElapsedMilliseconds;
                            Interlocked.Increment(ref eq3);
            
@@ -1125,7 +1133,8 @@ namespace zero.sync
                        }
                        else
                        {
-                           break;
+                           Console.WriteLine($"[{Thread.CurrentThread.ManagedThreadId}] T3: {qt.ElapsedMs()}ms");
+                           //break;
                        }
            
                    }
@@ -1151,7 +1160,7 @@ namespace zero.sync
                             {
                                 try
                                 {
-                                    if ((curCount = mutex.Release(true, releaseCount)) > 0)
+                                    if ((curCount = mutex.Release(Environment.TickCount, releaseCount)) > 0)
                                     {
                                         Interlocked.Add(ref semCount, curCount);
                                         Interlocked.Increment(ref semPollCount);
@@ -1159,8 +1168,8 @@ namespace zero.sync
                                     }
                                     else
                                     {
-                                        await Task.Yield();
-                                        //await Task.Delay(0, asyncTasks.Token);
+                                        //await Task.Yield();
+                                        await Task.Delay(1, asyncTasks.Token);
                                     }
 
                                 }

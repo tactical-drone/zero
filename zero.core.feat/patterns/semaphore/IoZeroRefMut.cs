@@ -52,13 +52,13 @@ namespace zero.core.feat.patterns.semaphore
             throw new NotImplementedException();
         }
 
-        public int Release(bool value, bool async = false)
+        public int Release(bool value, bool forceAsync = false)
         {
             _semaphore.Set();
             return 1;
         }
 
-        public int Release(bool[] value, bool async = false)
+        public int Release(bool[] value, bool forceAsync = false)
         {
             throw new NotImplementedException();
         }
@@ -77,8 +77,9 @@ namespace zero.core.feat.patterns.semaphore
         public int ReadyCount => 0;
         public int WaitCount { get; }
         public bool ZeroAsyncMode { get; }
+        public string Description => nameof(AsyncAutoResetEvent);
 
-        
+
         public int Capacity => 1;
         public bool RunContinuationsAsynchronously { get; }
 

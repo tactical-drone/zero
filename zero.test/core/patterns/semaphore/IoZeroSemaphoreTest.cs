@@ -74,21 +74,8 @@ namespace zero.test.core.patterns.semaphore
             await Task.Factory.StartNew(async state =>
             {
                 var threads = 4;
-                var preloadCount = 3000000;
-                var m = new IoZeroSemaphoreSlim(new CancellationTokenSource(), "test mutex", maxBlockers: threads, initialCount: preloadCount, zeroAsyncMode:false);
-
-                //_ = Task.Factory.StartNew(async () =>
-                //{
-                //    var done = false;
-                //    while (true)
-                //    {
-                //        await Task.Delay(5000);
-                //        if (done)
-                //        {
-                //            await m.WaitAsync().FastPath();
-                //        }
-                //    }
-                //});
+                var preloadCount = short.MaxValue;
+                var m = new IoZeroSemaphoreSlim(new CancellationTokenSource(), "test mutex", maxBlockers: preloadCount, initialCount: preloadCount, zeroAsyncMode:false);
 
                 var c = 0;
                 while (true)
@@ -98,7 +85,7 @@ namespace zero.test.core.patterns.semaphore
                     else
                         break;
 
-                    if (++c % 1000000 == 0)
+                    if (++c % 10000 == 0)
                         _output.WriteLine($"-> {c}");
                 }
 
@@ -112,7 +99,7 @@ namespace zero.test.core.patterns.semaphore
                         {
                             if (Interlocked.Decrement(ref _releaseCount) >= 0)
                             {
-                                if (m.Release(true) == -1)
+                                if (m.Release(true) <= 0)
                                     await Task.Delay(100);
                             }
                         }

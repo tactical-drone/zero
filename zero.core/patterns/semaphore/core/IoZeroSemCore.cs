@@ -58,7 +58,7 @@ namespace zero.core.patterns.semaphore.core
                 throw new ArgumentOutOfRangeException(nameof(primeResult));
 
             for (int i = 0; i < _head; i++)
-                _manualResetValueTaskSourceCore[i].SetResult(_primeReady(_primeContext));
+                _manualResetValueTaskSourceCore[i].SetResult(_primeReady!(_primeContext));
 
             return @ref;
         }
@@ -82,6 +82,7 @@ namespace zero.core.patterns.semaphore.core
         #endregion
 
         #region Properties
+        //private IIoZeroSemaphoreBase<T> _zeroRef;
         private readonly string _description;
         private volatile int _zeroed;
         private readonly IIoManualResetValueTaskSourceCore<T>[] _manualResetValueTaskSourceCore;
@@ -107,6 +108,7 @@ namespace zero.core.patterns.semaphore.core
         
         public void OnCompleted(Action<object> continuation, object state, short token, ValueTaskSourceOnCompletedFlags flags) => _manualResetValueTaskSourceCore[token].OnCompleted(continuation, state, token, flags);
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public int Release(T value, int releaseCount, bool forceAsync = false)
         {
             var released = 0;
@@ -117,15 +119,16 @@ namespace zero.core.patterns.semaphore.core
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public int Release(T value, bool async = false)
+        public int Release(T value, bool forceAsync = false)
         {
             if (ReadyCount >= _capacity)
                 return 0;
 
             long slot = -1;
             long latch;
-            //reserve a signal if set
-            while ((latch = _head) < _tail + _capacity && (slot = Interlocked.CompareExchange(ref _head, latch + 1, latch)) != latch)
+
+            //release a waiter
+            while ((latch = _head) < _tail && (slot = Interlocked.CompareExchange(ref _head, latch + 1, latch)) != latch)
             {
                 if (Zeroed())
                     return default;
@@ -137,38 +140,61 @@ namespace zero.core.patterns.semaphore.core
             {
                 try
                 {
-                    ref var core = ref _manualResetValueTaskSourceCore[slot % _capacity];
-                    if(core.Set(false))
-                        _manualResetValueTaskSourceCore[slot % _capacity].SetResult(value);
+                    _manualResetValueTaskSourceCore[slot % _capacity].RunContinuationsAsynchronously = forceAsync;
+                    _manualResetValueTaskSourceCore[slot % _capacity].SetResult(value);
                 }
                 catch
                 {
-                    //TODO: Why is this failing?
-#if TRACE
-                    Console.WriteLine($"[{Thread.CurrentThread.ManagedThreadId}]  -- Releasing.. => {slot} [FAILED] - {Description}");
-#endif
+                    Console.WriteLine($"[{Thread.CurrentThread.ManagedThreadId}] --> Releasing {slot} [FAILED] - {Description}");
                     return 0;
                 }
                 return 1;
             }
+
+            slot = -1;
+            
+            while (ReadyCount < _capacity && (latch = _head) < _tail + _capacity && (slot = Interlocked.CompareExchange(ref _head, latch + 1, latch)) != latch)
+            {
+                if (Zeroed())
+                    return default;
+
+                slot = -1;
+            }
+
+            if (slot == latch)
+            {
+                try
+                {
+                    slot %= _capacity;
+                    var core = _manualResetValueTaskSourceCore[slot];
+                    core.Reset((short)slot);
+                    core.RunContinuationsAsynchronously = forceAsync;
+                    core.SetResult(value);
+                }
+                catch
+                {
+                    Console.WriteLine($"[{Thread.CurrentThread.ManagedThreadId}] --> Reserving {slot} [FAILED] - {Description}");
+                }
+            }
             return 0;
         }
 
-        public int Release(T[] value, bool async = false)
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public int Release(T[] value, bool forceAsync = false)
         {
             var released = 0;
             foreach (var t in value)
-                released += Release(t, async);
+                released += Release(t, forceAsync);
             return released;
         }
 
         public ValueTask<T> WaitAsync()
         {
             long slot = -1;
-            long latch = 0;
+            long latch;
 
             //reserve a signal if set
-            while (ReadyCount > 0 && (latch = _tail) < _head &&
+            while ((latch = _tail) < _head &&
                    (slot = Interlocked.CompareExchange(ref _tail, latch + 1, latch)) != latch)
             {
                 if (Zeroed())
@@ -183,7 +209,7 @@ namespace zero.core.patterns.semaphore.core
 
             var tailIdx = Interlocked.Increment(ref _tail) - 1;
             Debug.Assert(tailIdx < _head + _capacity);
-            ref var taskCore = ref _manualResetValueTaskSourceCore[slot = tailIdx % _capacity];
+            var taskCore = _manualResetValueTaskSourceCore[slot = tailIdx % _capacity];
             taskCore.Reset((short)slot);
             
             return new ValueTask<T>(taskCore, (short)slot);

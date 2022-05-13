@@ -15,17 +15,18 @@ namespace zero.core.patterns.semaphore.core
         int Release(T value, int releaseCount, bool forceAsync = false);
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        int Release(T value, bool async = false);
+        int Release(T value, bool forceAsync = false);
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        int Release(T[] value, bool async = false);
+        int Release(T[] value, bool forceAsync = false);
 
-        //[MethodImpl(MethodImplOptions.AggressiveInlining)]
         ValueTask<T> WaitAsync();
         void ZeroSem();
         int ReadyCount { get; }
         int WaitCount { get; }
         public bool ZeroAsyncMode { get; }
+
+        public string Description { get; }
         public int Capacity { get; }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]

@@ -134,9 +134,12 @@ namespace zero.core.feat.models.protobuffer
 
                     try
                     {
-                        job._batch = await ((CcProtocBatchSource<TModel, TBatch>) job.Source).DequeueAsync().FastPath();
+                        job._batch = await ((CcProtocBatchSource<TModel, TBatch>)job.Source).DequeueAsync().FastPath();
                         job.GenerateJobId();
-                        Debug.Assert(job._batch != null);
+                    }
+                    catch when (job.Zeroed())
+                    {
+                        return false;
                     }
                     catch (Exception e) when(!job.Zeroed())
                     {

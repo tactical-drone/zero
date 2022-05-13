@@ -1,7 +1,6 @@
 ﻿using System;
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
-using System.Threading;
 using System.Threading.Tasks;
 using System.Threading.Tasks.Sources;
 using zero.core.patterns.semaphore.core;
@@ -26,6 +25,7 @@ namespace zero.core.patterns.semaphore
         public int ReadyCount => _pressure.GetStatus((short)_pressure.Version) == ValueTaskSourceStatus.Succeeded ? 1 : 0;
 
         public bool ZeroAsyncMode => false;
+        public string Description => $"{nameof(IoZeroResetEvent)}";
 
         public int Capacity => 1;
         public bool RunContinuationsAsynchronously => _pressure.RunContinuationsAsynchronously;
@@ -48,7 +48,7 @@ namespace zero.core.patterns.semaphore
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public int Release(int releaseCount = 1, bool async = false)
+        public int Release(int releaseCount = 1, bool forceAsync = false)
         {
             Debug.Assert(releaseCount == 1);
             try
@@ -73,12 +73,12 @@ namespace zero.core.patterns.semaphore
             throw new NotImplementedException();
         }
 
-        public int Release(bool value, bool async = false)
+        public int Release(bool value, bool forceAsync = false)
         {
             throw new NotImplementedException();
         }
 
-        public int Release(bool[] value, bool async = false)
+        public int Release(bool[] value, bool forceAsync = false)
         {
             throw new NotImplementedException();
         }

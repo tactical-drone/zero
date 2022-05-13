@@ -1,8 +1,11 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.VisualBasic;
 using Xunit;
 using Xunit.Abstractions;
 using zero.core.misc;
@@ -39,7 +42,7 @@ namespace zero.test.core.patterns.semaphore
                     Assert.InRange(ts.ElapsedMs(), 0, delayTime + ERR_T);
                     _output.WriteLine($"R -> {i} {ts.ElapsedMs()}ms");
                 }
-            });
+            }, CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Default);
 
             int ts;
             for (int i = 0; i < threads; i++)
@@ -89,7 +92,7 @@ namespace zero.test.core.patterns.semaphore
                     _output.WriteLine($"R -> {i}, {ts.ElapsedMs()}ms");
                 }
                 _output.WriteLine($"Done signalling");
-            });
+            }, CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Default);
 
             int ts;
             for (int i = 0; i < threads; i++)
@@ -134,7 +137,7 @@ namespace zero.test.core.patterns.semaphore
                     if(i % batchLog == 0)
                         _output.WriteLine($"R -> {i} {ts.ElapsedMs()}ms - {(double)i/t.ElapsedMsToSec():0.0} r/s");
                 }
-            });
+            }, CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Default);
 
             int ts;
             var t = Environment.TickCount;
@@ -193,7 +196,7 @@ namespace zero.test.core.patterns.semaphore
                         _output.WriteLine($"R -> {i} {ts.ElapsedMs()}ms - {(double)i / t.ElapsedMsToSec():0.0} r/s");
                 }
                 _output.WriteLine($"Done signalling");
-            });
+            }, CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Default);
 
             int ts;
             var t = Environment.TickCount;
@@ -218,6 +221,71 @@ namespace zero.test.core.patterns.semaphore
                 if (i % batchLog == 0)
                     _output.WriteLine($"D -> {i} {ts.ElapsedMs()}ms - {(double)i / t.ElapsedMsToSec():0.0} r/s");
             }
+        }
+
+
+        private volatile int _exclusiveCheck;
+        private volatile int _exclusiveCount; 
+        [Fact]
+        public async Task ExclusiveZoneAsync()
+        {
+            var batchLog = 1;
+            var threads = short.MaxValue >> 1;
+            var realThreads = 1;
+            var spamFactor = 100000;
+            var delayTime = 0;
+
+            IIoZeroSemaphoreBase<int> m = new IoZeroSemCore<int>("test", realThreads, 1, false);
+            m.ZeroRef(ref m, _ => Environment.TickCount);
+
+            var ts = Environment.TickCount;
+            var tests = new List<Task>();
+
+            for (int i = 0; i < realThreads; i++)
+            {
+                tests.Add(Task.Factory.StartNew(async () =>
+                {
+                    var t = Environment.TickCount;
+                    long x = 0;
+                    for (int i = 0; i < spamFactor; i++)
+                    {
+                        try
+                        {
+                            var qt = await m.WaitAsync().FastPath();
+
+                            if(i% (spamFactor/10) == 0)
+                                _output.WriteLine($"[{Thread.CurrentThread.ManagedThreadId}] R => {i} , {qt.ElapsedMs()}ms, {(double)_exclusiveCount / t.ElapsedMsToSec():0.0} r/s");
+                            //Assert.InRange(qt.ElapsedMs(), -ERR_T, delayTime + ERR_T);
+                            var Q = qt.ElapsedMs();
+                            if (Q < -ERR_T || Q > delayTime + ERR_T)
+                            {
+                                _output.WriteLine($"FAILED RANGE ({-ERR_T}, {Q} , {delayTime + ERR_T})");
+                            }
+                            Assert.Equal(1, Interlocked.Increment(ref _exclusiveCheck));
+
+                            Interlocked.Increment(ref _exclusiveCount);
+                            for (int j = 0; j < spamFactor; j++)
+                                x++;
+                        }
+                        catch (Exception ex)
+                        {
+                            _output.WriteLine($"{ex.Message}\n{ex.StackTrace}");
+                        }
+                        finally
+                        {
+                            Assert.Equal(0, Interlocked.Decrement(ref _exclusiveCheck));
+                            await Task.Delay(delayTime);
+                            m.Release(Environment.TickCount);
+                        }
+                    }
+                    _output.WriteLine($"Done signalling count = {_exclusiveCheck}, {(double)_exclusiveCheck / t.ElapsedMsToSec():0.0} r/s");
+                },CancellationToken.None,TaskCreationOptions.DenyChildAttach, TaskScheduler.Default).Unwrap());
+            }
+
+            await Task.WhenAll(tests).WaitAsync(TimeSpan.FromSeconds(1000));
+
+            Assert.Equal(spamFactor * realThreads, _exclusiveCount);
+            _output.WriteLine($"Done signalling count = {_exclusiveCount}, {(double)_exclusiveCount / ts.ElapsedMsToSec():0.0} r/s");
         }
     }
 }

@@ -63,14 +63,14 @@ namespace zero.core.patterns.semaphore
             return _semaphore.Release(value, releaseCount);
         }
 
-        public int Release(T value, bool async = false)
+        public int Release(T value, bool forceAsync = false)
         {
-            return _semaphore.Release(value, async);
+            return _semaphore.Release(value, forceAsync);
         }
 
-        public int Release(T[] value, bool async = false)
+        public int Release(T[] value, bool forceAsync = false)
         {
-            return _semaphore.Release(value, async);
+            return _semaphore.Release(value, forceAsync);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
