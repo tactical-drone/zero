@@ -61,10 +61,10 @@ namespace zero.core.patterns.queue
                 }
             };
 
-            _syncRoot = new IoZeroSemaphore<bool>(desc, maxBlockers: concurrencyLevel, initialCount: 1, cancellationTokenSource: _asyncTasks, runContinuationsAsynchronously: true);
-            _syncRoot.ZeroRef(ref _syncRoot, _ => true);
-            //_syncRoot = new IoZeroSemCore<bool>(desc, concurrencyLevel, 1, false);
+            //_syncRoot = new IoZeroSemaphore<bool>(desc, maxBlockers: concurrencyLevel, initialCount: 1, cancellationTokenSource: _asyncTasks, runContinuationsAsynchronously: true);
             //_syncRoot.ZeroRef(ref _syncRoot, _ => true);
+            _syncRoot = new IoZeroSemCore<bool>(desc, concurrencyLevel, 1, true);
+            _syncRoot.ZeroRef(ref _syncRoot, _ => true);
 
             if (_configuration.HasFlag(Mode.Pressure))
             {

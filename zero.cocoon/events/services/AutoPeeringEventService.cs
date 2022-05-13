@@ -17,13 +17,13 @@ namespace zero.cocoon.events.services
             _logger = logger;
         }
 
-        private const int EventBatchSize = 2048;
+        private const int EventBatchSize = 4096;
         private const int TotalBatches = 10;
         private readonly ILogger<AutoPeeringEventService> _logger;
         public static IoZeroQ<AutoPeerEvent>[] QueuedEvents =
         {
             //TODO tuning
-            new IoZeroQ<AutoPeerEvent>($"{nameof(AutoPeeringEventService)}", EventBatchSize<<5, true, new CancellationTokenSource(), 1 ),
+            new IoZeroQ<AutoPeerEvent>($"{nameof(AutoPeeringEventService)}", EventBatchSize<<6, true, new CancellationTokenSource(), 1 ),
             //new IoZeroQ<AutoPeerEvent>($"{nameof(AutoPeeringEventService)}", 16384, true )
         };
 

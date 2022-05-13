@@ -103,9 +103,9 @@ namespace zero.core.patterns.semaphore.core
 
         #region API
         public T GetResult(short token) => _manualResetValueTaskSourceCore[token].GetResult(token);
-        
-        public ValueTaskSourceStatus GetStatus(short token) => ValueTaskSourceStatus.Pending;
-        
+
+        public ValueTaskSourceStatus GetStatus(short token) => _manualResetValueTaskSourceCore[token].GetStatus(token);
+
         public void OnCompleted(Action<object> continuation, object state, short token, ValueTaskSourceOnCompletedFlags flags) => _manualResetValueTaskSourceCore[token].OnCompleted(continuation, state, token, flags);
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
