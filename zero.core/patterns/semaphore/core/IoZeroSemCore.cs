@@ -126,34 +126,11 @@ namespace zero.core.patterns.semaphore.core
 
             long slot = -1;
             long latch;
+            int cap = 0;
 
             //release a waiter
-            while ((latch = _head) < _tail && (slot = Interlocked.CompareExchange(ref _head, latch + 1, latch)) != latch)
-            {
-                if (Zeroed())
-                    return default;
-
-                slot = -1;
-            }
-
-            if (slot == latch)
-            {
-                try
-                {
-                    _manualResetValueTaskSourceCore[slot % _capacity].RunContinuationsAsynchronously = forceAsync;
-                    _manualResetValueTaskSourceCore[slot % _capacity].SetResult(value);
-                }
-                catch
-                {
-                    Console.WriteLine($"[{Thread.CurrentThread.ManagedThreadId}] --> Releasing {slot} [FAILED] - {Description}");
-                    return 0;
-                }
-                return 1;
-            }
-
-            slot = -1;
-            
-            while (ReadyCount < _capacity && (latch = _head) < _tail + _capacity && (slot = Interlocked.CompareExchange(ref _head, latch + 1, latch)) != latch)
+            reserve:
+            while ((latch = _head) < _tail + cap && (slot = Interlocked.CompareExchange(ref _head, latch + 1, latch)) != latch)
             {
                 if (Zeroed())
                     return default;
@@ -167,15 +144,54 @@ namespace zero.core.patterns.semaphore.core
                 {
                     slot %= _capacity;
                     var core = _manualResetValueTaskSourceCore[slot];
-                    core.Reset((short)slot);
-                    core.RunContinuationsAsynchronously = forceAsync;
-                    core.SetResult(value);
+                    if (core.Set(false))
+                    {
+                        core.RunContinuationsAsynchronously = forceAsync;
+                        if(cap > 0)
+                            core.Reset((short)slot);
+                        core.SetResult(value);
+                        return 1;
+                    }
                 }
                 catch
                 {
-                    Console.WriteLine($"[{Thread.CurrentThread.ManagedThreadId}] --> Reserving {slot} [FAILED] - {Description}");
+                    Console.WriteLine($"[{Thread.CurrentThread.ManagedThreadId}] --> Releasing {slot} [FAILED] - {Description}");
+                    return 0;
                 }
             }
+
+            //cog a release
+            if (cap == 0)
+            {
+                cap = _capacity;
+                goto reserve;
+            }
+
+            //slot = -1;
+            
+            //while ((latch = _head) < _tail + _capacity && (slot = Interlocked.CompareExchange(ref _head, latch + 1, latch)) != latch)
+            //{
+            //    if (Zeroed())
+            //        return default;
+
+            //    slot = -1;
+            //}
+
+            //if (slot == latch)
+            //{
+            //    try
+            //    {
+            //        slot %= _capacity;
+            //        var core = _manualResetValueTaskSourceCore[slot];
+            //        core.Reset((short)slot);
+            //        core.RunContinuationsAsynchronously = forceAsync;
+            //        core.SetResult(value);
+            //    }
+            //    catch
+            //    {
+            //        Console.WriteLine($"[{Thread.CurrentThread.ManagedThreadId}] --> Reserving {slot} [FAILED] - {Description}");
+            //    }
+            //}
             return 0;
         }
 
