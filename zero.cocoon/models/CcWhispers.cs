@@ -38,7 +38,7 @@ namespace zero.cocoon.models
         private readonly CcWhisperMsg _m;
 
         /// <summary>
-        /// Zero managed
+        /// DisposeAsync managed
         /// </summary>
         /// <returns></returns>
         public override async ValueTask ZeroManagedAsync()

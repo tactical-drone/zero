@@ -233,15 +233,17 @@ namespace zero.core.patterns.semaphore.core
                             break;
                         }
                         case SynchronizationContext sc:
+#pragma warning disable VSTHRD001 // Avoid legacy thread switching APIs
                             sc.Post(s =>
                             {
                                 var tuple = ((Action<object>, object))s;
                                 tuple.Item1(tuple.Item2);
                             }, (continuation, state));
+#pragma warning restore VSTHRD001 // Avoid legacy thread switching APIs
                             break;
 
                         case TaskScheduler ts:
-                            Task.Factory.StartNew(continuation, state, CancellationToken.None, TaskCreationOptions.DenyChildAttach, ts);
+                            _ = Task.Factory.StartNew(continuation, state, CancellationToken.None, TaskCreationOptions.DenyChildAttach, ts);
                             break;
                     }
                 }
@@ -324,11 +326,13 @@ namespace zero.core.patterns.semaphore.core
                     break;
 
                 case SynchronizationContext sc:
+#pragma warning disable VSTHRD001 // Avoid legacy thread switching APIs
                     sc.Post(s =>
                     {
                         var state = ((Action<object>, object))s;
                         state.Item1(state.Item2);
                     }, (_continuation, _continuationState));
+#pragma warning restore VSTHRD001 // Avoid legacy thread switching APIs
                     break;
 
                 case IoZeroScheduler zs:

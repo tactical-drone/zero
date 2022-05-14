@@ -43,7 +43,7 @@ namespace zero.test.core.patterns.bushings
                 {
                     if (c1.EventCount > count || ts.ElapsedMs() > totalTime * 3)
                     {
-                        await c1.Zero(null, "test done");
+                        await c1.DisposeAsync(null, "test done");
                     }
                     _output.WriteLine($"{c1.EventCount}/{count}");
                     await Task.Delay(500);
@@ -87,7 +87,7 @@ namespace zero.test.core.patterns.bushings
             {
                 if (c1.EventCount > count || ts.ElapsedMs() > targetTime * 3)
                 {
-                    await c1.Zero(null, "test done");
+                    await c1.DisposeAsync(null, "test done");
                 }
                 _output.WriteLine($"{c1.EventCount}/{count}");
                 await Task.Delay(1000).ConfigureAwait(true);
@@ -128,7 +128,7 @@ namespace zero.test.core.patterns.bushings
                 if (c1.EventCount > count || ts.ElapsedMs() > targetTime * 3)
                 {
                     _output.WriteLine(c1.DumpStats());
-                    await c1.Zero(null, "test done");
+                    await c1.DisposeAsync(null, "test done");
                 }
                 _output.WriteLine($"{c1.EventCount}/{count}");
                 await Task.Delay(2000);
@@ -167,7 +167,7 @@ namespace zero.test.core.patterns.bushings
             {
                 if (c1.EventCount > count || ts.ElapsedMs() > totalTimeMs / concurrencyLevel * 3)
                 {
-                    await c1.Zero(null, "test done");
+                    await c1.DisposeAsync(null, "test done");
                     break;
                 }
 

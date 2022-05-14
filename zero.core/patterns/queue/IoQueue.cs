@@ -149,7 +149,7 @@ namespace zero.core.patterns.queue
                         if (cur.Value is IIoNanite ioNanite)
                         {
                             if (!ioNanite.Zeroed())
-                                await ioNanite.Zero(nanite as IIoNanite, string.Empty).FastPath();
+                                await ioNanite.DisposeAsync(nanite as IIoNanite, string.Empty).FastPath();
                         }
                     }
                     catch when(Zeroed){}

@@ -141,7 +141,7 @@ namespace zero.core.network.ip
                     }
                     catch (Exception e)
                     {
-                       await newSocket.Zero(this, $"{nameof(acceptConnectionHandler)} returned with errors").FastPath();
+                       await newSocket.DisposeAsync(this, $"{nameof(acceptConnectionHandler)} returned with errors").FastPath();
                         _logger.Error(e, $"There was an error handling a new connection from {newSocket.RemoteNodeAddress} to `{newSocket.LocalNodeAddress}'");
                     }
                 }
@@ -305,7 +305,7 @@ namespace zero.core.network.ip
             {
                 _logger.Trace($"{nameof(SendAsync)}: err = {e.SocketErrorCode}, {Description}");
                 if (e.SocketErrorCode != SocketError.TimedOut)
-                    await Zero(this, e.Message).FastPath();
+                    await DisposeAsync(this, e.Message).FastPath();
             }
             catch (OperationCanceledException) { }
             catch (ObjectDisposedException)
@@ -318,7 +318,7 @@ namespace zero.core.network.ip
             {
                 var errMsg = $"{nameof(SendAsync)}: [FAILED], {Description}, l = {length}, o = {offset}: {e.Message}";
                 _logger.Trace(e, errMsg);
-                await Zero(this, errMsg).FastPath();
+                await DisposeAsync(this, errMsg).FastPath();
             }
 
             return 0;
@@ -346,14 +346,14 @@ namespace zero.core.network.ip
             {
                 var errMsg = $"{nameof(ReadAsync)}: {e.Message} - {Description}";
                 _logger?.Debug(errMsg);
-                await Zero(this, errMsg).FastPath();
+                await DisposeAsync(this, errMsg).FastPath();
             }
             catch (Exception) when (Zeroed()){}
             catch (Exception e) when(!Zeroed())
             {
                 var errMsg = $"{nameof(ReadAsync)}: [FAILED], {Description}, l = {length}, o = {offset}: {e.Message}";
                 _logger?.Error(e, errMsg);
-                await Zero(this, errMsg).FastPath();
+                await DisposeAsync(this, errMsg).FastPath();
             }
             return 0;
         }

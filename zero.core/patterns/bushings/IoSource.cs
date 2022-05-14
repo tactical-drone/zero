@@ -266,29 +266,29 @@ namespace zero.core.patterns.bushings
             await base.ZeroManagedAsync().FastPath();
 
             if(_pressure != null)
-                await _pressure.Zero(this, $"{nameof(ZeroManagedAsync)}: teardown").FastPath();
+                await _pressure.DisposeAsync(this, $"{nameof(ZeroManagedAsync)}: teardown").FastPath();
             if(_backPressure != null)
-                await _backPressure.Zero(this, $"{nameof(ZeroManagedAsync)}: teardown").FastPath();
+                await _backPressure.DisposeAsync(this, $"{nameof(ZeroManagedAsync)}: teardown").FastPath();
             if(_prefetchPressure != null)
-                await _prefetchPressure.Zero(this, $"{nameof(ZeroManagedAsync)}: teardown").FastPath();
+                await _prefetchPressure.DisposeAsync(this, $"{nameof(ZeroManagedAsync)}: teardown").FastPath();
 
             var reason = $"{nameof(IoSource<TJob>)}: teardown";
 
             foreach (var o in ObjectStorage)
             {
                 if (o.Value is IIoNanite ioNanite)
-                    await ioNanite.Zero(this, reason).FastPath();
+                    await ioNanite.DisposeAsync(this, reason).FastPath();
             }
             ObjectStorage.Clear();
 
             foreach (var ioConduit in IoConduits.Values)
-                await ioConduit.Zero(this, reason).FastPath();
+                await ioConduit.DisposeAsync(this, reason).FastPath();
             
             IoConduits.Clear();
 
             try
             {
-                RecentlyProcessed?.Zero(this, reason);
+                RecentlyProcessed?.DisposeAsync(this, reason);
             }
             catch { }
 
@@ -333,7 +333,7 @@ namespace zero.core.patterns.bushings
 
                         if (!@this.IoConduits.TryAdd(id, newConduit))
                         {
-                            await newConduit.Zero(@this,$"{nameof(CreateConduitOnceAsync)}: lost race").FastPath();
+                            await newConduit.DisposeAsync(@this,$"{nameof(CreateConduitOnceAsync)}: lost race").FastPath();
                             @this._logger.Trace($"Could not add {id}, already exists = {@this.IoConduits.ContainsKey(id)}");
                             return false;
                         }

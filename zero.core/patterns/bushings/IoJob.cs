@@ -239,7 +239,7 @@ namespace zero.core.patterns.bushings
             }, this);
 #endif
             if (PreviousJob != null)
-                await PreviousJob.Zero(this, $"{nameof(IoJob<TJob>)}: teardown").FastPath();
+                await PreviousJob.DisposeAsync(this, $"{nameof(IoJob<TJob>)}: teardown").FastPath();
         }
 
         /// <summary>

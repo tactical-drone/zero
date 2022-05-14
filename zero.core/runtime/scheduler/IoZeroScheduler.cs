@@ -109,7 +109,7 @@ namespace zero.core.runtime.scheduler
                 _ = Task.Factory.StartNew(static async state =>
                 {
                     var (@this,i) = (ValueTuple<IoZeroScheduler,int>)state;
-                    await @this.SpawnSync(i).FastPath();
+                    await @this.SpawnNoAsync(i).FastPath();
                 },(this,i), CancellationToken.None,TaskCreationOptions.DenyChildAttach, _fallbackScheduler);
             }
             for (var i = 0; i < _asyncCount; i++)
@@ -126,7 +126,7 @@ namespace zero.core.runtime.scheduler
                 _ = Task.Factory.StartNew(static async state =>
                 {
                     var (@this, i) = (ValueTuple<IoZeroScheduler, int>)state;
-                    await @this.SpawnOneShot(i).FastPath().ConfigureAwait(false);
+                    await @this.SpawnOneShotAsync(i).FastPath().ConfigureAwait(false);
                 }, (this, i), CancellationToken.None, TaskCreationOptions.DenyChildAttach | TaskCreationOptions.HideScheduler, Default);
             }
         }
@@ -429,7 +429,7 @@ namespace zero.core.runtime.scheduler
                                         //_ = Task.Factory.StartNew(static async state =>
                                         //{
                                         //    var @this = (IoZeroScheduler)state;
-                                        //    await @this.SpawnSync().FastPath();
+                                        //    await @this.SpawnNoAsync().FastPath();
                                         //}, @this, CancellationToken.None, TaskCreationOptions.DenyChildAttach, Default);
                                     }
                                     else
@@ -778,7 +778,7 @@ var d = 0;
             }
         }
 
-        private async ValueTask SpawnOneShot(int threadIndex)
+        private async ValueTask SpawnOneShotAsync(int threadIndex)
         {
             await foreach (var job in _oneShotQueue.PumpOnConsumeAsync(threadIndex))
             {
@@ -794,7 +794,7 @@ var d = 0;
             }
         }
 
-        private async ValueTask SpawnSync(int threadIndex)
+        private async ValueTask SpawnNoAsync(int threadIndex)
         {
             await foreach (var job in _syncQueue.BalanceOnConsumeAsync(threadIndex).ConfigureAwait(false))
             {

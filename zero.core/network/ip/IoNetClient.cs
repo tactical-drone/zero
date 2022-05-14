@@ -135,7 +135,7 @@ namespace zero.core.network.ip
         public override async ValueTask ZeroManagedAsync()
         {
             await base.ZeroManagedAsync().ConfigureAwait(true);
-            await IoNetSocket.Zero(this, $"{nameof(ZeroManagedAsync)}: teardown").ConfigureAwait(true);
+            await IoNetSocket.DisposeAsync(this, $"{nameof(ZeroManagedAsync)}: teardown").ConfigureAwait(true);
         }
 
         /// <summary>
@@ -192,7 +192,7 @@ namespace zero.core.network.ip
                         _ = Task.Factory.StartNew(static s =>
                         {
                             var @this = (IoNetClient<TJob>)s;
-                            return @this.Zero(@this, $"Socket disconnected - {@this.IoNetSocket.Description}");
+                            return @this.DisposeAsync(@this, $"Socket disconnected - {@this.IoNetSocket.Description}");
                         }, this, CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Default);
                         
                         //Do cleanup

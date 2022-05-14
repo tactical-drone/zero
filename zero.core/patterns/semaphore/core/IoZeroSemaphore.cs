@@ -17,7 +17,7 @@ using zero.core.runtime.scheduler;
 namespace zero.core.patterns.semaphore.core
 {
     /// <summary>
-    /// Zero alloc semaphore with strong order guarantees
+    /// DisposeAsync alloc semaphore with strong order guarantees
     /// 
     /// Experimental auto capacity scaling (disabled by default), set max count manually instead for max performance.
     /// </summary>

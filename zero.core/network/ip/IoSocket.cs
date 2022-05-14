@@ -52,7 +52,7 @@ namespace zero.core.network.ip
             }
             catch (ObjectDisposedException)
             {
-                _ = Task.Factory.StartNew(@this => ((IoSocket)@this).Zero((IoSocket)@this, "RACE"),this, CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Default);
+                _ = Task.Factory.StartNew(@this => ((IoSocket)@this).DisposeAsync((IoSocket)@this, "RACE"),this, CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Default);
                 return;
             }
             catch (Exception e)

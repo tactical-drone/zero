@@ -218,7 +218,7 @@ namespace zero.core.patterns.misc
             {
                 var @this = (IoNanoprobe)state;
 
-                await @this.Zero(@this, $"{nameof(IDisposable)}").FastPath().ConfigureAwait(false);
+                await @this.DisposeAsync(@this, $"{nameof(IDisposable)}").FastPath().ConfigureAwait(false);
             },this, CancellationToken.None,TaskCreationOptions.DenyChildAttach, TaskScheduler.Default);
         }
 
@@ -235,7 +235,7 @@ namespace zero.core.patterns.misc
         /// <summary>
         /// ZeroAsync
         /// </summary>
-        public async ValueTask Zero(IIoNanite @from, string reason, [CallerFilePath] string filePath = null, [CallerMemberName] string methodName = null, [CallerLineNumber] int lineNumber = default)
+        public async ValueTask DisposeAsync(IIoNanite @from, string reason, [CallerFilePath] string filePath = null, [CallerMemberName] string methodName = null, [CallerLineNumber] int lineNumber = default)
         {
             // Only once
             if (_zeroed > 0 || Interlocked.CompareExchange(ref _zeroed, 1, 0) != 0)
@@ -435,7 +435,7 @@ namespace zero.core.patterns.misc
                 if (_zeroHiveMind != null)
                 {
                     while (await _zeroHiveMind.DequeueAsync().FastPath().ConfigureAwait(false) is { } zeroSub)
-                        await zeroSub.Zero(this, $"[ZERO CASCADE] from {desc}").FastPath().ConfigureAwait(false);
+                        await zeroSub.DisposeAsync(this, $"[ZERO CASCADE] from {desc}").FastPath().ConfigureAwait(false);
                 }
                 
                 CascadeTime = CascadeTime.ElapsedMs();
@@ -645,7 +645,7 @@ namespace zero.core.patterns.misc
         }
 
         /// <summary>
-        /// Async execution options. <see cref="Zero"/> needs trust, but verify...
+        /// Async execution options. <see cref="DisposeAsync"/> needs trust, but verify...
         /// </summary>
         /// <param name="continuation">The continuation</param>
         /// <param name="state">user state</param>
@@ -674,7 +674,7 @@ namespace zero.core.patterns.misc
                     catch (TaskCanceledException e) when ( nanoprobe != null && !nanoprobe.Zeroed() ||
                                                nanoprobe == null && @this._zeroed == 0)
                     {
-                        _logger.Trace(e,$"{Path.GetFileName(fileName)}:{methodName}() line {lineNumber} - [{@this.Description}]: {nameof(Zero)}");
+                        _logger.Trace(e,$"{Path.GetFileName(fileName)}:{methodName}() line {lineNumber} - [{@this.Description}]: {nameof(DisposeAsync)}");
                     }
 #else
                     catch (TaskCanceledException) { }
@@ -685,14 +685,16 @@ namespace zero.core.patterns.misc
                     catch (Exception e) when (nanoprobe != null && !nanoprobe.Zeroed() ||
                                               nanoprobe == null && @this._zeroed == 0)
                     {
-                        _logger.Error(e, $"{Path.GetFileName(fileName)}:{methodName}() line {lineNumber} - [{@this.Description}]: {nameof(Zero)}");
+                        _logger.Error(e, $"{Path.GetFileName(fileName)}:{methodName}() line {lineNumber} - [{@this.Description}]: {nameof(DisposeAsync)}");
                     }
 
                     return default;
                 }, ValueTuple.Create(this, continuation, state, filePath, methodName, lineNumber), asyncToken, options, scheduler??TaskScheduler.Current);
 
+#pragma warning disable VSTHRD103 // Call async methods when in an async method
                 return await zeroAsyncTask.Result.FastPath();
-                
+#pragma warning restore VSTHRD103 // Call async methods when in an async method
+
             }
             catch (TaskCanceledException e) when (!nanite.Zeroed())
             {
@@ -702,14 +704,14 @@ namespace zero.core.patterns.misc
             catch(Exception) when (nanite.Zeroed()){}
             catch (Exception e) when (!nanite.Zeroed())
             {
-                throw ZeroException.ErrorReport(this, $"{nameof(Zero)} returned with errors!", e);
+                throw ZeroException.ErrorReport(this, $"{nameof(DisposeAsync)} returned with errors!", e);
             }
 
             return default;
         }
 
         /// <summary>
-        /// Async execution options. <see cref="Zero"/> needs trust, but verify...
+        /// Async execution options. <see cref="DisposeAsync"/> needs trust, but verify...
         /// </summary>
         /// <param name="continuation">The continuation</param>
         /// <param name="state">user state</param>
@@ -739,7 +741,7 @@ namespace zero.core.patterns.misc
                     catch (TaskCanceledException e) when ( nanoprobe != null && !nanoprobe.Zeroed() ||
                                                nanoprobe == null && @this._zeroed == 0)
                     {
-                        _logger.Trace(e,$"{Path.GetFileName(fileName)}:{methodName}() line {lineNumber} - [{@this.Description}]: {nameof(Zero)}");
+                        _logger.Trace(e,$"{Path.GetFileName(fileName)}:{methodName}() line {lineNumber} - [{@this.Description}]: {nameof(DisposeAsync)}");
                     }
 #else
                     catch (TaskCanceledException) { }
@@ -747,7 +749,7 @@ namespace zero.core.patterns.misc
                     catch when (nanoprobe != null && nanoprobe.Zeroed() || nanoprobe == null && @this._zeroed > 0) { }
                     catch (Exception e) when (nanoprobe != null && !nanoprobe.Zeroed() || nanoprobe == null && @this._zeroed == 0)
                     {
-                        _logger.Error(e, $"{Path.GetFileName(fileName)}:{methodName}() line {lineNumber} - [{@this.Description}]: {nameof(Zero)}");
+                        _logger.Error(e, $"{Path.GetFileName(fileName)}:{methodName}() line {lineNumber} - [{@this.Description}]: {nameof(DisposeAsync)}");
                     }
                 }, ValueTuple.Create(this, continuation, state, filePath, methodName, lineNumber), asyncToken, options, scheduler??TaskScheduler.Current);
 
@@ -764,12 +766,12 @@ namespace zero.core.patterns.misc
             catch (Exception) when (nanite.Zeroed()) { }
             catch (Exception e) when (!nanite.Zeroed())
             {
-                throw ZeroException.ErrorReport(this, $"{nameof(Zero)} returned with errors!", e);
+                throw ZeroException.ErrorReport(this, $"{nameof(DisposeAsync)} returned with errors!", e);
             }
         }
 
         /// <summary>
-        /// Async execution options. <see cref="Zero"/> needs trust, but verify...
+        /// Async execution options. <see cref="DisposeAsync"/> needs trust, but verify...
         /// </summary>
         /// <param name="continuation">The continuation</param>
         /// <param name="state">user state</param>
@@ -785,7 +787,7 @@ namespace zero.core.patterns.misc
         }
 
         /// <summary>
-        /// Async execution options. <see cref="Zero"/> needs trust, but verify...
+        /// Async execution options. <see cref="DisposeAsync"/> needs trust, but verify...
         /// </summary>
         /// <param name="continuation">The continuation</param>
         /// <param name="state">user state</param>
@@ -811,7 +813,7 @@ namespace zero.core.patterns.misc
         }
 
         /// <summary>
-        /// Async execution options. <see cref="Zero"/> needs trust, but verify...
+        /// Async execution options. <see cref="DisposeAsync"/> needs trust, but verify...
         /// </summary>
         /// <param name="continuation">The continuation</param>
         /// <param name="state">user state</param>
@@ -837,7 +839,7 @@ namespace zero.core.patterns.misc
         }
 
         /// <summary>
-        /// Async execution options. <see cref="Zero"/> needs trust, but verify...
+        /// Async execution options. <see cref="DisposeAsync"/> needs trust, but verify...
         /// </summary>
         /// <param name="continuation">The continuation</param>
         /// <param name="state">user state</param>

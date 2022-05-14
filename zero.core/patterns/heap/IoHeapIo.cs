@@ -117,7 +117,7 @@ namespace zero.core.patterns.heap
             {
                 _ = IoZeroScheduler.AsyncBridge.RunAsync(async () =>
                 {
-                    await item.Zero(new IoNanoprobe($"{item.Description}"),
+                    await item.DisposeAsync(new IoNanoprobe($"{item.Description}"),
                         $"{nameof(IoHeapIo<TItem, TContext>)}: teardown direct = {zero}, cascade = {Zeroed}");
                 });
             }

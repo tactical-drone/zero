@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
-using System.Threading.Tasks.Sources;
 using zero.core.patterns.semaphore.core;
 
 namespace zero.core.patterns.misc
@@ -14,40 +13,7 @@ namespace zero.core.patterns.misc
     public static class TaskExtensions
     {
         /// <summary>
-        /// Executes a task but interrupts it manually if cancellation is requested
-        /// </summary>
-        /// <typeparam name="TResult">The type of the result.</typeparam>
-        /// <param name="asyncTask">The asynchronous task.</param>
-        /// <param name="cancellationToken">The cancellation token.</param>
-        /// <returns>The original task, or the cancellation task if this task was canceled</returns>
-        //        public static async Task<AggregateException> HandleCancellationAsync<TResult>(
-        //            this Task<TResult> asyncTask,
-        //            CancellationToken cancellationToken)
-        //        {
-        //            var tcs = new TaskCompletionSource<TResult>();
-        //            var registration = cancellationToken.Register(() =>
-        //                tcs.TrySetCanceled(), false);
-        //            var cancellationTask = tcs.Task;
-
-        //            var readyTask = await Task.WhenAny(asyncTask, cancellationTask).ConfigureAwait(ZC);
-        //            if (readyTask == cancellationTask)
-
-
-        //                //TODO, what happens here?
-        //#pragma warning disable CS4014 // Because this call is not awaited, execution of the current method continues before the call is completed
-        //                asyncTask.ContinueWith(_ => asyncTask.Exception,
-
-        //                    TaskContinuationOptions.OnlyOnFaulted |
-        //                    TaskContinuationOptions.ExecuteSynchronously).ConfigureAwait(ZC);
-        //#pragma warning restore CS4014 // Because this call is not awaited, execution of the current method continues before the call is completed
-
-        //            await registration.DisposeAsync();
-
-        //            return await readyTask.ConfigureAwait(ZC);
-        //        }
-
-        /// <summary>
-        /// 
+        /// Foreach async
         /// </summary>
         /// <param name="enumerable"></param>
         /// <param name="action"></param>
@@ -72,8 +38,12 @@ namespace zero.core.patterns.misc
         /// <param name="task">The value task to be fast pathed</param>
         /// <returns>The result of the async op</returns>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
+#pragma warning disable VSTHRD200 // Use "Async" suffix for async methods
+#pragma warning disable VSTHRD103 // Call async methods when in an async method
         public static ValueTask<T> FastPath<T>(this ValueTask<T> task) => task.IsCompletedSuccessfully ? new ValueTask<T>(task.Result) : task;
-        
+#pragma warning restore VSTHRD103 // Call async methods when in an async method
+#pragma warning restore VSTHRD200 // Use "Async" suffix for async methods
+
         /// <summary>
         /// Fast path for value tasks
         /// </summary>
@@ -81,10 +51,9 @@ namespace zero.core.patterns.misc
         /// <param name="task">The value task to be fast pathed</param>
         /// <returns>The result of the async op</returns>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static ValueTask FastPath(this ValueTask task)
-        {
-            return task.IsCompletedSuccessfully ? default : task;
-        }
+#pragma warning disable VSTHRD200 // Use "Async" suffix for async methods
+        public static ValueTask FastPath(this ValueTask task) => task.IsCompletedSuccessfully ? default : task;
+#pragma warning restore VSTHRD200 // Use "Async" suffix for async methods
 
         /// <summary>
         /// Block on a token until cancelled (wait one causes problems)

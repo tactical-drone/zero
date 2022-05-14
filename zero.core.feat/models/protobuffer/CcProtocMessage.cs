@@ -147,7 +147,7 @@ namespace zero.core.feat.models.protobuffer
                             {
                                 //if (!job.MessageService.IsOperational())
                                 {
-                                    await job.MessageService.Zero(ioJob, "ZERO READS!!!").FastPath();
+                                    await job.MessageService.DisposeAsync(ioJob, "ZERO READS!!!").FastPath();
                                     await job.SetStateAsync(IoJobMeta.JobState.Error).FastPath();
                                 }
                                 //else

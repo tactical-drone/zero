@@ -119,7 +119,7 @@ namespace zero.test.core.patterns.semaphore
                         _output.WriteLine($"<- {_releaseCount}");
                     if (_releaseCount <= 0)
                     {
-                        await m.Zero(null, "test done");
+                        await m.DisposeAsync(null, "test done");
                         break;
                     }
                 }

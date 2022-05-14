@@ -62,8 +62,11 @@ namespace zero.cocoon
             Services.CcRecord.Endpoints.TryAdd(CcService.Keys.fpc, fpcAddress);
 
             _ = StartHubAsync(udpPrefetch, udpConcurrencyLevel);
-            _autoPeering.ZeroHiveAsync(this).AsTask().GetAwaiter().GetResult();
-            
+            IoZeroScheduler.AsyncBridge.Run(async () =>
+            {
+                await _autoPeering.ZeroHiveAsync(this).FastPath();
+            });
+
             DupSyncRoot = new IoZeroSemaphoreSlim(AsyncTasks,  $"Dup checker for {ccDesignation.IdString()}", maxBlockers: Math.Max(MaxDrones * tcpConcurrencyLevel,1), initialCount: 1);
             IoZeroScheduler.AsyncBridge.Run(async () =>
             {
@@ -142,7 +145,7 @@ namespace zero.cocoon
                 return;
 
             if (_autoPeering != null)
-                await _autoPeering.Zero(this, "RESTART!").FastPath();
+                await _autoPeering.DisposeAsync(this, "RESTART!").FastPath();
 
             _autoPeering = new CcHub(this, _peerAddress, static (node, client, extraData) => new CcAdjunct((CcHub)node, client, extraData), udpPrefetch, udpConcurrencyLevel);
         }
@@ -227,16 +230,18 @@ namespace zero.cocoon
             await base.ZeroManagedAsync().FastPath();
 
             var autoPeeringDesc = _autoPeering.Description;
-            await _autoPeering.Zero(this, $"{nameof(ZeroManagedAsync)}: teardown").FastPath();
+            await _autoPeering.DisposeAsync(this, $"{nameof(ZeroManagedAsync)}: teardown").FastPath();
 
-            
+
+#pragma warning disable VSTHRD103 // Call async methods when in an async method
             if (!_autoPeeringTask.Wait(TimeSpan.FromSeconds(parm_hub_teardown_timeout_s)))
             {
                 _logger.Warn(_autoPeeringTask.Exception,$"{nameof(CcCollective)}.{nameof(ZeroManagedAsync)}: {nameof(_autoPeeringTask)} exit slow..., {autoPeeringDesc}");
             }
+#pragma warning restore VSTHRD103 // Call async methods when in an async method
 
             var id = Hub.Router?.Designation?.IdString();
-            await DupSyncRoot.Zero(this, $"{nameof(ZeroManagedAsync)}: teardown").FastPath();
+            await DupSyncRoot.DisposeAsync(this, $"{nameof(ZeroManagedAsync)}: teardown").FastPath();
             await DupHeap.ZeroManagedAsync<object>().FastPath();
             DupChecker.Clear();
 
@@ -264,7 +269,7 @@ namespace zero.cocoon
         }
 
         /// <summary>
-        /// Primes for Zero
+        /// Primes for DisposeAsync
         /// </summary>
         /// <returns>The task</returns>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -944,7 +949,7 @@ namespace zero.cocoon
                     var drone = await ConnectAsync(IoNodeAddress.CreateFromEndpoint("tcp", adjunct.RemoteAddress.IpEndPoint) , adjunct, timeout:parm_futile_timeout_ms).FastPath();
                     if (Zeroed() || drone == null || ((CcDrone)drone).Adjunct.Zeroed())
                     {
-                        if (drone != null) await drone.Zero(this, $"{nameof(ConnectAsync)} was not successful [OK]").FastPath();
+                        if (drone != null) await drone.DisposeAsync(this, $"{nameof(ConnectAsync)} was not successful [OK]").FastPath();
                         _logger.Debug($"{nameof(ConnectToDroneAsync)}: [ABORTED], {adjunct.Description}, {adjunct.MetaDesc}");
                         return false;
                     }
@@ -991,7 +996,7 @@ namespace zero.cocoon
                     else
                     {
                         _logger.Debug($"+|{drone.Description}");
-                        await drone.Zero(this, "RACED").FastPath();
+                        await drone.DisposeAsync(this, "RACED").FastPath();
                     }
 
                     return false;

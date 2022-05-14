@@ -172,7 +172,7 @@ namespace zero.core.network.ip
                 if (!connected)
                 {
                     var errMsg = $"{Description}: {nameof(ConnectAsync)} to {remoteAddress.Key} [FAILED]";
-                    await ioNetClient!.Zero(this, errMsg).FastPath();
+                    await ioNetClient!.DisposeAsync(this, errMsg).FastPath();
 
                     if (!Zeroed())
                         _logger.Error(errMsg);

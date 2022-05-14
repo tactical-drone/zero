@@ -620,7 +620,7 @@ namespace zero.test.core.patterns.queue{
                 }
                 Assert.Equal(NrOfItems, count);
                 
-            }, _output).Unwrap();
+            }, _output, CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Default).Unwrap();
 
             await Task.WhenAll(q,dq).WithTimeout(TimeSpan.FromMilliseconds(BlockDelay * NrOfItems / Concurrency * 2));
 
@@ -631,6 +631,7 @@ namespace zero.test.core.patterns.queue{
             public Context()
             {
                 Q = new IoQueue<int>("test Q", 2000, 1000);
+#pragma warning disable VSTHRD002 // Avoid problematic synchronous waits
                 Q.EnqueueAsync(2).FastPath().GetAwaiter().GetResult();
                 Q.EnqueueAsync(3).FastPath().GetAwaiter();
                 Head = Q.PushBackAsync(1).FastPath().GetAwaiter().GetResult();
@@ -640,6 +641,7 @@ namespace zero.test.core.patterns.queue{
                 Q.EnqueueAsync(7).FastPath().GetAwaiter();
                 Q.EnqueueAsync(8).FastPath().GetAwaiter();
                 Tail = Q.EnqueueAsync(9).FastPath().GetAwaiter().GetResult();
+#pragma warning restore VSTHRD002 // Avoid problematic synchronous waits
             }
 
             private readonly bool Zc = IoNanoprobe.ContinueOnCapturedContext;

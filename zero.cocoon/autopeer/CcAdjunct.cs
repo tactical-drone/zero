@@ -674,9 +674,9 @@ namespace zero.cocoon.autopeer
                 _logger.Info($"ZERO HUB PROXY: from: {ZeroedFrom?.Description}, reason: {ZeroReason}, {Description}");
             }
 
-            await _probeRequest.Zero(this, $"{nameof(ZeroManagedAsync)}: teardown").FastPath();
-            await _fuseRequest.Zero(this, $"{nameof(ZeroManagedAsync)}: teardown").FastPath();
-            await _scanRequest.Zero(this, $"{nameof(ZeroManagedAsync)}: teardown").FastPath();
+            await _probeRequest.DisposeAsync(this, $"{nameof(ZeroManagedAsync)}: teardown").FastPath();
+            await _fuseRequest.DisposeAsync(this, $"{nameof(ZeroManagedAsync)}: teardown").FastPath();
+            await _scanRequest.DisposeAsync(this, $"{nameof(ZeroManagedAsync)}: teardown").FastPath();
 
             ResetState(AdjunctState.FinalState);
         }
@@ -769,7 +769,7 @@ namespace zero.cocoon.autopeer
                 if (SecondsSincePat > CcCollective.parm_mean_pat_delay_s)
                 {
                     _logger.Trace($"w {nameof(EnsureRoboticsAsync)} - {Description}, s = {SecondsSincePat} >> {CcCollective.parm_mean_pat_delay_s}, {MetaDesc}");
-                    await Zero(CcCollective,$"-wd: l = {SecondsSincePat}s, up = {TimeSpan.FromMilliseconds(UpTime.ElapsedMs()).TotalHours:0.00}h").FastPath();
+                    await DisposeAsync(CcCollective,$"-wd: l = {SecondsSincePat}s, up = {TimeSpan.FromMilliseconds(UpTime.ElapsedMs()).TotalHours:0.00}h").FastPath();
                 }
             }
             catch when(Zeroed()){}
@@ -841,7 +841,7 @@ namespace zero.cocoon.autopeer
                             return false;
                         }
 
-                        await existingNeighbor.Zero(this, $"Dropped because stale from {existingNeighbor.Description}").FastPath();
+                        await existingNeighbor.DisposeAsync(this, $"Dropped because stale from {existingNeighbor.Description}").FastPath();
                     }
                     catch when (existingNeighbor?.Source?.Zeroed()?? true) {}
                     catch (Exception e)when(!existingNeighbor.Source.Zeroed())
@@ -1069,7 +1069,7 @@ namespace zero.cocoon.autopeer
 #if DEBUG
                     _logger?.Warn(msg);           
 #endif
-                    await proxy.Zero(this, msg).FastPath();
+                    await proxy.DisposeAsync(this, msg).FastPath();
                     proxy = null;
                 }
             }
@@ -1848,7 +1848,7 @@ namespace zero.cocoon.autopeer
                                 var dropped = badList.FirstOrDefault();
                                 if (dropped != default && ((CcAdjunct)dropped).State < AdjunctState.Verified) 
                                 {
-                                    await ((CcAdjunct)dropped).Zero(@this,"got collected").FastPath();
+                                    await ((CcAdjunct)dropped).DisposeAsync(@this,"got collected").FastPath();
                                     @this._logger.Debug($"@ {dropped.Description}");
                                 }
                             }
@@ -1858,7 +1858,7 @@ namespace zero.cocoon.autopeer
                                 {
                                     if (((CcAdjunct)ioNeighbor).State < AdjunctState.Connected)
                                     {
-                                        await ((CcAdjunct)ioNeighbor).Zero(@this,"Assimilated!").FastPath();
+                                        await ((CcAdjunct)ioNeighbor).DisposeAsync(@this,"Assimilated!").FastPath();
                                         @this._logger.Debug($"@ {ioNeighbor.Description}");
                                         break;
                                     }
@@ -1869,7 +1869,7 @@ namespace zero.cocoon.autopeer
                         //Transfer?
                         if (@this.Hub.Neighbors.Count > @this.CcCollective.MaxAdjuncts || !@this.Hub.Neighbors.TryAdd(newAdjunct.Key, newAdjunct))
                         {
-                            await newAdjunct.Zero(@this,$"Adjunct already exists, dropping {newAdjunct.Description}").FastPath();
+                            await newAdjunct.DisposeAsync(@this,$"Adjunct already exists, dropping {newAdjunct.Description}").FastPath();
                             return false;    
                         }
                         return true;
@@ -1901,7 +1901,7 @@ namespace zero.cocoon.autopeer
                     if (!await newAdjunct.ProbeAsync("SYN-VCK").FastPath())
                     {
                         _logger.Trace($"{nameof(ProbeAsync)}: SYN-VCK [FAILED], {newAdjunct.Description}");
-                        newAdjunct?.Zero(this, "CollectAsync failed! -> SYN-VCK [FAILED]");
+                        newAdjunct?.DisposeAsync(this, "CollectAsync failed! -> SYN-VCK [FAILED]");
                         return false;
                     }
                 }
@@ -1933,7 +1933,7 @@ namespace zero.cocoon.autopeer
                 return true;
             }
 
-            newAdjunct?.Zero(this,"CollectAsync failed!");
+            newAdjunct?.DisposeAsync(this,"CollectAsync failed!");
             return false;
         }
 
@@ -2477,9 +2477,9 @@ namespace zero.cocoon.autopeer
                     if (ZeroProbes > parm_zombie_max_connection_attempts)
                     {
 #if DEBUG
-                        await Zero(this, $"drone left, T = {TimeSpan.FromMilliseconds(UpTime.ElapsedMs()).TotalMinutes:0.0}min ~ {_sibling?.UpTime.ElapsedMsToSec()/60.0:0.0}min, {_sibling?.Description}").FastPath();
+                        await DisposeAsync(this, $"drone left, T = {TimeSpan.FromMilliseconds(UpTime.ElapsedMs()).TotalMinutes:0.0}min ~ {_sibling?.UpTime.ElapsedMsToSec()/60.0:0.0}min, {_sibling?.Description}").FastPath();
 #else
-                        await Zero(this, $"wd: s = {SecondsSincePat}, probed = {ZeroProbes} << {parm_zombie_max_connection_attempts}, T = {TimeSpan.FromMilliseconds(UpTime.ElapsedMs()).TotalMinutes:0.0}min");
+                        await DisposeAsync(this, $"wd: s = {SecondsSincePat}, probed = {ZeroProbes} << {parm_zombie_max_connection_attempts}, T = {TimeSpan.FromMilliseconds(UpTime.ElapsedMs()).TotalMinutes:0.0}min");
 #endif
 
                         return false;
@@ -2583,7 +2583,7 @@ namespace zero.cocoon.autopeer
                     _logger.Trace($"{nameof(ScanAsync)}: [skipped], no replies {Description}, s = {State}, a = {Assimilating}");
                     if (!IsDroneAttached)
                     {
-                        await Zero(this, $"{nameof(ScanAsync)}: Unable to scan adjunct, count = {_scanCount} << {parm_zombie_max_connection_attempts}").FastPath();
+                        await DisposeAsync(this, $"{nameof(ScanAsync)}: Unable to scan adjunct, count = {_scanCount} << {parm_zombie_max_connection_attempts}").FastPath();
                         return false;
                     }
                         
@@ -2902,7 +2902,7 @@ namespace zero.cocoon.autopeer
             finally
             {
                 ResetState(AdjunctState.Verified);
-                await severedDrone.Zero(this, $"detached from adjunct, was attached = {WasAttached}").FastPath();
+                await severedDrone.DisposeAsync(this, $"detached from adjunct, was attached = {WasAttached}").FastPath();
                 if(WasAttached)
                     await DeFuseAsync().FastPath();
             }

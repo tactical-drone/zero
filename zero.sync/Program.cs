@@ -1242,7 +1242,7 @@ namespace zero.sync
                     s.Wait();
                     var task = Task.Run(async () =>
                     {
-                        await n.Zero(null,"MAIN TEARDOWN");
+                        await n.DisposeAsync(null,"MAIN TEARDOWN");
                         Interlocked.Increment(ref zeroed);
                     });
 
@@ -1278,8 +1278,8 @@ namespace zero.sync
 //#pragma warning disable 4014
 //                var tangleNodeTask = tangleNode.StartAsync();
 
-//                AppDomain.CurrentDomain.ProcessExit += (sender, eventArgs) => tangleNode.Zero(new IoNanoprobe("process was exited"));
-//                Console.CancelKeyPress += (sender, eventArgs) => tangleNode.Zero(new IoNanoprobe("ctrl + c, process was killed"));
+//                AppDomain.CurrentDomain.ProcessExit += (sender, eventArgs) => tangleNode.DisposeAsync(new IoNanoprobe("process was exited"));
+//                Console.CancelKeyPress += (sender, eventArgs) => tangleNode.DisposeAsync(new IoNanoprobe("ctrl + c, process was killed"));
 //                tangleNodeTask.AsTask().Wait();
 //            }
 //            else
@@ -1293,8 +1293,8 @@ namespace zero.sync
 
 
 //#pragma warning disable 4014
-//                AppDomain.CurrentDomain.ProcessExit += (sender, eventArgs) => tangleNode.Zero(new IoNanoprobe("process was exited"));
-//                Console.CancelKeyPress += (sender, eventArgs) => tangleNode.Zero(new IoNanoprobe("ctrl + c, process was killed"));
+//                AppDomain.CurrentDomain.ProcessExit += (sender, eventArgs) => tangleNode.DisposeAsync(new IoNanoprobe("process was exited"));
+//                Console.CancelKeyPress += (sender, eventArgs) => tangleNode.DisposeAsync(new IoNanoprobe("ctrl + c, process was killed"));
 //#pragma warning restore 4014
 //                tangleNodeTask.AsTask().Wait();
 //            }
