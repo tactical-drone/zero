@@ -141,7 +141,7 @@ namespace zero.core.feat.models
         /// <summary>
         /// Pulls previous fragment bytes into this job
         /// </summary>
-        protected override async ValueTask AddRecoveryBits()
+        protected override async ValueTask AddRecoveryBitsAsync()
         {
             var p = (IoMessage<TJob>)PreviousJob;
             try
@@ -153,7 +153,7 @@ namespace zero.core.feat.models
                         Source.Synced = false;
                         DatumCount = 0;
                         BytesRead = 0;
-                        await SetState(IoJobMeta.JobState.RSync).FastPath();
+                        await SetStateAsync(IoJobMeta.JobState.RSync).FastPath();
 
                         DatumFragmentLength = 0;
                         return;
@@ -173,7 +173,7 @@ namespace zero.core.feat.models
                         Source.Synced = false;
                         DatumCount = 0;
                         BytesRead = 0;
-                        await SetState(IoJobMeta.JobState.RSync).FastPath();
+                        await SetStateAsync(IoJobMeta.JobState.RSync).FastPath();
 
                         DatumFragmentLength = 0;
                         return;
@@ -185,7 +185,7 @@ namespace zero.core.feat.models
             catch when(Zeroed()){}
             catch (Exception e)when(!Zeroed())
             {
-                _logger.Error(e,$"{nameof(AddRecoveryBits)}");
+                _logger.Error(e,$"{nameof(AddRecoveryBitsAsync)}");
             }
         }
 

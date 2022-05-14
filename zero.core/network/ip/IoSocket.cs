@@ -2,6 +2,7 @@
 using System.Net;
 using System.Net.Sockets;
 using System.Runtime.CompilerServices;
+using System.Threading;
 using System.Threading.Tasks;
 using NLog;
 using zero.core.conf;
@@ -51,7 +52,7 @@ namespace zero.core.network.ip
             }
             catch (ObjectDisposedException)
             {
-                Task.Factory.StartNew(@this => ((IoSocket)@this).Zero((IoSocket)@this, "RACE"),this);
+                _ = Task.Factory.StartNew(@this => ((IoSocket)@this).Zero((IoSocket)@this, "RACE"),this, CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Default);
                 return;
             }
             catch (Exception e)

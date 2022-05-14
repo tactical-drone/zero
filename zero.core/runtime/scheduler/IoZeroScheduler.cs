@@ -7,6 +7,7 @@ using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Xml.Schema;
+using Microsoft.VisualStudio.Threading;
 using NLog;
 using NLog.Config;
 using zero.core.misc;
@@ -153,9 +154,10 @@ namespace zero.core.runtime.scheduler
         //The rate at which the scheduler will be allowed to "burst" allowing per tick unchecked new threads to be spawned until one of them spawns
         private static readonly int WorkerSpawnBurstTimeMs = 100;
         private static readonly int MaxWorker = short.MaxValue;
-        public static readonly TaskScheduler ZeroDefault;
+        public static readonly TaskScheduler ZeroDefault;       
         public static readonly IoZeroScheduler Zero;
-        private readonly CancellationTokenSource _asyncTasks;
+        public static readonly JoinableTaskFactory AsyncBridge = new JoinableTaskFactory(new JoinableTaskContext());
+        private readonly CancellationTokenSource _asyncTasks;        
         private readonly IoZeroResetValueTaskSource<bool>[] _pollWorker;
         private readonly IoZeroResetValueTaskSource<bool>[] _pollQueen;
         private readonly int[] _workerPunchCards;
@@ -939,7 +941,9 @@ var d = 0;
             try
             {
                 t.RunSynchronously(target);
+#pragma warning disable VSTHRD002 // Avoid problematic synchronous waits
                 return t.Result;
+#pragma warning restore VSTHRD002 // Avoid problematic synchronous waits
             }
             catch
             {

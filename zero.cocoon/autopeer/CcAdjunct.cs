@@ -86,7 +86,11 @@ namespace zero.cocoon.autopeer
 
                 //to prevent cascading into the hub we clone the source.
                 Source = new IoUdpClient<CcProtocMessage<chroniton, CcDiscoveryBatch>>($"UDP Proxy ~> {base.Description}", MessageService, RemoteAddress.IpEndPoint);
-                Source.ZeroHiveAsync(this).AsTask().GetAwaiter().GetResult();
+                IoZeroScheduler.AsyncBridge.Run(async () =>
+                {
+                    await Source.ZeroHiveAsync(this).AsTask();
+                });
+                
                 CompareAndEnterState(verified ? AdjunctState.Verified : AdjunctState.Unverified, AdjunctState.Undefined);
                 
                 Verified = verified;
@@ -997,7 +1001,7 @@ namespace zero.cocoon.autopeer
                     }
                 }
 
-                await batchJob.SetState(IoJobMeta.JobState.Consumed).FastPath();
+                await batchJob.SetStateAsync(IoJobMeta.JobState.Consumed).FastPath();
             }
             catch when(Zeroed()){}
             catch (Exception e)when(!Zeroed())
@@ -1257,7 +1261,7 @@ namespace zero.cocoon.autopeer
                                             finally
                                             {
                                                 if (batchJob != null && batchJob.State != IoJobMeta.JobState.Consumed)
-                                                    await batchJob.SetState(IoJobMeta.JobState.ConsumeErr).FastPath();
+                                                    await batchJob.SetStateAsync(IoJobMeta.JobState.ConsumeErr).FastPath();
                                             }
                                         };
                                     }

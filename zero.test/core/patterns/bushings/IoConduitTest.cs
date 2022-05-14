@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Security.Cryptography;
+using System.Threading;
 using System.Threading.Tasks;
 using Xunit;
 using Xunit.Abstractions;
@@ -32,7 +33,7 @@ namespace zero.test.core.patterns.bushings
                 return new IoZeroProduct("test product 1", ((IoConduit<IoZeroProduct>)ioZero).Source, 100);
             }, concurrencyLevel);
 
-            var z1 = Task.Factory.StartNew(async () => await c1.BlockOnReplicateAsync(), TaskCreationOptions.DenyChildAttach).Unwrap();
+            var z1 = Task.Factory.StartNew(async () => await c1.BlockOnReplicateAsync(), CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Default).Unwrap();
 
             var ts = Environment.TickCount;
             var totalTime = count * 100;
@@ -76,7 +77,7 @@ namespace zero.test.core.patterns.bushings
             var z1 = Task.Factory.StartNew(async () =>
             {
                 await c1.BlockOnReplicateAsync();
-            }, TaskCreationOptions.DenyChildAttach).Unwrap();
+            }, CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Default).Unwrap();
 
             var ts = Environment.TickCount;
 
@@ -117,7 +118,7 @@ namespace zero.test.core.patterns.bushings
             var c1 = new IoConduit<IoZeroProduct>("conduit smoke test 1", s1, static (ioZero, _) 
                 => new IoZeroProduct("test product 1", ((IoConduit<IoZeroProduct>)ioZero).Source, 0), s1.ZeroConcurrencyLevel());
 
-            var z1 = Task.Factory.StartNew(async () => await c1.BlockOnReplicateAsync(), TaskCreationOptions.DenyChildAttach).Unwrap();
+            var z1 = Task.Factory.StartNew(async () => await c1.BlockOnReplicateAsync(), CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Default).Unwrap();
 
             var ts = Environment.TickCount;
             
@@ -158,7 +159,7 @@ namespace zero.test.core.patterns.bushings
             var s1 = new IoZeroSource("zero source 1", false, concurrencyLevel<<1, concurrencyLevel, false, true);
             var c1 = new IoConduit<IoZeroProduct>("conduit smoke test 1", s1, static (ioZero, _) => new IoZeroProduct("test product 1", ((IoConduit<IoZeroProduct>)ioZero).Source, 100), concurrencyLevel);
 
-            var z1 = Task.Factory.StartNew(async () => await c1.BlockOnReplicateAsync(), TaskCreationOptions.DenyChildAttach).Unwrap();
+            var z1 = Task.Factory.StartNew(async () => await c1.BlockOnReplicateAsync(), CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Default).Unwrap();
 
             var ts = Environment.TickCount;
             long last = -1;

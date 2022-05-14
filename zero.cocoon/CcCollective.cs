@@ -24,6 +24,7 @@ using zero.core.patterns.heap;
 using zero.core.patterns.misc;
 using zero.core.patterns.queue;
 using zero.core.patterns.semaphore;
+using zero.core.runtime.scheduler;
 using Zero.Models.Protobuf;
 
 namespace zero.cocoon
@@ -64,7 +65,11 @@ namespace zero.cocoon
             _autoPeering.ZeroHiveAsync(this).AsTask().GetAwaiter().GetResult();
             
             DupSyncRoot = new IoZeroSemaphoreSlim(AsyncTasks,  $"Dup checker for {ccDesignation.IdString()}", maxBlockers: Math.Max(MaxDrones * tcpConcurrencyLevel,1), initialCount: 1);
-            DupSyncRoot.ZeroHiveAsync(this).AsTask().GetAwaiter().GetResult();
+            IoZeroScheduler.AsyncBridge.Run(async () =>
+            {
+                await DupSyncRoot.ZeroHiveAsync(this).FastPath();
+            });
+            
             
             // Calculate max handshake
             var futileRequest = new CcFutileRequest

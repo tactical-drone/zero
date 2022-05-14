@@ -31,6 +31,6 @@ namespace zero.core.patterns.bushings.contracts
         /// </summary>
         IIoSource Source { get; }
 
-        ValueTask<IoJobMeta.JobState> SetState(IoJobMeta.JobState produceErr);
+        ValueTask<IoJobMeta.JobState> SetStateAsync(IoJobMeta.JobState produceErr);
     }
 }

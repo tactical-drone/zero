@@ -229,7 +229,7 @@ namespace zero.core.patterns.semaphore.core
                     {
                         case null:
                         {
-                            Task.Factory.StartNew(continuation, state, CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Current);
+                            _ = Task.Factory.StartNew(continuation, state, CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Current);
                             break;
                         }
                         case SynchronizationContext sc:

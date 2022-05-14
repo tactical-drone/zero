@@ -55,9 +55,9 @@ namespace zero.test.core.feat
 
                         Assert.False(await matcher.ResponseAsync(k, UnsafeByteOperations.UnsafeWrap(dud)).FastPath());
                         Assert.True(await matcher.ResponseAsync(k, UnsafeByteOperations.UnsafeWrap(hash)).FastPath());
-                    }, (key, reqHash, m), TaskCreationOptions.DenyChildAttach).Unwrap();
+                    }, (key, reqHash, m), CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Default).Unwrap();
 
-                }, BitConverter.GetBytes(i), TaskCreationOptions.DenyChildAttach));
+                }, BitConverter.GetBytes(i), CancellationToken.None,TaskCreationOptions.DenyChildAttach, TaskScheduler.Default));
             }
 
             await Task.WhenAll(oneShotTasks).WaitAsync(TimeSpan.FromSeconds(10));
@@ -94,9 +94,9 @@ namespace zero.test.core.feat
 
                         Assert.False(await matcher.ResponseAsync(k, UnsafeByteOperations.UnsafeWrap(dud)));
                         Assert.True(await matcher.ResponseAsync(k, UnsafeByteOperations.UnsafeWrap(hash)));
-                    }, (key, reqHash, m), TaskCreationOptions.DenyChildAttach).Unwrap();
+                    }, (key, reqHash, m), CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Default).Unwrap();
 
-                }, BitConverter.GetBytes(i), TaskCreationOptions.DenyChildAttach));
+                }, BitConverter.GetBytes(i), CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Default));
             }
 
             await Task.WhenAll(oneShotTasks).WaitAsync(TimeSpan.FromSeconds(10));
@@ -138,9 +138,9 @@ namespace zero.test.core.feat
                         Assert.False(await matcher.ResponseAsync(k, UnsafeByteOperations.UnsafeWrap(dud)));
                         await Task.Delay(delay);
                         Assert.False(await matcher.ResponseAsync(k, UnsafeByteOperations.UnsafeWrap(hash)));
-                    }, (key, reqHash, m, _delayTime), TaskCreationOptions.DenyChildAttach).Unwrap();
+                    }, (key, reqHash, m, _delayTime), CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Default).Unwrap();
 
-                }, BitConverter.GetBytes(i), TaskCreationOptions.DenyChildAttach));
+                }, BitConverter.GetBytes(i), CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Default));
             }
 
             await Task.WhenAll(oneShotTasks);

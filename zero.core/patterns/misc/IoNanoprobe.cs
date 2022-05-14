@@ -382,11 +382,19 @@ namespace zero.core.patterns.misc
 
                 if (sub != null)
                 {
-                    await ZeroSubAsync(static (_, state) =>
+                    await ZeroSubAsync(static async (_, state) =>
                     {
                         var (@this, target, sub) = state;
-                        target?.ZeroHiveMind()?.RemoveAsync(sub);
-                        return new ValueTask<bool>(true);
+                        try
+                        {
+                            await target.ZeroHiveMind().RemoveAsync(sub).FastPath();
+                        }
+                        catch
+                        {
+                            // ignored
+                        }
+
+                        return true;
                     }, (this, target, sub)).FastPath();
                 }
             }

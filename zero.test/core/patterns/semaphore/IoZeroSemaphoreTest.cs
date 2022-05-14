@@ -46,7 +46,7 @@ namespace zero.test.core.patterns.semaphore
                     await Task.Delay(targetSleep);
                     m.Release(true);
                 }
-            },(this,m,targetSleep), TaskCreationOptions.DenyChildAttach);
+            },(this,m,targetSleep), CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Default);
 
             var c = 0;
             long ave = 0;
@@ -105,7 +105,7 @@ namespace zero.test.core.patterns.semaphore
                         }
 
                         return Task.CompletedTask;
-                    });
+                    }, CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Default);
                 }
 
                 while (true)
@@ -137,7 +137,7 @@ namespace zero.test.core.patterns.semaphore
             {
                 await Task.Delay(500);
                 m.Release(true);
-            });
+            }, CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Default);
 
             var ts = Environment.TickCount;
             Assert.Equal(3, m.ReadyCount);
@@ -167,7 +167,7 @@ namespace zero.test.core.patterns.semaphore
                 m.Release(true, 2);
                 await Task.Delay(500);
                 m.Release(true);
-            });
+            }, CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Default);
 
             var ts = Environment.TickCount;
             
@@ -293,7 +293,7 @@ namespace zero.test.core.patterns.semaphore
                     v.Release();
                     _output.WriteLine(".");
                 }
-            }).Unwrap();
+            }, CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Default).Unwrap();
 
             var ts = Environment.TickCount;
             Assert.True(await v.WaitAsync().FastPath());
@@ -323,7 +323,7 @@ namespace zero.test.core.patterns.semaphore
                     await Task.Delay(minDelay);
                     v.Release();
                 }
-            }).Unwrap();
+            }, CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Default).Unwrap();
 
             var ts = Environment.TickCount;
             Assert.True(await v.WaitAsync().FastPath());
@@ -361,7 +361,7 @@ namespace zero.test.core.patterns.semaphore
                     //_output.WriteLine($"s <- {v.GetStatus(v.Version)}[{v.Version}] \t- {DateTimeOffset.UtcNow.Ticks} - {i}/{count} - {Thread.CurrentThread.ManagedThreadId}");
                 }
                 
-            }, TaskCreationOptions.DenyChildAttach);
+            }, CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Default);
 
             for (var i = 0; i < count; i++)
             {
@@ -408,7 +408,7 @@ namespace zero.test.core.patterns.semaphore
                     }
                     v.Release(true);
                 }
-            }).Unwrap();
+            }, CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Default).Unwrap();
 
             var ts = Environment.TickCount;
             //Assert.True(await v.WaitAsync().FastPath());
@@ -462,7 +462,7 @@ namespace zero.test.core.patterns.semaphore
                     else
                         i++;
                 }
-            }).Unwrap();
+            }, CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Default).Unwrap();
 
             var t2 = Task.Factory.StartNew(async () =>
             {
@@ -477,7 +477,7 @@ namespace zero.test.core.patterns.semaphore
 
                 Assert.InRange(ave / count, 0, 16);
                 v.ZeroSem();
-            });
+            }, CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Default);
 
             
             

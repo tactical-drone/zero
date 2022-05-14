@@ -5,6 +5,7 @@ using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.VisualStudio.Threading;
 using NLog;
 using zero.core.conf;
 using zero.core.misc;
@@ -158,13 +159,14 @@ namespace zero.core.core
 
             _netServer?.Zero(this, $"{nameof(ZeroManagedAsync)}: teardown");
 
-            await NeighborTasks.ZeroManagedAsync(static (neighborTask, @this) =>
+            await NeighborTasks.ZeroManagedAsync(static async (neighborTask, @this) =>
             {
-                if (!neighborTask.Value.Wait(TimeSpan.FromSeconds(@this.parm_nb_teardown_timeout_s)))
+                await IoZeroScheduler.AsyncBridge.RunAsync(async () =>
                 {
-                    @this._logger.Warn(neighborTask.Value.Exception, $"{nameof(IoNode<TJob>)}.{nameof(ZeroManagedAsync)}: {nameof(neighborTask)} exit slow...");
-                }
-                return default;
+#pragma warning disable VSTHRD003 // Avoid awaiting foreign Tasks
+                    await neighborTask.Value.WithTimeout(TimeSpan.FromSeconds(@this.parm_nb_teardown_timeout_s));
+#pragma warning restore VSTHRD003 // Avoid awaiting foreign Tasks
+                });
             }, this, zero: true).FastPath();
         }
 
@@ -344,7 +346,7 @@ namespace zero.core.core
                                 await newNeighbor.Zero(@this, $"Failed to add new node... {@this.Description}").FastPath();
                             }
                         }
-                    }, (@this, newNeighbor));
+                    }, (@this, newNeighbor), CancellationToken.None, TaskContinuationOptions.DenyChildAttach, TaskScheduler.Default);
                 }
             }, ValueTuple.Create(this, context, acceptConnection), bootstrapAsync);
 
@@ -384,7 +386,7 @@ namespace zero.core.core
                 {
                     var (@this, node) = (ValueTuple<IoNode<TJob>, IoQueue<Task>.IoZNode>)state;
                     await @this.NeighborTasks.RemoveAsync(node).FastPath();
-                }, (this, node));
+                }, (this, node), CancellationToken.None, TaskContinuationOptions.DenyChildAttach, TaskScheduler.Default);
             }
             catch when(Zeroed()){}
             catch (Exception e) when(!Zeroed())

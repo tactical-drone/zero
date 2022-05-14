@@ -228,9 +228,7 @@ namespace zero.test.core.patterns.semaphore
         private volatile int _exclusiveCount; 
         [Fact]
         public async Task ExclusiveZoneAsync()
-        {
-            var batchLog = 1;
-            var threads = short.MaxValue >> 1;
+        {                        
             var realThreads = 1;
             var spamFactor = 100000;
             var delayTime = 0;

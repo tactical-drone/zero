@@ -67,7 +67,7 @@ namespace zero.test.core.patterns.queue
                 {
                     var (@this, bag, idx) = (ValueTuple<IoHashCodesTest, IoHashCodes, int>)state!;
                     bag.Add(Interlocked.Increment(ref idx));
-                }, (this, bag, idx), TaskCreationOptions.DenyChildAttach));
+                }, (this, bag, idx), CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Default));
             }
 
             await Task.WhenAll(insert).WaitAsync(TimeSpan.FromSeconds(10));

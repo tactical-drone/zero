@@ -62,7 +62,7 @@ namespace zero.core.patterns.misc
                 {
                     var (action, item, nanite) = (ValueTuple<Func<T,TN, ValueTask>, T, TN>)state;
                     await action(item,nanite).FastPath().ConfigureAwait(true);
-                }, ValueTuple.Create(action, item,nanite)).ConfigureAwait(true);
+                }, ValueTuple.Create(action, item,nanite), CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Default);
         }
 
         /// <summary>

@@ -2,6 +2,7 @@
 using System.Collections;
 using System.Linq;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 using Cassandra;
 using Cassandra.Mapping;
@@ -177,7 +178,7 @@ namespace zero.core.feat.data.providers.cassandra
                             IsConnected = false;
                             break;
                     }
-                });
+                }, CancellationToken.None, TaskContinuationOptions.DenyChildAttach, TaskScheduler.Default);
 
                 return await executeAsyncTask;
             }

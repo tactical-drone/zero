@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Net.Sockets;
+using System.Threading;
 using System.Threading.Tasks;
 using NLog;
 using zero.core.conf;
@@ -188,11 +189,11 @@ namespace zero.core.network.ip
                         if (UpTime.ElapsedMsToSec() > 5)
                             _logger.Error($"DC {IoNetSocket.RemoteNodeAddress} from {IoNetSocket.LocalNodeAddress}, uptime = {TimeSpan.FromMilliseconds(UpTime.ElapsedMs())}");
 
-                        Task.Factory.StartNew(static s =>
+                        _ = Task.Factory.StartNew(static s =>
                         {
                             var @this = (IoNetClient<TJob>)s;
                             return @this.Zero(@this, $"Socket disconnected - {@this.IoNetSocket.Description}");
-                        }, this);
+                        }, this, CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Default);
                         
                         //Do cleanup
                         return false;

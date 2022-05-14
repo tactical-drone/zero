@@ -77,7 +77,7 @@ namespace zero.core.feat.models.protobuffer
             await ClearAsync().FastPath();
         }
 
-        protected override ValueTask AddRecoveryBits()
+        protected override ValueTask AddRecoveryBitsAsync()
         {
             throw new NotImplementedException();
         }
@@ -149,11 +149,11 @@ namespace zero.core.feat.models.protobuffer
                     return job._batch != null;
                 }, this, barrier, ioZero).FastPath())
             {
-                return await SetState(IoJobMeta.JobState.Error).FastPath();
+                return await SetStateAsync(IoJobMeta.JobState.Error).FastPath();
             }
             
             //If the source gave us nothing, mark this production to be skipped            
-            return await SetState(IoJobMeta.JobState.Produced).FastPath();
+            return await SetStateAsync(IoJobMeta.JobState.Produced).FastPath();
         }
 
         /// <summary>
@@ -165,7 +165,7 @@ namespace zero.core.feat.models.protobuffer
         public override ValueTask<IoJobMeta.JobState> ConsumeAsync()
         {
             //No work is needed, we just mark the job as consumed (Batched and forwarded).
-            return SetState(IoJobMeta.JobState.ConInlined);
+            return SetStateAsync(IoJobMeta.JobState.ConInlined);
         }
     }
 }

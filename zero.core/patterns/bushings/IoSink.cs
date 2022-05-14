@@ -104,7 +104,7 @@ namespace zero.core.patterns.bushings
         /// <summary>
         /// Handle fragmented jobs
         /// </summary>
-        protected internal abstract ValueTask AddRecoveryBits();
+        protected internal abstract ValueTask AddRecoveryBitsAsync();
 
         /// <summary>
         /// Updates buffer meta data

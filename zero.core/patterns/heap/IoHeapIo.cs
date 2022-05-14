@@ -3,6 +3,7 @@ using System.Runtime.CompilerServices;
 using System.Threading.Tasks;
 using NLog;
 using zero.core.patterns.misc;
+using zero.core.runtime.scheduler;
 using Logger = NLog.Logger;
 
 namespace zero.core.patterns.heap
@@ -112,8 +113,14 @@ namespace zero.core.patterns.heap
 
             base.Return(item, zero, deDup);
 
-            if (zero && !deDup || Zeroed)//hack
-                item.Zero(new IoNanoprobe($"{item.Description}"), $"{nameof(IoHeapIo<TItem, TContext>)}: teardown direct = {zero}, cascade = {Zeroed}");
+            if (zero && !deDup || Zeroed) //hack
+            {
+                _ = IoZeroScheduler.AsyncBridge.RunAsync(async () =>
+                {
+                    await item.Zero(new IoNanoprobe($"{item.Description}"),
+                        $"{nameof(IoHeapIo<TItem, TContext>)}: teardown direct = {zero}, cascade = {Zeroed}");
+                });
+            }
         }
     }
 

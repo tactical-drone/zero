@@ -220,7 +220,7 @@ namespace zero.test.core.patterns.queue{
                         }
                     }
                     //@this._output.WriteLine($"({@this.context.Q.Count})");
-                },this, TaskCreationOptions.DenyChildAttach).Unwrap());
+                },this, CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Default).Unwrap());
             }
             await Task.WhenAll(concurrentTasks).WaitAsync(TimeSpan.FromSeconds(10));
 
@@ -291,7 +291,7 @@ namespace zero.test.core.patterns.queue{
                     }
                         
                     output.WriteLine($"thread[{idx}] = done... {@this._inserted}");
-                }, (this, q, idx, itemsPerThread, _output), TaskCreationOptions.DenyChildAttach).Unwrap());
+                }, (this, q, idx, itemsPerThread, _output), CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Default).Unwrap());
             }
 
             await Task.WhenAll(insert).WaitAsync(TimeSpan.FromSeconds(10));
@@ -370,9 +370,9 @@ namespace zero.test.core.patterns.queue{
 
                 var item = await @this._queuePressure.DequeueAsync().FastPath();
                 Assert.Null(item);
-            }, this, TaskCreationOptions.DenyChildAttach).Unwrap();
+            }, this, CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Default).Unwrap();
 
-            var enqueueTask = _queueNoBlockingTask.ContinueWith((_,@this) => ((IoQueueTest)@this!)._blockCancellationSignal.Cancel(), this);
+            var enqueueTask = _queueNoBlockingTask.ContinueWith((_,@this) => ((IoQueueTest)@this!)._blockCancellationSignal.Cancel(), this, CancellationToken.None, TaskContinuationOptions.DenyChildAttach, TaskScheduler.Default);
 
             
             var dequeue = Task.Factory.StartNew(static async state =>
@@ -390,7 +390,7 @@ namespace zero.test.core.patterns.queue{
                 }
 
                 Assert.True(@this._queueNoBlockingTask.IsCompletedSuccessfully);
-            }, this, TaskCreationOptions.DenyChildAttach).Unwrap();
+            }, this, CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Default).Unwrap();
 
             await dequeue;
             await enqueueTask;
@@ -420,7 +420,7 @@ namespace zero.test.core.patterns.queue{
                 Assert.InRange(s.ElapsedMs(), (100/15)*15, 100 + 15 * 2);
                 Assert.NotNull(item);
 
-            }, this, TaskCreationOptions.DenyChildAttach).Unwrap();
+            }, this, CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Default).Unwrap();
                 
             var dequeTask = _queueNoBlockingTask.ContinueWith((_, @this) =>
             {
@@ -430,7 +430,7 @@ namespace zero.test.core.patterns.queue{
                     throw _.Exception;
                 }
                 //Assert.True(_.IsCompletedSuccessfully);
-            }, this);
+            }, this, CancellationToken.None, TaskContinuationOptions.DenyChildAttach, TaskScheduler.Default);
 
 
             var insertTask = Task.Factory.StartNew(static async state =>
@@ -448,7 +448,7 @@ namespace zero.test.core.patterns.queue{
                 {
                     // ignored
                 }
-            }, this, TaskCreationOptions.DenyChildAttach).Unwrap();
+            }, this, CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Default).Unwrap();
 
             await insertTask;
             Assert.True(insertTask.IsCompletedSuccessfully);
@@ -490,7 +490,7 @@ namespace zero.test.core.patterns.queue{
                 Assert.InRange(s.ElapsedMs(), 0, 500);
                 Assert.NotNull(item);
 
-            }, this, TaskCreationOptions.DenyChildAttach).Unwrap();
+            }, this, CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Default).Unwrap();
 
             var dequeTask = _queueNoBlockingTask.ContinueWith((task, @this) =>
             {
@@ -500,7 +500,7 @@ namespace zero.test.core.patterns.queue{
                     throw task.Exception;
                 }
                 //Assert.True(_.IsCompletedSuccessfully);
-            }, this);
+            }, this, CancellationToken.None, TaskContinuationOptions.DenyChildAttach, TaskScheduler.Default);
 
 
             var insertTask = Task.Factory.StartNew(static async state =>
@@ -516,13 +516,13 @@ namespace zero.test.core.patterns.queue{
                 Assert.InRange(s.ElapsedMs(), 100 -16, 10000);
                 //Wait for up to 2 seconds for results
                 await Task.Delay(2000, @this._blockCancellationSignal.Token);
-            }, this, TaskCreationOptions.DenyChildAttach).Unwrap().ContinueWith(task =>
+            }, this, CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Default).Unwrap().ContinueWith(task =>
             {
                 if (task.Exception != null)
                 {
                     throw task.Exception;
                 }
-            });
+            }, CancellationToken.None, TaskContinuationOptions.DenyChildAttach, TaskScheduler.Default);
 
             await insertTask;
             Assert.True(insertTask.IsCompletedSuccessfully);
@@ -570,8 +570,9 @@ namespace zero.test.core.patterns.queue{
 
                     foreach (var t in eqList)
                     {
-                        Assert.NotNull(t.Result);
-                        Assert.True(t.Result.Value < (i + 1) * Concurrency);
+                        var item = await t;
+                        Assert.NotNull(item);
+                        Assert.True(item.Value < (i + 1) * Concurrency);
                     }
 
                     eqList.Clear();
@@ -580,7 +581,7 @@ namespace zero.test.core.patterns.queue{
                     ave += ts.ElapsedMs();
                 }
                 Assert.InRange(ave / (NrOfItems / Concurrency), BlockDelay - 16, BlockDelay * 2);
-            },_output).Unwrap();
+            },_output, CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Default).Unwrap();
 
             var dq = Task.Factory.StartNew(async o =>
             {
@@ -602,8 +603,10 @@ namespace zero.test.core.patterns.queue{
 
                     foreach (var t in dqList)
                     {
+#pragma warning disable VSTHRD103 // Call async methods when in an async method
                         Assert.NotNull(t.Result);
                         Assert.True(t.Result < count + Concurrency);
+#pragma warning restore VSTHRD103 // Call async methods when in an async method
                     }
 
                     dqList.Clear();

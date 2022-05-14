@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Threading;
 using System.Threading.Tasks;
 using Xunit;
 using zero.core.patterns.heap;
@@ -10,7 +11,7 @@ namespace zero.test.core.patterns.heap
     public class IoHeapIoTest
     {
         [Fact]
-        void SpamTest()
+        async Task SpamTestAsync()
         {
             var h = new IoHeapIo<TestHeapItem, IoHeapIoTest>("test heap", _capacity * _capacity, static (o, @this) =>
             {
@@ -41,10 +42,10 @@ namespace zero.test.core.patterns.heap
                         Assert.InRange(item.TestVar3, 0, @this._capacity);
                         h.Return(item);
                     }
-                }, (this, h), TaskCreationOptions.DenyChildAttach));
+                }, (this, h), CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Default));
             }
 
-            Task.WhenAll(spamTasks).WaitAsync(TimeSpan.FromSeconds(10)).GetAwaiter().GetResult();
+            await Task.WhenAll(spamTasks).WaitAsync(TimeSpan.FromSeconds(10));
 
             Assert.Equal(0, h.ReferenceCount);
             Assert.InRange(h.Count, 0,_capacity * _capacity);

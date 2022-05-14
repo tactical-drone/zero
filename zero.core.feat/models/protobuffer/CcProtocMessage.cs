@@ -130,7 +130,7 @@ namespace zero.core.feat.models.protobuffer
                         //----------------------------------------------------------------------------
                         if (!await backPressure(ioJob, ioZero).FastPath())
                         {
-                            await job.SetState(IoJobMeta.JobState.ProdCancel).FastPath();
+                            await job.SetStateAsync(IoJobMeta.JobState.ProdCancel).FastPath();
                             return false;
                         }
                             
@@ -148,7 +148,7 @@ namespace zero.core.feat.models.protobuffer
                                 //if (!job.MessageService.IsOperational())
                                 {
                                     await job.MessageService.Zero(ioJob, "ZERO READS!!!").FastPath();
-                                    await job.SetState(IoJobMeta.JobState.Error).FastPath();
+                                    await job.SetStateAsync(IoJobMeta.JobState.Error).FastPath();
                                 }
                                 //else
                                 //{
@@ -160,18 +160,18 @@ namespace zero.core.feat.models.protobuffer
 
                             Interlocked.Add(ref job.BytesRead, read);
 
-                            await job.SetState(IoJobMeta.JobState.Produced).FastPath();
+                            await job.SetStateAsync(IoJobMeta.JobState.Produced).FastPath();
 
                             //_logger.Trace($"{job.Description} => {job.GetType().Name}[{job.Id}]: r = {job.BytesRead}, r = {job.BytesLeftToProcess}, dc = {job.DatumCount}, ds = {job.DatumSize}, f = {job.DatumFragmentLength}, b = {job.BytesLeftToProcess}/{job.BufferSize + job.DatumProvisionLengthMax}, b = {(int)(job.BytesLeftToProcess / (double)(job.BufferSize + job.DatumProvisionLengthMax) * 100)}%");
                         }
                         else
                         {
-                            await job.SetState(IoJobMeta.JobState.Cancelled).FastPath();
+                            await job.SetStateAsync(IoJobMeta.JobState.Cancelled).FastPath();
                         }
 
                         if (job.Zeroed())
                         {
-                            await job.SetState(IoJobMeta.JobState.Cancelled).FastPath();
+                            await job.SetStateAsync(IoJobMeta.JobState.Cancelled).FastPath();
                             return false;
                         }
 
@@ -179,18 +179,18 @@ namespace zero.core.feat.models.protobuffer
                     }
                     catch when (job.Zeroed())
                     {
-                        await job.SetState(IoJobMeta.JobState.Cancelled).FastPath();
+                        await job.SetStateAsync(IoJobMeta.JobState.Cancelled).FastPath();
                     }
                     catch (Exception e) when (!job.Zeroed())
                     {
-                        await job.SetState(IoJobMeta.JobState.ProduceErr).FastPath();
+                        await job.SetStateAsync(IoJobMeta.JobState.ProduceErr).FastPath();
                         _logger.Error(e, $"ReadAsync {job.Description}:");
                     }
 
                     return false;
                 }, this, barrier, ioZero).FastPath();
             }
-            catch when (Zeroed()) { await SetState(IoJobMeta.JobState.Cancelled).FastPath();}
+            catch when (Zeroed()) { await SetStateAsync(IoJobMeta.JobState.Cancelled).FastPath();}
             catch (Exception e)when (!Zeroed())
             {
                 _logger?.Warn(e, $"Producing job for {Description} returned with errors:");
@@ -200,7 +200,7 @@ namespace zero.core.feat.models.protobuffer
                 if (State == IoJobMeta.JobState.Producing)
                 {
                     // Set the state to ProduceErr so that the consumer knows to abort consumption
-                    await SetState(IoJobMeta.JobState.ProduceErr).FastPath();
+                    await SetStateAsync(IoJobMeta.JobState.ProduceErr).FastPath();
                 }
             }
 

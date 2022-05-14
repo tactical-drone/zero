@@ -10,6 +10,7 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Server.Kestrel.Core;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Microsoft.VisualStudio.Threading;
 using NLog;
 using NLog.Filters;
 using NLog.Web;
@@ -35,7 +36,6 @@ namespace zero.sync
         private static volatile bool _running;
         private static volatile bool _verboseGossip;
         private static volatile bool _startAccounting;
-        private static readonly bool Zc = IoNanoprobe.ContinueOnCapturedContext;
         private static int _rampDelay = 300;
         private static int _rampTarget = 40;
         public static IHostBuilder CreateHostBuilder(string[] args) =>
@@ -85,7 +85,7 @@ namespace zero.sync
             {
                 host = CreateHostBuilder(args).Build();
                 host.Run();
-            }, TaskCreationOptions.DenyChildAttach);
+            }, CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Default);
 
             var random = new Random((int)DateTime.Now.Ticks);
             //Tangle("tcp://192.168.1.2:15600");
@@ -141,12 +141,10 @@ namespace zero.sync
                     t1,t2,t3,t4
                 };
 
-#pragma warning disable VSTHRD110 // Observe result of async calls
-                Task.Factory.StartNew(() => t1.Start(), TaskCreationOptions.DenyChildAttach).GetAwaiter().GetResult();
-                Task.Factory.StartNew(() => t2.Start(), TaskCreationOptions.DenyChildAttach).GetAwaiter().GetResult();
-                Task.Factory.StartNew(() => t3.Start(), TaskCreationOptions.DenyChildAttach).GetAwaiter().GetResult();
-                Task.Factory.StartNew(() => t4.Start(), TaskCreationOptions.DenyChildAttach).GetAwaiter().GetResult();
-#pragma warning restore VSTHRD110 // Observe result of async calls
+                IoZeroScheduler.AsyncBridge.Run(() => {t1.Start();return Task.CompletedTask;});
+                IoZeroScheduler.AsyncBridge.Run(() => {t2.Start();return Task.CompletedTask;});
+                IoZeroScheduler.AsyncBridge.Run(() => {t3.Start();return Task.CompletedTask;});
+                IoZeroScheduler.AsyncBridge.Run(() => {t4.Start();return Task.CompletedTask;});
             }
             else
 #pragma warning disable CS0162
@@ -175,8 +173,8 @@ namespace zero.sync
                     t1,t2
                 };
 #pragma warning disable VSTHRD110 // Observe result of async calls
-                Task.Factory.StartNew(() => t1.Start(), TaskCreationOptions.DenyChildAttach);
-                Task.Factory.StartNew(() => t2.Start(), TaskCreationOptions.DenyChildAttach);
+                Task.Factory.StartNew(() => t1.Start(), CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Default);
+                Task.Factory.StartNew(() => t2.Start(), CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Default);
 #pragma warning restore VSTHRD110 // Observe result of async calls
             }
 #pragma warning restore CS0162
@@ -220,7 +218,7 @@ namespace zero.sync
                             Console.WriteLine($"Queen brought up {queen.Description}");
                         }
 
-                    }, TaskCreationOptions.DenyChildAttach).Unwrap();
+                    }, CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Default).Unwrap();
 
                     if (c % injectionCount == 0)
                     {
@@ -239,7 +237,7 @@ namespace zero.sync
                     if(rampDelay -1 > 0)
                         rampDelay -= 1;
                 }
-            }, TaskCreationOptions.DenyChildAttach);
+            }, CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Default);
 
             _running = true;
             var outBound = 0;
@@ -403,7 +401,7 @@ namespace zero.sync
                     
                     Thread.Sleep(30000);
                 }
-            }, TaskCreationOptions.DenyChildAttach);
+            }, CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Default);
 
             long C = 0;
 
@@ -543,10 +541,10 @@ namespace zero.sync
                     if (line.StartsWith("loadTest"))
                     {
                         var n = _nodes.Where(n => !n.ZeroDrone).ToArray();
-                        n[Random.Shared.Next(0,n.Length - 1)].BootAsync(0).AsTask().GetAwaiter().GetResult();
-                        n[Random.Shared.Next(0, n.Length - 1)].BootAsync(0).AsTask().GetAwaiter().GetResult();
-                        n[Random.Shared.Next(0, n.Length - 1)].BootAsync(0).AsTask().GetAwaiter().GetResult();
-                        n[Random.Shared.Next(0, n.Length - 1)].BootAsync(0).AsTask().GetAwaiter().GetResult();
+                        IoZeroScheduler.AsyncBridge.Run(async () => await n[Random.Shared.Next(0, n.Length - 1)].BootAsync(0).FastPath());
+                        IoZeroScheduler.AsyncBridge.Run(async () => await n[Random.Shared.Next(0, n.Length - 1)].BootAsync(0).FastPath());
+                        IoZeroScheduler.AsyncBridge.Run(async () => await n[Random.Shared.Next(0, n.Length - 1)].BootAsync(0).FastPath());
+                        IoZeroScheduler.AsyncBridge.Run(async () => await n[Random.Shared.Next(0, n.Length - 1)].BootAsync(0).FastPath());
                         Console.WriteLine("ZERO CORE best case horizontal scale cluster TCP/IP (DDoS) pressure test started... make sure your CPU has enough juice, this test will redline your kernel and hang your OS");
                     }
 
@@ -572,10 +570,24 @@ namespace zero.sync
                             {
                                 _running = false;
                                 _startAccounting = false;
-                                Task.WaitAll(gossipTasks.ToArray());
-                                tasks.ToList().ForEach(t=>t.Result.ClearDupBuf());
-                                gossipTasks.Clear();
-                                AutoPeeringEventService.QueuedEvents[0].ZeroManagedAsync<object>().AsTask().GetAwaiter().GetResult();
+                                IoZeroScheduler.AsyncBridge.Run(async () =>
+                                {
+                                    await Task.WhenAll(gossipTasks.ToArray());
+                                    await tasks.ToList().ForEachAsync<Task<CcCollective>, object>(static async (t,_) =>
+                                    {
+                                        await IoZeroScheduler.AsyncBridge.RunAsync(async () =>
+                                        {
+
+#pragma warning disable VSTHRD003 
+                                            var c = await t;
+#pragma warning restore VSTHRD003
+                                            c.ClearDupBuf();
+                                        });
+                                    }, null);
+                                    //tasks.ToList().ForEach(t => t.Result.ClearDupBuf());
+                                    gossipTasks.Clear();
+                                    await AutoPeeringEventService.QueuedEvents[0].ZeroManagedAsync<object>().FastPath();
+                                });
                             }
 
                             long v = 1;
@@ -635,7 +647,7 @@ namespace zero.sync
                                         }
                                     }
                                     Console.WriteLine("Stopped gossip...");
-                                }, TaskCreationOptions.DenyChildAttach | TaskCreationOptions.DenyChildAttach));
+                                }, CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Default));
                                 _startAccounting = true;
                             }
                             Console.WriteLine($"Stopped auto peering...  {tasks.Count}");
@@ -693,14 +705,17 @@ namespace zero.sync
 
                     if (line.StartsWith("stream"))
                     {
-                        AutoPeeringEventService.ToggleActiveAsync().GetAwaiter().GetResult();
+                        IoZeroScheduler.AsyncBridge.Run(AutoPeeringEventService.ToggleActiveAsync);
+                        
                         Console.WriteLine($"event stream = {(AutoPeeringEventService.Operational? "On":"Off")}");
                     }
 
                     if (line.StartsWith("zero"))
                     {
-                        ZeroAsync(total).AsTask().ContinueWith(_ =>
+                        IoZeroScheduler.AsyncBridge.Run(async () =>
                         {
+                            await ZeroAsync(total).FastPath();
+                            
                             if (_nodes != null)
                             {
                                 Console.WriteLine($"z = {_nodes.Count(n => n.Zeroed())}/{total}");
@@ -709,7 +724,7 @@ namespace zero.sync
                                 tasks?.Clear();
                                 tasks = null;
                             }
-                        }).GetAwaiter().GetResult();
+                        });
                     }
                 }
                 catch (Exception e)
@@ -745,15 +760,15 @@ namespace zero.sync
         {
             await Task.Delay(1000);
             IoQueue<int> q = new("test", 300, 400);
-            var head = q.PushBackAsync(2).FastPath().GetAwaiter().GetResult();
-            q.PushBackAsync(1).FastPath().GetAwaiter();
-            q.EnqueueAsync(3).FastPath().GetAwaiter();
-            q.EnqueueAsync(4).FastPath().GetAwaiter();
-            var five = q.PushBackAsync(5).FastPath().GetAwaiter().GetResult();
-            q.EnqueueAsync(6).FastPath().GetAwaiter();
-            q.EnqueueAsync(7).FastPath().GetAwaiter();
-            q.EnqueueAsync(8).FastPath().GetAwaiter();
-            var tail = q.EnqueueAsync(9).FastPath().GetAwaiter().GetResult();
+            var head = await q.PushBackAsync(2).FastPath();
+            await q.PushBackAsync(1).FastPath();
+            await q.EnqueueAsync(3).FastPath();
+            await q.EnqueueAsync(4).FastPath();
+            var five = await q.PushBackAsync(5).FastPath();
+            await q.EnqueueAsync(6).FastPath();
+            await q.EnqueueAsync(7).FastPath();
+            await q.EnqueueAsync(8).FastPath();
+            var tail = await q.EnqueueAsync(9).FastPath();
 
             Console.WriteLine("Init");
             foreach (var ioZNode in q)
@@ -896,8 +911,9 @@ namespace zero.sync
                     Console.Write($"({i3}-{q.Count})");
                 }, new CancellationToken(), TaskCreationOptions.DenyChildAttach, IoZeroScheduler.ZeroDefault).Unwrap());
             }
-            Task.WhenAll(_concurrentTasks).GetAwaiter().GetResult();
-            
+
+            await Task.WhenAll(_concurrentTasks);
+
             Console.WriteLine($"count = {q.Count}, Head = {q?.Tail?.Value}, tail = {q?.Head?.Value}, time = {DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() - start}ms, {rounds*mult*6/(DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() - start)} kOPS");
             
             q.Reset();
@@ -1150,7 +1166,7 @@ namespace zero.sync
                 for (int i = 0; i < releasers; i++)
                 {
                     var i1 = i;
-                    var r3 = Task.Factory.StartNew(async o =>
+                    var r3 = Task.Factory.StartNew(async () =>
                     {
                         try
                         {
@@ -1199,7 +1215,7 @@ namespace zero.sync
                             Console.WriteLine($"3:{e}");
                             throw;
                         }
-                    }, asyncTasks.Token, options);
+                    }, asyncTasks.Token, options, TaskScheduler.Default);
                 }
 
             Console.ReadLine();

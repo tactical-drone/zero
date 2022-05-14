@@ -188,7 +188,7 @@ namespace zero.cocoon.models
             {
                 //fail fast
                 if (BytesRead == 0)
-                    return await SetState(IoJobMeta.JobState.BadData).FastPath();
+                    return await SetStateAsync(IoJobMeta.JobState.BadData).FastPath();
 
                 var verified = false;
 
@@ -202,16 +202,16 @@ namespace zero.cocoon.models
                     {
                         if (fastPath && prevJob.GetResult((short)prevJob.Version))
                         {
-                            await AddRecoveryBits().FastPath();
+                            await AddRecoveryBitsAsync().FastPath();
                         }
                         else
                         {
                             var prevJobTask = new ValueTask<bool>(prevJob, (short)prevJob.Version);
                             if (await prevJobTask.FastPath())
-                                await AddRecoveryBits().FastPath();
+                                await AddRecoveryBitsAsync().FastPath();
                         }
                         if (zeroRecovery)
-                            await SetState(IoJobMeta.JobState.Consuming).FastPath();
+                            await SetStateAsync(IoJobMeta.JobState.Consuming).FastPath();
                     }
                 }
                 
@@ -228,7 +228,7 @@ namespace zero.cocoon.models
                         {
                             if (length > BytesLeftToProcess)
                             {
-                                await SetState(IoJobMeta.JobState.Fragmented).FastPath();
+                                await SetStateAsync(IoJobMeta.JobState.Fragmented).FastPath();
                                 break;
                             }
                             
@@ -247,13 +247,13 @@ namespace zero.cocoon.models
 #if DEBUG
                             catch (Exception e)
                             {
-                                await SetState(IoJobMeta.JobState.BadData).FastPath();
+                                await SetStateAsync(IoJobMeta.JobState.BadData).FastPath();
                                 _logger.Trace(e, $"Parse failed: buf[{BufferOffset}], r = {BytesRead - BytesLeftToProcess }/{BytesRead}/{BytesLeftToProcess }, d = {DatumCount}, {Description}");
                             }
 #else
                             catch
                             {
-                                await SetState(IoJobMeta.JobState.BadData).FastPath();
+                                await SetStateAsync(IoJobMeta.JobState.BadData).FastPath();
                                 //_logger.Trace(e, $"Parse failed: buf[{BufferOffset}], r = {BytesRead - BytesLeftToProcess }/{BytesRead}/{BytesLeftToProcess }, d = {DatumCount}, syncing = {InRecovery}, {Description}");
                             }
 #endif
@@ -261,13 +261,13 @@ namespace zero.cocoon.models
 
                         if (read == 0 && length == -1)
                         {
-                            await SetState(IoJobMeta.JobState.Fragmented).FastPath();
+                            await SetStateAsync(IoJobMeta.JobState.Fragmented).FastPath();
                             break;
                         }
                     }
                     catch (Exception e) when(!Zeroed())
                     {
-                        await SetState(IoJobMeta.JobState.ConsumeErr).FastPath();
+                        await SetStateAsync(IoJobMeta.JobState.ConsumeErr).FastPath();
                         _logger.Debug(e, $"Parse failed: buf[{BufferOffset}], r = {BytesRead - BytesLeftToProcess }/{BytesRead}/{BytesLeftToProcess }, d = {DatumCount}, {Description}");
                         break;
                     }
@@ -278,7 +278,7 @@ namespace zero.cocoon.models
                     //Sanity check the data
                     if (packet == null || packet.Data == null || packet.Data.Length == 0)
                     {
-                        await SetState(IoJobMeta.JobState.BadData).FastPath();
+                        await SetStateAsync(IoJobMeta.JobState.BadData).FastPath();
                         continue;
                     }
 
@@ -297,7 +297,7 @@ namespace zero.cocoon.models
                     //Don't process unsigned or unknown messages
                     if (!verified || messageType == null)
                     {
-                        await SetState(IoJobMeta.JobState.BadData).FastPath();
+                        await SetStateAsync(IoJobMeta.JobState.BadData).FastPath();
                         continue;
                     }
                     
@@ -326,7 +326,7 @@ namespace zero.cocoon.models
                             break;
                         default:
                             _logger.Debug($"Unknown auto peer msg type = {packet.Type}");
-                            await SetState(IoJobMeta.JobState.BadData).FastPath();
+                            await SetStateAsync(IoJobMeta.JobState.BadData).FastPath();
                             break;
                     }
                     
@@ -338,10 +338,10 @@ namespace zero.cocoon.models
                 //Release a waiter
                 await ZeroBatchAsync().FastPath();
             }
-            catch when(Zeroed()){await SetState(IoJobMeta.JobState.ConsumeErr).FastPath();}
+            catch when(Zeroed()){await SetStateAsync(IoJobMeta.JobState.ConsumeErr).FastPath();}
             catch (Exception e) when (!Zeroed())
             {
-                await SetState(IoJobMeta.JobState.ConsumeErr).FastPath();
+                await SetStateAsync(IoJobMeta.JobState.ConsumeErr).FastPath();
                 _logger.Error(e, $"Unmarshal chroniton failed in {Description}");
             }
             finally
@@ -350,9 +350,9 @@ namespace zero.cocoon.models
                 {
                     
                     if (BytesLeftToProcess == 0 && State == IoJobMeta.JobState.Consuming)
-                        await SetState(IoJobMeta.JobState.Consumed).FastPath();
+                        await SetStateAsync(IoJobMeta.JobState.Consumed).FastPath();
                     else if(BytesLeftToProcess != BytesRead)
-                        await SetState(IoJobMeta.JobState.Fragmented).FastPath();
+                        await SetStateAsync(IoJobMeta.JobState.Fragmented).FastPath();
 #if DEBUG
                     else switch (zeroRecovery)
                     {
@@ -366,14 +366,14 @@ namespace zero.cocoon.models
 #else
                     else if (State == IoJobMeta.JobState.Fragmented && !IoZero.ZeroRecoveryEnabled)
                     {
-                        await SetState(IoJobMeta.JobState.BadData).FastPath();
+                        await SetStateAsync(IoJobMeta.JobState.BadData).FastPath();
                     }
 #endif
                 }
-                catch when(Zeroed()){ await SetState(IoJobMeta.JobState.ConsumeErr).FastPath(); }
+                catch when(Zeroed()){ await SetStateAsync(IoJobMeta.JobState.ConsumeErr).FastPath(); }
                 catch (Exception e) when(!Zeroed())
                 {
-                    await SetState(IoJobMeta.JobState.ConsumeErr).FastPath();
+                    await SetStateAsync(IoJobMeta.JobState.ConsumeErr).FastPath();
                     _logger.Error(e, $"{nameof(State)}: re setting state failed!");
                 }
             }
@@ -381,10 +381,10 @@ namespace zero.cocoon.models
             ////attempt zero recovery
             if (IoZero.ZeroRecoveryEnabled && !Zeroed() && !fastPath && !zeroRecovery && BytesLeftToProcess > 0 && PreviousJob != null)
             {
-                await SetState(IoJobMeta.JobState.ZeroRecovery).FastPath();
-                if(await IoZero.PrimeForRecovery(this))
+                await SetStateAsync(IoJobMeta.JobState.ZeroRecovery).FastPath();
+                if(await IoZero.PrimeForRecoveryAsync(this))
                     return await ConsumeAsync().FastPath();
-                await SetState(IoJobMeta.JobState.BadData).FastPath();
+                await SetStateAsync(IoJobMeta.JobState.BadData).FastPath();
             }
 
             return State;

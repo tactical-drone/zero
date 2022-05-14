@@ -343,7 +343,7 @@ namespace zero.core.patterns.bushings
 
                     if (nextJob != null)
                     {
-                        await nextJob.SetState(IoJobMeta.JobState.Producing).FastPath();
+                        await nextJob.SetStateAsync(IoJobMeta.JobState.Producing).FastPath();
 
 #if DEBUG
                         //sanity check _previousJobFragment
@@ -390,7 +390,7 @@ namespace zero.core.patterns.bushings
 
 
                             //Enqueue the job for the consumer
-                            await nextJob.SetState(IoJobMeta.JobState.Queued).FastPath();
+                            await nextJob.SetStateAsync(IoJobMeta.JobState.Queued).FastPath();
 
                             if (_queue.TryEnqueue(nextJob, false,static nextJob =>
                                 {
@@ -400,7 +400,7 @@ namespace zero.core.patterns.bushings
                             {
                                 ts = ts.ElapsedMs();
 
-                                await nextJob.SetState(IoJobMeta.JobState.ProduceErr).FastPath();
+                                await nextJob.SetStateAsync(IoJobMeta.JobState.ProduceErr).FastPath();
                                 await ZeroJobAsync(nextJob, true).FastPath();
                                 nextJob = null;
 
@@ -613,9 +613,9 @@ namespace zero.core.patterns.bushings
 #endif
                     try
                     {
-                        await curJob.SetState(IoJobMeta.JobState.Consuming).FastPath();
+                        await curJob.SetStateAsync(IoJobMeta.JobState.Consuming).FastPath();
 
-                        //await PrimeForRecovery(curJob).FastPath();
+                        //await PrimeForRecoveryAsync(curJob).FastPath();
 
                         //Consume the job
                         if (await curJob.ConsumeAsync().FastPath() == IoJobMeta.JobState.Consumed || curJob.State is IoJobMeta.JobState.ConInlined or IoJobMeta.JobState.FastDup)
@@ -651,7 +651,7 @@ namespace zero.core.patterns.bushings
                         try
                         {
                             //Consume success?
-                            await curJob.SetState(curJob.State is IoJobMeta.JobState.Consumed ? IoJobMeta.JobState.Accept : IoJobMeta.JobState.Reject).FastPath();
+                            await curJob.SetStateAsync(curJob.State is IoJobMeta.JobState.Consumed ? IoJobMeta.JobState.Accept : IoJobMeta.JobState.Reject).FastPath();
 
                             if (curJob.Id % parm_stats_mod_count == 0 && curJob.Id >= 9999)
                             {
@@ -708,7 +708,7 @@ namespace zero.core.patterns.bushings
         /// </summary>
         /// <param name="curJob">The job to prepare</param>
         /// <returns></returns>
-        public async ValueTask<bool> PrimeForRecovery(IoSink<TJob> curJob)
+        public async ValueTask<bool> PrimeForRecoveryAsync(IoSink<TJob> curJob)
         {
             //Sync previous fragments into this job
             if (ZeroRecoveryEnabled)

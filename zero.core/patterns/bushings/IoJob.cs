@@ -148,7 +148,7 @@ namespace zero.core.patterns.bushings
             try
             {
                 //_logger.Debug($"{nameof(HeapPopAsync)}: id = {Id}, #{Serial} - {Description}");
-                FinalState = await SetState(IoJobMeta.JobState.Undefined).FastPath();
+                FinalState = await SetStateAsync(IoJobMeta.JobState.Undefined).FastPath();
 
 #if DEBUG
                 await StateTransitionHistory.ZeroManagedAsync(static (s, @this) =>
@@ -339,7 +339,7 @@ namespace zero.core.patterns.bushings
         public IoJobMeta.JobState FinalState { get; set; }
 
 
-        public async ValueTask<IoJobMeta.JobState> SetState(IoJobMeta.JobState value)
+        public async ValueTask<IoJobMeta.JobState> SetStateAsync(IoJobMeta.JobState value)
         {
             try
             {
@@ -415,7 +415,7 @@ namespace zero.core.patterns.bushings
                     if (value is IoJobMeta.JobState.Accept or IoJobMeta.JobState.Reject)
                     {
                         FinalState = value;
-                        await SetState(IoJobMeta.JobState.Halted).FastPath();
+                        await SetStateAsync(IoJobMeta.JobState.Halted).FastPath();
                     }
                         
 #endif
@@ -425,14 +425,14 @@ namespace zero.core.patterns.bushings
                 if (value == IoJobMeta.JobState.Accept || value == IoJobMeta.JobState.Reject)
                 {
                     FinalState = value;
-                    await SetState(IoJobMeta.JobState.Halted).FastPath();
+                    await SetStateAsync(IoJobMeta.JobState.Halted).FastPath();
                 }
 #endif
             }
             catch when (Zeroed()) { }
             catch (Exception e) when (!Zeroed())
             {
-                _logger.Error(e, $"{nameof(SetState)}: Setting state failed for {Description}");
+                _logger.Error(e, $"{nameof(SetStateAsync)}: Setting state failed for {Description}");
             }
 
             return value;
