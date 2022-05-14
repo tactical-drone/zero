@@ -277,7 +277,7 @@ namespace zero.core.core
 
                         if (task.IsCompletedSuccessfully)
                         {
-                            if (await @this.ZeroAtomic(static async (_, state, _) => 
+                            if (await @this.ZeroAtomicAsync(static async (_, state, _) => 
                                     {
                                         var (@this, newNeighbor) = state;
                                         try
@@ -423,7 +423,7 @@ namespace zero.core.core
 
                     newNeighbor = MallocNeighbor(this, newClient, extraData);
 
-                    if (newNeighbor != null && await ZeroAtomic(static (_, state, _) =>
+                    if (newNeighbor != null && await ZeroAtomicAsync(static (_, state, _) =>
                         {
                             var (@this, newNeighbor) = state;
 

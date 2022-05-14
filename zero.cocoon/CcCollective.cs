@@ -874,7 +874,7 @@ namespace zero.cocoon
             {
                 var attached = await drone.AttachViaAdjunctAsync(direction).FastPath();
 
-                var capped = attached && !await ZeroAtomic(static (_, o, _) =>
+                var capped = attached && !await ZeroAtomicAsync(static (_, o, _) =>
                 {
                     var (@this, direction) = o;
                                                         

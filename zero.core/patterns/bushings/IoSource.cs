@@ -326,7 +326,7 @@ namespace zero.core.patterns.bushings
         {
             if (channelSource != null && !IoConduits.ContainsKey(id))
             {
-                if (!await ZeroAtomic(static async (_, @params, _) =>
+                if (!await ZeroAtomicAsync(static async (_, @params, _) =>
                     {
                         var (@this, id, channelSource, jobMalloc, concurrencyLevel) = @params;
                         var newConduit = new IoConduit<TFJob>($"`conduit({id}>{ channelSource.UpstreamSource.Description} ~> { channelSource.Description}", channelSource, jobMalloc, concurrencyLevel);

@@ -1815,7 +1815,7 @@ namespace zero.cocoon.autopeer
 
             var newAdjunct = (CcAdjunct) Hub.MallocNeighbor(Hub, MessageService, Tuple.Create(designation, newRemoteEp, verified));
 
-            if (!Zeroed() && await Hub.ZeroAtomic(static async (s, state, ___) =>
+            if (!Zeroed() && await Hub.ZeroAtomicAsync(static async (s, state, ___) =>
                 {
                     var (@this, newAdjunct) = state;
                     try
@@ -2790,7 +2790,7 @@ namespace zero.cocoon.autopeer
                     return false;
                 }
 
-                if (!await ZeroAtomic( static (_, state, _) =>
+                if (!await ZeroAtomicAsync( static (_, state, _) =>
                     {
                         var (@this, ioCcDrone, direction) = state;
                    

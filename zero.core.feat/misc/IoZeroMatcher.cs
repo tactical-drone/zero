@@ -128,7 +128,7 @@ namespace zero.core.feat.misc
                 response.Key = key;
                 response.Body = body;
 
-                await ZeroAtomic(static async (_, state, _) =>
+                await ZeroAtomicAsync(static async (_, state, _) =>
                 {
                     var (@this, response) = state;
                     //var @this = this;
@@ -280,7 +280,7 @@ namespace zero.core.feat.misc
         /// <returns>The response payload</returns>
         public async ValueTask<bool> ResponseAsync(string key, ByteString reqHash)
         {
-            return reqHash.Length != 0 && await ZeroAtomic(MatchAsync, (this, key, reqHash)).FastPath();
+            return reqHash.Length != 0 && await ZeroAtomicAsync(MatchAsync, (this, key, reqHash)).FastPath();
             //return reqHash.Length != 0 && await MatchAsync( null, (this, key, reqHash), false);
         }
 

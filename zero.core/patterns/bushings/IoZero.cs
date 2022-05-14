@@ -655,7 +655,7 @@ namespace zero.core.patterns.bushings
 
                             if (curJob.Id % parm_stats_mod_count == 0 && curJob.Id >= 9999)
                             {
-                                await ZeroAtomic(static (_, @this, _) =>
+                                await ZeroAtomicAsync(static (_, @this, _) =>
                                 {
                                     @this.DumpStats();
                                     return new ValueTask<bool>(true);
