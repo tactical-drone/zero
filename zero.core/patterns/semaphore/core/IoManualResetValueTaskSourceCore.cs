@@ -33,17 +33,17 @@ namespace zero.core.patterns.semaphore.core
         /// or null if no special context is required.
         /// </summary>
         private volatile object _capturedContext;
-        /// <summary>Whether the current operation has completed.</summary>
-        private volatile bool _completed;
-        /// <summary>The result with which the operation succeeded, or the default value if it hasn't yet completed or failed.</summary>
-        private TResult _result;
         /// <summary>The exception with which the operation failed, or null if it hasn't yet completed or completed successfully.</summary>
         private volatile ExceptionDispatchInfo _error;
-
+        /// <summary>Whether the current operation has completed.</summary>
+        private volatile bool _completed;
 //#if DEBUG
         /// <summary>The current version of this value, used to help prevent misuse.</summary>
-        private volatile int _version;
+        private volatile int _version; 
 //#endif
+
+        /// <summary>The result with which the operation succeeded, or the default value if it hasn't yet completed or failed.</summary>
+        private TResult _result;
 
         /// <summary>Gets or sets whether to force continuations to run asynchronously.</summary>
         /// <remarks>Continuations may run asynchronously if this is false, but they'll never run synchronously if this is true.</remarks>

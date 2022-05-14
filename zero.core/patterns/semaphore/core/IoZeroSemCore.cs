@@ -126,7 +126,7 @@ namespace zero.core.patterns.semaphore.core
 
             long slot = -1;
             long latch;
-            int cap = 0;
+            var cap = 0;
 
             //release a waiter
             reserve:
@@ -166,32 +166,6 @@ namespace zero.core.patterns.semaphore.core
                 cap = _capacity;
                 goto reserve;
             }
-
-            //slot = -1;
-            
-            //while ((latch = _head) < _tail + _capacity && (slot = Interlocked.CompareExchange(ref _head, latch + 1, latch)) != latch)
-            //{
-            //    if (Zeroed())
-            //        return default;
-
-            //    slot = -1;
-            //}
-
-            //if (slot == latch)
-            //{
-            //    try
-            //    {
-            //        slot %= _capacity;
-            //        var core = _manualResetValueTaskSourceCore[slot];
-            //        core.Reset((short)slot);
-            //        core.RunContinuationsAsynchronously = forceAsync;
-            //        core.SetResult(value);
-            //    }
-            //    catch
-            //    {
-            //        Console.WriteLine($"[{Thread.CurrentThread.ManagedThreadId}] --> Reserving {slot} [FAILED] - {Description}");
-            //    }
-            //}
             return 0;
         }
 
@@ -209,9 +183,9 @@ namespace zero.core.patterns.semaphore.core
             long slot = -1;
             long latch;
 
-            //reserve a signal if set
-            while ((latch = _tail) < _head &&
-                   (slot = Interlocked.CompareExchange(ref _tail, latch + 1, latch)) != latch)
+            //Check if there are cocked signals
+            while ((latch = _head) < _tail &&
+                   (slot = Interlocked.CompareExchange(ref _head, latch + 1, latch)) != latch)
             {
                 if (Zeroed())
                     return default;
@@ -219,10 +193,11 @@ namespace zero.core.patterns.semaphore.core
                 slot = -1;
             }
 
-            //>>> FAST PATH on signalled
+            //>>> FAST PATH on cocked
             if (slot == latch)
                 return new ValueTask<T>(GetResult((short)(slot % _capacity)));
 
+            //<<< SLOW PATH on WAIT
             var tailIdx = Interlocked.Increment(ref _tail) - 1;
             Debug.Assert(tailIdx < _head + _capacity);
             var taskCore = _manualResetValueTaskSourceCore[slot = tailIdx % _capacity];
