@@ -62,16 +62,16 @@ namespace zero.cocoon
             Services.CcRecord.Endpoints.TryAdd(CcService.Keys.fpc, fpcAddress);
 
             _ = StartHubAsync(udpPrefetch, udpConcurrencyLevel);
-            IoZeroScheduler.AsyncBridge.Run(async () =>
-            {
-                await _autoPeering.ZeroHiveAsync(this).FastPath();
-            });
+            //IoZeroScheduler.AsyncBridge.Run(async () =>
+            //{
+            //    await _autoPeering.ZeroHiveAsync(this).FastPath();
+            //});
 
             DupSyncRoot = new IoZeroSemaphoreSlim(AsyncTasks,  $"Dup checker for {ccDesignation.IdString()}", maxBlockers: Math.Max(MaxDrones * tcpConcurrencyLevel,1), initialCount: 1);
-            IoZeroScheduler.AsyncBridge.Run(async () =>
-            {
-                await DupSyncRoot.ZeroHiveAsync(this).FastPath();
-            });
+            //IoZeroScheduler.AsyncBridge.Run(async () =>
+            //{
+            //    await DupSyncRoot.ZeroHiveAsync(this).FastPath();
+            //});
             
             
             // Calculate max handshake

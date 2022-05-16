@@ -29,7 +29,7 @@ namespace zero.core.runtime.scheduler
         {
             Zero = new IoZeroScheduler(Default);
             ZeroDefault = Zero;
-            //ZeroDefault = Default; //TODO: Uncomment to enable native .net scheduler...
+            ZeroDefault = Default; //TODO: Uncomment to enable native .net scheduler...
         }
 
         public IoZeroScheduler(TaskScheduler fallback, CancellationTokenSource asyncTasks = null)
@@ -153,7 +153,7 @@ namespace zero.core.runtime.scheduler
 
         //The rate at which the scheduler will be allowed to "burst" allowing per tick unchecked new threads to be spawned until one of them spawns
         private static readonly int WorkerSpawnBurstTimeMs = 100;
-        private static readonly int MaxWorker = short.MaxValue;
+        private static readonly int MaxWorker = short.MaxValue>>1;
         public static readonly TaskScheduler ZeroDefault;       
         public static readonly IoZeroScheduler Zero;
         public static readonly JoinableTaskFactory AsyncBridge = new JoinableTaskFactory(new JoinableTaskContext());
@@ -382,7 +382,7 @@ namespace zero.core.runtime.scheduler
                                         try
                                         {
                                             var w = @this._pollWorker[i];
-                                            if (@this._workerPunchCards[i] == 0 && w.Ready())
+                                            if (@this._workerPunchCards[i] == 0 && !w.IsBlocked())
                                             {
                                                 w.SetResult(true);
 #if _TRACE_
@@ -550,7 +550,7 @@ var d = 0;
                         try
                         {
                             //wait on work q pressure
-                            if (queue.Count == 0 && syncRoot.Ready(true))//TODO: Design flaw
+                            if (queue.Count == 0 && !syncRoot.IsBlocked(false))//TODO: Design flaw
                             {
 #if _TRACE_
                                 if (priority == ThreadPriority.Highest)
@@ -884,7 +884,7 @@ var d = 0;
                 var q = _pollQueen[qId];
                 if (_queenPunchCards[qId] == 0)
                 {
-                    if (q.Ready())//TODO: Design flaw
+                    if (!q.IsBlocked())//TODO: Design flaw
                     {
                         try
                         {

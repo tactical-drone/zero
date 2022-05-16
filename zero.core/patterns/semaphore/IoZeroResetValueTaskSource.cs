@@ -24,7 +24,7 @@ namespace zero.core.patterns.semaphore
         public void Reset() => _zeroCore.Reset();
         public void SetResult(T result) => _zeroCore.SetResult(result);
         public void SetException(Exception exception) => _zeroCore.SetException(exception);
-        public bool Ready(bool reset = false) => _zeroCore.Set(reset);
+        public bool IsBlocked(bool reset = false) => _zeroCore.IsBlocking(reset);
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public T GetResult(short token)

@@ -846,7 +846,7 @@ namespace zero.core.patterns.semaphore.core
 #if DEBUG
                 var c = 0;
 #endif
-                while ((head = Head) == Tail || //buffer overrun
+                while ((head = Head) == Tail || //race
                        (latched = _signalAwaiter[headMod = head % _maxBlockers]) == null || 
                        latched == ZeroSentinel || //or bad latches
                        head != Head || //head has moved since

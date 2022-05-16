@@ -480,10 +480,10 @@ namespace zero.core.patterns.bushings
                         return false;
                     }
                 }
-                catch (Exception) when (Zeroed())
+                catch (Exception) when (Zeroed() || nextJob != null && nextJob.Zeroed())
                 {
                 }
-                catch (Exception e) when (!Zeroed())
+                catch (Exception e) when (!Zeroed() && nextJob != null)
                 {
                     _logger?.Error(e, $"{GetType().Name}: Producing {Description} returned with errors:");
                     return false;
@@ -501,10 +501,10 @@ namespace zero.core.patterns.bushings
                     }
                 }
             }
-            catch (Exception) when (Zeroed())
+            catch (Exception) when (Zeroed() || nextJob != null && nextJob.Zeroed())
             {
             }
-            catch (Exception e) when (!Zeroed())
+            catch (Exception e) when (!Zeroed() && nextJob != null)
             {
                 _logger?.Fatal(e, $"{GetType().Name}: {Description ?? "N/A"}: ");
             }

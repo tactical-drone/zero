@@ -17,7 +17,6 @@ namespace zero.test.core.patterns.semaphore
         {
             _output = output;
         }
-        private bool Zc = IoNanoprobe.ContinueOnCapturedContext;
         private readonly ITestOutputHelper _output;
         private volatile bool _running;
 
@@ -74,7 +73,7 @@ namespace zero.test.core.patterns.semaphore
             await Task.Factory.StartNew(async state =>
             {
                 var threads = 4;
-                var preloadCount = short.MaxValue;
+                var preloadCount = short.MaxValue>>1;
                 var m = new IoZeroSemaphoreSlim(new CancellationTokenSource(), "test mutex", maxBlockers: preloadCount, initialCount: preloadCount, zeroAsyncMode:false);
 
                 var c = 0;

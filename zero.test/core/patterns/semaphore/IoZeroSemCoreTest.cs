@@ -16,7 +16,7 @@ namespace zero.test.core.patterns.semaphore
 {
     public class IoZeroSemCoreTest
     {
-        private const int ERR_T = 16 << 1;
+        private const int ERR_T = 16 * 2;
         private readonly ITestOutputHelper _output;
 
         public IoZeroSemCoreTest(ITestOutputHelper output)
@@ -29,7 +29,7 @@ namespace zero.test.core.patterns.semaphore
         {
             var threads = 10;
             var delayTime = 50;
-            IIoZeroSemaphoreBase<int> m = new IoZeroSemCore<int>("test", threads, threads);
+            IIoZeroSemaphoreBase<int> m = new IoZeroCore<int>("test", threads, threads);
             m.ZeroRef(ref m, _ => Environment.TickCount);
 
             await Task.Factory.StartNew(async () =>
@@ -72,7 +72,7 @@ namespace zero.test.core.patterns.semaphore
             var threads = 25;
             var spamFactor = 1;
             var delayTime = 0;
-            IIoZeroSemaphoreBase<int> m = new IoZeroSemCore<int>("test", threads, threads, false);
+            IIoZeroSemaphoreBase<int> m = new IoZeroCore<int>("test", threads, threads, false);
             m.ZeroRef(ref m, _ => Environment.TickCount);
 
             _ = Task.Factory.StartNew(async () =>
@@ -122,7 +122,7 @@ namespace zero.test.core.patterns.semaphore
             var batchLog = 50;
             var threads = 100;
             var delayTime = 1;
-            IIoZeroSemaphoreBase<int> m = new IoZeroSemCore<int>("test", threads, threads);
+            IIoZeroSemaphoreBase<int> m = new IoZeroCore<int>("test", threads, threads);
             m.ZeroRef(ref m, _ => Environment.TickCount);
 
             await Task.Factory.StartNew(async () =>
@@ -174,7 +174,7 @@ namespace zero.test.core.patterns.semaphore
             //var threads = 10;
             //var spamFactor = 1;
             var delayTime = 0;
-            IIoZeroSemaphoreBase<int> m = new IoZeroSemCore<int>("test", threads, threads, false);
+            IIoZeroSemaphoreBase<int> m = new IoZeroCore<int>("test", threads, threads, false);
             m.ZeroRef(ref m, _ => Environment.TickCount);
 
             _ = Task.Factory.StartNew(async () =>
@@ -230,10 +230,10 @@ namespace zero.test.core.patterns.semaphore
         public async Task ExclusiveZoneAsync()
         {                        
             var realThreads = 1;
-            var spamFactor = 100000;
+            var spamFactor = 10000;
             var delayTime = 0;
 
-            IIoZeroSemaphoreBase<int> m = new IoZeroSemCore<int>("test", realThreads, 1, false);
+            IIoZeroSemaphoreBase<int> m = new IoZeroCore<int>("test", realThreads, 1, false);
             m.ZeroRef(ref m, _ => Environment.TickCount);
 
             var ts = Environment.TickCount;
@@ -253,7 +253,7 @@ namespace zero.test.core.patterns.semaphore
 
                             if(i% (spamFactor/10) == 0)
                                 _output.WriteLine($"[{Thread.CurrentThread.ManagedThreadId}] R => {i} , {qt.ElapsedMs()}ms, {(double)_exclusiveCount / t.ElapsedMsToSec():0.0} r/s");
-                            //Assert.InRange(qt.ElapsedMs(), -ERR_T, delayTime + ERR_T);
+                            Assert.InRange(qt.ElapsedMs(), -ERR_T, delayTime + ERR_T);
                             var Q = qt.ElapsedMs();
                             if (Q < -ERR_T || Q > delayTime + ERR_T)
                             {

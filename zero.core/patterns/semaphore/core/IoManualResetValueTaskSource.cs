@@ -56,7 +56,7 @@ namespace zero.core.patterns.semaphore.core
         public ValueTaskSourceStatus GetStatus(short token) => _coreRef.GetStatus(token);
         public void OnCompleted(Action<object> continuation, object state, short token, ValueTaskSourceOnCompletedFlags flags) => _coreRef.OnCompleted(continuation, state, token, flags);
 #endif
-        public bool Ready(bool reset = false) => _coreRef.Set(reset);
+        public bool IsBlocked(bool reset = false) => _coreRef.IsBlocking(reset);
 
     }
 }

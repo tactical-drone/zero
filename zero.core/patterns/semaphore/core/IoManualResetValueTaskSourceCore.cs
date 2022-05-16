@@ -45,6 +45,11 @@ namespace zero.core.patterns.semaphore.core
         /// <summary>The result with which the operation succeeded, or the default value if it hasn't yet completed or failed.</summary>
         private TResult _result;
 
+        /// <summary>
+        /// Whether this core has been burned?
+        /// </summary>
+        private int _burned;
+
         /// <summary>Gets or sets whether to force continuations to run asynchronously.</summary>
         /// <remarks>Continuations may run asynchronously if this is false, but they'll never run synchronously if this is true.</remarks>
         public bool RunContinuationsAsynchronously { get; set; }
@@ -54,8 +59,28 @@ namespace zero.core.patterns.semaphore.core
         /// </summary>
         public bool RunContinuationsNatively { get; set; }
 
+        /// <summary>
+        /// AutoReset
+        /// </summary>
+        public bool AutoReset { get; set; }
+
+        /// <summary>
+        /// Is this core primed with a sentinel?
+        /// </summary>
+        public bool Primed => _continuation != null && _continuation == ManualResetValueTaskSourceCoreShared.SSentinel;
+
+        /// <summary>
+        /// Is this core blocking?
+        /// </summary>
+        public bool Blocking => _continuation != null && _continuation != ManualResetValueTaskSourceCoreShared.SSentinel && !_completed;
+
+        /// <summary>
+        /// Is this core Burned?
+        /// </summary>
+        public bool Burned => _burned > 0;
+
         /// <summary>Resets to prepare for the next operation.</summary>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        [MethodImpl(MethodImplOptions.NoInlining)]
         public void Reset()
         {
             // Reset/update state for the next use/await of this instance.
@@ -66,14 +91,16 @@ namespace zero.core.patterns.semaphore.core
             _continuationState = null;
             _continuation = null;
             _completed = false;
+            _burned = 0;
+            Thread.MemoryBarrier();
 
 #if DEBUG
-            if (Interlocked.Increment(ref _version) == short.MaxValue)
-                _version = 0;
+            //if (Interlocked.Increment(ref _version) == short.MaxValue)
+            //    _version = 0;
 #endif
         }
 
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        [MethodImpl(MethodImplOptions.NoInlining)]
         public void Reset(short index)
         {
             Reset();
@@ -81,17 +108,17 @@ namespace zero.core.patterns.semaphore.core
         }
 
         /// <summary>
-        /// If this primitive has been cocked
+        /// If this primitive is blocking
         /// </summary>
-        /// <returns>True if cocked, false otherwise</returns>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public bool Set(bool reset = false)
+        /// <returns>True if currently blocking, false otherwise</returns>
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        public bool IsBlocking(bool reset = false)
         {
-            var cocked = _continuation == null || !_completed;
+            var blocked = _continuation != null && _continuation != ManualResetValueTaskSourceCoreShared.SSentinel && !_completed;
 
-            if (!reset) return cocked;
+            if (!reset) return blocked;
 
-            if (!cocked) Reset();
+            if (blocked) Reset((short)Version);
 
             return true;
         }
@@ -101,11 +128,19 @@ namespace zero.core.patterns.semaphore.core
         public void SetResult(TResult result)
         {
             if (_completed)
-                throw _invalidOperationException;
+                throw new InvalidOperationException($"[{Thread.CurrentThread.ManagedThreadId}]: primed = {Primed}, blocking = {Blocking}, burned = {Burned}, completed = {_completed}, {GetStatus((short)Version)}");
 
             _result = result;
             SignalCompletion();
         }
+
+        //public void SetResult(IIoManualResetValueTaskSourceCore<TResult> source)
+        //{
+        //    if (_completed)
+        //        throw _invalidOperationException;
+
+        //    SignalCompletion(source);
+        //}
 
         /// <summary>Completes with an error.</summary>
         /// <param name="error"></param>
@@ -125,7 +160,7 @@ namespace zero.core.patterns.semaphore.core
 
         /// <summary>Gets the status of the operation.</summary>
         /// <param name="token">Opaque value that was provided to the <see cref="ValueTask"/>'s constructor.</param>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        [MethodImpl(MethodImplOptions.NoInlining)]
         public ValueTaskSourceStatus GetStatus(short token)
         {
 #if DEBUG
@@ -139,9 +174,12 @@ namespace zero.core.patterns.semaphore.core
 
         /// <summary>Gets the result of the operation.</summary>
         /// <param name="token">Opaque value that was provided to the <see cref="ValueTask"/>'s constructor.</param>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        [MethodImpl(MethodImplOptions.NoInlining)]
         public TResult GetResult(short token)
         {
+            if (Interlocked.CompareExchange(ref _burned, 1, 0) != 0)
+                throw _invalidOperationException;
+
 #if DEBUG
             ValidateToken(token);   
 #endif
@@ -151,7 +189,15 @@ namespace zero.core.patterns.semaphore.core
             }
 
             _error?.Throw();
-            return _result;
+            try
+            {
+                return _result;
+            }
+            finally
+            {
+                if (AutoReset)                
+                    Reset();                                    
+            }
         }
 
         /// <summary>Schedules the continuation action for this operation.</summary>
@@ -248,9 +294,9 @@ namespace zero.core.patterns.semaphore.core
                     }
                 }
             }
-            catch //(Exception e)
+            catch(Exception e)
             {
-                //Console.WriteLine(e);
+                Console.WriteLine(e);
                 //throw;
             }
         }
@@ -268,14 +314,19 @@ namespace zero.core.patterns.semaphore.core
 #endif
 
         /// <summary>Signals that the operation has completed.  Invoked after the result or error has been set.</summary>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private void SignalCompletion()
+        /// <param name="source"></param>
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private void SignalCompletion(IIoManualResetValueTaskSourceCore<TResult> source = null)
         {
-            if (_completed)
-            {
-                throw _invalidOperationException;
-            }
+            //if (_completed) 
+            //    throw _invalidOperationException;//TODO strange bug between SetResult and here
+            if(_completed)
+                throw new InvalidOperationException($"[{Thread.CurrentThread.ManagedThreadId}]: primed = {Primed}, blocking = {Blocking}, burned = {Burned}, completed = {_completed}, { GetStatus((short)Version)}");
+            
             _completed = true;
+
+            if(source != null)
+                _result = source.GetResult((short)source.Version);
 
             if (_continuation == null && Interlocked.CompareExchange(ref _continuation, ManualResetValueTaskSourceCoreShared.SSentinel, null) == null) 
                 return;
@@ -298,7 +349,7 @@ namespace zero.core.patterns.semaphore.core
         /// This assumes that if <see cref="_executionContext"/> is not null we're already
         /// running within that <see cref="ExecutionContext"/>.
         /// </summary>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        [MethodImpl(MethodImplOptions.NoInlining)]
         private void InvokeContinuation()
         {
             switch (_capturedContext)

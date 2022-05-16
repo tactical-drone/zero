@@ -524,10 +524,7 @@ namespace zero.test.core.patterns.queue{
                 }
             }, CancellationToken.None, TaskContinuationOptions.DenyChildAttach, TaskScheduler.Default);
 
-            await insertTask;
-            Assert.True(insertTask.IsCompletedSuccessfully);
-            await dequeTask;
-            Assert.True(dequeTask.IsCompletedSuccessfully);
+            await Task.WhenAll(insertTask, dequeTask).WaitAsync(TimeSpan.FromSeconds(10));
         }
 
         

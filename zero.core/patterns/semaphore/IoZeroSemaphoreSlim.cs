@@ -19,7 +19,7 @@ namespace zero.core.patterns.semaphore
             bool enableAutoScale = false, bool enableFairQ = false, bool enableDeadlockDetection = false) : base($"{nameof(IoZeroSemaphoreSlim)}: {description}", maxBlockers)
         {
             //IIoZeroSemaphoreBase<bool> newSem = new IoZeroSemaphore<bool>(description, maxBlockers, initialCount, zeroAsyncMode, enableAutoScale: enableAutoScale, cancellationTokenSource: asyncTasks);
-            IIoZeroSemaphoreBase<bool> newSem = new IoZeroSemCore<bool>(description, maxBlockers, initialCount, zeroAsyncMode);
+            IIoZeroSemaphoreBase<bool> newSem = new IoZeroCore<bool>(description, maxBlockers, initialCount, zeroAsyncMode);
             _semaphore = newSem.ZeroRef(ref newSem, _ => true);
         }
 
@@ -96,8 +96,8 @@ namespace zero.core.patterns.semaphore
             throw new NotImplementedException();
         }
 
-        public long Tail => ((IoZeroSemCore<bool>)_semaphore).Tail;
-        public long Head => ((IoZeroSemCore<bool>)_semaphore).Head;
+        public long Tail => ((IoZeroCore<bool>)_semaphore).Tail;
+        public long Head => ((IoZeroCore<bool>)_semaphore).Head;
         public long EgressCount => ((IoZeroSemaphore<bool>)_semaphore).EgressCount;
 
         public override bool Zeroed()

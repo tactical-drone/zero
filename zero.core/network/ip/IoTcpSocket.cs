@@ -108,7 +108,7 @@ namespace zero.core.network.ip
                         catch (Exception e)
                         {
                             LogManager.GetCurrentClassLogger().Trace(e, $"{nameof(NativeSocket.BeginConnect)}");
-                            taskCore.SetResult(null);
+                            taskCore.SetResult(default(Socket));
                         }
                     }, (NativeSocket, taskCore));
 
