@@ -23,7 +23,7 @@ namespace zero.core.patterns.semaphore.core
     {
         public IoZeroCore(string description, int capacity, int ready = 0, bool zeroAsyncMode = false)
         {
-            if(capacity - 1 > short.MaxValue)
+            if(capacity > short.MaxValue >> 1)
                 throw new ArgumentOutOfRangeException(nameof(capacity));
 
             if(ready > capacity)
