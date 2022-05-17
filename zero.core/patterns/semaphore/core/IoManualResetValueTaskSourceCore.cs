@@ -93,12 +93,13 @@ namespace zero.core.patterns.semaphore.core
             _error = null;
             _executionContext = null;
             _capturedContext = null;
-            _continuationState = null;
-            _continuation = null;
             _completed = false;
-            _burned = 0;
             Thread.MemoryBarrier();
-
+            _continuation = null;
+            Thread.MemoryBarrier();
+            _continuationState = null;
+            _burned = 0;
+            
 #if DEBUG
             //if (Interlocked.Increment(ref _version) == short.MaxValue)
             //    _version = 0;

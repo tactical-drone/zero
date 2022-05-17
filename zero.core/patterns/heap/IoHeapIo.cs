@@ -117,8 +117,7 @@ namespace zero.core.patterns.heap
             {
                 IoZeroScheduler.Zero.QueueAsyncCallback(async () =>
                 {
-                    await item.DisposeAsync(new IoNanoprobe($"{item.Description}"),
-                        $"{nameof(IoHeapIo<TItem, TContext>)}: teardown direct = {zero}, cascade = {Zeroed}");
+                    await item.DisposeAsync(null, $"{nameof(IoHeapIo<TItem, TContext>)}: teardown direct = {zero}, cascade = {Zeroed}");
                 });
             }
         }

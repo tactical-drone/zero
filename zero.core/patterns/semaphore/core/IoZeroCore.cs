@@ -158,6 +158,8 @@ namespace zero.core.patterns.semaphore.core
                 while (!slowCore.Blocking)
                 {
                     Thread.Yield();
+                    if (Zeroed())
+                        break;
                 }
 
                 //Debug.Assert(slowCore.Blocking);
@@ -307,6 +309,8 @@ namespace zero.core.patterns.semaphore.core
                 while (fastCore.Burned)
                 {
                     Console.Write(".");
+                    if (Zeroed())
+                        break;
                     //Thread.Yield();
                 }
                 Debug.Assert(!fastCore.Burned);

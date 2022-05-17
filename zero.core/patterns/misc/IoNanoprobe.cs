@@ -35,17 +35,6 @@ namespace zero.core.patterns.misc
         }
 
         /// <summary>
-        /// Used as destruction sentinels
-        /// </summary>
-        /// <param name="reason">The teardown reason</param>
-        public IoNanoprobe(string reason)
-        {
-            _zId = Interlocked.Increment(ref _uidSeed);
-            //AsyncTasks = new CancellationTokenSource();
-            Description = reason;
-        }
-        
-        /// <summary>
         /// Constructs a nano probe
         /// </summary>
         /// <param name="description">A description</param>
@@ -516,10 +505,11 @@ namespace zero.core.patterns.misc
             _logger.Trace($"#{Serial} ~> {desc}: Reason: `{reason}'");
 #endif
         }
+
         /// <summary>
         /// Cancellation token source
         /// </summary>
-        public CancellationTokenSource AsyncTasks { get; private set; }
+        public readonly CancellationTokenSource AsyncTasks;
 
         /// <summary>
         /// Manages unmanaged objects
