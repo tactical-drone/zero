@@ -930,20 +930,20 @@ namespace zero.sync
             await Task.Delay(1000);
             var asyncTasks = new CancellationTokenSource();
 
-            var capacity = 1;
+            var capacity = 3;
 
             //.NET RUNTIME REFERENCE MUTEX FOR TESTING
             //var mutex = new IoZeroRefMut(asyncTasks.Token);
             //var mutex = new IoZeroSemaphoreSlim(asyncTasks, "zero slim", maxBlockers: capacity, initialCount: 1, zeroAsyncMode: false, enableAutoScale: false, enableFairQ: false, enableDeadlockDetection: true);
-            IIoZeroSemaphoreBase<int> mutex = new IoZeroCore<int>("zero core", capacity, capacity>>1, false);
+            IIoZeroSemaphoreBase<int> mutex = new IoZeroCore<int>("zero core", capacity, 0, false);
             mutex = mutex.ZeroRef(ref mutex, o => Environment.TickCount);
                  
-            var releaseCount = 1;
-            var waiters = 1;
-            var releasers = 1;
+            var releaseCount = 2;
+            var waiters = 3;
+            var releasers = 4;
             var disableRelease = false;
             var targetSleep = (long)0;
-            var logSpam = 30000;//at least 1
+            var logSpam = 40000;//at least 1
             var totalReleases = int.MaxValue;
 
             var targetSleepMult = waiters > 1 ? 2 : 1;
@@ -1187,7 +1187,7 @@ namespace zero.sync
                                     else
                                     {
                                         //await Task.Yield();
-                                        //await Task.Delay(10, asyncTasks.Token);
+                                        await Task.Delay(1, asyncTasks.Token);
                                     }
 
                                 }

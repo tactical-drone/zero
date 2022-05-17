@@ -6,7 +6,7 @@ namespace zero.core.patterns.semaphore.core
     public static class IoZeroCAS
     {
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static long ZeroNextBound(this ref long val, in long cap)
+        public static long ZeroNext(this ref long val, in long cap)
         {
             long inc;
             long latch;
@@ -20,7 +20,7 @@ namespace zero.core.patterns.semaphore.core
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static long ZeroNext(this ref long val, in long cap)
+        public static long ZeroNextBounded(this ref long val, in long cap)
         {
             long inc;
             long latch;
@@ -34,7 +34,7 @@ namespace zero.core.patterns.semaphore.core
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static long ZeroInc(this ref long val, in long cap) => ZeroNext(ref val, in cap) + 1;
+        public static long ZeroInc(this ref long val, in long cap) => ZeroNextBounded(ref val, in cap) + 1;
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static long ZeroDecCap(this ref long val, long cap)

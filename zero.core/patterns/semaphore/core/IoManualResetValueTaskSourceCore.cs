@@ -48,7 +48,7 @@ namespace zero.core.patterns.semaphore.core
         /// <summary>
         /// Whether this core has been burned?
         /// </summary>
-        private int _burned;
+        private volatile int _burned;
 
         /// <summary>Gets or sets whether to force continuations to run asynchronously.</summary>
         /// <remarks>Continuations may run asynchronously if this is false, but they'll never run synchronously if this is true.</remarks>
@@ -78,6 +78,11 @@ namespace zero.core.patterns.semaphore.core
         /// Is this core Burned?
         /// </summary>
         public bool Burned => _burned > 0;
+
+
+#if DEBUG
+        public TResult Result => _result;
+#endif
 
         /// <summary>Resets to prepare for the next operation.</summary>
         [MethodImpl(MethodImplOptions.NoInlining)]
