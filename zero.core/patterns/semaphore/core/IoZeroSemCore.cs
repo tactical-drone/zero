@@ -235,7 +235,7 @@ namespace zero.core.patterns.semaphore.core
                 //var ready = _manualResetValueTaskSourceCore[(_tail - 1) % ModCapacity].Ready;
                 long tail;
                 var retry = false;
-                while ((retry || (latch = _manualResetValueTaskSourceCore[(tail = _tail-1) % ModCapacity].IsBlocking(false) ? tail : _head) < _tail + _capacity && //take the head
+                while ((retry || (latch = _manualResetValueTaskSourceCore[(tail = _tail-1) % ModCapacity].Blocking ? tail : _head) < _tail + _capacity && //take the head
                        (core = _manualResetValueTaskSourceCore[latch %= ModCapacity]) != null) && //race
                        Interlocked.CompareExchange(ref _manualResetValueTaskSourceCore[latch %= ModCapacity], null, core) != core) //reserve
                 {
@@ -248,7 +248,7 @@ namespace zero.core.patterns.semaphore.core
                 if (core == null)
                     return 0;
 
-                if (core.IsBlocking(false))
+                if (core.Blocking)
                 {
                     try
                     {

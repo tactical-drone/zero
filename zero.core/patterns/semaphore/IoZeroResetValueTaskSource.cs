@@ -15,6 +15,7 @@ namespace zero.core.patterns.semaphore
         public IoZeroResetValueTaskSource(bool asyncInline = false)
         {
             _zeroCore.RunContinuationsAsynchronously = asyncInline;
+            _zeroCore.AutoReset = true;
         }
 
         private IoManualResetValueTaskSourceCore<T> _zeroCore;
@@ -26,20 +27,13 @@ namespace zero.core.patterns.semaphore
         public void SetException(Exception exception) => _zeroCore.SetException(exception);
         public bool IsBlocked(bool reset = false) => _zeroCore.IsBlocking(reset);
 
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public T GetResult(short token)
-        {
-            var result = _zeroCore.GetResult(token);
-            _zeroCore.Reset();
-            return result;
-        }
+        public bool Blocking => _zeroCore.Blocking;
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        void IValueTaskSource.GetResult(short token)
-        {
-            _zeroCore.GetResult(token);
-            _zeroCore.Reset();
-        }
+        public T GetResult(short token) => _zeroCore.GetResult(token);
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        void IValueTaskSource.GetResult(short token) => _zeroCore.GetResult(token);
 
         public ValueTaskSourceStatus GetStatus(short token) => _zeroCore.GetStatus(token);
 

@@ -29,7 +29,7 @@ namespace zero.core.runtime.scheduler
         {
             Zero = new IoZeroScheduler(Default);
             ZeroDefault = Zero;
-            ZeroDefault = Default; //TODO: Uncomment to enable native .net scheduler...
+            //ZeroDefault = Default; //TODO: Uncomment to enable native .net scheduler...
         }
 
         public IoZeroScheduler(TaskScheduler fallback, CancellationTokenSource asyncTasks = null)
@@ -382,7 +382,7 @@ namespace zero.core.runtime.scheduler
                                         try
                                         {
                                             var w = @this._pollWorker[i];
-                                            if (@this._workerPunchCards[i] == 0 && !w.IsBlocked())
+                                            if (@this._workerPunchCards[i] == 0 && w.Blocking)
                                             {
                                                 w.SetResult(true);
 #if _TRACE_
@@ -550,7 +550,7 @@ var d = 0;
                         try
                         {
                             //wait on work q pressure
-                            if (queue.Count == 0 && !syncRoot.IsBlocked(false))//TODO: Design flaw
+                            if (queue.Count == 0 && !syncRoot.Blocking)//TODO: Design flaw
                             {
 #if _TRACE_
                                 if (priority == ThreadPriority.Highest)
@@ -884,7 +884,7 @@ var d = 0;
                 var q = _pollQueen[qId];
                 if (_queenPunchCards[qId] == 0)
                 {
-                    if (!q.IsBlocked())//TODO: Design flaw
+                    if (q.Blocking)//TODO: Design flaw
                     {
                         try
                         {

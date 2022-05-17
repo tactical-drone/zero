@@ -6,6 +6,7 @@ using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Threading.Tasks.Sources;
+using NLog;
 using zero.core.misc;
 
 namespace zero.core.patterns.semaphore.core
@@ -260,6 +261,8 @@ namespace zero.core.patterns.semaphore.core
             {
                 Debug.Assert(idx < _b_head + _capacity);
                 var slowCore = _blocking[idx %= ModCapacity];
+                if(!slowCore.Burned)
+                    LogManager.GetCurrentClassLogger().Error($"[{Thread.CurrentThread.ManagedThreadId}]: [FATAL] unbrunt core at idx = {idx} <- {_b_tail % ModCapacity} <- {_b_head % ModCapacity}: primed = {slowCore.Primed}, blocking = {slowCore.Blocking}, burned = {slowCore.Burned}, {slowCore.GetStatus((short)slowCore.Version)} - {Description}");
                 slowCore.Reset((short)idx);
                 slowTaskCore = new ValueTask<T>(slowCore, (short)idx);
                 return true;
@@ -292,12 +295,12 @@ namespace zero.core.patterns.semaphore.core
         {
             fastTaskCore = default;
 
-            if (ReadyCount == 0)
+            if (ReadyCount == 0 || _zeroed > 0)
                 return false;
 
             long idx;
             long cap;
-            if ((idx = _n_head.ZeroNextBounded(cap = _n_tail)) != cap) //TODO?
+            if ((idx = _n_head.ZeroNextBounded(cap = _n_tail)) != cap)
             {
                 Debug.Assert(idx < _n_tail);
                 var fastCore = _nonBlocking[idx % ModCapacity];
