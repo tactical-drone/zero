@@ -203,7 +203,7 @@ namespace zero.core.patterns.misc
         protected static IIoZeroSemaphoreBase<bool> ZeroSyncRoot(int concurrencyLevel, CancellationTokenSource asyncTasks)
         {
             //TODO: tuning
-            IIoZeroSemaphoreBase<bool> z = new IoZeroSemaphore<bool>(string.Empty, Math.Min(20 + concurrencyLevel * 20, short.MaxValue), 1, cancellationTokenSource: asyncTasks, runContinuationsAsynchronously:true);
+            IIoZeroSemaphoreBase<bool> z = new IoZeroSemaphore<bool>(string.Empty, Math.Min(20 + concurrencyLevel * 20, short.MaxValue), 1, cancellationTokenSource: asyncTasks, runContinuationsAsynchronously:false);
             z.ZeroRef(ref z, _ => true);
             return z;
         }

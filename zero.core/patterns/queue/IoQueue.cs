@@ -63,7 +63,7 @@ namespace zero.core.patterns.queue
 
             //_syncRoot = new IoZeroSemaphore<bool>(desc, maxBlockers: concurrencyLevel, initialCount: 1, cancellationTokenSource: _asyncTasks, runContinuationsAsynchronously: true);
             //_syncRoot.ZeroRef(ref _syncRoot, _ => true);
-            _syncRoot = new IoZeroCore<bool>(desc, concurrencyLevel, 1, true);
+            _syncRoot = new IoZeroCore<bool>(desc, concurrencyLevel, 1);
             _syncRoot.ZeroRef(ref _syncRoot, _ => true);
 
             if (_configuration.HasFlag(Mode.Pressure))
@@ -76,7 +76,7 @@ namespace zero.core.patterns.queue
             if (_configuration.HasFlag(Mode.BackPressure))
             {
                 _backPressure = new IoZeroSemaphore<bool>($"qbp {description}",
-                    maxBlockers: concurrencyLevel, initialCount: concurrencyLevel, cancellationTokenSource: _asyncTasks, runContinuationsAsynchronously: false);
+                    maxBlockers: concurrencyLevel, initialCount: concurrencyLevel, cancellationTokenSource: _asyncTasks, runContinuationsAsynchronously: true);
                 _backPressure.ZeroRef(ref _backPressure, _ => true);
             }
 

@@ -67,7 +67,7 @@ namespace zero.core.patterns.bushings
                     _prefetchPressure = new IoZeroSemaphoreSlim(AsyncTasks, $"{nameof(_prefetchPressure)}: {description}",
                         maxBlockers: PrefetchSize,
                         initialCount: PrefetchSize,
-                        zeroAsyncMode: false);
+                        zeroAsyncMode: true);
                 }
             }
             catch (Exception e)
