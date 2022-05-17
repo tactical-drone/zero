@@ -86,7 +86,7 @@ namespace zero.cocoon.autopeer
 
                 //to prevent cascading into the hub we clone the source.
                 Source = new IoUdpClient<CcProtocMessage<chroniton, CcDiscoveryBatch>>($"UDP Proxy ~> {base.Description}", MessageService, RemoteAddress.IpEndPoint);
-                IoZeroScheduler.AsyncBridge.Run(async () =>
+                IoZeroScheduler.Zero.QueueAsyncCallback(async () =>
                 {
                     await Source.ZeroHiveAsync(this).AsTask();
                 });

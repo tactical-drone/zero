@@ -137,10 +137,10 @@ namespace zero.sync
                     t1,t2,t3,t4
                 };
 
-                IoZeroScheduler.AsyncBridge.Run(() => {t1.Start();return Task.CompletedTask;});
-                IoZeroScheduler.AsyncBridge.Run(() => {t2.Start();return Task.CompletedTask;});
-                IoZeroScheduler.AsyncBridge.Run(() => {t3.Start();return Task.CompletedTask;});
-                IoZeroScheduler.AsyncBridge.Run(() => {t4.Start();return Task.CompletedTask;});
+                IoZeroScheduler.Zero.QueueAsyncCallback(() => {t1.Start();return default;});
+                IoZeroScheduler.Zero.QueueAsyncCallback(() => {t2.Start();return default;});
+                IoZeroScheduler.Zero.QueueAsyncCallback(() => {t3.Start();return default;});
+                IoZeroScheduler.Zero.QueueAsyncCallback(() => {t4.Start();return default;});
             }
             else
 #pragma warning disable CS0162
@@ -542,10 +542,10 @@ namespace zero.sync
                     if (line.StartsWith("loadTest"))
                     {
                         var n = _nodes.Where(n => !n.ZeroDrone).ToArray();
-                        IoZeroScheduler.AsyncBridge.Run(async () => await n[Random.Shared.Next(0, n.Length - 1)].BootAsync(0).FastPath());
-                        IoZeroScheduler.AsyncBridge.Run(async () => await n[Random.Shared.Next(0, n.Length - 1)].BootAsync(0).FastPath());
-                        IoZeroScheduler.AsyncBridge.Run(async () => await n[Random.Shared.Next(0, n.Length - 1)].BootAsync(0).FastPath());
-                        IoZeroScheduler.AsyncBridge.Run(async () => await n[Random.Shared.Next(0, n.Length - 1)].BootAsync(0).FastPath());
+                        IoZeroScheduler.Zero.QueueAsyncCallback(async () => await n[Random.Shared.Next(0, n.Length - 1)].BootAsync(0).FastPath());
+                        IoZeroScheduler.Zero.QueueAsyncCallback(async () => await n[Random.Shared.Next(0, n.Length - 1)].BootAsync(0).FastPath());
+                        IoZeroScheduler.Zero.QueueAsyncCallback(async () => await n[Random.Shared.Next(0, n.Length - 1)].BootAsync(0).FastPath());
+                        IoZeroScheduler.Zero.QueueAsyncCallback(async () => await n[Random.Shared.Next(0, n.Length - 1)].BootAsync(0).FastPath());
                         Console.WriteLine("ZERO CORE best case horizontal scale cluster TCP/IP (DDoS) pressure test started... make sure your CPU has enough juice, this test will redline your kernel and hang your OS");
                     }
 
@@ -571,19 +571,12 @@ namespace zero.sync
                             {
                                 _running = false;
                                 _startAccounting = false;
-                                IoZeroScheduler.AsyncBridge.Run(async () =>
+                                IoZeroScheduler.Zero.QueueAsyncCallback(async () =>
                                 {
                                     await Task.WhenAll(gossipTasks.ToArray());
                                     await tasks.ToList().ForEachAsync<Task<CcCollective>, object>(static async (t,_) =>
                                     {
-                                        await IoZeroScheduler.AsyncBridge.RunAsync(async () =>
-                                        {
-
-#pragma warning disable VSTHRD003 
-                                            var c = await t;
-#pragma warning restore VSTHRD003
-                                            c.ClearDupBuf();
-                                        });
+                                        (await t).ClearDupBuf();
                                     }, null);
                                     //tasks.ToList().ForEach(t => t.Result.ClearDupBuf());
                                     gossipTasks.Clear();
@@ -706,14 +699,14 @@ namespace zero.sync
 
                     if (line.StartsWith("stream"))
                     {
-                        IoZeroScheduler.AsyncBridge.Run(AutoPeeringEventService.ToggleActiveAsync);
+                        IoZeroScheduler.Zero.QueueAsyncCallback(async () => await AutoPeeringEventService.ToggleActiveAsync());
                         
                         Console.WriteLine($"event stream = {(AutoPeeringEventService.Operational? "On":"Off")}");
                     }
 
                     if (line.StartsWith("zero"))
                     {
-                        IoZeroScheduler.AsyncBridge.Run(async () =>
+                        IoZeroScheduler.Zero.QueueAsyncCallback(async () =>
                         {
                             await ZeroAsync(total).FastPath();
                             

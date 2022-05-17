@@ -7,7 +7,6 @@ using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Xml.Schema;
-using Microsoft.VisualStudio.Threading;
 using NLog;
 using NLog.Config;
 using zero.core.misc;
@@ -48,7 +47,7 @@ namespace zero.core.runtime.scheduler
 
             //TODO: tuning
             _workQueue = new IoZeroQ<Task>(string.Empty, capacity * 2, true);
-            _asyncQueue = new IoZeroQ<Func<ValueTask>>(string.Empty, (MaxWorker + 1) * 2, true, _asyncTasks, concurrencyLevel:MaxWorker - 1, zeroAsyncMode: true);
+            _asyncQueue = new IoZeroQ<Func<ValueTask>>(string.Empty, (MaxWorker + 1) * 2, true, _asyncTasks, concurrencyLevel:MaxWorker - 1, zeroAsyncMode: false);
             _syncQueue = new IoZeroQ<ZeroContinuation>(string.Empty, (MaxWorker + 1) * 2, true, _asyncTasks, concurrencyLevel: MaxWorker - 1, zeroAsyncMode: false);
             _oneShotQueue = new IoZeroQ<Action>(string.Empty, (MaxWorker + 1) * 2, true, _asyncTasks, concurrencyLevel: MaxWorker - 1, zeroAsyncMode: true);
 
@@ -156,7 +155,6 @@ namespace zero.core.runtime.scheduler
         private static readonly int MaxWorker = short.MaxValue>>1;
         public static readonly TaskScheduler ZeroDefault;       
         public static readonly IoZeroScheduler Zero;
-        public static readonly JoinableTaskFactory AsyncBridge = new JoinableTaskFactory(new JoinableTaskContext());
         private readonly CancellationTokenSource _asyncTasks;        
         private readonly IoZeroResetValueTaskSource<bool>[] _pollWorker;
         private readonly IoZeroResetValueTaskSource<bool>[] _pollQueen;
@@ -999,7 +997,7 @@ var d = 0;
         public void Queue(Task task) => QueueTask(task);
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public bool QueueSyncCallback(Func<ValueTask> callback, object state = null) => _asyncQueue.TryEnqueue(callback) > 0;
+        public bool QueueAsyncCallback(Func<ValueTask> callback, object state = null) => _asyncQueue.TryEnqueue(callback) > 0;
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public bool QueueOneShot(Action callback, object state = null) => _oneShotQueue.TryEnqueue(callback) > 0;

@@ -115,7 +115,7 @@ namespace zero.core.patterns.heap
 
             if (zero && !deDup || Zeroed) //hack
             {
-                _ = IoZeroScheduler.AsyncBridge.RunAsync(async () =>
+                IoZeroScheduler.Zero.QueueAsyncCallback(async () =>
                 {
                     await item.DisposeAsync(new IoNanoprobe($"{item.Description}"),
                         $"{nameof(IoHeapIo<TItem, TContext>)}: teardown direct = {zero}, cascade = {Zeroed}");

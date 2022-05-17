@@ -5,7 +5,6 @@ using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
-using Microsoft.VisualStudio.Threading;
 using NLog;
 using zero.core.conf;
 using zero.core.misc;
@@ -159,14 +158,10 @@ namespace zero.core.core
 
             _netServer?.DisposeAsync(this, $"{nameof(ZeroManagedAsync)}: teardown");
 
-            await NeighborTasks.ZeroManagedAsync(static async (neighborTask, @this) =>
+            await NeighborTasks.ZeroManagedAsync(static (neighborTask, @this) =>
             {
-                await IoZeroScheduler.AsyncBridge.RunAsync(async () =>
-                {
-#pragma warning disable VSTHRD003 // Avoid awaiting foreign Tasks
-                    await neighborTask.Value.WithTimeout(TimeSpan.FromSeconds(@this.parm_nb_teardown_timeout_s));
-#pragma warning restore VSTHRD003 // Avoid awaiting foreign Tasks
-                });
+                neighborTask.Value.Wait(TimeSpan.FromSeconds(@this.parm_nb_teardown_timeout_s));
+                return default;
             }, this, zero: true).FastPath();
         }
 
