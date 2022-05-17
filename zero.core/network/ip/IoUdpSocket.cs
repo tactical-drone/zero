@@ -452,8 +452,10 @@ namespace zero.core.network.ip
             try
             {
                 var tcs = (IIoManualResetValueTaskSourceCore<bool>)eventArgs.UserToken;
-                tcs.SetResult(!Zeroed() && eventArgs.SocketError == SocketError.Success);
-                
+                if(eventArgs.SocketError == SocketError.Success)
+                    tcs.SetResult(!Zeroed());
+                else
+                    tcs.SetException(new Exception($"error = {eventArgs.SocketError}"));
             }
             catch(Exception) when(Zeroed()){}
             catch(Exception e) when (!Zeroed())
@@ -501,13 +503,6 @@ namespace zero.core.network.ip
 
                         IIoManualResetValueTaskSourceCore<bool> taskCore = new IoManualResetValueTaskSourceCore<bool>();
                         var receive = new ValueTask<bool>(taskCore, 0);
-
-                        //static void SetRef(ref IValueTaskSource<bool> s, SocketAsyncEventArgs a)
-                        //{
-                        //    a.UserToken = s;
-                        //}
-                        //SetRef(ref taskCore, args);
-
                         args.UserToken = taskCore;
                         args.SetBuffer(buffer.Slice(offset, length));
 

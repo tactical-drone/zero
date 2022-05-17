@@ -107,8 +107,15 @@ namespace zero.core.network.ip
                         }
                         catch (Exception e)
                         {
-                            LogManager.GetCurrentClassLogger().Trace(e, $"{nameof(NativeSocket.BeginConnect)}");
-                            taskCore.SetResult(default(Socket));
+                            try
+                            {
+                                taskCore.SetResult(null);
+                                LogManager.GetCurrentClassLogger().Trace(e, $"{nameof(NativeSocket.BeginConnect)}");
+                            }
+                            catch
+                            {
+                                // ignored
+                            }
                         }
                     }, (NativeSocket, taskCore));
 
@@ -194,9 +201,16 @@ namespace zero.core.network.ip
                     }
                     catch (Exception e)
                     {
-                        LogManager.GetCurrentClassLogger().Trace(e, $"{nameof(NativeSocket.BeginConnect)}");
-                        if (taskCore.GetStatus(0) == ValueTaskSourceStatus.Pending)
-                            taskCore.SetResult(false);
+                        try
+                        {
+                            if (taskCore.Blocking)
+                                taskCore.SetResult(false);
+                            LogManager.GetCurrentClassLogger().Trace(e, $"{nameof(NativeSocket.BeginConnect)}");
+                        }
+                        catch
+                        {
+                            // ignored
+                        }
                     }
                 }, (NativeSocket, taskCore));
 

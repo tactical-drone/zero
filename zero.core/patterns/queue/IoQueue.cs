@@ -68,15 +68,13 @@ namespace zero.core.patterns.queue
 
             if (_configuration.HasFlag(Mode.Pressure))
             {
-                _pressure = new IoZeroSemaphore<bool>($"qp {description}",
-                    maxBlockers: concurrencyLevel, cancellationTokenSource: _asyncTasks, runContinuationsAsynchronously:false);
-                _pressure.ZeroRef(ref _pressure, default);
+                _pressure = new IoZeroCore<bool>($"qp {description}", concurrencyLevel);
+                _pressure.ZeroRef(ref _pressure, _ => true);
             }
             
             if (_configuration.HasFlag(Mode.BackPressure))
             {
-                _backPressure = new IoZeroSemaphore<bool>($"qbp {description}",
-                    maxBlockers: concurrencyLevel, initialCount: concurrencyLevel, cancellationTokenSource: _asyncTasks, runContinuationsAsynchronously: true);
+                _backPressure = new IoZeroCore<bool>($"qbp {description}",concurrencyLevel, concurrencyLevel, false);
                 _backPressure.ZeroRef(ref _backPressure, _ => true);
             }
 
@@ -168,8 +166,8 @@ namespace zero.core.patterns.queue
             }
             finally
             {
-                _syncRoot.Release(true);
-
+                _syncRoot.EnsureRelease(true);
+                
                 if (zero)
                 {
                     await ClearAsync().FastPath(); //TODO perf: can these two steps be combined?
@@ -282,14 +280,14 @@ namespace zero.core.patterns.queue
                         }
                         finally
                         {
-                            _syncRoot.Release(true);
+                            _syncRoot.EnsureRelease(true);
                         }
                     }
 
                     if (_pressure != null && success)
-                        _pressure.Release(true, true);
+                        _pressure.EnsureRelease(true, true);
                     else
-                        _backPressure?.Release(true);
+                        _backPressure?.EnsureRelease(true);
                 }
                 catch when (Zeroed) { }
                 catch (Exception e) when (!Zeroed)
@@ -356,12 +354,12 @@ namespace zero.core.patterns.queue
             finally
             {
                 if (entered)
-                    _syncRoot.Release(true);
+                    _syncRoot.EnsureRelease(true);
 
                 if (retVal != default)
-                    _pressure?.Release(true);
+                    _pressure?.EnsureRelease(true);
                 else
-                    _backPressure?.Release(true);
+                    _backPressure?.EnsureRelease(true);
             }
         }
 
@@ -436,7 +434,7 @@ namespace zero.core.patterns.queue
                     var retVal = dq.Value;
                     dq.Value = default;
                     _nodeHeap.Return(dq);
-                    _backPressure?.Release(true, true);//TODO: Why does this one need to be false? Every time it is set to async strange things start to happen.
+                    _backPressure?.EnsureRelease(true, true);//TODO: Why does this one need to be false? Every time it is set to async strange things start to happen.
                     return retVal;
                 }
             }
@@ -508,7 +506,7 @@ namespace zero.core.patterns.queue
             }
             finally
             {
-                _syncRoot.Release(true);
+                _syncRoot.EnsureRelease(true);
                 node.Value = default;
                 _nodeHeap.Return(node, deDup);
             }
@@ -561,7 +559,7 @@ namespace zero.core.patterns.queue
             }
             finally
             {
-                _syncRoot.Release(true);
+                _syncRoot.EnsureRelease(true);
             }
         }
 
@@ -592,7 +590,7 @@ namespace zero.core.patterns.queue
             }
             finally
             {
-                _syncRoot.Release(true);
+                _syncRoot.EnsureRelease(true);
             }
         }
 

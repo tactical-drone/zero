@@ -94,11 +94,6 @@ namespace zero.core.patterns.misc
         private static long _uidSeed;
 
         /// <summary>
-        /// Continue On Captured Context
-        /// </summary>
-        public static bool ContinueOnCapturedContext => true;
-
-        /// <summary>
         /// Used for equality compares
         /// </summary>
         private readonly long _zId;
@@ -192,7 +187,7 @@ namespace zero.core.patterns.misc
         protected static IIoZeroSemaphoreBase<bool> ZeroSyncRoot(int concurrencyLevel, CancellationTokenSource asyncTasks)
         {
             //TODO: tuning
-            IIoZeroSemaphoreBase<bool> z = new IoZeroSemaphore<bool>(string.Empty, Math.Min(20 + concurrencyLevel * 20, short.MaxValue), 1, cancellationTokenSource: asyncTasks, runContinuationsAsynchronously:false);
+            IIoZeroSemaphoreBase<bool> z = new IoZeroCore<bool>(string.Empty, Math.Min(20 + concurrencyLevel * 20, short.MaxValue >> 1), 1);
             z.ZeroRef(ref z, _ => true);
             return z;
         }
@@ -472,7 +467,7 @@ namespace zero.core.patterns.misc
             }
             finally
             {
-                AsyncTasks = null;
+                //AsyncTasks = null;
             }
 #else
             catch
@@ -621,14 +616,7 @@ namespace zero.core.patterns.misc
             }
             finally
             {
-                try
-                {
-                    ZeroRoot.Release(true);
-                }
-                catch
-                {
-                    // ignored
-                }
+                ZeroRoot.EnsureRelease(true);
             }
 
             return false;

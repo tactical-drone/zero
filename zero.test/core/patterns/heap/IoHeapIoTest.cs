@@ -140,8 +140,7 @@ namespace zero.test.core.patterns.heap
 
 
         private int _localVar = 2;
-        private bool Zc = IoNanoprobe.ContinueOnCapturedContext;
-       
+
 
 #if true
         private int _capacity = 16;

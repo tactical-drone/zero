@@ -47,8 +47,8 @@ namespace zero.core.runtime.scheduler
 
             //TODO: tuning
             _workQueue = new IoZeroQ<Task>(string.Empty, capacity * 2, true);
-            _asyncQueue = new IoZeroQ<Func<ValueTask>>(string.Empty, (MaxWorker + 1) * 2, true, _asyncTasks, concurrencyLevel:MaxWorker - 1, zeroAsyncMode: false);
-            _syncQueue = new IoZeroQ<ZeroContinuation>(string.Empty, (MaxWorker + 1) * 2, true, _asyncTasks, concurrencyLevel: MaxWorker - 1, zeroAsyncMode: false);
+            _asyncQueue = new IoZeroQ<ZeroContinuation>(string.Empty, (MaxWorker + 1) * 2, true, _asyncTasks, concurrencyLevel: MaxWorker - 1, zeroAsyncMode: true);
+            _asyncOneShotQueue = new IoZeroQ<Func<ValueTask>>(string.Empty, (MaxWorker + 1) * 2, true, _asyncTasks, concurrencyLevel: MaxWorker - 1, zeroAsyncMode: false);
             _oneShotQueue = new IoZeroQ<Action>(string.Empty, (MaxWorker + 1) * 2, true, _asyncTasks, concurrencyLevel: MaxWorker - 1, zeroAsyncMode: true);
 
             _queenQueue = new IoZeroQ<ZeroSignal>(string.Empty, capacity,true);
@@ -162,9 +162,9 @@ namespace zero.core.runtime.scheduler
         private readonly int[] _queenPunchCards;
         private volatile int _dropWorker;
         private readonly IoZeroQ<Task> _workQueue;
-        private readonly IoZeroQ<Func<ValueTask>> _asyncQueue;
+        private readonly IoZeroQ<Func<ValueTask>> _asyncOneShotQueue;
         private readonly IoZeroQ<Action> _oneShotQueue;
-        private readonly IoZeroQ<ZeroContinuation> _syncQueue;
+        private readonly IoZeroQ<ZeroContinuation> _asyncQueue;
         private readonly IoZeroQ<ZeroSignal> _queenQueue;
         
         private readonly IoHeap<ZeroContinuation> _callbackHeap;
@@ -762,7 +762,7 @@ var d = 0;
 
         private async ValueTask SpawnAsync(int threadIndex)
         {
-            await foreach (var job in _asyncQueue.PumpOnConsumeAsync(threadIndex))
+            await foreach (var job in _asyncOneShotQueue.PumpOnConsumeAsync(threadIndex))
             {
                 try
                 {
@@ -794,7 +794,7 @@ var d = 0;
 
         private async ValueTask SpawnNoAsync(int threadIndex)
         {
-            await foreach (var job in _syncQueue.BalanceOnConsumeAsync(threadIndex).ConfigureAwait(false))
+            await foreach (var job in _asyncQueue.BalanceOnConsumeAsync(threadIndex).ConfigureAwait(false))
             {
                 try
                 {
@@ -982,7 +982,7 @@ var d = 0;
 
                 handler.Callback = callback;
                 handler.State = state;
-                result = _syncQueue.TryEnqueue(handler);
+                result = _asyncQueue.TryEnqueue(handler);
                 return result > 0;
             }
             finally
@@ -997,7 +997,7 @@ var d = 0;
         public void Queue(Task task) => QueueTask(task);
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public bool QueueAsyncCallback(Func<ValueTask> callback, object state = null) => _asyncQueue.TryEnqueue(callback) > 0;
+        public bool QueueAsyncCallback(Func<ValueTask> callback, object state = null) => _asyncOneShotQueue.TryEnqueue(callback) > 0;
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public bool QueueOneShot(Action callback, object state = null) => _oneShotQueue.TryEnqueue(callback) > 0;

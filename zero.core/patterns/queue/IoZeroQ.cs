@@ -12,6 +12,7 @@ using NLog;
 using zero.core.patterns.misc;
 using zero.core.patterns.queue.enumerator;
 using zero.core.patterns.semaphore;
+using zero.core.patterns.semaphore.core;
 using zero.@unsafe.core.math;
 
 namespace zero.core.patterns.queue
@@ -324,7 +325,7 @@ namespace zero.core.patterns.queue
                 {
                     try
                     {
-                        _balanceSync.Release( true);
+                        _balanceSync.EnsureRelease(true);
                     }
                     catch
                     {

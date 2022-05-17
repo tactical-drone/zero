@@ -49,5 +49,12 @@ namespace zero.core.patterns.semaphore.core
 
             return slot;
         }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static void EnsureRelease<T>(this IIoZeroSemaphoreBase<T> s, T val, bool forceAsync = false, int cmp = 1)
+        {
+            while (s.Release(val, forceAsync) != cmp && !s.Zeroed())
+                Thread.Yield();
+        }
     }
 }

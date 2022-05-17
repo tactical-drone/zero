@@ -57,10 +57,6 @@ namespace zero.core.patterns.heap
         /// </summary>
         public string Description => $"#{GetHashCode()}:{nameof(IoHeap<TItem,TContext>)}: {nameof(Count)} = {Count}, capacity = {Capacity}, refs = {_refCount}, desc = {_description}, bag ~> {_ioHeapBuf.Description}";
 
-        /// <summary>
-        /// Config await
-        /// </summary>
-        protected bool Zc = IoNanoprobe.ContinueOnCapturedContext;
 
         /// <summary>
         /// Whether this object has been cleaned up

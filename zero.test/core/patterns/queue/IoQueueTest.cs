@@ -284,23 +284,25 @@ namespace zero.test.core.patterns.queue{
                     for (var i = 0; i < itemsPerThread; i++)
                     {
                         if(i%2 == 0)
-                            await q.EnqueueAsync(Interlocked.Increment(ref idx)).FastPath();
+                            await q.EnqueueAsync(i).FastPath();
                         else
-                            await q.PushBackAsync(Interlocked.Increment(ref idx)).FastPath();
+                            await q.PushBackAsync(i).FastPath();
                         Interlocked.Increment(ref @this._inserted);
+                        if(i% itemsPerThread/2 == 0)
+                            output.WriteLine($"thread[{idx}] = done... {@this._inserted}");
                     }
                         
                     output.WriteLine($"thread[{idx}] = done... {@this._inserted}");
-                }, (this, q, idx, itemsPerThread, _output), CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Default).Unwrap());
+                }, (this, q, i, itemsPerThread, _output), CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Default).Unwrap());
             }
 
             await Task.WhenAll(insert).WaitAsync(TimeSpan.FromSeconds(10));
 
             Assert.Equal(capacity, _inserted);
 
-            await q.DequeueAsync();
-            await q.DequeueAsync();
-            await q.DequeueAsync();
+            await q.DequeueAsync().FastPath();
+            await q.DequeueAsync().FastPath();
+            await q.DequeueAsync().FastPath();
 
             Assert.Equal(capacity - 3, q.Count);
 
@@ -312,7 +314,7 @@ namespace zero.test.core.patterns.queue{
 
             Assert.Equal(capacity - 3, c);
 
-            await q.ZeroManagedAsync<object>(zero:true);
+            await q.ZeroManagedAsync<object>(zero:true).FastPath();
 
             Assert.Equal(0, q.Count);
             Assert.Null(q.Head);
@@ -592,7 +594,7 @@ namespace zero.test.core.patterns.queue{
                     for (int j = 0; j < Concurrency - 1; j++)
                     {
                         dqList.Add(_queuePressure.DequeueAsync().AsTask());
-                        //output.WriteLine(".");
+                        output.WriteLine(".");
                         count++;
                     }
 
@@ -641,7 +643,6 @@ namespace zero.test.core.patterns.queue{
 #pragma warning restore VSTHRD002 // Avoid problematic synchronous waits
             }
 
-            private readonly bool Zc = IoNanoprobe.ContinueOnCapturedContext;
             public IoQueue<int> Q;
             public IoQueue<int>.IoZNode Head;
             public IoQueue<int>.IoZNode Middle;

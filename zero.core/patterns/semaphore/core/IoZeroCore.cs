@@ -1,6 +1,7 @@
 ﻿//#define TRACE
 using System;
 using System.Diagnostics;
+using System.Net.Http.Headers;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Threading;
@@ -28,6 +29,7 @@ namespace zero.core.patterns.semaphore.core
 
             if(ready > capacity)
                 throw new ArgumentOutOfRangeException(nameof(ready));
+
 
             _b_head = 0;
             _b_tail = 0;
@@ -63,6 +65,11 @@ namespace zero.core.patterns.semaphore.core
         public IIoZeroSemaphoreBase<T> ZeroRef(ref IIoZeroSemaphoreBase<T> @ref, Func<object, T> primeResult = default,
             object context = null)
         {
+            if (@ref == null)
+            {
+                throw new ArgumentNullException(nameof(@ref));
+            }
+
             _primeReady = primeResult;
             _primeContext = context;
 
@@ -80,6 +87,7 @@ namespace zero.core.patterns.semaphore.core
             return @ref;
         }
 
+        internal static TaskCanceledException _taskCanceledException = new TaskCanceledException();
         public void ZeroSem()
         {
             if (_zeroed > 0 || Interlocked.CompareExchange(ref _zeroed, 1, 0) != 0)
@@ -90,7 +98,8 @@ namespace zero.core.patterns.semaphore.core
             {
                 try
                 {
-                    _blocking[(Interlocked.Increment(ref _b_head) - 1) % ModCapacity].SetException(new TaskCanceledException($"{Description}"));
+                    _blocking[(Interlocked.Increment(ref _b_head) - 1) % ModCapacity].SetException(_taskCanceledException);
+                    //_blocking[(Interlocked.Increment(ref _b_head) - 1) % ModCapacity].SetResult(_primeReady(_primeContext));
                 }
                 catch
                 {
@@ -133,14 +142,16 @@ namespace zero.core.patterns.semaphore.core
         #endregion
 
         #region internal
+
         /// <summary>
         /// Dequeue a slow core and unblock it using the <see cref="value"/> provided
         /// </summary>
         /// <param name="value">Send this value to the blocker</param>
         /// <param name="released">The number of blockers released with <see cref="value"/></param>
+        /// <param name="forceAsync"></param>
         /// <returns>If a waiter was unblocked, false otherwise</returns>
         [MethodImpl(MethodImplOptions.NoInlining)]
-        private bool ZeroSet(T value, out int released)
+        private bool ZeroSet(T value, out int released, bool forceAsync = false)
         {
             if (WaitCount == 0)
             {
@@ -168,6 +179,7 @@ namespace zero.core.patterns.semaphore.core
                     try
                     {
                         Debug.Assert(slowCore.Blocking);
+                        slowCore.RunContinuationsAsynchronously = forceAsync;
                         slowCore.SetResult(value);
                         released = 1;
                         return true;
@@ -371,24 +383,27 @@ namespace zero.core.patterns.semaphore.core
         [MethodImpl(MethodImplOptions.NoInlining)]
         public int Release(T value, bool forceAsync = false)
         {
-            if (WaitCount == 0 && ReadyCount >= _capacity)
+            retry:
+            if (!forceAsync && WaitCount == 0 && ReadyCount >= _capacity)
                 return 0;
             try
             {
                 if (ZeroSet(value, out var release)) return release;
 
-                if (WaitCount == 0 && ReadyCount >= _capacity)
+                if (!forceAsync && WaitCount == 0 && ReadyCount >= _capacity)
                     return 0;
 
                 if (ZeroPrime(value, out release)) return release;
             }
             catch
             {
-                if (WaitCount == 0 && ReadyCount >= _capacity)
+                if (!forceAsync && WaitCount == 0 && ReadyCount >= _capacity)
                     return 0;
 
                 if (ZeroPrime(value, out var release)) return release;
             }
+            if(forceAsync)
+                goto retry;
             return 0;
         }
 

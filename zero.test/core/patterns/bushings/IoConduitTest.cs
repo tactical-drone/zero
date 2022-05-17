@@ -8,6 +8,7 @@ using zero.core.misc;
 using zero.core.patterns.bushings;
 using zero.core.patterns.bushings.contracts;
 using zero.core.patterns.misc;
+using zero.core.runtime.scheduler;
 
 namespace zero.test.core.patterns.bushings
 {
@@ -67,6 +68,8 @@ namespace zero.test.core.patterns.bushings
         [Fact]
         public async Task IoConduitConcurrencySmokeAsync()
         {
+            
+            _output.WriteLine($"{IoZeroScheduler.Zero?.Id}");
             var concurrencyLevel = 10;
             var count = 500;
             

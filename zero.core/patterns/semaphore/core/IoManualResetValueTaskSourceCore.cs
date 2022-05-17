@@ -136,6 +136,7 @@ namespace zero.core.patterns.semaphore.core
             if (_completed)
                 throw new InvalidOperationException($"[{Thread.CurrentThread.ManagedThreadId}]: primed = {Primed}, blocking = {Blocking}, burned = {Burned}, completed = {_completed}, {GetStatus((short)Version)}");
 
+            
             _result = result;
             SignalCompletion();
         }
