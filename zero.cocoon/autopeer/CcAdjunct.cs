@@ -1527,7 +1527,7 @@ namespace zero.cocoon.autopeer
             }
             
             //Validated
-            _logger.Debug($"<\\- {nameof(CcFuseResponse)}: Accepted = {response.Accept}, {Description}");
+            _logger.Debug($"<\\- {nameof(CcFuseResponse)}: Accepted = {response.Accept}, current state = {State}, {Description}");
 
             //PAT
             LastPat = Environment.TickCount;
