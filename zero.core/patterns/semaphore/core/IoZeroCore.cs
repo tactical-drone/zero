@@ -71,7 +71,7 @@ namespace zero.core.patterns.semaphore.core
 #if TRACE
                             Console.WriteLine($"<{Environment.TickCount}>[{Thread.CurrentThread.ManagedThreadId:00}] - Non-Blocking, (C)"); //id = [{idx % ModCapacity}]{idx:00}, status = {slowCore}");
 #endif
-                            @this.IncCur();
+                            //@this.IncCur();
                             @this.DecReadyCount();
                         }
                     }
@@ -230,26 +230,27 @@ namespace zero.core.patterns.semaphore.core
             }
 
             long cap;
-            
-            var idx = _b_cur.ZeroNext(cap = _b_cur + _capacity);
+
+            //var idx = _b_cur.ZeroNext(cap = _b_tail > _b_cur? _b_tail : _b_cur + 1);
+            var idx = _b_tail.ZeroNext(cap = _b_head + _capacity);
             if (idx != cap)
             {
                 //Interlocked.Increment(ref _b_head);
-                Interlocked.Increment(ref _b_tail);
+                //Interlocked.Increment(ref _b_tail);
                 
                 //Debug.Assert(idx < _b_tail);
                 var slowCore = _blocking[idx % ModCapacity];
                 //Debug.Assert(idx <= _b_tail);
 
-                //if (slowCore.Blocking)
-                //{
-                //    Interlocked.Decrement(ref _waitCount);
-                //    slowCore.SetResult(value);
-                    
-                //    released = 1;
-                //    Console.WriteLine($"<{Environment.TickCount}>[{Thread.CurrentThread.ManagedThreadId:00}] - Released, (P) ");//id = [{idx%ModCapacity}]{idx:00}, status = {slowCore}");
-                //    return true;
-                //}
+                if (slowCore.Blocking)
+                {
+                    Interlocked.Decrement(ref _waitCount);
+                    slowCore.SetResult(value);
+
+                    released = 1;
+                    Console.WriteLine($"<{Environment.TickCount}>[{Thread.CurrentThread.ManagedThreadId:00}] - Released, (P) ");//id = [{idx%ModCapacity}]{idx:00}, status = {slowCore}");
+                    return true;
+                }
 
                 slowCore.SetResult(value, static (wasBlocking, @this) =>
                 {
@@ -297,13 +298,52 @@ namespace zero.core.patterns.semaphore.core
 
             Debug.Assert(WaitCount <= _capacity);
 
-            slowTaskCore = default;
-
             long idx;
             long cap;
-            if ((idx = _b_head.ZeroNext(cap = _b_cur + _capacity)) != cap)
+
+            slowTaskCore = default;
+
+            //            if (WaitCount == 0 && ReadyCount == 1)
+            //            {
+            //                if ((idx = _b_cur.ZeroNext(cap = _b_cur + _capacity)) != cap)
+            //                {
+            //                    Interlocked.Increment(ref _b_tail);
+
+            //                    //Debug.Assert(idx < _b_head + _capacity);
+            //                    var slowCore = _blocking[idx %= ModCapacity];
+            //                    slowCore.Prime((short)idx);
+            //                    slowTaskCore = new ValueTask<T>(slowCore, (short)idx);
+
+            //                    if (slowCore.Primed)
+            //                    {
+            //#if TRACE
+            //                        Console.WriteLine(
+            //                            $"<{Environment.TickCount}>[{Thread.CurrentThread.ManagedThreadId:00}] - Non-Blocking, id = [{idx % ModCapacity}]{idx:00}, status = {slowCore}");
+            //#endif
+            //                        Interlocked.Increment(ref _b_cur);
+            //                        Interlocked.Decrement(ref _readyCount);
+            //                    }
+            //                    else
+            //                    {
+            //#if TRACE
+            //                        Console.WriteLine(
+            //                            $"<{Environment.TickCount}>[{Thread.CurrentThread.ManagedThreadId:00}] - Blocking,     id = [{idx % ModCapacity}]{idx:00}, status = {slowCore}");
+            //#endif
+            //                        //Interlocked.Increment(ref _b_tail);
+            //                        Interlocked.Increment(ref _waitCount);
+            //                        Console.WriteLine(
+            //                            $"<{Environment.TickCount}>[{Thread.CurrentThread.ManagedThreadId:00}] w = {_waitCount} (B)");
+            //                    }
+
+            //                    return true;
+            //                }
+            //            }
+
+
+            //if ((idx = _b_cur.ZeroNext(cap = _b_head > _b_cur ? _b_head : _b_cur + 1)) != cap)
+            if ((idx = _b_head.ZeroNext(cap = _b_head + _capacity)) != cap)
             {
-                Interlocked.Increment(ref _b_tail);
+                //Interlocked.Increment(ref _b_tail);
 
                 //Debug.Assert(idx < _b_head + _capacity);
                 var slowCore = _blocking[idx %= ModCapacity];
@@ -315,18 +355,18 @@ namespace zero.core.patterns.semaphore.core
 #if TRACE
                     Console.WriteLine($"<{Environment.TickCount}>[{Thread.CurrentThread.ManagedThreadId:00}] - Non-Blocking, id = [{idx % ModCapacity}]{idx:00}, status = {slowCore}");
 #endif
-                    Interlocked.Increment(ref _b_cur);
+                    //Interlocked.Increment(ref _b_cur);
                     Interlocked.Decrement(ref _readyCount);
                 }
-                else
-                {
-#if TRACE
-                    Console.WriteLine($"<{Environment.TickCount}>[{Thread.CurrentThread.ManagedThreadId:00}] - Blocking,     id = [{idx % ModCapacity}]{idx:00}, status = {slowCore}");
-#endif
-                    //Interlocked.Increment(ref _b_tail);
-                    Interlocked.Increment(ref _waitCount);
-                    Console.WriteLine($"<{Environment.TickCount}>[{Thread.CurrentThread.ManagedThreadId:00}] w = {_waitCount} (B)");
-                }
+//                else
+//                {
+//#if TRACE
+//                    Console.WriteLine($"<{Environment.TickCount}>[{Thread.CurrentThread.ManagedThreadId:00}] - Blocking,     id = [{idx % ModCapacity}]{idx:00}, status = {slowCore}");
+//#endif
+//                    //Interlocked.Increment(ref _b_tail);
+//                    Interlocked.Increment(ref _waitCount);
+//                    Console.WriteLine($"<{Environment.TickCount}>[{Thread.CurrentThread.ManagedThreadId:00}] w = {_waitCount} (B)");
+//                }
                 return true;
 //                if (slowCore.Primed)
 //                {

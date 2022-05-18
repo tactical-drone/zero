@@ -928,7 +928,7 @@ namespace zero.sync
             await Task.Delay(1000);
             var asyncTasks = new CancellationTokenSource();
 
-            var capacity = 1;
+            var capacity = 3;
 
             //.NET RUNTIME REFERENCE MUTEX FOR TESTING
             //var mutex = new IoZeroRefMut(asyncTasks.Token);
@@ -937,8 +937,8 @@ namespace zero.sync
             mutex = mutex.ZeroRef(ref mutex, o => Environment.TickCount);
                  
             var releaseCount = 2;
-            var waiters = 2;
-            var releasers = 3;
+            var waiters = 3;
+            var releasers = 4;
             var disableRelease = false;
             var targetSleep = (long)1000;
             var logSpam = 1;//at least 1
@@ -984,7 +984,7 @@ namespace zero.sync
                          var qt = await mutex.WaitAsync().FastPath();
                          
                          //Debug.Assert(qt.ElapsedMs() < ERR_T);
-                         if (qt.ElapsedMs() < ERR_T)
+                         if (qt.ElapsedMs() < targetSleep + ERR_T)
                          {
                              var tt = sw.ElapsedMilliseconds;
                              Interlocked.Increment(ref eq1);
@@ -1052,7 +1052,7 @@ namespace zero.sync
                         sw2.Restart();
                         var qt = await mutex.WaitAsync().FastPath();
                         //Debug.Assert(qt.ElapsedMs() < ERR_T);
-                        if (qt.ElapsedMs() < ERR_T)
+                        if (qt.ElapsedMs() < targetSleep + ERR_T)
                         { 
                             var tt = sw2.ElapsedMilliseconds;
                             Interlocked.Increment(ref eq2);
@@ -1120,7 +1120,7 @@ namespace zero.sync
                         sw2.Restart();
                         var qt = await mutex.WaitAsync().FastPath();
                         //Debug.Assert(qt.ElapsedMs() < ERR_T);
-                        if (qt.ElapsedMs() < ERR_T)
+                        if (qt.ElapsedMs() < targetSleep + ERR_T)
                         {
                            var tt = sw2.ElapsedMilliseconds;
                            Interlocked.Increment(ref eq3);
