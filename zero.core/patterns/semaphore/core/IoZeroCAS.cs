@@ -1,5 +1,6 @@
 ﻿using System.Runtime.CompilerServices;
 using System.Threading;
+using NLog;
 
 namespace zero.core.patterns.semaphore.core
 {
@@ -34,27 +35,19 @@ namespace zero.core.patterns.semaphore.core
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static long ZeroInc(this ref long val, in long cap) => ZeroNextBounded(ref val, in cap) + 1;
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static long ZeroDecCap(this ref long val, long cap)
-        {
-            long slot;
-            long latch;
-            while ((slot = (latch = val) - 1) < cap || Interlocked.CompareExchange(ref val, slot, latch) != latch)
-            {
-                if (slot < cap)
-                    return cap;
-            }
-
-            return slot;
-        }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static void EnsureRelease<T>(this IIoZeroSemaphoreBase<T> s, T val, bool forceAsync = false, int cmp = 1)
         {
-            while (s.Release(val, forceAsync) != cmp && !s.Zeroed())
+            var c = 300;
+            while (s.Release(val, false) != cmp && s.ReadyCount != cmp && !s.Zeroed())
+            {
+                if (c-- < 0)
+                {
+                    LogManager.GetCurrentClassLogger().Fatal($"{nameof(EnsureRelease)}: Ensuring {cmp} release(s) [FAILED], ready = {s.ReadyCount}, {s.Description}");
+                    s.ZeroSem();
+                    break;
+                }
                 Thread.Yield();
+            }
         }
     }
 }

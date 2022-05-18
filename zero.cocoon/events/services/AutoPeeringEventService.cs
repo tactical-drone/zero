@@ -43,8 +43,7 @@ namespace zero.cocoon.events.services
         }
 
         public override async Task<EventResponse> Next(NullMsg request, ServerCallContext context)
-        {
-            var response = new EventResponse();
+        { var response = new EventResponse();
 
             if (_operational == 0)
                 return response;

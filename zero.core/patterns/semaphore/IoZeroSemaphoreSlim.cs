@@ -74,7 +74,6 @@ namespace zero.core.patterns.semaphore
             return _semaphore.Release(value, forceAsync);
         }
 
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public ValueTask<bool> WaitAsync()
         {
             return _semaphore.WaitAsync();

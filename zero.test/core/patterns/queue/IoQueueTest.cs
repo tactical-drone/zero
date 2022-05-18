@@ -594,7 +594,6 @@ namespace zero.test.core.patterns.queue{
                     for (int j = 0; j < Concurrency - 1; j++)
                     {
                         dqList.Add(_queuePressure.DequeueAsync().AsTask());
-                        output.WriteLine(".");
                         count++;
                     }
 
@@ -621,7 +620,16 @@ namespace zero.test.core.patterns.queue{
                 
             }, _output, CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Default).Unwrap();
 
-            await Task.WhenAll(q,dq).WithTimeout(TimeSpan.FromMilliseconds(BlockDelay * NrOfItems / Concurrency * 2));
+            try
+            {
+                await Task.WhenAll(q, dq)
+                    .WithTimeout(TimeSpan.FromMilliseconds(BlockDelay * NrOfItems / Concurrency * 4));
+            }
+            catch(TaskCanceledException){}
+            catch(Exception e)
+            {
+                Assert.Fail(e.Message);
+            }
 
         }
 

@@ -5,8 +5,6 @@ using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Threading.Tasks.Sources;
-using NLog;
-using zero.core.misc;
 using zero.core.runtime.scheduler;
 
 namespace zero.core.patterns.semaphore.core
@@ -23,32 +21,36 @@ namespace zero.core.patterns.semaphore.core
         /// or <see cref="ManualResetValueTaskSourceCoreShared.SSentinel"/> if the operation completed before a callback was supplied,
         /// or null if a callback hasn't yet been provided and the operation hasn't yet completed.
         /// </summary>
-        private volatile Action<object> _continuation;
+        private Action<object> _continuation;
+
         /// <summary>State to pass to <see cref="_continuation"/>.</summary>
-        private volatile object _continuationState;
+        private object _continuationState;
+
         /// <summary><see cref="ExecutionContext"/> to flow to the callback, or null if no flowing is required.</summary>
-        private volatile ExecutionContext _executionContext;
+        private ExecutionContext _executionContext;
+
         /// <summary>
         /// A "captured" <see cref="SynchronizationContext"/> or <see cref="TaskScheduler"/> with which to invoke the callback,
         /// or null if no special context is required.
         /// </summary>
-        private volatile object _capturedContext;
+        private object _capturedContext;
+
         /// <summary>The exception with which the operation failed, or null if it hasn't yet completed or completed successfully.</summary>
-        private volatile ExceptionDispatchInfo _error;
-        /// <summary>Whether the current operation has completed.</summary>
-        private volatile bool _completed;
-//#if DEBUG
-        /// <summary>The current version of this value, used to help prevent misuse.</summary>
-        private volatile int _version; 
-//#endif
+        private ExceptionDispatchInfo _error;
 
         /// <summary>The result with which the operation succeeded, or the default value if it hasn't yet completed or failed.</summary>
         private TResult _result;
 
+        /// <summary>Whether the current operation has completed.</summary>
+        private bool _completed;
+
+        /// <summary>The current version of this value, used to help prevent misuse.</summary>
+        private int _version;
+
         /// <summary>
         /// Whether this core has been burned?
         /// </summary>
-        private volatile int _burned;
+        private int _burned;
 
         /// <summary>Gets or sets whether to force continuations to run asynchronously.</summary>
         /// <remarks>Continuations may run asynchronously if this is false, but they'll never run synchronously if this is true.</remarks>
@@ -85,7 +87,7 @@ namespace zero.core.patterns.semaphore.core
 #endif
 
         /// <summary>Resets to prepare for the next operation.</summary>
-        [MethodImpl(MethodImplOptions.NoInlining)]
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Reset()
         {
             // Reset/update state for the next use/await of this instance.
@@ -93,11 +95,11 @@ namespace zero.core.patterns.semaphore.core
             _error = null;
             _executionContext = null;
             _capturedContext = null;
+            _continuationState = null;
             _completed = false;
             Thread.MemoryBarrier();
             _continuation = null;
             Thread.MemoryBarrier();
-            _continuationState = null;
             _burned = 0;
             
 #if DEBUG
@@ -106,7 +108,7 @@ namespace zero.core.patterns.semaphore.core
 #endif
         }
 
-        [MethodImpl(MethodImplOptions.NoInlining)]
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Reset(short index)
         {
             Reset();
@@ -117,7 +119,7 @@ namespace zero.core.patterns.semaphore.core
         /// If this primitive is blocking
         /// </summary>
         /// <returns>True if currently blocking, false otherwise</returns>
-        [MethodImpl(MethodImplOptions.NoInlining)]
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public bool IsBlocking(bool reset = false)
         {
             var blocked = _continuation != null && _continuation != ManualResetValueTaskSourceCoreShared.SSentinel && !_completed;
@@ -167,7 +169,7 @@ namespace zero.core.patterns.semaphore.core
 
         /// <summary>Gets the status of the operation.</summary>
         /// <param name="token">Opaque value that was provided to the <see cref="ValueTask"/>'s constructor.</param>
-        [MethodImpl(MethodImplOptions.NoInlining)]
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public ValueTaskSourceStatus GetStatus(short token)
         {
 #if DEBUG
@@ -181,7 +183,7 @@ namespace zero.core.patterns.semaphore.core
 
         /// <summary>Gets the result of the operation.</summary>
         /// <param name="token">Opaque value that was provided to the <see cref="ValueTask"/>'s constructor.</param>
-        [MethodImpl(MethodImplOptions.NoInlining)]
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public TResult GetResult(short token)
         {
             if (Interlocked.CompareExchange(ref _burned, 1, 0) != 0)
@@ -196,15 +198,13 @@ namespace zero.core.patterns.semaphore.core
             }
 
             _error?.Throw();
-            try
-            {
-                return _result;
-            }
-            finally
-            {
-                if (AutoReset)                
-                    Reset();                                    
-            }
+
+            var r = _result;
+
+            if (AutoReset)
+                Reset();
+
+            return r;
         }
 
         /// <summary>Schedules the continuation action for this operation.</summary>
@@ -282,7 +282,22 @@ namespace zero.core.patterns.semaphore.core
                     {
                         case null:
                         {
-                            _ = Task.Factory.StartNew(continuation, state, CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Current);
+                            _ = Task.Factory.StartNew(continuation, state, CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Default);
+                            //if (_executionContext != null)
+                            //{
+                            //    ThreadPool.QueueUserWorkItem(continuation, state, preferLocal: true);
+                            //}
+                            //else
+                            //{
+                            //    if (!ThreadPool.UnsafeQueueUserWorkItem(static delegate (object s)
+                            //        {
+                            //            var (callback, state) = (ValueTuple<Action<object>, object>)s;
+                            //            callback(state);
+                            //        }, (continuation, state)))
+                            //    {
+                            //        _ = Task.Factory.StartNew(continuation, state, CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Default);
+                            //    };
+                            //}
                             break;
                         }
                         case SynchronizationContext sc:
@@ -294,7 +309,10 @@ namespace zero.core.patterns.semaphore.core
                             }, (continuation, state));
 #pragma warning restore VSTHRD001 // Avoid legacy thread switching APIs
                             break;
-
+                        case IoZeroScheduler zs:
+                            //_ = Task.Factory.StartNew(continuation, state, CancellationToken.None, TaskCreationOptions.DenyChildAttach, IoZeroScheduler.Zero);
+                            IoZeroScheduler.Zero.QueueCallback(_continuation, _continuationState);
+                            break;
                         case TaskScheduler ts:
                             _ = Task.Factory.StartNew(continuation, state, CancellationToken.None, TaskCreationOptions.DenyChildAttach, ts);
                             break;
@@ -322,7 +340,7 @@ namespace zero.core.patterns.semaphore.core
 
         /// <summary>Signals that the operation has completed.  Invoked after the result or error has been set.</summary>
         /// <param name="source"></param>
-        [MethodImpl(MethodImplOptions.NoInlining)]
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private void SignalCompletion(IIoManualResetValueTaskSourceCore<TResult> source = null)
         {
             //if (_completed) 
@@ -356,7 +374,7 @@ namespace zero.core.patterns.semaphore.core
         /// This assumes that if <see cref="_executionContext"/> is not null we're already
         /// running within that <see cref="ExecutionContext"/>.
         /// </summary>
-        [MethodImpl(MethodImplOptions.NoInlining)]
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private void InvokeContinuation()
         {
             switch (_capturedContext)
@@ -397,6 +415,7 @@ namespace zero.core.patterns.semaphore.core
                     //async
                     if (RunContinuationsAsynchronously)
                     {
+                        //_ = Task.Factory.StartNew(_continuation, _continuationState, CancellationToken.None, TaskCreationOptions.DenyChildAttach, IoZeroScheduler.Zero);
                         IoZeroScheduler.Zero.QueueCallback(_continuation, _continuationState);
                     }
                     else //sync

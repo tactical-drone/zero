@@ -1,14 +1,12 @@
 ﻿//#define TRACE
 using System;
 using System.Diagnostics;
-using System.Net.Http.Headers;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Threading.Tasks.Sources;
 using NLog;
-using zero.core.misc;
 
 namespace zero.core.patterns.semaphore.core
 {
@@ -87,19 +85,19 @@ namespace zero.core.patterns.semaphore.core
             return @ref;
         }
 
-        internal static TaskCanceledException _taskCanceledException = new TaskCanceledException();
         public void ZeroSem()
         {
             if (_zeroed > 0 || Interlocked.CompareExchange(ref _zeroed, 1, 0) != 0)
                 return;
+
+            var operationCanceledException = new OperationCanceledException($"{nameof(ZeroSem)}: [TEARDOWN DIRECT] {Description}");
 
             ////flush waiters
             while (_b_head < _b_tail)
             {
                 try
                 {
-                    _blocking[(Interlocked.Increment(ref _b_head) - 1) % ModCapacity].SetException(_taskCanceledException);
-                    //_blocking[(Interlocked.Increment(ref _b_head) - 1) % ModCapacity].SetResult(_primeReady(_primeContext));
+                    _blocking[(Interlocked.Increment(ref _b_head) - 1) % ModCapacity].SetException(operationCanceledException);
                 }
                 catch
                 {
@@ -151,7 +149,7 @@ namespace zero.core.patterns.semaphore.core
         /// <param name="forceAsync"></param>
         /// <returns>If a waiter was unblocked, false otherwise</returns>
         [MethodImpl(MethodImplOptions.NoInlining)]
-        private bool ZeroSet(T value, out int released, bool forceAsync = false)
+        private bool ZeroSetResult(T value, out int released, bool forceAsync = false)
         {
             if (WaitCount == 0)
             {
@@ -246,8 +244,9 @@ namespace zero.core.patterns.semaphore.core
                     Console.WriteLine("P");
 #endif
                     primed = 1;
+
+
                     return true;
-                    
                 }
             }
             catch
@@ -383,27 +382,24 @@ namespace zero.core.patterns.semaphore.core
         [MethodImpl(MethodImplOptions.NoInlining)]
         public int Release(T value, bool forceAsync = false)
         {
-            retry:
-            if (!forceAsync && WaitCount == 0 && ReadyCount >= _capacity)
+            if (!forceAsync && WaitCount == 0 && ReadyCount > _capacity)
                 return 0;
             try
             {
-                if (ZeroSet(value, out var release)) return release;
+                if (ZeroSetResult(value, out var release)) return release;
 
-                if (!forceAsync && WaitCount == 0 && ReadyCount >= _capacity)
+                if (!forceAsync && WaitCount == 0 && ReadyCount > _capacity)
                     return 0;
 
-                if (ZeroPrime(value, out release)) return release;
+                if (ZeroPrime(value, out release)){return release;}
             }
             catch
             {
-                if (!forceAsync && WaitCount == 0 && ReadyCount >= _capacity)
+                if (!forceAsync && WaitCount == 0 && ReadyCount > _capacity)
                     return 0;
 
                 if (ZeroPrime(value, out var release)) return release;
             }
-            if(forceAsync)
-                goto retry;
             return 0;
         }
 

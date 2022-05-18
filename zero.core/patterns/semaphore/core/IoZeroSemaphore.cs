@@ -631,15 +631,7 @@ namespace zero.core.patterns.semaphore.core
                         {
                             var (@this, callback, state, capturedContext, forceAsync) =
                                 (ValueTuple<IoZeroSemaphore<T>, Action<object>, object, object, bool>)s;
-
-                            try
-                            {
-                                @this.InvokeContinuation(callback, state, capturedContext,forceAsync);
-                            }
-                            catch (Exception e)
-                            {
-                                LogManager.GetCurrentClassLogger().Trace(e, $"{nameof(ExecutionContext)}: ]");
-                            }
+                            @this.InvokeContinuation(callback, state, capturedContext,forceAsync);
                         }, (_zeroRef, callback, state, capturedContext, forceAsync));
 
                     return true;

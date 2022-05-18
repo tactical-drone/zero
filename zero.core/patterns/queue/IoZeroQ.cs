@@ -255,7 +255,33 @@ namespace zero.core.patterns.queue
             if (_autoScale && (_primedForScale == 1 || _count >= Capacity >> 1))
             {
                 if (!Scale() && _count >= Capacity)
+                {
+                    if (_blockingCollection && _sharingConsumers > 0)
+                    {
+                        try
+                        {
+                            _balanceSync.EnsureRelease(true);
+                        }
+                        catch
+                        {
+                            // ignored
+                        }
+                    }
+
+                    if (_blockingCollection && _blockingConsumers > 0)
+                    {
+                        try
+                        {
+                            _fanSync.Release(true, _blockingConsumers);
+                        }
+                        catch
+                        {
+                            // ignored
+                        }
+                    }
+
                     return -1;
+                }
             }
 
             if (deDup)

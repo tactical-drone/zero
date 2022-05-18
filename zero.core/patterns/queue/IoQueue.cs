@@ -382,12 +382,12 @@ namespace zero.core.patterns.queue
             var entered = false;
             try
             {
-                if (_pressure != null && !await _pressure.WaitAsync().FastPath() || _zeroed > 0)
+                if (_pressure != null && !await _pressure.WaitAsync().FastPath())
                     return default;
 
                 if (!await _syncRoot.WaitAsync().FastPath())
                     return default;
-                
+
                 Debug.Assert(_syncRoot.ReadyCount <= 0 || _syncRoot.Zeroed());
                 Debug.Assert(Interlocked.Increment(ref _entered) == 1);
                 entered = true;

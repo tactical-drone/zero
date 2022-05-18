@@ -28,7 +28,7 @@ namespace zero.core.runtime.scheduler
         {
             Zero = new IoZeroScheduler(Default);
             ZeroDefault = Zero;
-            //ZeroDefault = Default; //TODO: Uncomment to enable native .net scheduler...
+            ZeroDefault = Default; //TODO: Uncomment to enable native .net scheduler...
         }
 
         public IoZeroScheduler(TaskScheduler fallback, CancellationTokenSource asyncTasks = null)
@@ -47,7 +47,8 @@ namespace zero.core.runtime.scheduler
 
             //TODO: tuning
             _workQueue = new IoZeroQ<Task>(string.Empty, capacity * 2, true);
-            _asyncQueue = new IoZeroQ<ZeroContinuation>(string.Empty, (MaxWorker + 1) * 2, true, _asyncTasks, concurrencyLevel: MaxWorker - 1, zeroAsyncMode: true);
+            _callbacks = new IoZeroQ<ZeroContinuation>(string.Empty, (MaxWorker + 1) * 2, true, _asyncTasks, concurrencyLevel: MaxWorker - 1, zeroAsyncMode: true);
+            _contextQueue = new IoZeroQ<ZeroContinuation>(string.Empty, (MaxWorker + 1) * 2, true, _asyncTasks, concurrencyLevel: MaxWorker - 1, zeroAsyncMode: false);
             _asyncOneShotQueue = new IoZeroQ<Func<ValueTask>>(string.Empty, (MaxWorker + 1) * 2, true, _asyncTasks, concurrencyLevel: MaxWorker - 1, zeroAsyncMode: false);
             _oneShotQueue = new IoZeroQ<Action>(string.Empty, (MaxWorker + 1) * 2, true, _asyncTasks, concurrencyLevel: MaxWorker - 1, zeroAsyncMode: true);
 
@@ -108,7 +109,7 @@ namespace zero.core.runtime.scheduler
                 _ = Task.Factory.StartNew(static async state =>
                 {
                     var (@this,i) = (ValueTuple<IoZeroScheduler,int>)state;
-                    await @this.SpawnNoAsync(i).FastPath();
+                    await @this.ProcessCallback(i).FastPath();
                 },(this,i), CancellationToken.None,TaskCreationOptions.DenyChildAttach, _fallbackScheduler);
             }
             for (var i = 0; i < _asyncCount; i++)
@@ -116,7 +117,7 @@ namespace zero.core.runtime.scheduler
                 _ = Task.Factory.StartNew(static async state =>
                 {
                     var (@this, i) = (ValueTuple<IoZeroScheduler, int>)state;
-                    await @this.SpawnAsync(i).FastPath().ConfigureAwait(false);
+                    await @this.ProcessAsync(i).FastPath().ConfigureAwait(false);
                 }, (this, i), CancellationToken.None, TaskCreationOptions.DenyChildAttach | TaskCreationOptions.HideScheduler, Default);
             }
 
@@ -125,7 +126,16 @@ namespace zero.core.runtime.scheduler
                 _ = Task.Factory.StartNew(static async state =>
                 {
                     var (@this, i) = (ValueTuple<IoZeroScheduler, int>)state;
-                    await @this.SpawnOneShotAsync(i).FastPath().ConfigureAwait(false);
+                    await @this.ProcessOneShotAsync(i).FastPath().ConfigureAwait(false);
+                }, (this, i), CancellationToken.None, TaskCreationOptions.DenyChildAttach | TaskCreationOptions.HideScheduler, Default);
+            }
+
+            for (var i = 0; i < _asyncCount; i++)
+            {
+                _ = Task.Factory.StartNew(static async state =>
+                {
+                    var (@this, i) = (ValueTuple<IoZeroScheduler, int>)state;
+                    await @this.SpawnContext(i).FastPath().ConfigureAwait(false);
                 }, (this, i), CancellationToken.None, TaskCreationOptions.DenyChildAttach | TaskCreationOptions.HideScheduler, Default);
             }
         }
@@ -164,7 +174,8 @@ namespace zero.core.runtime.scheduler
         private readonly IoZeroQ<Task> _workQueue;
         private readonly IoZeroQ<Func<ValueTask>> _asyncOneShotQueue;
         private readonly IoZeroQ<Action> _oneShotQueue;
-        private readonly IoZeroQ<ZeroContinuation> _asyncQueue;
+        private readonly IoZeroQ<ZeroContinuation> _callbacks;
+        private readonly IoZeroQ<ZeroContinuation> _contextQueue;
         private readonly IoZeroQ<ZeroSignal> _queenQueue;
         
         private readonly IoHeap<ZeroContinuation> _callbackHeap;
@@ -177,7 +188,7 @@ namespace zero.core.runtime.scheduler
         private long _completedWorkItemCount;
         private long _completedQItemCount;
         private long _completedAsyncCount;
-        private long _completedSyncCount;
+        private long _callbackCount;
         private volatile int _lastSpawnedWorker = Environment.TickCount;
         private readonly TaskScheduler _fallbackScheduler;
 
@@ -421,13 +432,13 @@ namespace zero.core.runtime.scheduler
                                         _ = Task.Factory.StartNew(static async state =>
                                         {
                                             var (@this, i) = (ValueTuple<IoZeroScheduler, int>)state;
-                                            await @this.SpawnAsync(i).FastPath();
+                                            await @this.ProcessAsync(i).FastPath();
                                         }, (@this, Interlocked.Increment(ref @this._asyncCount) - 1), CancellationToken.None, TaskCreationOptions.DenyChildAttach, @this._fallbackScheduler);
 
                                         //_ = Task.Factory.StartNew(static async state =>
                                         //{
                                         //    var @this = (IoZeroScheduler)state;
-                                        //    await @this.SpawnNoAsync().FastPath();
+                                        //    await @this.ProcessCallback().FastPath();
                                         //}, @this, CancellationToken.None, TaskCreationOptions.DenyChildAttach, Default);
                                     }
                                     else
@@ -760,7 +771,7 @@ var d = 0;
                 _workerPunchCards[id] = 0;
         }
 
-        private async ValueTask SpawnAsync(int threadIndex)
+        private async ValueTask ProcessAsync(int threadIndex)
         {
             await foreach (var job in _asyncOneShotQueue.PumpOnConsumeAsync(threadIndex))
             {
@@ -776,7 +787,7 @@ var d = 0;
             }
         }
 
-        private async ValueTask SpawnOneShotAsync(int threadIndex)
+        private async ValueTask ProcessOneShotAsync(int threadIndex)
         {
             await foreach (var job in _oneShotQueue.PumpOnConsumeAsync(threadIndex))
             {
@@ -792,18 +803,41 @@ var d = 0;
             }
         }
 
-        private async ValueTask SpawnNoAsync(int threadIndex)
+        private async ValueTask ProcessCallback(int threadIndex)
         {
-            await foreach (var job in _asyncQueue.BalanceOnConsumeAsync(threadIndex).ConfigureAwait(false))
+            await foreach (var job in _callbacks.BalanceOnConsumeAsync(threadIndex))
             {
                 try
                 {
                     job.Callback(job.State);
-                    Interlocked.Increment(ref _completedSyncCount);
+                    Interlocked.Increment(ref _callbackCount);
                 }
                 catch (Exception e)
                 {
                     LogManager.GetCurrentClassLogger().Trace(e);
+                }
+                finally
+                {
+                    _callbackHeap.Return(job);
+                }
+            }
+        }
+
+        private async ValueTask SpawnContext(int threadIndex)
+        {
+            await foreach (var job in _contextQueue.PumpOnConsumeAsync(threadIndex))
+            {
+                try
+                {
+                    job.Callback(job.State);
+                }
+                catch (Exception e)
+                {
+                    LogManager.GetCurrentClassLogger().Trace(e);
+                }
+                finally
+                {
+                    _callbackHeap.Return(job);
                 }
             }
         }
@@ -982,12 +1016,34 @@ var d = 0;
 
                 handler.Callback = callback;
                 handler.State = state;
-                result = _asyncQueue.TryEnqueue(handler);
+                result = _callbacks.TryEnqueue(handler);
                 return result > 0;
             }
             finally
             {
                 if(result <= 0 && handler != null)
+                    _callbackHeap.Return(handler);
+            }
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public bool QueueContext(Action<object> callback, object state)
+        {
+            ZeroContinuation handler = null;
+            long result = -1;
+            try
+            {
+                handler = _callbackHeap.Take();
+                if (handler == null) return false;
+
+                handler.Callback = callback;
+                handler.State = state;
+                result = _contextQueue.TryEnqueue(handler);
+                return result > 0;
+            }
+            finally
+            {
+                if (result <= 0 && handler != null)
                     _callbackHeap.Return(handler);
             }
         }
