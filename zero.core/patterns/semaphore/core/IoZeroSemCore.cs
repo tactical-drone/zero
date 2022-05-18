@@ -77,6 +77,30 @@ namespace zero.core.patterns.semaphore.core
         }
 
         public bool Zeroed() => _zeroed > 0;
+        public void DecWaitCount()
+        {
+            throw new NotImplementedException();
+        }
+
+        public void IncWaitCount()
+        {
+            throw new NotImplementedException();
+        }
+
+        public void IncReadyCount()
+        {
+            throw new NotImplementedException();
+        }
+
+        public void DecReadyCount()
+        {
+            throw new NotImplementedException();
+        }
+
+        public void IncCur()
+        {
+            throw new NotImplementedException();
+        }
 
         #region Aligned
         private long _head;

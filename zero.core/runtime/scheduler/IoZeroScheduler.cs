@@ -26,8 +26,8 @@ namespace zero.core.runtime.scheduler
         public static bool Enabled = true;
         static IoZeroScheduler()
         {
-            Zero = new IoZeroScheduler(Default);
-            ZeroDefault = Zero;
+            //Zero = new IoZeroScheduler(Default);
+            //ZeroDefault = Zero;
             ZeroDefault = Default; //TODO: Uncomment to enable native .net scheduler...
         }
 

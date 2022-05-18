@@ -63,11 +63,11 @@ namespace zero.sync
         static void Main(string[] args)
         {
             Console.WriteLine($"zero ({Environment.OSVersion}: {Environment.MachineName} - dotnet v{Environment.Version}, CPUs = {Environment.ProcessorCount})");
-            //Task.Factory.StartNew(async () =>
-            //{
-            //    //await SemTestAsync();
-            //    await QueueTestAsync();
-            //}, CancellationToken.None, TaskCreationOptions.DenyChildAttach, IoZeroScheduler.ZeroDefault).Unwrap().GetAwaiter().GetResult();
+            Task.Factory.StartNew(async () =>
+            {
+                await SemTestAsync();
+                //await QueueTestAsync();
+            }, CancellationToken.None, TaskCreationOptions.DenyChildAttach, IoZeroScheduler.ZeroDefault).Unwrap().GetAwaiter().GetResult();
 
             //Tune dotnet for large tests
             ThreadPool.GetMinThreads(out var wt, out var cp);
@@ -928,20 +928,20 @@ namespace zero.sync
             await Task.Delay(1000);
             var asyncTasks = new CancellationTokenSource();
 
-            var capacity = 3;
+            var capacity = 1;
 
             //.NET RUNTIME REFERENCE MUTEX FOR TESTING
             //var mutex = new IoZeroRefMut(asyncTasks.Token);
             //var mutex = new IoZeroSemaphoreSlim(asyncTasks, "zero slim", maxBlockers: capacity, initialCount: 1, zeroAsyncMode: false, enableAutoScale: false, enableFairQ: false, enableDeadlockDetection: true);
-            IIoZeroSemaphoreBase<int> mutex = new IoZeroCore<int>("zero core", capacity, 0, false);
+            IIoZeroSemaphoreBase<int> mutex = new IoZeroCore<int>("zero core", capacity, 1, false);
             mutex = mutex.ZeroRef(ref mutex, o => Environment.TickCount);
                  
             var releaseCount = 2;
-            var waiters = 3;
-            var releasers = 4;
+            var waiters = 2;
+            var releasers = 3;
             var disableRelease = false;
-            var targetSleep = (long)0;
-            var logSpam = 40000;//at least 1
+            var targetSleep = (long)1000;
+            var logSpam = 1;//at least 1
             var totalReleases = int.MaxValue;
 
             var targetSleepMult = waiters > 1 ? 2 : 1;
@@ -1174,18 +1174,18 @@ namespace zero.sync
                                     if (targetSleep > 0)
                                         await Task.Delay((int)targetSleep, asyncTasks.Token);
 
-                                    if ((curCount = mutex.Release(Environment.TickCount, releaseCount)) > 0)
+                                    if (totalReleases > 0 && (curCount = mutex.Release(Environment.TickCount, releaseCount)) > 0)
                                     {
                                         Interlocked.Add(ref semCount, curCount);
                                         Interlocked.Increment(ref semPollCount);
                                         Interlocked.Add(ref dq[i1], releaseCount);
-                                        if (Interlocked.Decrement(ref totalReleases) == 0)
+                                        if (Interlocked.Decrement(ref totalReleases) <= 0)
                                             break;
                                     }
                                     else
                                     {
-                                        //await Task.Yield();
-                                        await Task.Delay(1, asyncTasks.Token);
+                                        await Task.Yield();
+                                        //await Task.Delay(1, asyncTasks.Token);
                                     }
 
                                 }

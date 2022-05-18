@@ -1,4 +1,4 @@
-﻿//#define TRACE
+﻿#define TRACE
 using System;
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
@@ -31,8 +31,9 @@ namespace zero.core.patterns.semaphore.core
 
             _b_head = 0;
             _b_tail = 0;
-            _n_head = 0;
-            _n_tail = 0;
+            _b_cur = 0;
+            //_n_head = 0;
+            //_n_tail = 0;
 
             _zeroed = 0;
             _description = description;
@@ -41,48 +42,82 @@ namespace zero.core.patterns.semaphore.core
             ZeroAsyncMode = zeroAsyncMode;
 
             _blocking = new IIoManualResetValueTaskSourceCore<T>[capacity];
-            _nonBlocking = new IIoManualResetValueTaskSourceCore<T>[capacity];
+            //_nonBlocking = new IIoManualResetValueTaskSourceCore<T>[capacity];
 
             for (short i = 0; i < capacity; i++)
             {
-                var core = _blocking[i] = new IoManualResetValueTaskSourceCore<T>{RunContinuationsAsynchronously = zeroAsyncMode, AutoReset = false};
-                core.SetResult(default);
-                core.GetResult(default);
+                var core = _blocking[i] = new IoManualResetValueTaskSourceCore<T>
+                {
+                    RunContinuationsAsynchronously = zeroAsyncMode, 
+                    AutoReset = true,
+                    _burnResult = (async, state) =>
+                    {
+                        var @this = (IIoZeroSemaphoreBase<T>)state;
+
+                        if (async)
+                        {
+#if TRACE
+                            Console.WriteLine(
+                                $"<{Environment.TickCount}>[{Thread.CurrentThread.ManagedThreadId:00}] - Blocking, (C) ");//id = [{idx % ModCapacity}]{idx:00}, status = {slowCore}");
+#endif
+                            //Interlocked.Increment(ref _b_tail);
+
+                            @this.DecWaitCount();
+                            Console.WriteLine($"<{Environment.TickCount}>[{Thread.CurrentThread.ManagedThreadId:00}] w = {@this.WaitCount} (C)");
+                        }
+                        else
+
+                        {
+#if TRACE
+                            Console.WriteLine($"<{Environment.TickCount}>[{Thread.CurrentThread.ManagedThreadId:00}] - Non-Blocking, (C)"); //id = [{idx % ModCapacity}]{idx:00}, status = {slowCore}");
+#endif
+                            @this.IncCur();
+                            @this.DecReadyCount();
+                        }
+                    }
+                };
+                //core.SetResult(default);
+                //core.GetResult(default);
                 
-                core = _nonBlocking[i] = new IoManualResetValueTaskSourceCore<T> {RunContinuationsAsynchronously = zeroAsyncMode, AutoReset = false };
-                core.SetResult(default);
-                core.GetResult(default);
+                //core = _nonBlocking[i] = new IoManualResetValueTaskSourceCore<T> {RunContinuationsAsynchronously = zeroAsyncMode, AutoReset = false };
+                //core.SetResult(default);
+                //core.GetResult(default);
             }
 
-            _n_tail = ready;
+            //_n_tail = ready;
+            //_readyCount = (int)(_b_tail = ready);
+            _waitCount = 0;
+            _readyCount = ready;
 
             _primeReady = _ => default;
             _primeContext = null;
+            _zeroRef = null;
         }
 
         public IIoZeroSemaphoreBase<T> ZeroRef(ref IIoZeroSemaphoreBase<T> @ref, Func<object, T> primeResult = default,
             object context = null)
         {
+            for (int i = 0; i < _capacity; i++)
+                _nonBlocking[i].BurnContext = @ref;
+
             if (@ref == null)
-            {
                 throw new ArgumentNullException(nameof(@ref));
-            }
 
             _primeReady = primeResult;
             _primeContext = context;
 
-            if (_n_tail > 0 && primeResult == null)
+            if (_readyCount > 0 && primeResult == null)
                 throw new ArgumentOutOfRangeException(nameof(primeResult));
-
-            for (int i = 0; i < _n_tail; i++)
+            var origPrime = _readyCount;
+            var ready = _readyCount;
+            for (int i = 0; i < ready; i++)
             {
                 var core = _nonBlocking[i];
-                core.Reset();
                 core.SetResult(_primeReady!(_primeContext));
             }
-                
 
-            return @ref;
+            _readyCount = origPrime;
+            return _zeroRef = @ref;
         }
 
         public void ZeroSem()
@@ -93,11 +128,12 @@ namespace zero.core.patterns.semaphore.core
             var operationCanceledException = new OperationCanceledException($"{nameof(ZeroSem)}: [TEARDOWN DIRECT] {Description}");
 
             ////flush waiters
-            while (_b_head < _b_tail)
+            //while (_b_head < _b_tail)
+            for (var i = _b_head; i < _capacity; i++)
             {
                 try
                 {
-                    _blocking[(Interlocked.Increment(ref _b_head) - 1) % ModCapacity].SetException(operationCanceledException);
+                    _blocking[i % ModCapacity].SetException(operationCanceledException);
                 }
                 catch
                 {
@@ -107,21 +143,46 @@ namespace zero.core.patterns.semaphore.core
         }
 
         public bool Zeroed() => _zeroed > 0;
+        public void DecWaitCount()
+        {
+            Interlocked.Decrement(ref _waitCount);
+        }
+
+        public void IncWaitCount()
+        {
+            Interlocked.Increment(ref _waitCount);
+        }
+
+        public void IncReadyCount()
+        {
+            Interlocked.Increment(ref _readyCount);
+        }
+
+        public void DecReadyCount()
+        {
+            Interlocked.Decrement(ref _readyCount);
+        }
+
+        public void IncCur()
+        {
+            Interlocked.Increment(ref _b_cur);
+        }
 
         #region Aligned
 
         private long _b_head;
         private long _b_tail;
-        private long _n_head;
-        private long _n_tail;
+        private long _b_cur;
+        //private long _n_head => _b_head;
+        //private long _n_tail => _b_tail;
         private readonly IIoManualResetValueTaskSourceCore<T>[] _blocking;
-        private readonly IIoManualResetValueTaskSourceCore<T>[] _nonBlocking;
+        private readonly IIoManualResetValueTaskSourceCore<T>[] _nonBlocking => _blocking;
         private readonly int _capacity;
         #endregion
 
         #region Properties
-        //private readonly int _modCapacity => _capacity;
         private readonly int ModCapacity => _capacity<<1;
+        private IIoZeroSemaphoreBase<T> _zeroRef;
         private readonly string _description;
         private volatile int _zeroed;
         private Func<object, T> _primeReady;
@@ -129,12 +190,19 @@ namespace zero.core.patterns.semaphore.core
         #endregion
 
         #region State
-        public string Description => $"{nameof(IoZeroSemCore<T>)}: {_description}, r = {ReadyCount}, w = {WaitCount}, z = {_zeroed > 0}, b_H = {_b_head % ModCapacity} ({_b_head}), b_T = {_b_tail % ModCapacity} ({_b_tail}), n_H = {_n_head % ModCapacity} ({_n_head}), n_T = {_n_tail % ModCapacity} ({_n_tail})";
+
+        public string Description =>
+            $"{nameof(IoZeroSemCore<T>)}: {_description}, r = {_readyCount}/{_capacity}, w = {_waitCount}/{_capacity}, z = {_zeroed > 0}, b_H = {_b_head % ModCapacity} ({_b_head}),"; //b_T = {_b_tail % ModCapacity} ({_b_tail}), n_H = {_n_head % ModCapacity} ({_n_head}), n_T = {_n_tail % ModCapacity} ({_n_tail})";
         public int Capacity => _capacity;
-        public int ReadyCount => (int)(_n_tail - _n_head);
-        public int WaitCount => (int)(_b_tail - _b_head);
+        //public int ReadyCount => (int)(_n_tail - _n_head);
+        public int ReadyCount => _readyCount;
+        public volatile int _readyCount;
+        //public int WaitCount => (int)(_b_tail - _b_head);
+        public int WaitCount => _waitCount;
+        public volatile int _waitCount;
+        
         public bool ZeroAsyncMode { get; }
-        public long Tail => _b_tail;
+        public long Tail => _b_head;
         public long Head => _b_head;
 
         #endregion
@@ -151,110 +219,67 @@ namespace zero.core.patterns.semaphore.core
         [MethodImpl(MethodImplOptions.NoInlining)]
         private bool ZeroSetResult(T value, out int released, bool forceAsync = false)
         {
-            if (WaitCount == 0)
+            var prefire = _blocking[_b_cur % ModCapacity];
+            if (ReadyCount >= _capacity && !prefire.Blocking)
             {
+#if TRACE
+                Console.WriteLine($"<{Environment.TickCount}>[{Thread.CurrentThread.ManagedThreadId:00}] - id =[{_b_cur % ModCapacity}]{_b_cur} - [IDLE]");
+#endif
                 released = 0;
                 return false;
             }
 
             long cap;
-            var idx = _b_head.ZeroNextBounded(cap = _b_tail);
+            
+            var idx = _b_cur.ZeroNext(cap = _b_cur + _capacity);
             if (idx != cap)
             {
-                Debug.Assert(idx < _b_tail);
-                var slowCore = _blocking[idx % ModCapacity];
+                //Interlocked.Increment(ref _b_head);
+                Interlocked.Increment(ref _b_tail);
                 
-                while (!slowCore.Blocking)
-                {
-                    Thread.Yield();
-                    if (Zeroed())
-                        break;
-                }
+                //Debug.Assert(idx < _b_tail);
+                var slowCore = _blocking[idx % ModCapacity];
+                //Debug.Assert(idx <= _b_tail);
 
-                //Debug.Assert(slowCore.Blocking);
-                if (slowCore.Blocking)
-                {
-                    try
-                    {
-                        Debug.Assert(slowCore.Blocking);
-                        slowCore.RunContinuationsAsynchronously = forceAsync;
-                        slowCore.SetResult(value);
-                        released = 1;
-                        return true;
-                    }
-                    catch
-                    {
-                        // ignored
-                    }
-                }
-                else
-                {
-                    Console.WriteLine($"[{Thread.CurrentThread.ManagedThreadId}]: non-blocking set core at idx = {idx%ModCapacity} <- {_b_tail % ModCapacity} <- {_b_head % ModCapacity}: primed = {slowCore.Primed}, blocking = {slowCore.Blocking}, burned = {slowCore.Burned}, {slowCore.GetStatus((short)slowCore.Version)} - {Description}");
-                }
-
-                Interlocked.Decrement(ref _b_head);//TODO: What is happening here?
-            }
-
-            released = 0;
-            return false;
-        }
-
-        /// <summary>
-        /// Creates a non blocking core primed with<see cref="value"/>
-        /// </summary>
-        /// <param name="value">The value to cog</param>
-        /// <param name="primed">The number of values primed</param>
-        /// <returns>True if a value was primed, false otherwise</returns>
-        [MethodImpl(MethodImplOptions.NoInlining)]
-        private bool ZeroPrime(T value, out int primed)
-        {
-            try
-            {
-                if (ReadyCount == _capacity)
-                {
-                    primed = 0;
-                    return false;
-                }
+                //if (slowCore.Blocking)
+                //{
+                //    Interlocked.Decrement(ref _waitCount);
+                //    slowCore.SetResult(value);
                     
-                long cap;
-                long idx;
-                if ((idx = _n_tail.ZeroNextBounded(cap = _n_head + _capacity)) != cap)
+                //    released = 1;
+                //    Console.WriteLine($"<{Environment.TickCount}>[{Thread.CurrentThread.ManagedThreadId:00}] - Released, (P) ");//id = [{idx%ModCapacity}]{idx:00}, status = {slowCore}");
+                //    return true;
+                //}
+
+                slowCore.SetResult(value, static (wasBlocking, @this) =>
                 {
-                    Debug.Assert(idx < _n_head + _capacity);
-                    
-                    var core = _nonBlocking[idx %= ModCapacity];
-
-                    //while (!core.Burned)
-                    //{
-                    //    if (core.Burned)
-                    //    {
-                    //        var v = ((IoManualResetValueTaskSourceCore<T>)core).Result;
-                            
-                    //        Console.WriteLine($"Burned at {Convert.ToInt64(v).ElapsedMs()}ms");
-                    //    }
-                    //    //Thread.Yield();
-                    //}
-
-                    //var a = core.Burned;
-                    //Thread.MemoryBarrier();
-                    //Debug.Assert(core.Burned || a);
-                    core.Reset((short)idx);
-                    core.SetResult(value);
+                    if (wasBlocking)
+                    {
+                        @this.DecWaitCount();
+                        Console.WriteLine($"<{Environment.TickCount}>[{Thread.CurrentThread.ManagedThreadId:00}] w = {@this.WaitCount} (S) ");
 #if TRACE
-                    Console.WriteLine("P");
+                        Console.WriteLine($"<{Environment.TickCount}>[{Thread.CurrentThread.ManagedThreadId:00}] - Released,     ");//id = [{idx%ModCapacity}]{idx:00}, status = {slowCore}");
+#endif                  
+                    }
+                    else
+                    {
+                        @this.IncReadyCount();
+#if TRACE
+                        Console.WriteLine($"<{Environment.TickCount}>[{Thread.CurrentThread.ManagedThreadId:00}] - Banked,       "); //id = [{idx % ModCapacity}]{idx:00}, status = {slowCore}");
 #endif
-                    primed = 1;
+                    }
+                }, _zeroRef);
 
 
-                    return true;
-                }
+
+                released = 1;
+                return true;
+
             }
-            catch
-            {
-                // ignored
-            }
-
-            primed = 0;
+#if TRACE
+            Console.WriteLine("EMPTY");
+#endif
+            released = 0;
             return false;
         }
 
@@ -266,94 +291,71 @@ namespace zero.core.patterns.semaphore.core
         [MethodImpl(MethodImplOptions.NoInlining)]
         private bool ZeroBlock(out ValueTask<T> slowTaskCore)
         {
+            
+            if (WaitCount >= _capacity)
+                throw new InvalidOperationException($"{nameof(ZeroBlock)}: Invalid concurrency detected, increase sizeof capacity {Description}");
+
+            Debug.Assert(WaitCount <= _capacity);
+
             slowTaskCore = default;
 
             long idx;
             long cap;
-            if ((idx = _b_tail.ZeroNextBounded(cap = _b_head + _capacity)) != cap)
+            if ((idx = _b_head.ZeroNext(cap = _b_cur + _capacity)) != cap)
             {
-                Debug.Assert(idx < _b_head + _capacity);
+                Interlocked.Increment(ref _b_tail);
+
+                //Debug.Assert(idx < _b_head + _capacity);
                 var slowCore = _blocking[idx %= ModCapacity];
-                if(!slowCore.Burned)
-                    LogManager.GetCurrentClassLogger().Error($"[{Thread.CurrentThread.ManagedThreadId}]: [FATAL] unbrunt core at idx = {idx} <- {_b_tail % ModCapacity} <- {_b_head % ModCapacity}: primed = {slowCore.Primed}, blocking = {slowCore.Blocking}, burned = {slowCore.Burned}, {slowCore.GetStatus((short)slowCore.Version)} - {Description}");
-                slowCore.Reset((short)idx);
+                slowCore.Prime((short)idx);
                 slowTaskCore = new ValueTask<T>(slowCore, (short)idx);
-                return true;
 
-                //Debug.Assert(slowCore.Burned);
-                //if (slowCore.Burned)
-                //{
-                //    slowCore.Reset((short)idx);
-                //    slowTaskCore = new ValueTask<T>(slowCore, (short)idx);
-                //    return true;
-                //}
-                //else
-                //{
-                //    Console.WriteLine($"[{Thread.CurrentThread.ManagedThreadId}]: unbrunt core at idx = {idx} <- {_b_tail % ModCapacity} <- {_b_head % ModCapacity}: primed = {slowCore.Primed}, blocking = {slowCore.Blocking}, burned = {slowCore.Burned}, {slowCore.GetStatus((short)slowCore.Version)} - {Description}");
-                //}
-
-                Interlocked.Decrement(ref _b_tail);//TODO: Why is this happening?
-            }
-
-            return false;
-        }
-
-        /// <summary>
-        /// Dequeue a primed core for non blocking
-        /// </summary>
-        /// <param name="fastTaskCore">The fast task core dequeued</param>
-        /// <returns>True if a core could be dequeued, false otherwise</returns>
-        [MethodImpl(MethodImplOptions.NoInlining)]
-        private bool ZeroFastPrime(out ValueTask<T> fastTaskCore)
-        {
-            fastTaskCore = default;
-
-            if (ReadyCount == 0 || _zeroed > 0)
-                return false;
-
-            long idx;
-            long cap;
-            if ((idx = _n_head.ZeroNextBounded(cap = _n_tail)) != cap)
-            {
-                Debug.Assert(idx < _n_tail);
-                var fastCore = _nonBlocking[idx % ModCapacity];
-                while (fastCore.Burned)
+                if (slowCore.Primed)
                 {
-                    Console.Write(".");
-                    if (Zeroed())
-                        break;
-                    //Thread.Yield();
-                }
-                Debug.Assert(!fastCore.Burned);
-                if (!fastCore.Burned)
-                {
-                    try
-                    {
-                        //fastTaskCore = new ValueTask<T>(fastCore.GetResult((short)fastCore.Version));
-                        fastTaskCore = new ValueTask<T>(fastCore, (short)fastCore.Version);
 #if TRACE
-                        Console.WriteLine("C");               
+                    Console.WriteLine($"<{Environment.TickCount}>[{Thread.CurrentThread.ManagedThreadId:00}] - Non-Blocking, id = [{idx % ModCapacity}]{idx:00}, status = {slowCore}");
 #endif
-                        return true;
-                    }
-                    catch
-                    {
-                        // ignored
-                    }
+                    Interlocked.Increment(ref _b_cur);
+                    Interlocked.Decrement(ref _readyCount);
                 }
                 else
                 {
-                    Console.WriteLine($"[{Thread.CurrentThread.ManagedThreadId}]: brunt primed core at idx = {idx} <- {_b_tail % ModCapacity} <- {_b_head % ModCapacity}: primed = {fastCore.Primed}, blocking = {fastCore.Blocking}, burned = {fastCore.Burned}, {fastCore.GetStatus((short)fastCore.Version)} - {Description}");
-                }
-            }
 #if TRACE
-            Console.WriteLine("E");
+                    Console.WriteLine($"<{Environment.TickCount}>[{Thread.CurrentThread.ManagedThreadId:00}] - Blocking,     id = [{idx % ModCapacity}]{idx:00}, status = {slowCore}");
 #endif
+                    //Interlocked.Increment(ref _b_tail);
+                    Interlocked.Increment(ref _waitCount);
+                    Console.WriteLine($"<{Environment.TickCount}>[{Thread.CurrentThread.ManagedThreadId:00}] w = {_waitCount} (B)");
+                }
+                return true;
+//                if (slowCore.Primed)
+//                {
+//#if TRACE
+//                    Console.WriteLine($"<{Environment.TickCount}>[{Thread.CurrentThread.ManagedThreadId:00}] - Non-Blocking, id = [{idx % ModCapacity}]{idx:00}, status = {slowCore}");
+//#endif
+//                    Interlocked.Increment(ref _b_cur);
+//                    Interlocked.Decrement(ref _readyCount);
+//                }
+
+                ////                else
+                ////                {
+                ////#if TRACE
+                ////                    Console.WriteLine($"<{Environment.TickCount}>[{Thread.CurrentThread.ManagedThreadId:00}] - Blocking,     id = [{idx % ModCapacity}]{idx:00}, status = {slowCore}");
+                ////#endif
+                ////                    //Interlocked.Increment(ref _b_tail);
+                ////                    Interlocked.Increment(ref _waitCount);
+                ////                }
+
+
+                //                return true;
+            }
+
             return false;
         }
-        #endregion
 
-        #region API
+#endregion
+
+#region API
         public T GetResult(short token) => throw new NotImplementedException(nameof(GetResult));
 
         public ValueTaskSourceStatus GetStatus(short token) => throw new NotImplementedException(nameof(GetStatus));
@@ -382,23 +384,23 @@ namespace zero.core.patterns.semaphore.core
         [MethodImpl(MethodImplOptions.NoInlining)]
         public int Release(T value, bool forceAsync = false)
         {
-            if (!forceAsync && WaitCount == 0 && ReadyCount > _capacity)
-                return 0;
+            //if (!forceAsync && _waitCount == 0 && _readyCount > _capacity)
+            //    return 0;
             try
             {
                 if (ZeroSetResult(value, out var release)) return release;
 
-                if (!forceAsync && WaitCount == 0 && ReadyCount > _capacity)
-                    return 0;
+                //if (!forceAsync && _waitCount == 0 && _readyCount > _capacity)
+                //    return 0;
 
-                if (ZeroPrime(value, out release)){return release;}
+                //if (ZeroPrime(value, out var release)){return release;}
             }
             catch
             {
-                if (!forceAsync && WaitCount == 0 && ReadyCount > _capacity)
-                    return 0;
+                //if (!forceAsync && _waitCount == 0 && _readyCount > _capacity)
+                //    return 0;
 
-                if (ZeroPrime(value, out var release)) return release;
+                //if (ZeroPrime(value, out var release)) return release;
             }
             return 0;
         }
@@ -413,21 +415,18 @@ namespace zero.core.patterns.semaphore.core
             var retry = 300;
             retry:
             // => fast path
-            if (WaitCount == 0 && ZeroFastPrime(out var fastCore))
-            {
-#if TRACE
-                Console.WriteLine("F");       
-#endif
-                return fastCore;
-            }
-                
-            
+            //            if (_waitCount == 0 && ZeroFastPrime(out var fastCore))
+            //            {
+            //#if TRACE
+            //                Console.WriteLine("F");       
+            //#endif
+            //                return fastCore;
+            //            }
+
+
             // => slow path
             if (ZeroBlock(out var slowCore))
             {
-#if TRACE
-                Console.WriteLine("S");       
-#endif
                 return slowCore;
             }
 

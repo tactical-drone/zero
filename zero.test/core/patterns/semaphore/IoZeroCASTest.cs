@@ -34,7 +34,7 @@ namespace zero.test.core.patterns.semaphore
                     for (int i = 0; i < _count; i++)
                     {
                         var l = _reg;
-                        Assert.InRange(_reg.ZeroNextBounded(_count), l, _count);
+                        Assert.InRange(_reg.ZeroNext(_count), l, _count);
                     }
                 }, CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Default));
             }
@@ -57,7 +57,7 @@ namespace zero.test.core.patterns.semaphore
                     for (int i = 0; i < _count; i++)
                     {
                         var l = _reg;
-                        Assert.InRange(_reg.ZeroNext(_count), l, _count);
+                        Assert.InRange(_reg.ZeroNextBounded(_count), l, _count);
                     }
                 }, CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Default));
             }
@@ -75,7 +75,7 @@ namespace zero.test.core.patterns.semaphore
             var idx2 = 9L;
             long prev;
             _output.WriteLine($"idx = {idx1}, cap = {cap}");
-            if ((prev = idx1.ZeroNextBounded(cap)) != cap)
+            if ((prev = idx1.ZeroNext(cap)) != cap)
             {
                 _output.WriteLine($"[PROCESS] ZeroNext prev = {prev}, next =  {idx1} -> ");
             }
@@ -85,7 +85,7 @@ namespace zero.test.core.patterns.semaphore
             }
 
             _output.WriteLine($"idx = {idx2}, cap = {cap}");
-            if (idx2.ZeroNext(cap) != cap)
+            if (idx2.ZeroNextBounded(cap) != cap)
             {
                 _output.WriteLine($"[PROCESS] ZeroNext prev = {prev}, next = {idx2} -> ");
             }

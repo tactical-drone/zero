@@ -38,6 +38,9 @@ namespace zero.core.patterns.semaphore.core
         /// <summary>The exception with which the operation failed, or null if it hasn't yet completed or completed successfully.</summary>
         private ExceptionDispatchInfo _error;
 
+        public Action<bool, object> _burnResult;
+        public object _burnContext;
+
         /// <summary>The result with which the operation succeeded, or the default value if it hasn't yet completed or failed.</summary>
         private TResult _result;
 
@@ -81,6 +84,11 @@ namespace zero.core.patterns.semaphore.core
         /// </summary>
         public bool Burned => _burned > 0;
 
+        public object BurnContext
+        {
+            get => (IIoZeroSemaphoreBase<object>)_burnContext;
+            set => _burnContext = value;
+        }
 
 #if DEBUG
         public TResult Result => _result;
@@ -115,6 +123,12 @@ namespace zero.core.patterns.semaphore.core
             _version = index;
         }
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public void Prime(short index)
+        {
+            _version = index;
+        }
+
         /// <summary>
         /// If this primitive is blocking
         /// </summary>
@@ -131,16 +145,21 @@ namespace zero.core.patterns.semaphore.core
             return true;
         }
 
+
+        public void SetResult(TResult result) => SetResult<object>(result);
+        
         /// <summary>Completes with a successful result.</summary>
         /// <param name="result">The result.</param>
-        public void SetResult(TResult result)
+        /// <param name="async"></param>
+        /// <param name="context"></param>
+        public void SetResult<TContext>(TResult result, Action<bool, TContext> async = null, TContext context = default)
         {
             if (_completed)
                 throw new InvalidOperationException($"[{Thread.CurrentThread.ManagedThreadId}]: primed = {Primed}, blocking = {Blocking}, burned = {Burned}, completed = {_completed}, {GetStatus((short)Version)}");
 
             
             _result = result;
-            SignalCompletion();
+            SignalCompletion(async, context);
         }
 
         //public void SetResult(IIoManualResetValueTaskSourceCore<TResult> source)
@@ -338,10 +357,11 @@ namespace zero.core.patterns.semaphore.core
         }
 #endif
 
+        private void SignalCompletion() => SignalCompletion<object>();
         /// <summary>Signals that the operation has completed.  Invoked after the result or error has been set.</summary>
         /// <param name="source"></param>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private void SignalCompletion(IIoManualResetValueTaskSourceCore<TResult> source = null)
+        private void SignalCompletion<TContext>(Action<bool, TContext> wasBlocking = null, TContext context = default)
         {
             //if (_completed) 
             //    throw _invalidOperationException;//TODO strange bug between SetResult and here
@@ -350,11 +370,29 @@ namespace zero.core.patterns.semaphore.core
             
             _completed = true;
 
-            if(source != null)
-                _result = source.GetResult((short)source.Version);
+            //if(source != null)
+            //    _result = source.GetResult((short)source.Version);
 
-            if (_continuation == null && Interlocked.CompareExchange(ref _continuation, ManualResetValueTaskSourceCoreShared.SSentinel, null) == null) 
+            if (_continuation == null &&
+                Interlocked.CompareExchange(ref _continuation, ManualResetValueTaskSourceCoreShared.SSentinel, null) ==
+                null)
+            {
+                if (wasBlocking is not null)
+                {
+                    wasBlocking(false, context);
+                }
+                //else
+                //    _burnResult?.Invoke(false, _burnContext);
+
                 return;
+            }
+
+            if (wasBlocking is not null)
+            {
+                wasBlocking(true, context);
+            }
+            //else
+            //    _burnResult?.Invoke(true, _burnContext);
 
             if (_executionContext != null)
             {
@@ -426,6 +464,21 @@ namespace zero.core.patterns.semaphore.core
                 case TaskScheduler ts:
                     _ = Task.Factory.StartNew(_continuation, _continuationState, CancellationToken.None, TaskCreationOptions.DenyChildAttach, ts);
                     break;
+            }
+        }
+
+
+        public override string ToString()
+        {
+            try
+            {
+                if (_completed)
+                    return $" {_version} - {_result}";
+                return $" {_version} - {GetStatus((short)_version).ToString()}";
+            }
+            catch (Exception e)
+            {
+                return e.Message;
             }
         }
     }

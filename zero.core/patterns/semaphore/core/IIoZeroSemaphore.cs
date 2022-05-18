@@ -33,5 +33,12 @@ namespace zero.core.patterns.semaphore.core
         protected internal int ZeroDecAsyncCount();
         
         bool Zeroed();
+        void DecWaitCount();
+        void IncWaitCount();
+
+        void IncReadyCount();
+
+        void DecReadyCount();
+        void IncCur();
     }
 }

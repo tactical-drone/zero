@@ -993,6 +993,31 @@ namespace zero.core.patterns.semaphore.core
             return _zeroed > 0;
         }
 
+        public void DecWaitCount()
+        {
+            throw new NotImplementedException();
+        }
+
+        public void IncWaitCount()
+        {
+            throw new NotImplementedException();
+        }
+
+        public void IncReadyCount()
+        {
+            throw new NotImplementedException();
+        }
+
+        public void DecReadyCount()
+        {
+            throw new NotImplementedException();
+        }
+
+        public void IncCur()
+        {
+            throw new NotImplementedException();
+        }
+
         /// <summary>
         /// Throw on error
         /// </summary>
