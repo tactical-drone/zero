@@ -276,7 +276,6 @@ namespace zero.core.patterns.semaphore.core
             // awaited twice concurrently), _continuationState might get erroneously overwritten.
             // To minimize the chances of that, we check preemptively whether _continuation
             // is already set to something other than the completion sentinel.
-            object org = _continuation;
             object oldContinuation = _continuation;
             if (oldContinuation == null)
             {
@@ -293,28 +292,27 @@ namespace zero.core.patterns.semaphore.core
                     throw _invalidOperationException;
                 }
 
-                _burnResult?.Invoke(false, _burnContext);
-
+                
                 switch (_capturedContext)
                 {
                     case null:
                     {
-                            _ = Task.Factory.StartNew(continuation, state, CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Default);
-                            //if (_executionContext != null)
-                            //{
-                            //    ThreadPool.QueueUserWorkItem(continuation, state, preferLocal: true);
-                            //}
-                            //else
-                            //{
-                            //    if (!ThreadPool.UnsafeQueueUserWorkItem(static delegate (object s)
-                            //        {
-                            //            var (callback, state) = (ValueTuple<Action<object>, object>)s;
-                            //            callback(state);
-                            //        }, (continuation, state)))
-                            //    {
-                            //        _ = Task.Factory.StartNew(continuation, state, CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Default);
-                            //    };
-                            //}
+                            //_ = Task.Factory.StartNew(continuation, state, CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Default);
+                            if (_executionContext != null)
+                            {
+                                ThreadPool.QueueUserWorkItem(continuation, state, preferLocal: true);
+                            }
+                            else
+                            {
+                                if (!ThreadPool.UnsafeQueueUserWorkItem(static delegate (object s)
+                                    {
+                                        var (callback, state) = (ValueTuple<Action<object>, object>)s;
+                                        callback(state);
+                                    }, (continuation, state)))
+                                {
+                                    _ = Task.Factory.StartNew(continuation, state, CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Default);
+                                };
+                            }
                             break;
                     }
                     case SynchronizationContext sc:
@@ -336,6 +334,8 @@ namespace zero.core.patterns.semaphore.core
                         _ = Task.Factory.StartNew(continuation, state, CancellationToken.None, TaskCreationOptions.DenyChildAttach, ts);
                         break;
                 }
+
+                _burnResult?.Invoke(false, _burnContext);
             }
 
             _burnResult?.Invoke(true, _burnContext);
@@ -378,8 +378,6 @@ namespace zero.core.patterns.semaphore.core
                 return;
             }
 
-            async?.Invoke(true, context);
-
             if (_executionContext != null)
             {
                 ExecutionContext.Run(
@@ -391,6 +389,8 @@ namespace zero.core.patterns.semaphore.core
             {
                 InvokeContinuation();
             }
+
+            async?.Invoke(true, context);
         }
 
         /// <summary>

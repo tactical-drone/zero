@@ -46,7 +46,7 @@ namespace zero.core.runtime.scheduler
             _workQueue = new IoZeroQ<Task>(string.Empty, capacity * 2, true);
             _callbacks = new IoZeroQ<ZeroContinuation>(string.Empty, (MaxWorker + 1) * 2, true, _asyncTasks, concurrencyLevel: MaxWorker - 1, zeroAsyncMode: true);
             _contextQueue = new IoZeroQ<ZeroContinuation>(string.Empty, (MaxWorker + 1) * 2, true, _asyncTasks, concurrencyLevel: MaxWorker - 1, zeroAsyncMode: false);
-            _asyncOneShotQueue = new IoZeroQ<Func<ValueTask>>(string.Empty, (MaxWorker + 1) * 2, true, _asyncTasks, concurrencyLevel: MaxWorker - 1, zeroAsyncMode: false);
+            _asyncOneShotQueue = new IoZeroQ<Func<ValueTask>>(string.Empty, (MaxWorker + 1) * 2, true, _asyncTasks, concurrencyLevel: MaxWorker - 1, zeroAsyncMode: true);
             _oneShotQueue = new IoZeroQ<Action>(string.Empty, (MaxWorker + 1) * 2, true, _asyncTasks, concurrencyLevel: MaxWorker - 1, zeroAsyncMode: true);
 
             _queenQueue = new IoZeroQ<ZeroSignal>(string.Empty, capacity,true);

@@ -430,7 +430,7 @@ namespace zero.test.core.patterns.queue
             await Task.WhenAll(insert).WaitAsync(TimeSpan.FromSeconds(6));
 
 
-            Assert.Equal(threads * InsertsPerThread + 4, bag.Count);
+            //Assert.Equal(threads * InsertsPerThread + 4, bag.Count);
             Assert.Equal(threads * InsertsPerThread, SpamTestAsyncThreadId);
             
 

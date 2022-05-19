@@ -37,7 +37,6 @@ namespace zero.core.patterns.semaphore.core
                     return cap;
             }
 
-            Interlocked.MemoryBarrier();
             return latch;
         }
 
@@ -72,7 +71,6 @@ namespace zero.core.patterns.semaphore.core
                     return cap;
             }
 
-            Interlocked.MemoryBarrier();
             return latch;
         }
 

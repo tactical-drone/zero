@@ -46,13 +46,14 @@ namespace zero.core.patterns.semaphore.core
                 {
                     RunContinuationsAsynchronously = zeroAsyncMode, 
                     AutoReset = true,
-                    _burnResult = (queued, state) =>
+                    _burnResult = (async, state) =>
                     {
                         var @this = (IIoZeroSemaphoreBase<T>)state;
 
-                        if (queued)
+                        if (async)
                         {
-                           
+
+                            //var r = @this.IncReadyCount();
                             var w = @this.IncWaitCount();
 #if TRACE
                             Console.WriteLine($"<{Environment.TickCount}>[{Thread.CurrentThread.ManagedThreadId:00}] w++ = {w} (Blocked)");
@@ -148,60 +149,6 @@ namespace zero.core.patterns.semaphore.core
         }
 
         public bool Zeroed() => _zeroed > 0;
-#if RELEASE
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-#endif
-        public long DecWaitCount()
-        {
-#if DEBUG
-            //var r = Interlocked.Decrement(ref _waitCount);
-            var r = _waitCount.ZeroPrev(0);
-            return r;
-#else
-            //return Interlocked.Decrement(ref _waitCount);
-            return _waitCount.ZeroPrev(0);
-#endif
-        }
-#if RELEASE
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-#endif
-        public long IncWaitCount()
-        {
-#if DEBUG
-            var ret = _waitCount.ZeroNext(_capacity);
-            //var ret = Interlocked.Increment(ref _waitCount);
-            Debug.Assert(ret <= _capacity);
-            Debug.Assert(ret >= 0);
-            return ret;
-#else
-            //Interlocked.Increment(ref _waitCount);
-            return _waitCount.ZeroNext(_capacity);
-#endif
-        }
-#if RELEASE
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-#endif
-        public long IncReadyCount()
-        {
-            var r = _readyCount.ZeroNext(_capacity);
-            //var r = Interlocked.Increment(ref _readyCount);
-#if DEBUG
-            Debug.Assert(r <= _capacity);
-            Debug.Assert(r >= 0);
-            return r;
-#else
-            //return Interlocked.Increment(ref _readyCount);
-#endif
-            return _readyCount.ZeroNext(_capacity);
-        }
-#if RELEASE
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-#endif
-        public long DecReadyCount()
-        {
-            return _readyCount.ZeroPrev(0);
-            //return Interlocked.Decrement(ref _readyCount);
-        }
 
         #region Aligned
         private long _b_head;
@@ -257,7 +204,6 @@ namespace zero.core.patterns.semaphore.core
 #if TRACE
                 Console.WriteLine("SET <--------------");
 #endif
-                //Interlocked.Increment(ref _b_head);
                 var slowCore = _blocking[idx % ModCapacity];
                 slowCore.RunContinuationsAsynchronously = forceAsync;
 
@@ -348,6 +294,7 @@ namespace zero.core.patterns.semaphore.core
                 }
                 else
                 {
+                    //var r = DecReadyCount();
 #if TRACE
                     Console.WriteLine($"<{Environment.TickCount}>[{Thread.CurrentThread.ManagedThreadId:00}] - Blocked,     id = [{idx % ModCapacity}]{idx:00}, status = {slowCore}");
 #endif
@@ -358,6 +305,61 @@ namespace zero.core.patterns.semaphore.core
                 goto race;
             
             return false;
+        }
+
+#if RELEASE
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+#endif
+        public long DecWaitCount()
+        {
+#if DEBUG
+            //var r = Interlocked.Decrement(ref _waitCount);
+            var r = _waitCount.ZeroPrev(0);
+            return r;
+#else
+            //return Interlocked.Decrement(ref _waitCount);
+            return _waitCount.ZeroPrev(0);
+#endif
+        }
+#if RELEASE
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+#endif
+        public long IncWaitCount()
+        {
+#if DEBUG
+            var ret = _waitCount.ZeroNext(_capacity);
+            //var ret = Interlocked.Increment(ref _waitCount);
+            Debug.Assert(ret <= _capacity);
+            Debug.Assert(ret >= 0);
+            return ret;
+#else
+            //Interlocked.Increment(ref _waitCount);
+            return _waitCount.ZeroNext(_capacity);
+#endif
+        }
+#if RELEASE
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+#endif
+        public long IncReadyCount()
+        {
+            var r = _readyCount.ZeroNext(_capacity);
+            //var r = Interlocked.Increment(ref _readyCount);
+#if DEBUG
+            Debug.Assert(r <= _capacity);
+            Debug.Assert(r >= 0);
+            return r;
+#else
+            //return Interlocked.Increment(ref _readyCount);
+            return _readyCount.ZeroNext(_capacity);
+#endif
+        }
+#if RELEASE
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+#endif
+        public long DecReadyCount()
+        {
+            return _readyCount.ZeroPrev(0);
+            //return Interlocked.Decrement(ref _readyCount);
         }
 
         #region API
@@ -383,6 +385,7 @@ namespace zero.core.patterns.semaphore.core
             var released = 0;
             foreach (var t in value)
                 released += Release(t, forceAsync);
+
             return released;
         }
 
@@ -400,18 +403,9 @@ namespace zero.core.patterns.semaphore.core
         /// <exception cref="InvalidOperationException">When invalid concurrency levels are detected.</exception>
         public ValueTask<T> WaitAsync()
         {
-            var retry = 300;
-            retry:
-
             // => slow path
             if (ZeroBlock(out var slowCore))
                 return slowCore;
-            
-            if (retry-- > 0)
-            {
-                Thread.Yield();
-                goto retry;
-            }
             
             // => API implementation error
             throw new InvalidOperationException($"{nameof(IoZeroCore<T>)}: Invalid concurrency level detected, check that {_capacity} matches or exceeds expected level of concurrent blockers expected. {Description}");
