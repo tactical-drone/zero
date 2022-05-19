@@ -52,16 +52,11 @@ namespace zero.core.patterns.semaphore.core
 
                         if (queued)
                         {
-                            //method 1
+                           
                             var w = @this.IncWaitCount();
 #if TRACE
                             Console.WriteLine($"<{Environment.TickCount}>[{Thread.CurrentThread.ManagedThreadId:00}] w++ = {w} (Blocked)");
 #endif
-                            //method 1
-
-                            //method 2
-                            //@this.IncWaitCount();   
-                            //method 2
                         }
                         else //inline
                         {
@@ -72,13 +67,6 @@ namespace zero.core.patterns.semaphore.core
 #if TRACE
                             Console.WriteLine($"<{Environment.TickCount}>[{Thread.CurrentThread.ManagedThreadId:00}] r-- = {r} (S)");
 #endif
-
-                            //method 1
-                            //method 1
-
-                            //method 2
-                            //method 2
-
                         }
                     }
                 };
