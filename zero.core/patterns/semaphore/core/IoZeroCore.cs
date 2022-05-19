@@ -53,7 +53,6 @@ namespace zero.core.patterns.semaphore.core
                         if (async)
                         {
 
-                            //var r = @this.IncReadyCount();
                             var w = @this.IncWaitCount();
 #if TRACE
                             Console.WriteLine($"<{Environment.TickCount}>[{Thread.CurrentThread.ManagedThreadId:00}] w++ = {w} (Blocked)");
@@ -197,7 +196,7 @@ namespace zero.core.patterns.semaphore.core
             long cap;
             var origTail = _b_tail;
             var origHead = _b_head;
-            Thread.MemoryBarrier();
+            
             var idx = _b_tail.ZeroNext(cap = origTail > origHead || origTail == origHead && ReadyCount < _capacity? origHead + _capacity: origTail + _capacity);
             if (idx != cap)
             {
@@ -275,7 +274,7 @@ namespace zero.core.patterns.semaphore.core
             race:
             var origTail = _b_tail;
             var origHead = _b_head;
-            Thread.MemoryBarrier();
+            
             if ((idx = _b_head.ZeroNext(cap = origHead >= origTail ? origTail + _capacity: _b_head + _capacity)) != cap)
             {
                 var slowCore = _blocking[idx %= ModCapacity];
@@ -294,7 +293,6 @@ namespace zero.core.patterns.semaphore.core
                 }
                 else
                 {
-                    //var r = DecReadyCount();
 #if TRACE
                     Console.WriteLine($"<{Environment.TickCount}>[{Thread.CurrentThread.ManagedThreadId:00}] - Blocked,     id = [{idx % ModCapacity}]{idx:00}, status = {slowCore}");
 #endif

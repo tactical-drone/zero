@@ -129,7 +129,7 @@ namespace zero.core.patterns.queue
                 {
                     return false;
                 }
-                Debug.Assert(_syncRoot.Zeroed() || _syncRoot.ReadyCount == 0);
+                //Debug.Assert(_syncRoot.Zeroed() || _syncRoot.ReadyCount == 0); TODO: Why?
 
 #if DEBUG
                 if (zero && nanite != null && nanite is not IIoNanite)

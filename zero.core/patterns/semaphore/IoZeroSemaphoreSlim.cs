@@ -23,13 +23,7 @@ namespace zero.core.patterns.semaphore
             _semaphore = newSem.ZeroRef(ref newSem, _ => true);
         }
 
-        private IIoZeroSemaphoreBase<bool> _semaphore;
-
-        public override void ZeroUnmanaged()
-        {
-            base.ZeroUnmanaged();
-            _semaphore = null;
-        }
+        private readonly IIoZeroSemaphoreBase<bool> _semaphore;
 
         public override async ValueTask ZeroManagedAsync()
         {
@@ -58,17 +52,19 @@ namespace zero.core.patterns.semaphore
         public IIoZeroSemaphoreBase<bool> ZeroRef(ref IIoZeroSemaphoreBase<bool> @ref, Func<object, bool> primeResult,
             object context = null) => _semaphore.ZeroRef(ref @ref, primeResult);
 
-        
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public int Release(bool value, int releaseCount, bool forceAsync = false)
         {
             return _semaphore.Release(value, releaseCount, forceAsync);
         }
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public int Release(bool value, bool forceAsync = false)
         {
             return _semaphore.Release(value, forceAsync);
         }
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public int Release(bool[] value, bool forceAsync = false)
         {
             return _semaphore.Release(value, forceAsync);

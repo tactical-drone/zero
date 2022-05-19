@@ -155,7 +155,6 @@ namespace zero.core.patterns.semaphore.core
             if (_completed)
                 throw new InvalidOperationException($"[{Thread.CurrentThread.ManagedThreadId}]: primed = {Primed}, blocking = {Blocking}, burned = {Burned}, completed = {_completed}, {GetStatus((short)Version)}");
 
-            
             _result = result;
             SignalCompletion(async, context);
         }
@@ -238,14 +237,8 @@ namespace zero.core.patterns.semaphore.core
                 throw new ArgumentNullException(nameof(continuation));
             }
 
-            try//TODO: is this a good idea?
-            {
-                ValidateToken(token);
-            }
-            catch
-            {
-                return;
-            }
+            ValidateToken(token);
+            
 #endif
             if ((flags & ValueTaskSourceOnCompletedFlags.FlowExecutionContext) != 0)
             {
@@ -282,7 +275,7 @@ namespace zero.core.patterns.semaphore.core
                 _continuationState = state;
                 oldContinuation = Interlocked.CompareExchange(ref _continuation, continuation, null);
             }
-
+            
             if (oldContinuation != null)
             {
                 // Operation already completed, so we need to queue the supplied callback.
@@ -292,12 +285,22 @@ namespace zero.core.patterns.semaphore.core
                     throw _invalidOperationException;
                 }
 
-                
+                try
+                {
+                    _burnResult?.Invoke(false, _burnContext);
+                }
+                catch
+                {
+                    // ignored
+                }
+
                 switch (_capturedContext)
                 {
                     case null:
                     {
-                            //_ = Task.Factory.StartNew(continuation, state, CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Default);
+                        //_ = Task.Factory.StartNew(continuation, state, CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Default);
+                        if (RunContinuationsAsynchronously)
+                        {
                             if (_executionContext != null)
                             {
                                 ThreadPool.QueueUserWorkItem(continuation, state, preferLocal: true);
@@ -313,7 +316,13 @@ namespace zero.core.patterns.semaphore.core
                                     _ = Task.Factory.StartNew(continuation, state, CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Default);
                                 };
                             }
-                            break;
+                        }
+                        else
+                        {
+                            continuation(state);
+                        }
+                        
+                        break;
                     }
                     case SynchronizationContext sc:
 #pragma warning disable VSTHRD001 // Avoid legacy thread switching APIs
@@ -325,20 +334,32 @@ namespace zero.core.patterns.semaphore.core
 #pragma warning restore VSTHRD001 // Avoid legacy thread switching APIs
                         break;
                     case IoZeroScheduler zs:
-                        if (IoZeroScheduler.Zero.QueueCallback(_continuation, _continuationState))
+                        if (RunContinuationsAsynchronously)
                         {
-                            _ = Task.Factory.StartNew(continuation, state, CancellationToken.None, TaskCreationOptions.DenyChildAttach, IoZeroScheduler.Zero);
+                            if (IoZeroScheduler.Zero.QueueCallback(_continuation, _continuationState))
+                            {
+                                _ = Task.Factory.StartNew(continuation, state, CancellationToken.None, TaskCreationOptions.DenyChildAttach, IoZeroScheduler.Zero);
+                            }
+                        }
+                        else
+                        {
+                            continuation(state);
                         }
                         break;
                     case TaskScheduler ts:
                         _ = Task.Factory.StartNew(continuation, state, CancellationToken.None, TaskCreationOptions.DenyChildAttach, ts);
                         break;
                 }
-
-                _burnResult?.Invoke(false, _burnContext);
             }
 
-            _burnResult?.Invoke(true, _burnContext);
+            try
+            {
+                _burnResult?.Invoke(true, _burnContext);
+            }
+            catch
+            {
+                // ignored
+            }
         }
 
 #if DEBUG
