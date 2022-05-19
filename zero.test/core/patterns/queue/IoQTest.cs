@@ -329,7 +329,7 @@ namespace zero.test.core.patterns.queue
                 Assert.True(bag[i] == null);
         }
 
-        private bool _blockingInsertDone = false;
+        private volatile bool _blockingInsertDone = false;
         [Fact]
         public async Task BlockingCollectionTestAsync()
         {
@@ -367,29 +367,38 @@ namespace zero.test.core.patterns.queue
 
                         var c = 0;
 
-                        while(!@this._blockingInsertDone) 
-                            await foreach (var item in bag.BlockOnConsumeAsync(i))
-                            {
-                                if (@this._blockingInsertDone || (@this._smokeTestDone && bag.Count == 0) || Interlocked.Increment(ref @this.SpamTestAsyncThreadsDone) >=
-                                    (threads >> 1) * InsertsPerThread)
+                        try
+                        {
+                            while(!@this._blockingInsertDone) 
+                                await foreach (var item in bag.BlockOnConsumeAsync(i))
                                 {
-                                    @this._blockingInsertDone = true;
-                                    break;
-                                }
+                                    if (@this._blockingInsertDone || (@this._smokeTestDone && bag.Count == 0) || Interlocked.Increment(ref @this.SpamTestAsyncThreadsDone) >=
+                                        (threads >> 1) * InsertsPerThread)
+                                    {
+                                        @this._output.WriteLine($"{c} _blockingInsertDone [OK]!!!!!!!!!!! {@this.SpamTestAsyncThreadsDone} > {threads * InsertsPerThread}");
+                                        @this._blockingInsertDone = true;
+                                        break;
+                                    }
 
-                                if (++c % 5000 == 0)
-                                {
-                                    @this._output.WriteLine($"[{Thread.CurrentThread.ManagedThreadId}] {@this.SpamTestAsyncThreadsDone} dqs....{@this.SpamTestAsyncThreadsDone} > {(threads>>1) * InsertsPerThread}");
+                                    if (++c % 5000 == 0)
+                                    {
+                                        @this._output.WriteLine($"[{Thread.CurrentThread.ManagedThreadId}] {@this.SpamTestAsyncThreadsDone} dqs....{@this.SpamTestAsyncThreadsDone} > {(threads>>1) * InsertsPerThread}");
+                                    }
                                 }
-                            }
+                        }
+                        catch (Exception e)
+                        {
+                            
+                        }
                         @this._output.WriteLine($"{c} dq done [SUCCESS]!!!!!!!!!!! {@this.SpamTestAsyncThreadsDone} > {threads * InsertsPerThread}");
+                        await bag.ZeroManagedAsync<object>(zero: true);
                     }, (this, bag, threads,i), CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Default).Unwrap());
 
                 insert.Add(Task.Factory.StartNew(static state =>
                 {
                     var (@this, bag,threads) = (ValueTuple<IoQTest, IoZeroQ<IoInt32>,int>)state!;
                     var c = 0;
-                    while (c < InsertsPerThread && @this.SpamTestAsyncThreadsDone < threads * InsertsPerThread)
+                    while (c < InsertsPerThread && @this.SpamTestAsyncThreadsDone < threads * InsertsPerThread && !@this._blockingInsertDone)
                     {
                         if (bag.TryEnqueue(Interlocked.Increment(ref @this.SpamTestAsyncThreadId)) != -1)
                         {
@@ -414,11 +423,11 @@ namespace zero.test.core.patterns.queue
             }
 
             _output.WriteLine($"Inserts tasks {insert.Count}");
-            await Task.WhenAll(insert).WaitAsync(TimeSpan.FromSeconds(3));
-            _output.WriteLine("Inserts done...");
+            await Task.WhenAll(remove).WaitAsync(TimeSpan.FromSeconds(6));
+            _output.WriteLine("remove done...");
             _smokeTestDone = true;
-            bag.TryEnqueue(-1);
-            await Task.WhenAll(remove).WaitAsync(TimeSpan.FromSeconds(3));
+            //bag.TryEnqueue(-1);
+            await Task.WhenAll(insert).WaitAsync(TimeSpan.FromSeconds(6));
 
 
             Assert.Equal(threads * InsertsPerThread + 4, bag.Count);
@@ -534,7 +543,7 @@ namespace zero.test.core.patterns.queue
             //var threads = 1;
 
             var cs = new CancellationTokenSource();
-            var bag = new IoZeroQ<IoInt32>("test", 8192, false, cs, threads, zeroAsyncMode:false);
+            var bag = new IoZeroQ<IoInt32>("test", 8192, false, cs, threads, zeroAsyncMode:true);
             //await Task.Yield();
             var c = 0;
             foreach (var ioInt32 in bag)
@@ -564,14 +573,14 @@ namespace zero.test.core.patterns.queue
 
                         var c = 0;
                         @this._output.WriteLine($" DQ at -> thread id {Thread.CurrentThread.ManagedThreadId}");
-                        while(!@this._smokeTestDone)
+                        //while(!@this._smokeTestDone)
                             await foreach (var item in bag.PumpOnConsumeAsync(i))
                             {
                                 if (Interlocked.Increment(ref @this.SpamTestAsyncThreadId) >
                                     threads * InsertsPerThread || (@this._smokeTestDone && bag.Count == 0))
                                 {
                                     @this._output.WriteLine($"{c} dq break! count = {@this.SpamTestAsyncThreadId} test done = {@this._smokeTestDone}");
-                                    return;
+                                    break;
                                 }
                                 if (c % 2500 == 0)
                                     @this._output.WriteLine($"[{Thread.CurrentThread.ManagedThreadId}]dq {c}");

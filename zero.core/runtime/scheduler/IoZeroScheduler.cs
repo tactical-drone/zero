@@ -6,15 +6,12 @@ using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
-using System.Xml.Schema;
 using NLog;
-using NLog.Config;
 using zero.core.misc;
 using zero.core.patterns.heap;
 using zero.core.patterns.misc;
 using zero.core.patterns.queue;
 using zero.core.patterns.semaphore;
-using zero.core.patterns.semaphore.core;
 
 namespace zero.core.runtime.scheduler
 {
@@ -26,9 +23,9 @@ namespace zero.core.runtime.scheduler
         public static bool Enabled = true;
         static IoZeroScheduler()
         {
-            //Zero = new IoZeroScheduler(Default);
-            //ZeroDefault = Zero;
-            ZeroDefault = Default; //TODO: Uncomment to enable native .net scheduler...
+            Zero = new IoZeroScheduler(Default);
+            ZeroDefault = Zero;
+            //ZeroDefault = Default; //TODO: Uncomment to enable native .net scheduler...
         }
 
         public IoZeroScheduler(TaskScheduler fallback, CancellationTokenSource asyncTasks = null)

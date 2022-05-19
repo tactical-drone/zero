@@ -9,6 +9,9 @@ namespace zero.core.patterns.semaphore.core
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static long ZeroNextBounded(this ref long val, in long cap)
         {
+            if (val + 1 >= cap)
+                return cap;
+
             long inc;
             long latch;
             while ((inc = (latch = val) + 1) >= cap || Interlocked.CompareExchange(ref val, inc, latch) != latch)
@@ -23,11 +26,64 @@ namespace zero.core.patterns.semaphore.core
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static long ZeroNext(this ref long val, in long cap)
         {
+            if (val + 1 > cap)
+                return cap;
+
             long inc;
             long latch;
             while ((inc = (latch = val) + 1) > cap || Interlocked.CompareExchange(ref val, inc, latch) != latch)
             {
                 if (inc > cap)
+                    return cap;
+            }
+
+            Interlocked.MemoryBarrier();
+            return latch;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static long ZeroPrev(this ref long val, in long cap)
+        {
+            if (val - 1 < cap)
+                return cap;
+
+            long dec;
+            long latch;
+            while ((dec = (latch = val) - 1) < cap || Interlocked.CompareExchange(ref val, dec, latch) != latch)
+            {
+                if (dec < cap)
+                    return cap;
+            }
+
+            return latch;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static int ZeroNext(this ref int val, in int cap)
+        {
+            if (val + 1 > cap)
+                return cap;
+
+            int inc;
+            int latch;
+            while ((inc = (latch = val) + 1) > cap || Interlocked.CompareExchange(ref val, inc, latch) != latch)
+            {
+                if (inc > cap)
+                    return cap;
+            }
+
+            Interlocked.MemoryBarrier();
+            return latch;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static int ZeroPrev(this ref int val, in int cap)
+        {
+            int dec;
+            int latch;
+            while ((dec = (latch = val) - 1) < cap || Interlocked.CompareExchange(ref val, dec, latch) != latch)
+            {
+                if (dec < cap)
                     return cap;
             }
 

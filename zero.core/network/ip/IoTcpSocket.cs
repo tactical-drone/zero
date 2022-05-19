@@ -269,6 +269,9 @@ namespace zero.core.network.ip
             catch (TaskCanceledException)
             {
             }
+            catch (OperationCanceledException)
+            {
+            }
             catch (SocketException e)
             {
                 _logger.Trace(e, $"[FAILED] connecting to {RemoteNodeAddress}: ({Description})");

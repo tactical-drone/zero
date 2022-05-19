@@ -387,10 +387,12 @@ namespace zero.core.patterns.queue
 
                 if (!await _syncRoot.WaitAsync().FastPath())
                     return default;
-
-                Debug.Assert(_syncRoot.ReadyCount <= 0 || _syncRoot.Zeroed());
-                Debug.Assert(Interlocked.Increment(ref _entered) == 1);
                 entered = true;
+
+                Debug.Assert(Interlocked.Increment(ref _entered) == 1);
+                Debug.Assert(_syncRoot.ReadyCount <= 0 || _syncRoot.Zeroed());
+                
+                
                 Debug.Assert(_entered < 2);
 
                 if (_count == 0)

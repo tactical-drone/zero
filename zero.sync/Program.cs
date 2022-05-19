@@ -63,11 +63,11 @@ namespace zero.sync
         static void Main(string[] args)
         {
             Console.WriteLine($"zero ({Environment.OSVersion}: {Environment.MachineName} - dotnet v{Environment.Version}, CPUs = {Environment.ProcessorCount})");
-            Task.Factory.StartNew(async () =>
-            {
-                await SemTestAsync();
-                //await QueueTestAsync();
-            }, CancellationToken.None, TaskCreationOptions.DenyChildAttach, IoZeroScheduler.ZeroDefault).Unwrap().GetAwaiter().GetResult();
+            //Task.Factory.StartNew(async () =>
+            //{
+            //    //await SemTestAsync();
+            //    await QueueTestAsync();
+            //}, CancellationToken.None, TaskCreationOptions.DenyChildAttach, IoZeroScheduler.ZeroDefault).Unwrap().GetAwaiter().GetResult();
 
             //Tune dotnet for large tests
             ThreadPool.GetMinThreads(out var wt, out var cp);
@@ -940,8 +940,8 @@ namespace zero.sync
             var waiters = 3;
             var releasers = 4;
             var disableRelease = false;
-            var targetSleep = (long)1000;
-            var logSpam = 1;//at least 1
+            var targetSleep = (long)0;
+            var logSpam = 50000;//at least 1
             var totalReleases = int.MaxValue;
 
             var targetSleepMult = waiters > 1 ? 2 : 1;
@@ -973,27 +973,34 @@ namespace zero.sync
             TaskCreationOptions options = TaskCreationOptions.DenyChildAttach;
 
             var startTime = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-            
+            var mainSW = new Stopwatch();
+            const int qTimeE_ms = 16;
             var t1 = Task.Factory.StartNew(async () =>
              {
                  try
                  {
                      while (waiters>0)
                      {
-                         sw.Restart();
+                         mainSW.Restart();
                          var qt = await mutex.WaitAsync().FastPath();
-                         
                          //Debug.Assert(qt.ElapsedMs() < ERR_T);
                          if (qt.ElapsedMs() < targetSleep + ERR_T)
                          {
-                             var tt = sw.ElapsedMilliseconds;
+                             
+                             var tt = mainSW.ElapsedMilliseconds;
                              Interlocked.Increment(ref eq1);
 
                              Action a = (tt - targetSleep * targetSleepMult) switch
                              {
-                                 > 5 => () => Console.ForegroundColor = ConsoleColor.DarkRed,
-                                 < -5 => () => Console.ForegroundColor = ConsoleColor.DarkRed,
-                                 _ => () => Console.ForegroundColor = ConsoleColor.DarkGreen,
+                                 > qTimeE_ms<<1 => () => Console.ForegroundColor = ConsoleColor.DarkRed,
+                                 > qTimeE_ms => () => Console.ForegroundColor = ConsoleColor.DarkYellow,
+                                 > qTimeE_ms>>1 => () => Console.ForegroundColor = ConsoleColor.DarkGreen,
+                                 < -qTimeE_ms << 1 => () => Console.ForegroundColor = ConsoleColor.DarkRed,
+                                 < -qTimeE_ms => () => Console.ForegroundColor = ConsoleColor.DarkGreen,
+                                 < -qTimeE_ms>>2 => () => Console.ForegroundColor = ConsoleColor.DarkYellow,
+                                 < qTimeE_ms>>2 => () => Console.ForegroundColor = ConsoleColor.Green,
+
+                                 _ => () => Console.ForegroundColor = ConsoleColor.DarkGray,
                              };
                              a();
 
@@ -1044,24 +1051,30 @@ namespace zero.sync
                {
                    while (waiters>1)
                    {
-                        // var block = sem.WaitAsync();
-                        // await block.OverBoostAsync().ConfigureAwait(ZC);
-                        // if(!block.Result)
-                        //     break;
-           
-                        sw2.Restart();
+                       // var block = sem.WaitAsync();
+                       // await block.OverBoostAsync().ConfigureAwait(ZC);
+                       // if(!block.Result)
+                       //     break;
+
+                       mainSW.Restart();
                         var qt = await mutex.WaitAsync().FastPath();
                         //Debug.Assert(qt.ElapsedMs() < ERR_T);
                         if (qt.ElapsedMs() < targetSleep + ERR_T)
                         { 
-                            var tt = sw2.ElapsedMilliseconds;
+                            var tt = mainSW.ElapsedMilliseconds;
                             Interlocked.Increment(ref eq2);
                             
                             Action a = (tt - targetSleep * targetSleepMult) switch
                             {
-                                > 5 => () => Console.ForegroundColor = ConsoleColor.Red,
-                                < -5 => () => Console.ForegroundColor = ConsoleColor.Red,
-                                _ => () => Console.ForegroundColor = ConsoleColor.Green,
+                                > qTimeE_ms << 1 => () => Console.ForegroundColor = ConsoleColor.DarkRed,
+                                > qTimeE_ms => () => Console.ForegroundColor = ConsoleColor.DarkYellow,
+                                > qTimeE_ms >> 1 => () => Console.ForegroundColor = ConsoleColor.DarkGreen,
+                                < -qTimeE_ms << 1 => () => Console.ForegroundColor = ConsoleColor.DarkRed,
+                                < -qTimeE_ms => () => Console.ForegroundColor = ConsoleColor.DarkGreen,
+                                < -qTimeE_ms >> 2 => () => Console.ForegroundColor = ConsoleColor.DarkYellow,
+                                < qTimeE_ms >> 2 => () => Console.ForegroundColor = ConsoleColor.Green,
+
+                                _ => () => Console.ForegroundColor = ConsoleColor.DarkGray,
                             };
                             a();
                             
@@ -1112,24 +1125,30 @@ namespace zero.sync
                {
                    while (waiters>2)
                    {
-                        // var block = sem.WaitAsync();
-                        // await block.OverBoostAsync().ConfigureAwait(ZC);
-                        // if(!block.Result)
-                        //     break;
-           
-                        sw2.Restart();
+                       // var block = sem.WaitAsync();
+                       // await block.OverBoostAsync().ConfigureAwait(ZC);
+                       // if(!block.Result)
+                       //     break;
+
+                       mainSW.Restart();
                         var qt = await mutex.WaitAsync().FastPath();
                         //Debug.Assert(qt.ElapsedMs() < ERR_T);
                         if (qt.ElapsedMs() < targetSleep + ERR_T)
                         {
-                           var tt = sw2.ElapsedMilliseconds;
+                           var tt = mainSW.ElapsedMilliseconds;
                            Interlocked.Increment(ref eq3);
            
                            Action a = (tt - targetSleep * targetSleepMult) switch
                            {
-                               > 5 => () => Console.ForegroundColor = ConsoleColor.Red,
-                               < -5 => () => Console.ForegroundColor = ConsoleColor.Red,
-                               _ => () => Console.ForegroundColor = ConsoleColor.Green,
+                               > qTimeE_ms << 1 => () => Console.ForegroundColor = ConsoleColor.DarkRed,
+                               > qTimeE_ms => () => Console.ForegroundColor = ConsoleColor.DarkYellow,
+                               > qTimeE_ms >> 1 => () => Console.ForegroundColor = ConsoleColor.DarkGreen,
+                               < -qTimeE_ms << 1 => () => Console.ForegroundColor = ConsoleColor.DarkRed,
+                               < -qTimeE_ms => () => Console.ForegroundColor = ConsoleColor.DarkGreen,
+                               < -qTimeE_ms >> 2 => () => Console.ForegroundColor = ConsoleColor.DarkYellow,
+                               < qTimeE_ms >> 2 => () => Console.ForegroundColor = ConsoleColor.Green,
+
+                               _ => () => Console.ForegroundColor = ConsoleColor.DarkGray,
                            };
                            a();
                             
@@ -1184,8 +1203,8 @@ namespace zero.sync
                                     }
                                     else
                                     {
-                                        await Task.Yield();
-                                        //await Task.Delay(1, asyncTasks.Token);
+                                        //await Task.Yield();
+                                        await Task.Delay(1, asyncTasks.Token);
                                     }
 
                                 }

@@ -235,7 +235,12 @@ namespace zero.core.patterns.misc
 #if ZERO_DISABLE_SCH
                 await @this.ZeroPrimeAsync().FastPath().ConfigureAwait(false);
 #else
-                IoZeroScheduler.Zero.QueueOneShot(@this.ZeroPrime);
+                if(IoZeroScheduler.Zero != null)
+                    IoZeroScheduler.Zero.QueueOneShot(@this.ZeroPrime);
+                else
+                {
+                    @this.ZeroPrime();
+                }
 #endif
                 await @this.ZeroAsync(true).FastPath().ConfigureAwait(false);
             }, this, default,TaskCreationOptions.DenyChildAttach, TaskScheduler.Default, filePath:filePath, methodName:methodName, lineNumber:lineNumber);

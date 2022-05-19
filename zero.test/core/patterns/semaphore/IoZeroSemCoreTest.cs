@@ -229,7 +229,7 @@ namespace zero.test.core.patterns.semaphore
         [Fact]
         public async Task ExclusiveZoneAsync()
         {                        
-            var realThreads = 1;
+            var realThreads = 10;
             var spamFactor = 10000;
             var delayTime = 0;
 
@@ -251,7 +251,7 @@ namespace zero.test.core.patterns.semaphore
                         {
                             var qt = await m.WaitAsync().FastPath();
 
-                            if(i% (spamFactor/10) == 0)
+                            //if(i% (spamFactor/10) == 0)
                                 _output.WriteLine($"[{Thread.CurrentThread.ManagedThreadId}] R => {i} , {qt.ElapsedMs()}ms, {(double)_exclusiveCount / t.ElapsedMsToSec():0.0} r/s");
                             Assert.InRange(qt.ElapsedMs(), -ERR_T, delayTime + ERR_T);
                             var Q = qt.ElapsedMs();
@@ -273,7 +273,8 @@ namespace zero.test.core.patterns.semaphore
                         {
                             Assert.Equal(0, Interlocked.Decrement(ref _exclusiveCheck));
                             await Task.Delay(delayTime);
-                            m.Release(Environment.TickCount);
+                            Assert.Equal(0, m.ReadyCount);
+                            m.EnsureRelease(Environment.TickCount);
                         }
                     }
                     _output.WriteLine($"Done signalling count = {_exclusiveCheck}, {(double)_exclusiveCheck / t.ElapsedMsToSec():0.0} r/s");

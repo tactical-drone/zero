@@ -93,6 +93,28 @@ namespace zero.test.core.patterns.semaphore
             {
                 _output.WriteLine($"[SKIP] ZeroNext prev = {prev}, next = {idx2} -> ");
             }
+
+
+            idx1 = 3;
+            long v;
+            prev = -1L;
+            while ((v = idx1.ZeroNext(10)) <= 10)
+            {
+                _output.WriteLine($"ZeroNext(10) -> {v}");
+                if (prev == v)
+                    break;
+                prev = v;
+            }
+
+            idx1 = 3;
+            prev = -1L;
+            while ((v = idx1.ZeroPrev(0)) >= 0)
+            {
+                _output.WriteLine($"Decrement -> {v}");
+                if (prev == v)
+                    break;
+                prev = v;
+            }
         }
     }
 }

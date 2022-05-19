@@ -103,27 +103,22 @@ namespace zero.core.patterns.semaphore
             return _semaphore.Zeroed() || base.Zeroed();
         }
 
-        public void DecWaitCount()
+        public long DecWaitCount()
         {
             throw new NotImplementedException();
         }
 
-        public void IncWaitCount()
+        public long IncWaitCount()
         {
             throw new NotImplementedException();
         }
 
-        public void IncReadyCount()
+        public long IncReadyCount()
         {
             throw new NotImplementedException();
         }
 
-        public void DecReadyCount()
-        {
-            throw new NotImplementedException();
-        }
-
-        public void IncCur()
+        public long DecReadyCount()
         {
             throw new NotImplementedException();
         }

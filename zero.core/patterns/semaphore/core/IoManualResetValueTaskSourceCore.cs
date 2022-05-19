@@ -86,7 +86,7 @@ namespace zero.core.patterns.semaphore.core
 
         public object BurnContext
         {
-            get => (IIoZeroSemaphoreBase<object>)_burnContext;
+            get => _burnContext;
             set => _burnContext = value;
         }
 
@@ -121,12 +121,14 @@ namespace zero.core.patterns.semaphore.core
         {
             Reset();
             _version = index;
+            Thread.MemoryBarrier();
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Prime(short index)
         {
             _version = index;
+            Thread.MemoryBarrier();
         }
 
         /// <summary>
@@ -236,6 +238,7 @@ namespace zero.core.patterns.semaphore.core
 #if DEBUG
             if (continuation == null)
             {
+                return;
                 throw new ArgumentNullException(nameof(continuation));
             }
 
@@ -248,59 +251,58 @@ namespace zero.core.patterns.semaphore.core
                 return;
             }
 #endif
-
-            try
+            if ((flags & ValueTaskSourceOnCompletedFlags.FlowExecutionContext) != 0)
             {
-                if ((flags & ValueTaskSourceOnCompletedFlags.FlowExecutionContext) != 0)
-                {
-                    _executionContext = ExecutionContext.Capture();
-                }
+                _executionContext = ExecutionContext.Capture();
+            }
 
-                if (RunContinuationsNatively && (flags & ValueTaskSourceOnCompletedFlags.UseSchedulingContext) != 0)
+            if (RunContinuationsNatively && (flags & ValueTaskSourceOnCompletedFlags.UseSchedulingContext) != 0)
+            {
+                var sc = SynchronizationContext.Current;
+                if (sc != null && sc.GetType() != typeof(SynchronizationContext))
                 {
-                    var sc = SynchronizationContext.Current;
-                    if (sc != null && sc.GetType() != typeof(SynchronizationContext))
+                    _capturedContext = sc;
+                }
+                else
+                { 
+                    var ts = TaskScheduler.Current;
+                    if (ts != TaskScheduler.Default)
                     {
-                        _capturedContext = sc;
-                    }
-                    else
-                    { 
-                        var ts = TaskScheduler.Current;
-                        if (ts != TaskScheduler.Default)
-                        {
-                            _capturedContext = ts;
-                        }
+                        _capturedContext = ts;
                     }
                 }
+            }
 
-                // We need to set the continuation state before we swap in the delegate, so that
-                // if there's a race between this and SetResult/Exception and SetResult/Exception
-                // sees the _continuation as non-null, it'll be able to invoke it with the state
-                // stored here.  However, this also means that if this is used incorrectly (e.g.
-                // awaited twice concurrently), _continuationState might get erroneously overwritten.
-                // To minimize the chances of that, we check preemptively whether _continuation
-                // is already set to something other than the completion sentinel.
+            // We need to set the continuation state before we swap in the delegate, so that
+            // if there's a race between this and SetResult/Exception and SetResult/Exception
+            // sees the _continuation as non-null, it'll be able to invoke it with the state
+            // stored here.  However, this also means that if this is used incorrectly (e.g.
+            // awaited twice concurrently), _continuationState might get erroneously overwritten.
+            // To minimize the chances of that, we check preemptively whether _continuation
+            // is already set to something other than the completion sentinel.
+            object org = _continuation;
+            object oldContinuation = _continuation;
+            if (oldContinuation == null)
+            {
+                _continuationState = state;
+                oldContinuation = Interlocked.CompareExchange(ref _continuation, continuation, null);
+            }
 
-                object oldContinuation = _continuation;
-                if (oldContinuation == null)
+            if (oldContinuation != null)
+            {
+                // Operation already completed, so we need to queue the supplied callback.
+                if (!ReferenceEquals(oldContinuation, ManualResetValueTaskSourceCoreShared.SSentinel))
                 {
-                    _continuationState = state;
-                    oldContinuation = Interlocked.CompareExchange(ref _continuation, continuation, null);
+                    Console.WriteLine($"{oldContinuation}, {continuation}, {state}");
+                    throw _invalidOperationException;
                 }
 
-                if (oldContinuation != null)
-                {
-                    // Operation already completed, so we need to queue the supplied callback.
-                    if (!ReferenceEquals(oldContinuation, ManualResetValueTaskSourceCoreShared.SSentinel))
-                    {
-                        //Console.WriteLine($"{oldContinuation}, {continuation}, {state}");
-                        throw _invalidOperationException;
-                    }
+                _burnResult?.Invoke(false, _burnContext);
 
-                    switch (_capturedContext)
+                switch (_capturedContext)
+                {
+                    case null:
                     {
-                        case null:
-                        {
                             _ = Task.Factory.StartNew(continuation, state, CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Default);
                             //if (_executionContext != null)
                             //{
@@ -318,31 +320,29 @@ namespace zero.core.patterns.semaphore.core
                             //    };
                             //}
                             break;
-                        }
-                        case SynchronizationContext sc:
-#pragma warning disable VSTHRD001 // Avoid legacy thread switching APIs
-                            sc.Post(s =>
-                            {
-                                var tuple = ((Action<object>, object))s;
-                                tuple.Item1(tuple.Item2);
-                            }, (continuation, state));
-#pragma warning restore VSTHRD001 // Avoid legacy thread switching APIs
-                            break;
-                        case IoZeroScheduler zs:
-                            //_ = Task.Factory.StartNew(continuation, state, CancellationToken.None, TaskCreationOptions.DenyChildAttach, IoZeroScheduler.Zero);
-                            IoZeroScheduler.Zero.QueueCallback(_continuation, _continuationState);
-                            break;
-                        case TaskScheduler ts:
-                            _ = Task.Factory.StartNew(continuation, state, CancellationToken.None, TaskCreationOptions.DenyChildAttach, ts);
-                            break;
                     }
+                    case SynchronizationContext sc:
+#pragma warning disable VSTHRD001 // Avoid legacy thread switching APIs
+                        sc.Post(s =>
+                        {
+                            var tuple = ((Action<object>, object))s;
+                            tuple.Item1(tuple.Item2);
+                        }, (continuation, state));
+#pragma warning restore VSTHRD001 // Avoid legacy thread switching APIs
+                        break;
+                    case IoZeroScheduler zs:
+                        if (IoZeroScheduler.Zero.QueueCallback(_continuation, _continuationState))
+                        {
+                            _ = Task.Factory.StartNew(continuation, state, CancellationToken.None, TaskCreationOptions.DenyChildAttach, IoZeroScheduler.Zero);
+                        }
+                        break;
+                    case TaskScheduler ts:
+                        _ = Task.Factory.StartNew(continuation, state, CancellationToken.None, TaskCreationOptions.DenyChildAttach, ts);
+                        break;
                 }
             }
-            catch(Exception e)
-            {
-                Console.WriteLine(e);
-                //throw;
-            }
+
+            _burnResult?.Invoke(true, _burnContext);
         }
 
 #if DEBUG
@@ -358,16 +358,16 @@ namespace zero.core.patterns.semaphore.core
 #endif
 
         private void SignalCompletion() => SignalCompletion<object>();
+
         /// <summary>Signals that the operation has completed.  Invoked after the result or error has been set.</summary>
-        /// <param name="source"></param>
+        /// <param name="async">Signals callback completion asynchronously status back to the caller</param>
+        /// <param name="context">Caller context</param>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private void SignalCompletion<TContext>(Action<bool, TContext> wasBlocking = null, TContext context = default)
+        private void SignalCompletion<TContext>(Action<bool, TContext> async = null, TContext context = default)
         {
-            //if (_completed) 
-            //    throw _invalidOperationException;//TODO strange bug between SetResult and here
-            if(_completed)
-                throw new InvalidOperationException($"[{Thread.CurrentThread.ManagedThreadId}]: primed = {Primed}, blocking = {Blocking}, burned = {Burned}, completed = {_completed}, { GetStatus((short)Version)}");
-            
+            if (_completed)
+                throw new InvalidOperationException($"[{Thread.CurrentThread.ManagedThreadId}]: primed = {Primed}, blocking = {Blocking}, burned = {Burned}, completed = {_completed}, {GetStatus((short)Version)}");
+
             _completed = true;
 
             //if(source != null)
@@ -377,22 +377,12 @@ namespace zero.core.patterns.semaphore.core
                 Interlocked.CompareExchange(ref _continuation, ManualResetValueTaskSourceCoreShared.SSentinel, null) ==
                 null)
             {
-                if (wasBlocking is not null)
-                {
-                    wasBlocking(false, context);
-                }
-                //else
-                //    _burnResult?.Invoke(false, _burnContext);
+                async?.Invoke(false, context);
 
                 return;
             }
 
-            if (wasBlocking is not null)
-            {
-                wasBlocking(true, context);
-            }
-            //else
-            //    _burnResult?.Invoke(true, _burnContext);
+            async?.Invoke(true, context);
 
             if (_executionContext != null)
             {
