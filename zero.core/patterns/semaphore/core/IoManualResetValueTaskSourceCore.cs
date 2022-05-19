@@ -105,9 +105,7 @@ namespace zero.core.patterns.semaphore.core
             _capturedContext = null;
             _continuationState = null;
             _completed = false;
-            Thread.MemoryBarrier();
             _continuation = null;
-            Thread.MemoryBarrier();
             _burned = 0;
             
 #if DEBUG
@@ -121,14 +119,12 @@ namespace zero.core.patterns.semaphore.core
         {
             Reset();
             _version = index;
-            Thread.MemoryBarrier();
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Prime(short index)
         {
             _version = index;
-            Thread.MemoryBarrier();
         }
 
         /// <summary>

@@ -137,7 +137,6 @@ namespace zero.core.patterns.semaphore.core
                         _blocking[i % ModCapacity].SetException(operationCanceledException);
                         _blocking[i % ModCapacity] = null;
                     }
-
                 }
                 catch
                 {
@@ -146,7 +145,6 @@ namespace zero.core.patterns.semaphore.core
             }
 
             _readyCount = _waitCount = 0;
-
         }
 
         public bool Zeroed() => _zeroed > 0;
@@ -206,7 +204,6 @@ namespace zero.core.patterns.semaphore.core
         }
 
         #region Aligned
-
         private long _b_head;
         private long _b_tail;
         
@@ -234,10 +231,7 @@ namespace zero.core.patterns.semaphore.core
         public bool ZeroAsyncMode { get; }
         public long Tail => _b_head;
         public long Head => _b_head;
-
         #endregion
-
-        #region internal
 
         /// <summary>
         /// Dequeue a slow core and unblock it using the <see cref="value"/> provided
@@ -246,7 +240,7 @@ namespace zero.core.patterns.semaphore.core
         /// <param name="released">The number of blockers released with <see cref="value"/></param>
         /// <param name="forceAsync"></param>
         /// <returns>If a waiter was unblocked, false otherwise</returns>
-        [MethodImpl(MethodImplOptions.NoInlining)]
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private bool ZeroSetResult(T value, out int released, bool forceAsync = false)
         {
 #if debug
@@ -321,7 +315,7 @@ namespace zero.core.patterns.semaphore.core
         /// </summary>
         /// <param name="slowTaskCore">The resulting core that will most likely result in a block</param>
         /// <returns>True if there was a core created, false if all <see cref="_capacity"/> cores are still blocked</returns>
-        [MethodImpl(MethodImplOptions.NoInlining)]
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private bool ZeroBlock(out ValueTask<T> slowTaskCore)
         {
             Debug.Assert(WaitCount <= _capacity);
@@ -338,7 +332,6 @@ namespace zero.core.patterns.semaphore.core
             Thread.MemoryBarrier();
             if ((idx = _b_head.ZeroNext(cap = origHead >= origTail ? origTail + _capacity: _b_head + _capacity)) != cap)
             {
-                //Interlocked.Increment(ref _b_tail);
                 var slowCore = _blocking[idx %= ModCapacity];
                 slowCore.Prime((short)idx);
                 slowTaskCore = new ValueTask<T>(slowCore, (short)idx);
@@ -358,10 +351,6 @@ namespace zero.core.patterns.semaphore.core
 #if TRACE
                     Console.WriteLine($"<{Environment.TickCount}>[{Thread.CurrentThread.ManagedThreadId:00}] - Blocked,     id = [{idx % ModCapacity}]{idx:00}, status = {slowCore}");
 #endif
-                    //Interlocked.Increment(ref _waitCount);
-#if TRACE
-                    //Console.WriteLine($"<{Environment.TickCount}>[{Thread.CurrentThread.ManagedThreadId:00}] w++ = {_waitCount} (Block)");
-#endif
                 }
                 return true;
             }
@@ -371,16 +360,14 @@ namespace zero.core.patterns.semaphore.core
             return false;
         }
 
-#endregion
-
-#region API
+        #region API
         public T GetResult(short token) => throw new NotImplementedException(nameof(GetResult));
 
         public ValueTaskSourceStatus GetStatus(short token) => throw new NotImplementedException(nameof(GetStatus));
 
         public void OnCompleted(Action<object> continuation, object state, short token, ValueTaskSourceOnCompletedFlags flags) => throw new NotImplementedException(nameof(OnCompleted));
 
-        [MethodImpl(MethodImplOptions.NoInlining)]
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public int Release(T value, int releaseCount, bool forceAsync = false)
         {
             var released = 0;
@@ -390,7 +377,7 @@ namespace zero.core.patterns.semaphore.core
             return released;
         }
 
-        [MethodImpl(MethodImplOptions.NoInlining)]
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public int Release(T[] value, bool forceAsync = false)
         {
             var released = 0;
@@ -399,7 +386,7 @@ namespace zero.core.patterns.semaphore.core
             return released;
         }
 
-        [MethodImpl(MethodImplOptions.NoInlining)]
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public int Release(T value, bool forceAsync = false)
         {
             if (ZeroSetResult(value, out var release,forceAsync)) return release;
@@ -434,6 +421,6 @@ namespace zero.core.patterns.semaphore.core
         {
             throw new NotImplementedException();
         }
-#endregion
+        #endregion
     }
 }

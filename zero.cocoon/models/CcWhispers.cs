@@ -1,6 +1,7 @@
 using System;
 using System.Linq;
 using System.Runtime.InteropServices;
+using System.Security.Cryptography;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Threading.Tasks.Sources;
@@ -11,6 +12,7 @@ using zero.cocoon.events.services;
 using zero.cocoon.identity;
 using zero.cocoon.models.batches;
 using zero.core.feat.models.protobuffer;
+using zero.core.misc;
 using zero.core.patterns.bushings;
 using zero.core.patterns.bushings.contracts;
 using zero.core.patterns.heap;
@@ -464,8 +466,8 @@ namespace zero.cocoon.models
                     }
 
 
-                    //if (req > 2 && Source.Rate.ElapsedMs() < 3000)// && req - _maxReq < 10)
-                    //    continue;
+                    if (req > 2 && Source.Rate.ElapsedMs() < 3000)// && req - _maxReq < 10)
+                        continue;
 
                     //await Task.Delay(RandomNumberGenerator.GetInt32(5, 350));
                     //await Task.Delay(RandomNumberGenerator.GetInt32(16, 90));
@@ -484,7 +486,7 @@ namespace zero.cocoon.models
                         if(req <= Volatile.Read(ref @this.CcCollective.MaxReq))
                             return;
 
-                        //await Task.Delay(RandomNumberGenerator.GetInt32(500, 1500));
+                        await Task.Delay(RandomNumberGenerator.GetInt32(500, 1500));
 
                         if (req <= Volatile.Read(ref @this.CcCollective.MaxReq))
                             return;
