@@ -1,5 +1,4 @@
 ﻿using System;
-using System.Runtime.CompilerServices;
 using System.Threading.Tasks;
 using System.Threading.Tasks.Sources;
 using zero.core.patterns.semaphore.core;
@@ -10,40 +9,35 @@ namespace zero.core.patterns.semaphore
     /// ManualResetValueTaskSource
     /// </summary>
     /// <typeparam name="T">The result type, can be anything</typeparam>
-    public sealed class IoZeroResetValueTaskSource<T> : IValueTaskSource<T>, IValueTaskSource
+    public sealed class IoZeroResetValueTaskSource<T> //: IValueTaskSource<T>, IValueTaskSource
     {
-        public IoZeroResetValueTaskSource(bool asyncInline = false)
+        public IoZeroResetValueTaskSource(bool runContinuationsAsynchronously = false)
         {
-            _zeroCore.RunContinuationsAsynchronously = asyncInline;
-            _zeroCore.AutoReset = true;
+            _zeroCore = new IoManualResetValueTaskSourceCore<T>
+            {
+                RunContinuationsAsynchronouslyAlways = runContinuationsAsynchronously,
+                AutoReset = true
+            };
         }
 
-        private IoManualResetValueTaskSourceCore<T> _zeroCore;
+        private readonly IIoManualResetValueTaskSourceCore<T> _zeroCore;
 
-        public bool RunContinuationsAsynchronously => _zeroCore.RunContinuationsAsynchronously;
-        public int Version => _zeroCore.Version;
-        public void Reset() => _zeroCore.Reset();
+        public bool RunContinuationsAsynchronously => _zeroCore.RunContinuationsAsynchronouslyAlways;
         public void SetResult(T result) => _zeroCore.SetResult(result);
         public void SetException(Exception exception) => _zeroCore.SetException(exception);
-        public bool IsBlocked(bool reset = false) => _zeroCore.IsBlocking(reset);
-
+        
         public bool Blocking => _zeroCore.Blocking;
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public bool Primed => _zeroCore.Primed;
+        public bool Burned => _zeroCore.Burned;
         public T GetResult(short token) => _zeroCore.GetResult(token);
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        void IValueTaskSource.GetResult(short token) => _zeroCore.GetResult(token);
 
         public ValueTaskSourceStatus GetStatus(short token) => _zeroCore.GetStatus(token);
 
-        ValueTaskSourceStatus IValueTaskSource.GetStatus(short token) => GetStatus(token);
-        
-        ValueTaskSourceStatus IValueTaskSource<T>.GetStatus(short token) => GetStatus(token);
-        
-        public void OnCompleted(Action<object> continuation, object state, short token, ValueTaskSourceOnCompletedFlags flags) => _zeroCore.OnCompleted(continuation, state, token, flags);
+        public ValueTask<T> WaitAsync() => new(_zeroCore, (short)_zeroCore.Version);
 
-        public ValueTask<T> WaitAsync() => _zeroCore.GetStatus((short)_zeroCore.Version) != ValueTaskSourceStatus.Succeeded ? new ValueTask<T>(this, (short)_zeroCore.Version) : new ValueTask<T>(GetResult((short)Version));
-        //public ValueTask<T> WaitAsync() => new ValueTask<T>(this, (short)_zeroCore.Version);
+        public override string ToString() => _zeroCore.ToString();
+
+        public void Reset() => _zeroCore.Reset();
+
     }
 }

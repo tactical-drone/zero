@@ -3,7 +3,6 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
-using System.IO;
 using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Threading;
@@ -12,7 +11,6 @@ using NLog;
 using zero.core.patterns.misc;
 using zero.core.patterns.queue.enumerator;
 using zero.core.patterns.semaphore;
-using zero.core.patterns.semaphore.core;
 using zero.@unsafe.core.math;
 
 namespace zero.core.patterns.queue
@@ -260,7 +258,7 @@ namespace zero.core.patterns.queue
                     {
                         try
                         {
-                            _balanceSync.EnsureRelease(true);
+                            _balanceSync.Release(true);
                         }
                         catch
                         {
@@ -351,7 +349,7 @@ namespace zero.core.patterns.queue
                 {
                     try
                     {
-                        _balanceSync.EnsureRelease(true);
+                        _balanceSync.Release(true);
                     }
                     catch
                     {

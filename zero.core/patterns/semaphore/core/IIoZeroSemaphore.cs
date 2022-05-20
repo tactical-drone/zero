@@ -8,8 +8,7 @@ namespace zero.core.patterns.semaphore.core
     public interface IIoZeroSemaphore : IIoZeroSemaphoreBase<bool>{}
     public interface IIoZeroSemaphoreBase<T>: IValueTaskSource<T>
     {
-        IIoZeroSemaphoreBase<T> ZeroRef(ref IIoZeroSemaphoreBase<T> @ref, Func<object, T> primeResult = default,
-            object context = null);
+        IIoZeroSemaphoreBase<T> ZeroRef(ref IIoZeroSemaphoreBase<T> @ref, Func<object, T> primeResult = default, object context = null);
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         int Release(T value, int releaseCount, bool forceAsync = false);
@@ -25,7 +24,6 @@ namespace zero.core.patterns.semaphore.core
         int ReadyCount { get; }
         int WaitCount { get; }
         public bool ZeroAsyncMode { get; }
-
         public string Description { get; }
         public int Capacity { get; }
 
@@ -33,11 +31,5 @@ namespace zero.core.patterns.semaphore.core
         protected internal int ZeroDecAsyncCount();
         
         bool Zeroed();
-        long DecWaitCount();
-        long IncWaitCount();
-
-        long IncReadyCount();
-
-        long DecReadyCount();        
     }
 }

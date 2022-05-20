@@ -51,8 +51,7 @@ namespace zero.core.patterns.queue
 #else
             var desc = _description = string.Empty;
 #endif
-            _configuration = configuration;
-            _nodeHeap = new IoHeap<IoZNode>(desc, capacity, static (_,_) => new IoZNode(), _configuration.HasFlag(Mode.DynamicSize)) {
+            _nodeHeap = new IoHeap<IoZNode>(desc, capacity, static (_,_) => new IoZNode(), configuration.HasFlag(Mode.DynamicSize)) {
                 PopAction =
                 (node, _) =>
                 {
@@ -63,16 +62,16 @@ namespace zero.core.patterns.queue
 
             //_syncRoot = new IoZeroSemaphore<bool>(desc, maxBlockers: concurrencyLevel, initialCount: 1, cancellationTokenSource: _asyncTasks, runContinuationsAsynchronously: true);
             //_syncRoot.ZeroRef(ref _syncRoot, _ => true);
-            _syncRoot = new IoZeroCore<bool>(desc, concurrencyLevel, 1);
+            _syncRoot = new IoZeroCore<bool>(desc, concurrencyLevel, 1, false);
             _syncRoot = _syncRoot.ZeroRef(ref _syncRoot, _ => true);
 
-            if (_configuration.HasFlag(Mode.Pressure))
+            if (configuration.HasFlag(Mode.Pressure))
             {
                 _pressure = new IoZeroCore<bool>($"qp {description}", concurrencyLevel);
                 _pressure.ZeroRef(ref _pressure, _ => true);
             }
             
-            if (_configuration.HasFlag(Mode.BackPressure))
+            if (configuration.HasFlag(Mode.BackPressure))
             {
                 _backPressure = new IoZeroCore<bool>($"qbp {description}",concurrencyLevel, concurrencyLevel, false);
                 _backPressure.ZeroRef(ref _backPressure, _ => true);
@@ -166,7 +165,7 @@ namespace zero.core.patterns.queue
             }
             finally
             {
-                _syncRoot.EnsureRelease(true);
+                _syncRoot.Release(true);
                 
                 if (zero)
                 {
@@ -242,7 +241,11 @@ namespace zero.core.patterns.queue
                 }
 
                 entered = true;
-
+#if DEBUG
+                Debug.Assert(Interlocked.Increment(ref _insaneExclusive) == 1);
+                Debug.Assert(_syncRoot.ReadyCount <= 0 || _syncRoot.Zeroed()); //TODO: Why is this one failing?
+                Debug.Assert(_insaneExclusive < 2);
+#endif
                 if (_tail == null)
                 {
                     _head = _tail = node;
@@ -280,14 +283,17 @@ namespace zero.core.patterns.queue
                         }
                         finally
                         {
-                            _syncRoot.EnsureRelease(true);
+#if DEBUG
+                            Interlocked.Decrement(ref _insaneExclusive);
+#endif
+                            _syncRoot.Release(true);
                         }
                     }
 
                     if (_pressure != null && success)
-                        _pressure.EnsureRelease(true, true);
+                        _pressure.Release(true);
                     else
-                        _backPressure?.EnsureRelease(true);
+                        _backPressure?.Release(true);
                 }
                 catch when (Zeroed) { }
                 catch (Exception e) when (!Zeroed)
@@ -314,7 +320,7 @@ namespace zero.core.patterns.queue
             try
             {
                 //wait on back pressure
-                if (_backPressure != null && !await _backPressure.WaitAsync().FastPath() || _zeroed > 0)
+                if (_backPressure != null && !await _backPressure.WaitAsync().FastPath())
                 {
                     if (_zeroed == 0 && (!_backPressure?.Zeroed()??true))
                         LogManager.GetCurrentClassLogger().Fatal($"{nameof(PushBackAsync)}{nameof(_backPressure.WaitAsync)}: back pressure failure ~> {_backPressure}");
@@ -322,12 +328,12 @@ namespace zero.core.patterns.queue
                 }
 
                 var node = _nodeHeap.Take();
+
                 if (node == null)
                     throw new OutOfMemoryException($"{_description} - ({_nodeHeap.Count} + {_nodeHeap.ReferenceCount})/{_nodeHeap.Capacity}, count = {_count}");
                 
                 node.Value = item;
 
-                // ReSharper disable once ConditionIsAlwaysTrueOrFalse
                 if (!await _syncRoot.WaitAsync().FastPath())
                 {
                     _nodeHeap.Return(node);
@@ -336,7 +342,11 @@ namespace zero.core.patterns.queue
                 }
 
                 entered = true;
-
+#if DEBUG
+                Debug.Assert(Interlocked.Increment(ref _insaneExclusive) == 1);
+                Debug.Assert(_syncRoot.ReadyCount <= 0 || _syncRoot.Zeroed()); //TODO: Why is this one failing?
+                Debug.Assert(_insaneExclusive < 2);
+#endif
                 if (_head == null)
                 {
                     _head = _tail = node;
@@ -354,18 +364,23 @@ namespace zero.core.patterns.queue
             finally
             {
                 if (entered)
-                    _syncRoot.EnsureRelease(true);
+                {
+#if DEBUG
+                    Interlocked.Decrement(ref _insaneExclusive);
+#endif
+                    _syncRoot.Release(true);
+                }
 
                 if (retVal != default)
-                    _pressure?.EnsureRelease(true);
+                    _pressure?.Release(true, false);
                 else
-                    _backPressure?.EnsureRelease(true);
+                    _backPressure?.Release(true);
             }
         }
 
-        private volatile int _entered = 0;
-        private readonly Mode _configuration;
-
+#if DEBUG
+        private volatile int _insaneExclusive = 0;
+#endif
         /// <summary>
         /// Blocking dequeue item
         /// </summary>
@@ -388,11 +403,11 @@ namespace zero.core.patterns.queue
                 if (!await _syncRoot.WaitAsync().FastPath())
                     return default;
                 entered = true;
-
-                Debug.Assert(Interlocked.Increment(ref _entered) == 1);
-                //Debug.Assert(_syncRoot.ReadyCount <= 0 || _syncRoot.Zeroed()); //TODO: Why is this one failing?
-                Debug.Assert(_entered < 2);
-
+#if DEBUG
+                Debug.Assert(Interlocked.Increment(ref _insaneExclusive) == 1);
+                Debug.Assert(_syncRoot.ReadyCount <= 0 || _syncRoot.Zeroed()); //TODO: Why is this one failing?
+                Debug.Assert(_insaneExclusive < 2);
+#endif
                 if (_count == 0)
                     return default;
 
@@ -411,20 +426,19 @@ namespace zero.core.patterns.queue
             catch when (_zeroed > 0) { }
             catch (Exception e) when (_zeroed == 0)
             {
+                Debug.Assert(false);
                 LogManager.GetCurrentClassLogger().Error(e, $"{_description}: DQ failed! {nameof(_count)} = {_count}, {nameof(_tail)} = {_tail}, {nameof(_head)} = {_head}, heap => {_nodeHeap.Description}");
             }
             finally
             {
                 if (entered)
                 {
-                    Interlocked.Decrement(ref _entered);
-                    //Debug.Assert(_syncRoot.ReadyCount == 0);
+#if DEBUG
+                    Interlocked.Decrement(ref _insaneExclusive);
+#endif
+                    Debug.Assert(_syncRoot.ReadyCount == 0);
                     _syncRoot.Release(true);
-                    
                 }
-
-                //var t = _syncRoot.ReadyCount == 1 || _entered > 0;
-                //Debug.Assert(t);
             }
             
             try
@@ -434,7 +448,7 @@ namespace zero.core.patterns.queue
                     var retVal = dq.Value;
                     dq.Value = default;
                     _nodeHeap.Return(dq);
-                    _backPressure?.EnsureRelease(true, true);//TODO: Why does this one need to be false? Every time it is set to async strange things start to happen.
+                    _backPressure?.Release(true, false);
                     return retVal;
                 }
             }
@@ -465,7 +479,11 @@ namespace zero.core.patterns.queue
             {
                 if (!await _syncRoot.WaitAsync().FastPath())
                     return false;
-
+#if DEBUG
+                Debug.Assert(Interlocked.Increment(ref _insaneExclusive) == 1);
+                Debug.Assert(_syncRoot.ReadyCount <= 0 || _syncRoot.Zeroed()); //TODO: Why is this one failing?
+                Debug.Assert(_insaneExclusive < 2);
+#endif
                 if (node.Value == null)
                     return true;
                 
@@ -506,7 +524,10 @@ namespace zero.core.patterns.queue
             }
             finally
             {
-                _syncRoot.EnsureRelease(true);
+#if DEBUG
+                Interlocked.Decrement(ref _insaneExclusive);       
+#endif
+                _syncRoot.Release(true, false);
                 node.Value = default;
                 _nodeHeap.Return(node, deDup);
             }
@@ -559,7 +580,7 @@ namespace zero.core.patterns.queue
             }
             finally
             {
-                _syncRoot.EnsureRelease(true);
+                _syncRoot.Release(true);
             }
         }
 
@@ -590,7 +611,7 @@ namespace zero.core.patterns.queue
             }
             finally
             {
-                _syncRoot.EnsureRelease(true);
+                _syncRoot.Release(true);
             }
         }
 

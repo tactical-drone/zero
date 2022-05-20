@@ -272,7 +272,6 @@ namespace zero.test.core.patterns.queue{
 
             Assert.Equal(0, c);
 
-            var idx = 0;
             var insert = new List<Task>();
 
             

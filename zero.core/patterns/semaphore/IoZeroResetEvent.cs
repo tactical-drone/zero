@@ -20,9 +20,9 @@ namespace zero.core.patterns.semaphore
 
         private readonly IoZeroResetValueTaskSource<bool> _pressure = new();
 
-        public int WaitCount => _pressure.GetStatus((short)_pressure.Version) == ValueTaskSourceStatus.Pending ? 1 : 0;
+        public int WaitCount => _pressure.Blocking? 1 : 0;
 
-        public int ReadyCount => _pressure.GetStatus((short)_pressure.Version) == ValueTaskSourceStatus.Succeeded ? 1 : 0;
+        public int ReadyCount => _pressure.Primed? 1 : 0;
 
         public bool ZeroAsyncMode => false;
         public string Description => $"{nameof(IoZeroResetEvent)}";
@@ -41,25 +41,9 @@ namespace zero.core.patterns.semaphore
             return _pressure.GetStatus(token);
         }
 
-
         public void OnCompleted(Action<object> continuation, object state, short token, ValueTaskSourceOnCompletedFlags flags)
         {
             throw new NotImplementedException();
-        }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public int Release(int releaseCount = 1, bool forceAsync = false)
-        {
-            Debug.Assert(releaseCount == 1);
-            try
-            {
-                _pressure.SetResult(true);
-            }
-            catch
-            {
-                return -1;
-            }
-            return releaseCount;
         }
 
         public IIoZeroSemaphoreBase<bool> ZeroRef(ref IIoZeroSemaphoreBase<bool> @ref, Func<object, bool> primeResult,
@@ -68,35 +52,32 @@ namespace zero.core.patterns.semaphore
             throw new NotImplementedException();
         }
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public int Release(bool value, int releaseCount, bool forceAsync = false)
         {
-            throw new NotImplementedException();
+            Debug.Assert(releaseCount == 1);
+            try
+            {
+                _pressure.SetResult(value);
+            }
+            catch
+            {
+                return 0;
+            }
+            return releaseCount;
         }
 
-        public int Release(bool value, bool forceAsync = false)
-        {
-            throw new NotImplementedException();
-        }
+        public int Release(bool value, bool forceAsync = false) => Release(value, 1, forceAsync);
 
         public int Release(bool[] value, bool forceAsync = false)
         {
             throw new NotImplementedException();
         }
 
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public ValueTask<bool> WaitAsync()
-        {
-            var p = _pressure.WaitAsync();
+        public ValueTask<bool> WaitAsync() => _pressure.WaitAsync();
 
-            return p == default ? new ValueTask<bool>(true) : p;
-        }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public void ZeroSem()
-        {
-            _pressure.SetResult(false);
-        }
-
+        public void ZeroSem() => _pressure.SetResult(false);
+        
         int IIoZeroSemaphoreBase<bool>.ZeroDecAsyncCount()
         {
             throw new NotImplementedException();
@@ -106,28 +87,5 @@ namespace zero.core.patterns.semaphore
         {
             throw new NotImplementedException();
         }
-
-        public long DecWaitCount()
-        {
-            throw new NotImplementedException();
-        }
-
-        public long IncWaitCount()
-        {
-            throw new NotImplementedException();
-        }
-
-        public long IncReadyCount()
-        {
-            throw new NotImplementedException();
-        }
-
-        public long DecReadyCount()
-        {
-            throw new NotImplementedException();
-        }
-
-        public int Version => _pressure.Version;
-        
     }
 }

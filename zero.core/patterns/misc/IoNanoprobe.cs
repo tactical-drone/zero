@@ -236,7 +236,7 @@ namespace zero.core.patterns.misc
                 await @this.ZeroPrimeAsync().FastPath().ConfigureAwait(false);
 #else
                 if(IoZeroScheduler.Zero != null)
-                    IoZeroScheduler.Zero.QueueOneShot(@this.ZeroPrime);
+                    IoZeroScheduler.Zero.Fork(@this.ZeroPrime);
                 else
                 {
                     @this.ZeroPrime();
@@ -271,7 +271,7 @@ namespace zero.core.patterns.misc
 #if ZERO_DISABLE_SCH
                         await @this.ZeroPrimeAsync().FastPath().ConfigureAwait(false);
 #else
-                    IoZeroScheduler.Zero.QueueOneShot(ioZNode.Value.ZeroPrime);
+                    IoZeroScheduler.Zero.Fork(ioZNode.Value.ZeroPrime);
 #endif
             }
         }
@@ -621,7 +621,7 @@ namespace zero.core.patterns.misc
             }
             finally
             {
-                ZeroRoot.EnsureRelease(true);
+                ZeroRoot.Release(true);
             }
 
             return false;

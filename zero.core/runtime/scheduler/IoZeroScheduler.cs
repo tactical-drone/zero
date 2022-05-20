@@ -40,14 +40,16 @@ namespace zero.core.runtime.scheduler
             _workerCount = Math.Max(Environment.ProcessorCount >> 1, 2);
             _queenCount = Math.Max(Environment.ProcessorCount >> 4, 1) + 1;
             _asyncCount = _workerCount>>1;
+            _syncCount = _asyncOSCount = _asyncOSCount = _syncOSCount = _asyncCount;
             var capacity = MaxWorker + 1;
 
             //TODO: tuning
             _workQueue = new IoZeroQ<Task>(string.Empty, capacity * 2, true);
-            _callbacks = new IoZeroQ<ZeroContinuation>(string.Empty, (MaxWorker + 1) * 2, true, _asyncTasks, concurrencyLevel: MaxWorker - 1, zeroAsyncMode: true);
-            _contextQueue = new IoZeroQ<ZeroContinuation>(string.Empty, (MaxWorker + 1) * 2, true, _asyncTasks, concurrencyLevel: MaxWorker - 1, zeroAsyncMode: false);
-            _asyncOneShotQueue = new IoZeroQ<Func<ValueTask>>(string.Empty, (MaxWorker + 1) * 2, true, _asyncTasks, concurrencyLevel: MaxWorker - 1, zeroAsyncMode: true);
-            _oneShotQueue = new IoZeroQ<Action>(string.Empty, (MaxWorker + 1) * 2, true, _asyncTasks, concurrencyLevel: MaxWorker - 1, zeroAsyncMode: true);
+            _callbackQueue = new IoZeroQ<ZeroContinuation>(string.Empty, (MaxWorker + 1) * 2, true, _asyncTasks, concurrencyLevel: MaxWorker - 1, zeroAsyncMode: true);
+            _callbackQueue2 = new IoZeroQ<ZeroContinuation>(string.Empty, (MaxWorker + 1) * 2, true, _asyncTasks, concurrencyLevel: MaxWorker - 1, zeroAsyncMode: false);
+            //_contextQueue = new IoZeroQ<ZeroContinuation>(string.Empty, (MaxWorker + 1) * 2, true, _asyncTasks, concurrencyLevel: MaxWorker - 1, zeroAsyncMode: false);
+            _asyncCallbackQueue = new IoZeroQ<Func<ValueTask>>(string.Empty, (MaxWorker + 1) * 2, true, _asyncTasks, concurrencyLevel: MaxWorker - 1, zeroAsyncMode: true);
+            _forkQueue = new IoZeroQ<Action>(string.Empty, (MaxWorker + 1) * 2, true, _asyncTasks, concurrencyLevel: MaxWorker - 1, zeroAsyncMode: true);
 
             _queenQueue = new IoZeroQ<ZeroSignal>(string.Empty, capacity,true);
             _signalHeap = new IoHeap<ZeroSignal>(string.Empty, capacity, (_, _) => new ZeroSignal(), true)
@@ -83,58 +85,68 @@ namespace zero.core.runtime.scheduler
             _queenPunchCards = new int[MaxWorker];
             Array.Fill(_queenPunchCards, -1);
 
-            //These two functions seem to be blending state after continuations, separating them manually might help?
-            var spawnQueen = SpawnWorker<ZeroSignal>;
-            var spawnWorker = SpawnWorker<Task>;
+            for (var i = 0; i < _queenCount; i++)
+            {
+                //spawn queen thread.
+                _pollQueen[i] = MallocQueenTaskCore;
+                SpawnWorker($"zero scheduler queen thread {i}", i, _queenQueue, null, IoMark.Queen, QueenHandler);
+            }
 
             for (var i = 0; i < _workerCount; i++)
             {
                 //spawn worker thread
                 _pollWorker[i] = MallocWorkTaskCore;
-                spawnWorker($"zero scheduler worker thread {i}", i, _workQueue, null, IoMark.Worker, WorkerHandler);
+                SpawnWorker($"zero scheduler worker thread {i}", i, _workQueue, null, IoMark.Worker, WorkerHandler);
             }
 
-            for (var i = 0; i < _queenCount; i++)
-            {
-                //spawn queen thread.
-                _pollQueen[i] = MallocQueenTaskCore;
-                spawnQueen($"zero scheduler queen thread {i}", i, _queenQueue, null, IoMark.Queen, QueenHandler);
-            }
-
-            for (var i = 0; i < _asyncCount; i++)
+            //callbacks
+            for (var i = 0; i < _syncCount; i++)
             {
                 _ = Task.Factory.StartNew(static async state =>
                 {
                     var (@this,i) = (ValueTuple<IoZeroScheduler,int>)state;
-                    await @this.ProcessCallback(i).FastPath();
+                    await @this.LoadCallback(i).FastPath();
                 },(this,i), CancellationToken.None,TaskCreationOptions.DenyChildAttach, _fallbackScheduler);
             }
+
+            //callbacks
+            for (var i = 0; i < _syncCount; i++)
+            {
+                _ = Task.Factory.StartNew(static async state =>
+                {
+                    var (@this, i) = (ValueTuple<IoZeroScheduler, int>)state;
+                    await @this.LoadCallback2(i).FastPath();
+                }, (this, i), CancellationToken.None, TaskCreationOptions.DenyChildAttach, _fallbackScheduler);
+            }
+
+            //async callbacks
             for (var i = 0; i < _asyncCount; i++)
             {
                 _ = Task.Factory.StartNew(static async state =>
                 {
                     var (@this, i) = (ValueTuple<IoZeroScheduler, int>)state;
-                    await @this.ProcessAsync(i).FastPath().ConfigureAwait(false);
+                    await @this.LoadAsyncCallback(i).FastPath().ConfigureAwait(false);
                 }, (this, i), CancellationToken.None, TaskCreationOptions.DenyChildAttach | TaskCreationOptions.HideScheduler, Default);
             }
 
-            for (var i = 0; i < _asyncCount; i++)
+            //async procedures
+            for (var i = 0; i < _asyncOSCount; i++)
             {
                 _ = Task.Factory.StartNew(static async state =>
                 {
                     var (@this, i) = (ValueTuple<IoZeroScheduler, int>)state;
-                    await @this.ProcessOneShotAsync(i).FastPath().ConfigureAwait(false);
+                    await @this.Fork(i).FastPath().ConfigureAwait(false);
                 }, (this, i), CancellationToken.None, TaskCreationOptions.DenyChildAttach | TaskCreationOptions.HideScheduler, Default);
             }
 
-            for (var i = 0; i < _asyncCount; i++)
-            {
-                _ = Task.Factory.StartNew(static async state =>
-                {
-                    var (@this, i) = (ValueTuple<IoZeroScheduler, int>)state;
-                    await @this.SpawnContext(i).FastPath().ConfigureAwait(false);
-                }, (this, i), CancellationToken.None, TaskCreationOptions.DenyChildAttach | TaskCreationOptions.HideScheduler, Default);
-            }
+            //for (var i = 0; i < _syncOSCount; i++)
+            //{
+            //    _ = Task.Factory.StartNew(static async state =>
+            //    {
+            //        var (@this, i) = (ValueTuple<IoZeroScheduler, int>)state;
+            //        await @this.SpawnContext(i).FastPath().ConfigureAwait(false);
+            //    }, (this, i), CancellationToken.None, TaskCreationOptions.DenyChildAttach | TaskCreationOptions.HideScheduler, Default);
+            //}
         }
 
         internal class ZeroSignal
@@ -169,9 +181,10 @@ namespace zero.core.runtime.scheduler
         private readonly int[] _queenPunchCards;
         private volatile int _dropWorker;
         private readonly IoZeroQ<Task> _workQueue;
-        private readonly IoZeroQ<Func<ValueTask>> _asyncOneShotQueue;
-        private readonly IoZeroQ<Action> _oneShotQueue;
-        private readonly IoZeroQ<ZeroContinuation> _callbacks;
+        private readonly IoZeroQ<Func<ValueTask>> _asyncCallbackQueue;
+        private readonly IoZeroQ<Action> _forkQueue;
+        private readonly IoZeroQ<ZeroContinuation> _callbackQueue;
+        private readonly IoZeroQ<ZeroContinuation> _callbackQueue2;
         private readonly IoZeroQ<ZeroContinuation> _contextQueue;
         private readonly IoZeroQ<ZeroSignal> _queenQueue;
         
@@ -182,6 +195,9 @@ namespace zero.core.runtime.scheduler
         private volatile int _workerCount;
         private volatile int _queenCount;
         private volatile int _asyncCount;
+        private volatile int _syncCount;
+        private volatile int _asyncOSCount;
+        private volatile int _syncOSCount;
         private long _completedWorkItemCount;
         private long _completedQItemCount;
         private long _completedAsyncCount;
@@ -328,8 +344,8 @@ namespace zero.core.runtime.scheduler
         public double QLoadFactor => (double) QLoad / _queenCount;
         public long Capacity => _workQueue.Capacity;
 
-        static IoZeroResetValueTaskSource<bool> MallocWorkTaskCore => new IoZeroResetValueTaskSource<bool>(false);
-        static IoZeroResetValueTaskSource<bool> MallocQueenTaskCore => new IoZeroResetValueTaskSource<bool>(false);
+        private static IoZeroResetValueTaskSource<bool> MallocWorkTaskCore => new();
+        private static IoZeroResetValueTaskSource<bool> MallocQueenTaskCore => new();
 
         /// <summary>
         /// Queens wake worker threads if there is work to be done.
@@ -352,7 +368,8 @@ namespace zero.core.runtime.scheduler
             //TODO: why is s sometimes null?
             if (s == null || s.Processed > 0 || s.Task.Status > TaskStatus.WaitingToRun)
                 return false;
-            
+
+
             //poll a worker, or create a new one if none are available
             try
             {
@@ -385,23 +402,29 @@ namespace zero.core.runtime.scheduler
                                     var ramp = 2;
                                     for (var i = @this._workerCount; i-- > 0;)
                                     {
-                                        try
+                                        var w = @this._pollWorker[i];
+
+                                        if (Interlocked.CompareExchange(ref @this._workerPunchCards[i], 1, 0) == 0)
                                         {
-                                            var w = @this._pollWorker[i];
-                                            if (@this._workerPunchCards[i] == 0 && w.Blocking)
+                                            try
                                             {
-                                                w.SetResult(true);
-#if _TRACE_
-                                            Console.WriteLine($"Polled worker {i} from queen {workerId}, for task {s.Task!.Id}");
-#endif
-                                                if(ramp --> 0)
-                                                    return;
+                                                if(!w.Primed)
+                                                    w.SetResult(true);
+                                                else
+                                                    Interlocked.Decrement(ref @this._workerPunchCards[i]);
                                             }
+                                            catch (Exception e)
+                                            {
+                                                LogManager.GetCurrentClassLogger().Fatal(e);
+                                                w.Reset();
+                                                Interlocked.Decrement(ref @this._workerPunchCards[i]);
+                                            }
+#if _TRACE_
+                                            Console.WriteLine($"!!!!!!!!!!!!!!!!!Polled worker {i} from queen {workerId}, for task {s.Task!.Id}");
+#endif
                                         }
-                                        catch
-                                        {
-                                            // ignored
-                                        }
+                                        if (ramp-- > 0)
+                                            break;
                                     }
                                 }
 
@@ -419,24 +442,19 @@ namespace zero.core.runtime.scheduler
                                     var newWorkerId = Interlocked.Increment(ref @this._workerCount) - 1;
                                     if (newWorkerId < MaxWorker)
                                     {
-#if __TRACE__
-                                    Console.WriteLine($"spawning more workers q[{newWorkerId}] = {@this._workQueue.Count}, l = {@this.Load}, {@this.Free.Count()}/{@this.Blocked.Count()}/{@this.Active.Count()}");
+#if _TRACE_
+                                        Console.WriteLine($"spawning more workers q[{newWorkerId}] = {@this._workQueue.Count}, l = {@this.Load}, {@this.Free.Count()}/{@this.Blocked.Count()}/{@this.Active.Count()}");
 #endif
                                         @this._pollWorker[newWorkerId] = MallocWorkTaskCore;
-                                        @this.SpawnWorker<Task>($"zero scheduler worker thread {newWorkerId}", newWorkerId, @this._workQueue, s.Task, IoMark.Worker, WorkerHandler);
+                                        @this.SpawnWorker($"zero scheduler worker thread {newWorkerId}", newWorkerId, @this._workQueue, s.Task, IoMark.Worker, WorkerHandler);
                                         @this._lastSpawnedWorker = Environment.TickCount;
 
+                                        //callbacks
                                         _ = Task.Factory.StartNew(static async state =>
                                         {
                                             var (@this, i) = (ValueTuple<IoZeroScheduler, int>)state;
-                                            await @this.ProcessAsync(i).FastPath();
-                                        }, (@this, Interlocked.Increment(ref @this._asyncCount) - 1), CancellationToken.None, TaskCreationOptions.DenyChildAttach, @this._fallbackScheduler);
-
-                                        //_ = Task.Factory.StartNew(static async state =>
-                                        //{
-                                        //    var @this = (IoZeroScheduler)state;
-                                        //    await @this.ProcessCallback().FastPath();
-                                        //}, @this, CancellationToken.None, TaskCreationOptions.DenyChildAttach, Default);
+                                            await @this.LoadCallback(i).FastPath();
+                                        }, (@this, Interlocked.Increment(ref @this._syncCount) - 1), CancellationToken.None, TaskCreationOptions.DenyChildAttach, @this._fallbackScheduler);
                                     }
                                     else
                                     {
@@ -515,7 +533,6 @@ namespace zero.core.runtime.scheduler
         /// <param name="id">worker id</param>
         /// <param name="prime">task to prime this thread with</param>
         /// <param name="queue">The Q o use</param>
-        /// <param name="priority">Thread priority</param>
         /// <param name="callback">work handler</param>
         private void SpawnWorker<T>(string desc, int id, IoZeroQ<T> queue, Task prime = null, IoMark mark = IoMark.Undefined, Func<IoZeroScheduler, T, int, bool> callback = null) where T : class
         {
@@ -541,7 +558,7 @@ var d = 0;
                     var (@this, queue, desc, xId, prime, callback, mark) =
                         (ValueTuple<IoZeroScheduler, IoZeroQ<T>, string, int, Task, Func<IoZeroScheduler, T, int, bool>, IoMark>)state;
 
-                    bool isWorker = mark == IoMark.Worker;
+                    bool isWorker = mark.HasFlag(IoMark.Worker);
                     //fast prime task to unwind current worker dead lockers
                     if (prime is { Status: <= TaskStatus.WaitingToRun })
                         @this.TryExecuteTask(prime);
@@ -556,16 +573,16 @@ var d = 0;
                         try
                         {
                             //wait on work q pressure
-                            if (queue.Count == 0 && !syncRoot.Blocking)//TODO: Design flaw
+                            if (queue.Count == 0)
                             {
 #if _TRACE_
-                                if (priority == ThreadPriority.Highest)
+                                if (!isWorker)
                                 {
-                                    Console.WriteLine($"Worker {workerId} blocking... version = {(short)taskCore.Version}");
+                                    Console.WriteLine($"Worker {xId} blocking... version = {syncRoot}");
                                 }
                                 else
                                 {
-                                    Console.WriteLine($"Worker {workerId} blocking... version = {(short)taskCore.Version}");
+                                    Console.WriteLine($"Worker {xId} blocking... version = {syncRoot}");
                                 }
 
 #endif
@@ -580,7 +597,7 @@ var d = 0;
                                             try
                                             {
                                                 Console.WriteLine($"Queen {xId} unblocking... FAILED!");
-                                                Console.WriteLine($"Queen {xId} unblocking... FAILED! status = {syncRoot.GetStatus((short)syncRoot.Version)}");
+                                                Console.WriteLine($"Queen {xId} unblocking... FAILED! status = {syncRoot}");
                                             }
                                             catch
                                             {
@@ -598,7 +615,7 @@ var d = 0;
                                             try
                                             {
                                                 Console.WriteLine($"Worker {xId} unblocking... FAILED!");
-                                                Console.WriteLine($"Worker {xId} unblocking... FAILED! version = {syncRoot.GetStatus((short)syncRoot.Version)}");
+                                                Console.WriteLine($"Worker {xId} unblocking... FAILED! version = {syncRoot}");
                                             }
                                             catch
                                             {
@@ -615,28 +632,28 @@ var d = 0;
                                     continue;
                                 }
 #if _TRACE_
-                                if (priority == ThreadPriority.Highest)
+                                if (!isWorker)
                                 {
-                                    //Console.WriteLine($"Queen {workerId} unblocking... ready = {queue.Count} version = {(short)taskCore.Version}");
+                                    Console.WriteLine($"Queen {xId} unblocking... ready = {queue.Count} version = {syncRoot}");
                                 }
                                 else
                                 {
-                                    Console.WriteLine($"Worker {workerId} unblocking... ready = {queue.Count} version = {(short)taskCore.Version}");
+                                    Console.WriteLine($"Worker {xId} unblocking... ready = {queue.Count} version = {syncRoot}");
                                 }
 #endif
                             }
 
 #if _TRACE_
                             if(queue.Count > 0)
-                                Console.WriteLine($"{desc}[{workerId}]: Q size = {queue.Count}, priority = {priority}, {jobsProcessed}");
+                                Console.WriteLine($"{desc}[{xId}]: Q size = {queue.Count}, {jobsProcessed}");
 #endif
                             int ramp;
                             //Service the Q
                             if (!isWorker)
                             {
                                 ramp = 0;
-                                if (Interlocked.CompareExchange(ref @this._queenPunchCards[xId], 1, 0) != 0)
-                                    continue;
+                                //if (Interlocked.CompareExchange(ref @this._queenPunchCards[xId], 1, 0) != 0)
+                                //    continue;
 
 #if __TRACE__
                                     Console.WriteLine($"[[QUEEN]] CONSUMING FROM Q {workerId},  Q = {queue.Count}/{@this.Active.Count()} - total jobs process = {@this.CompletedWorkItemCount}");
@@ -645,8 +662,8 @@ var d = 0;
                             else
                             {
                                 ramp = 10;
-                                if (Interlocked.CompareExchange(ref @this._workerPunchCards[xId], 1, 0) != 0)
-                                    continue;
+                                //if (Interlocked.CompareExchange(ref @this._workerPunchCards[xId], 1, 0) != 0)
+                                //    continue;
                             }
 
                             try
@@ -692,9 +709,9 @@ var d = 0;
                             finally
                             {
                                 if (isWorker)
-                                    Interlocked.Exchange(ref @this._workerPunchCards[xId], 0);
+                                    Interlocked.Decrement(ref @this._workerPunchCards[xId]);
                                 else
-                                    Interlocked.Exchange(ref @this._queenPunchCards[xId], 0);
+                                    Interlocked.Decrement(ref @this._queenPunchCards[xId]);
                             }
                         }
 #if DEBUG
@@ -754,6 +771,11 @@ var d = 0;
                 }
             }
 
+            if (mark.HasFlag(IoMark.Queen))
+                _queenPunchCards[id] = 0;
+            else
+                _workerPunchCards[id] = 0;
+
             var t = new Thread(ThreadWorker)
             {
                 IsBackground = true,
@@ -761,16 +783,11 @@ var d = 0;
             };
 
             t.Start((this, queue, desc, id, prime, callback, mark));
-
-            if (mark.HasFlag(IoMark.Queen))
-                _queenPunchCards[id] = 0;
-            else
-                _workerPunchCards[id] = 0;
         }
 
-        private async ValueTask ProcessAsync(int threadIndex)
+        private async ValueTask LoadAsyncCallback(int threadIndex)
         {
-            await foreach (var job in _asyncOneShotQueue.PumpOnConsumeAsync(threadIndex))
+            await foreach (var job in _asyncCallbackQueue.PumpOnConsumeAsync(threadIndex))
             {
                 try
                 {
@@ -784,9 +801,9 @@ var d = 0;
             }
         }
 
-        private async ValueTask ProcessOneShotAsync(int threadIndex)
+        private async ValueTask Fork(int threadIndex)
         {
-            await foreach (var job in _oneShotQueue.PumpOnConsumeAsync(threadIndex))
+            await foreach (var job in _forkQueue.PumpOnConsumeAsync(threadIndex))
             {
                 try
                 {
@@ -800,14 +817,34 @@ var d = 0;
             }
         }
 
-        private async ValueTask ProcessCallback(int threadIndex)
+        private async ValueTask LoadCallback(int threadIndex)
         {
-            await foreach (var job in _callbacks.BalanceOnConsumeAsync(threadIndex))
+            await foreach (var job in _callbackQueue.BalanceOnConsumeAsync(threadIndex))
             {
                 try
                 {
                     job.Callback(job.State);
                     Interlocked.Increment(ref _callbackCount);
+                }
+                catch (Exception e)
+                {
+                    LogManager.GetCurrentClassLogger().Trace(e);
+                }
+                finally
+                {
+                    _callbackHeap.Return(job);
+                }
+            }
+        }
+
+        private async ValueTask LoadCallback2(int threadIndex)
+        {
+            await foreach (var job in _callbackQueue2.BalanceOnConsumeAsync(threadIndex))
+            {
+                try
+                {
+                    job.Callback(job.State);
+                    //Interlocked.Increment(ref _callbackCount);
                 }
                 catch (Exception e)
                 {
@@ -911,23 +948,28 @@ var d = 0;
             while (!polled && task.Status <= TaskStatus.WaitingToRun && zeroSignal.Processed == 0 && qId-- > 0)
             {
                 var q = _pollQueen[qId];
-                if (_queenPunchCards[qId] == 0)
+                
+                if (Interlocked.CompareExchange(ref _queenPunchCards[qId], 1, 0) == 0)
                 {
-                    if (q.Blocking)//TODO: Design flaw
+                    try
                     {
-                        try
+                        if (!q.Primed)
                         {
                             q.SetResult(true);
-#if _TRACE_
-                        Console.WriteLine($"load = {QLoad}, Polled queen {qId} for task id {task.Id}");
-#endif
                             polled = true;
                             break;
                         }
-                        catch
-                        {
-                            // ignored
-                        }
+                        else
+                            Interlocked.Decrement(ref _queenPunchCards[qId]);
+#if _TRACE_
+                    Console.WriteLine($"load = {QLoad}, Polled queen {qId} for task id {task.Id}");
+#endif
+                    }
+                    catch (Exception e)
+                    {
+                        LogManager.GetCurrentClassLogger().Fatal(e);
+                        q.Reset();
+                        Interlocked.Decrement(ref _queenPunchCards[qId]);
                     }
                 }
             }
@@ -1013,12 +1055,34 @@ var d = 0;
 
                 handler.Callback = callback;
                 handler.State = state;
-                result = _callbacks.TryEnqueue(handler);
+                result = _callbackQueue.TryEnqueue(handler);
                 return result > 0;
             }
             finally
             {
                 if(result <= 0 && handler != null)
+                    _callbackHeap.Return(handler);
+            }
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public bool QueueCallback2(Action<object> callback, object state)
+        {
+            ZeroContinuation handler = null;
+            long result = -1;
+            try
+            {
+                handler = _callbackHeap.Take();
+                if (handler == null) return false;
+
+                handler.Callback = callback;
+                handler.State = state;
+                result = _callbackQueue2.TryEnqueue(handler);
+                return result > 0;
+            }
+            finally
+            {
+                if (result <= 0 && handler != null)
                     _callbackHeap.Return(handler);
             }
         }
@@ -1050,9 +1114,9 @@ var d = 0;
         public void Queue(Task task) => QueueTask(task);
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public bool QueueAsyncCallback(Func<ValueTask> callback, object state = null) => _asyncOneShotQueue.TryEnqueue(callback) > 0;
+        public bool LoadAsyncCallback(Func<ValueTask> callback, object state = null) => _asyncCallbackQueue.TryEnqueue(callback) > 0;
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public bool QueueOneShot(Action callback, object state = null) => _oneShotQueue.TryEnqueue(callback) > 0;
+        public bool Fork(Action callback, object state = null) => _forkQueue.TryEnqueue(callback) > 0;
     }
 }

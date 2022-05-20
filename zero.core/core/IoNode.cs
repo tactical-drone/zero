@@ -434,6 +434,7 @@ namespace zero.core.core
 
                                     //Existing and not broken neighbor?
                                     if (@this.Neighbors.TryGetValue(newNeighbor.Key, out var existingNeighbor) &&
+                                        !existingNeighbor.Zeroed() &&
                                         existingNeighbor.UpTime.ElapsedMsToSec() >
                                         @this.parm_zombie_connect_time_threshold_s &&
                                         existingNeighbor.Source.IsOperational())

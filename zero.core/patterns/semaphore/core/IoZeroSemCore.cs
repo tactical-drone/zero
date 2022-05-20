@@ -40,7 +40,7 @@ namespace zero.core.patterns.semaphore.core
 
             for (short i = 0; i < _capacity<<1; i++)
             {
-                _manualResetValueTaskSourceCore[i] = new IoManualResetValueTaskSourceCore<T>{RunContinuationsAsynchronously = zeroAsyncMode, AutoReset = true};
+                _manualResetValueTaskSourceCore[i] = new IoManualResetValueTaskSourceCore<T>{RunContinuationsAsynchronouslyAlways = zeroAsyncMode, AutoReset = true};
                 var core = _manualResetValueTaskSourceCore[i];
                 core.Reset(i);
             }
@@ -77,25 +77,6 @@ namespace zero.core.patterns.semaphore.core
         }
 
         public bool Zeroed() => _zeroed > 0;
-        public long DecWaitCount()
-        {
-            throw new NotImplementedException();
-        }
-
-        public long IncWaitCount()
-        {
-            throw new NotImplementedException();
-        }
-
-        public long IncReadyCount()
-        {
-            throw new NotImplementedException();
-        }
-
-        public long DecReadyCount()
-        {
-            throw new NotImplementedException();
-        }
 
         #region Aligned
         private long _head;
@@ -275,9 +256,9 @@ namespace zero.core.patterns.semaphore.core
                         Interlocked.Increment(ref _tail);
                         return 1;
                     }
-                    catch (Exception e)
+                    catch
                     {
-                        //Console.WriteLine(e);
+                        // ignored
                     }
                 }
                 else if(!core.Primed)

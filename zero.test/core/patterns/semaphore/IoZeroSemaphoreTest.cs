@@ -289,7 +289,7 @@ namespace zero.test.core.patterns.semaphore
                 for (var i = 0; i < count; i++)
                 {
                     await Task.Delay(minDelay);
-                    v.Release();
+                    v.Release(true);
                     _output.WriteLine(".");
                 }
             }, CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Default).Unwrap();
@@ -320,7 +320,7 @@ namespace zero.test.core.patterns.semaphore
                 for (var i = 0; i < count; i++)
                 {
                     await Task.Delay(minDelay);
-                    v.Release();
+                    v.Release(true);
                 }
             }, CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Default).Unwrap();
 
@@ -351,7 +351,7 @@ namespace zero.test.core.patterns.semaphore
 
                     //_output.WriteLine($"s -> {v.GetStatus(v.Version)}[{v.Version}] \t- {DateTimeOffset.UtcNow.Ticks} - {i}/{count} - {Thread.CurrentThread.ManagedThreadId}");
 
-                    while (v.Release() != 1)
+                    while (v.Release(true) != 1)
                     {
                         //if(c++ %10000 ==0)
                         //_output.WriteLine(".");
@@ -366,16 +366,8 @@ namespace zero.test.core.patterns.semaphore
             {
                 var ts = Environment.TickCount;
 
-                var version = v.Version;
-                var status = v.GetStatus((short)version);
-                //_output.WriteLine($"w -> {status}[{version}] \t- {DateTimeOffset.UtcNow.Ticks} - {i}/{count} - {Thread.CurrentThread.ManagedThreadId}");
-
                 Assert.True(await v.WaitAsync().FastPath());
                 Assert.InRange(ts.ElapsedMs(), 0, 20000);
-
-                //version = v.Version;
-                //status = v.GetStatus((short)version);
-                //_output.WriteLine($"w <- {status}[{version}] \t- {DateTimeOffset.UtcNow.Ticks} - {i}/{count} - {Thread.CurrentThread.ManagedThreadId}");
             }
 
             await t;

@@ -86,7 +86,7 @@ namespace zero.core.patterns.bushings
             try
             {
                 //TODO tuning
-                _queue = new IoZeroQ<IoSink<TJob>>($"zero Q: {_description}", capacity, asyncTasks:AsyncTasks, concurrencyLevel:ZeroConcurrencyLevel(),zeroAsyncMode:true);
+                _queue = new IoZeroQ<IoSink<TJob>>($"zero Q: {_description}", capacity, asyncTasks:AsyncTasks, concurrencyLevel:ZeroConcurrencyLevel(),zeroAsyncMode:false);
                 JobHeap = new IoHeapIo<IoSink<TJob>>($"{nameof(JobHeap)}: {_description}", capacity, jobMalloc) {
                     Constructor = (sink, zero) =>
                     {
@@ -425,11 +425,12 @@ namespace zero.core.patterns.bushings
                             //Source.Pressure();
 
                             //Fetch more work
-                            Source.PrefetchPressure(zeroAsync:true);
+                            Source.PrefetchPressure();
 
                             if (!IsArbitrating)
                                 IsArbitrating = true;
 
+                            //TODO:Is this still a good idea?
                             if (ZeroRecoveryEnabled && _previousJobFragment.Count > Source.PrefetchSize + Source.ZeroConcurrencyLevel() * 2)
                             {
                                 var drop = await _previousJobFragment.DequeueAsync().FastPath();

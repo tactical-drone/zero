@@ -1,4 +1,6 @@
 ﻿using System;
+using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
 using System.Runtime.ExceptionServices;
 using System.Runtime.InteropServices;
@@ -11,9 +13,10 @@ namespace zero.core.patterns.semaphore.core
 {
     /// <summary>Provides the core logic for implementing a manual-reset <see cref="IValueTaskSource"/> or <see cref="IValueTaskSource{TResult}"/>.</summary>
     /// <typeparam name="TResult"></typeparam>
-    [StructLayout(LayoutKind.Auto)]
+    [StructLayout(LayoutKind.Sequential, Pack = 64)]
     public struct IoManualResetValueTaskSourceCore<TResult>: IIoManualResetValueTaskSourceCore<TResult>
     {
+        // ReSharper disable once StaticMemberInGenericType
         private static readonly InvalidOperationException _invalidOperationException = new();
 
         /// <summary>
@@ -21,10 +24,11 @@ namespace zero.core.patterns.semaphore.core
         /// or <see cref="ManualResetValueTaskSourceCoreShared.SSentinel"/> if the operation completed before a callback was supplied,
         /// or null if a callback hasn't yet been provided and the operation hasn't yet completed.
         /// </summary>
-        private Action<object> _continuation;
+#pragma warning disable CS8632 // The annotation for nullable reference types should only be used in code within a '#nullable' annotations context.
+        private Action<object?>? _continuation;
 
         /// <summary>State to pass to <see cref="_continuation"/>.</summary>
-        private object _continuationState;
+        private object? _continuationState;
 
         /// <summary><see cref="ExecutionContext"/> to flow to the callback, or null if no flowing is required.</summary>
         private ExecutionContext _executionContext;
@@ -33,16 +37,18 @@ namespace zero.core.patterns.semaphore.core
         /// A "captured" <see cref="SynchronizationContext"/> or <see cref="TaskScheduler"/> with which to invoke the callback,
         /// or null if no special context is required.
         /// </summary>
-        private object _capturedContext;
+        private object? _capturedContext;
 
         /// <summary>The exception with which the operation failed, or null if it hasn't yet completed or completed successfully.</summary>
-        private ExceptionDispatchInfo _error;
+        private ExceptionDispatchInfo? _error;
+#pragma warning restore CS8632 // The annotation for nullable reference types should only be used in code within a '#nullable' annotations context.
+        /// <summary>The result with which the operation succeeded, or the default value if it hasn't yet completed or failed.</summary>
+        //[AllowNull, MaybeNull] private TResult _result;
+        private TResult _result;
 
-        public Action<bool, object> _burnResult;
         public object _burnContext;
 
-        /// <summary>The result with which the operation succeeded, or the default value if it hasn't yet completed or failed.</summary>
-        private TResult _result;
+        public Action<bool, object> _burnResult;
 
         /// <summary>Whether the current operation has completed.</summary>
         private bool _completed;
@@ -54,6 +60,11 @@ namespace zero.core.patterns.semaphore.core
         /// Whether this core has been burned?
         /// </summary>
         private int _burned;
+
+        /// <summary>
+        /// Substitute for <see cref="RunContinuationsAsynchronously"/> used internally
+        /// </summary>
+        public bool RunContinuationsAsynchronouslyAlways { get; set; }
 
         /// <summary>Gets or sets whether to force continuations to run asynchronously.</summary>
         /// <remarks>Continuations may run asynchronously if this is false, but they'll never run synchronously if this is true.</remarks>
@@ -104,14 +115,10 @@ namespace zero.core.patterns.semaphore.core
             _executionContext = null;
             _capturedContext = null;
             _continuationState = null;
-            _completed = false;
             _continuation = null;
-            _burned = 0;
-            
-#if DEBUG
-            //if (Interlocked.Increment(ref _version) == short.MaxValue)
-            //    _version = 0;
-#endif
+            Thread.MemoryBarrier();
+            _completed = false;
+            _version = _burned = 0;
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -145,11 +152,12 @@ namespace zero.core.patterns.semaphore.core
 
 
         public void SetResult(TResult result) => SetResult<object>(result);
-        
+
         /// <summary>Completes with a successful result.</summary>
         /// <param name="result">The result.</param>
         /// <param name="async"></param>
         /// <param name="context"></param>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void SetResult<TContext>(TResult result, Action<bool, TContext> async = null, TContext context = default)
         {
             if (_completed)
@@ -159,16 +167,9 @@ namespace zero.core.patterns.semaphore.core
             SignalCompletion(async, context);
         }
 
-        //public void SetResult(IIoManualResetValueTaskSourceCore<TResult> source)
-        //{
-        //    if (_completed)
-        //        throw _invalidOperationException;
-
-        //    SignalCompletion(source);
-        //}
-
         /// <summary>Completes with an error.</summary>
         /// <param name="error"></param>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void SetException(Exception error)
         {
             _error = ExceptionDispatchInfo.Capture(error);
@@ -228,24 +229,21 @@ namespace zero.core.patterns.semaphore.core
         /// <param name="state">The state object to pass to <paramref name="continuation"/> when it's invoked.</param>
         /// <param name="token">Opaque value that was provided to the <see cref="ValueTask"/>'s constructor.</param>
         /// <param name="flags">The flags describing the behavior of the continuation.</param>
+#if RELEASE
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+#endif
         public void OnCompleted(Action<object> continuation, object state, short token, ValueTaskSourceOnCompletedFlags flags)
         {
 #if DEBUG
-            if (continuation == null)
-            {
-                return;
-                throw new ArgumentNullException(nameof(continuation));
-            }
-
+            Debug.Assert(continuation != null && state != null);
             ValidateToken(token);
-            
 #endif
             if ((flags & ValueTaskSourceOnCompletedFlags.FlowExecutionContext) != 0)
             {
                 _executionContext = ExecutionContext.Capture();
             }
 
-            if (RunContinuationsNatively && (flags & ValueTaskSourceOnCompletedFlags.UseSchedulingContext) != 0)
+            if ((flags & ValueTaskSourceOnCompletedFlags.UseSchedulingContext) != 0 && !RunContinuationsNatively)
             {
                 var sc = SynchronizationContext.Current;
                 if (sc != null && sc.GetType() != typeof(SynchronizationContext))
@@ -270,6 +268,7 @@ namespace zero.core.patterns.semaphore.core
             // To minimize the chances of that, we check preemptively whether _continuation
             // is already set to something other than the completion sentinel.
             object oldContinuation = _continuation;
+            object oldState = _continuationState;
             if (oldContinuation == null)
             {
                 _continuationState = state;
@@ -281,7 +280,7 @@ namespace zero.core.patterns.semaphore.core
                 // Operation already completed, so we need to queue the supplied callback.
                 if (!ReferenceEquals(oldContinuation, ManualResetValueTaskSourceCoreShared.SSentinel))
                 {
-                    Console.WriteLine($"{oldContinuation}, {continuation}, {state}");
+                    Console.WriteLine($"// => had = {oldContinuation}({oldContinuation.ToString()}), {oldState}, // => has = {continuation}, {state}");
                     throw _invalidOperationException;
                 }
 
@@ -298,8 +297,10 @@ namespace zero.core.patterns.semaphore.core
                 {
                     case null:
                     {
+#if ZERO_CORE
                         //_ = Task.Factory.StartNew(continuation, state, CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Default);
-                        if (RunContinuationsAsynchronously)
+#else
+                        if (RunContinuationsAsynchronously || RunContinuationsAsynchronouslyAlways)
                         {
                             if (_executionContext != null)
                             {
@@ -314,14 +315,14 @@ namespace zero.core.patterns.semaphore.core
                                     }, (continuation, state)))
                                 {
                                     _ = Task.Factory.StartNew(continuation, state, CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Default);
-                                };
+                                }
                             }
                         }
                         else
                         {
                             continuation(state);
                         }
-                        
+#endif
                         break;
                     }
                     case SynchronizationContext sc:
@@ -333,18 +334,14 @@ namespace zero.core.patterns.semaphore.core
                         }, (continuation, state));
 #pragma warning restore VSTHRD001 // Avoid legacy thread switching APIs
                         break;
-                    case IoZeroScheduler zs:
-                        if (RunContinuationsAsynchronously)
+                    case IoZeroScheduler:
+                        if (RunContinuationsAsynchronously || RunContinuationsAsynchronouslyAlways)
                         {
-                            if (IoZeroScheduler.Zero.QueueCallback(_continuation, _continuationState))
-                            {
+                            if (IoZeroScheduler.Zero.QueueCallback(continuation, state))
                                 _ = Task.Factory.StartNew(continuation, state, CancellationToken.None, TaskCreationOptions.DenyChildAttach, IoZeroScheduler.Zero);
-                            }
                         }
                         else
-                        {
                             continuation(state);
-                        }
                         break;
                     case TaskScheduler ts:
                         _ = Task.Factory.StartNew(continuation, state, CancellationToken.None, TaskCreationOptions.DenyChildAttach, ts);
@@ -399,6 +396,8 @@ namespace zero.core.patterns.semaphore.core
                 return;
             }
 
+            async?.Invoke(true, context);
+
             if (_executionContext != null)
             {
                 ExecutionContext.Run(
@@ -410,8 +409,6 @@ namespace zero.core.patterns.semaphore.core
             {
                 InvokeContinuation();
             }
-
-            async?.Invoke(true, context);
         }
 
         /// <summary>
@@ -422,11 +419,14 @@ namespace zero.core.patterns.semaphore.core
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private void InvokeContinuation()
         {
+            Debug.Assert(_continuation != null);
             switch (_capturedContext)
             {
                 case null:
-                    if (RunContinuationsAsynchronously)
+                    if (RunContinuationsAsynchronously || RunContinuationsAsynchronouslyAlways)
                     {
+                        //IoZeroScheduler.Zero.QueueCallback(_continuation, _continuationState);
+                        //_ = Task.Factory.StartNew(_continuation, _continuationState, CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Default);
 #if ZERO_CORE
                         _ = Task.Factory.StartNew(_continuation, _continuationState, CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Default);
 #else
@@ -436,13 +436,13 @@ namespace zero.core.patterns.semaphore.core
                                 callback(state);
                             }, (_continuation, _continuationState)))
                         {
-                            _ = Task.Factory.StartNew(_continuation, _continuationState, CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Default);
+                            _ = Task.Factory.StartNew(_continuation!, _continuationState, CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Default);
                         }
 #endif
                     }
                     else
                     {
-                        _continuation(_continuationState);
+                        _continuation!(_continuationState);
                     }
                     break;
 
@@ -456,24 +456,22 @@ namespace zero.core.patterns.semaphore.core
 #pragma warning restore VSTHRD001 // Avoid legacy thread switching APIs
                     break;
 
-                case IoZeroScheduler zs:
+                case IoZeroScheduler:
                     //async
-                    if (RunContinuationsAsynchronously)
+                    if (RunContinuationsAsynchronously || RunContinuationsAsynchronouslyAlways)
                     {
-                        //_ = Task.Factory.StartNew(_continuation, _continuationState, CancellationToken.None, TaskCreationOptions.DenyChildAttach, IoZeroScheduler.Zero);
-                        IoZeroScheduler.Zero.QueueCallback(_continuation, _continuationState);
+                        if (!IoZeroScheduler.Zero.QueueCallback(_continuation, _continuationState))
+                            _ = Task.Factory.StartNew(_continuation!, _continuationState, CancellationToken.None,
+                                TaskCreationOptions.DenyChildAttach, IoZeroScheduler.Zero);
                     }
                     else //sync
-                    {
-                        _continuation(_continuationState);
-                    }
+                        _continuation!(_continuationState);
                     break;
                 case TaskScheduler ts:
-                    _ = Task.Factory.StartNew(_continuation, _continuationState, CancellationToken.None, TaskCreationOptions.DenyChildAttach, ts);
+                    _ = Task.Factory.StartNew(_continuation!, _continuationState, CancellationToken.None, TaskCreationOptions.DenyChildAttach, ts);
                     break;
             }
         }
-
 
         public override string ToString()
         {

@@ -274,7 +274,7 @@ namespace zero.test.core.patterns.semaphore
                             Assert.Equal(0, Interlocked.Decrement(ref _exclusiveCheck));
                             await Task.Delay(delayTime);
                             Assert.Equal(0, m.ReadyCount);
-                            m.EnsureRelease(Environment.TickCount);
+                            m.Release(Environment.TickCount);
                         }
                     }
                     _output.WriteLine($"Done signalling count = {_exclusiveCheck}, {(double)_exclusiveCheck / t.ElapsedMsToSec():0.0} r/s");

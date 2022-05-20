@@ -388,7 +388,7 @@ namespace zero.test.core.patterns.queue
                         }
                         catch (Exception e)
                         {
-                            
+                            @this._output.WriteLine(e.Message);
                         }
                         @this._output.WriteLine($"{c} dq done [SUCCESS]!!!!!!!!!!! {@this.SpamTestAsyncThreadsDone} > {threads * InsertsPerThread}");
                         await bag.ZeroManagedAsync<object>(zero: true);
