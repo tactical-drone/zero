@@ -17,7 +17,7 @@ namespace zero.core.patterns.semaphore.core
             IIoManualResetValueTaskSourceCore<T> coreRef = new IoManualResetValueTaskSourceCore<T>
             {
                 RunContinuationsAsynchronously = runContinuationsAsynchronously,
-                RunContinuationsNatively = runContinuationsNatively
+                RunContinuationsUnsafe = runContinuationsNatively
             }; 
             _coreRef = null;    
             ZeroRef(ref coreRef);

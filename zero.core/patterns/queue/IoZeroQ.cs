@@ -73,7 +73,7 @@ namespace zero.core.patterns.queue
             if (_blockingCollection)
             {
                 _fanSync = new IoZeroSemaphoreSlim(asyncTasks, $"fan {description}", concurrencyLevel, zeroAsyncMode: zeroAsyncMode); //TODO: tuning
-                _balanceSync = new IoZeroSemaphoreSlim(asyncTasks, $"balance {description}", concurrencyLevel, zeroAsyncMode: zeroAsyncMode); //TODO: tuning
+                _balanceSync = new IoZeroSemaphoreSlim(asyncTasks, $"balance {description}", concurrencyLevel, zeroAsyncMode: zeroAsyncMode, contextUnsafe:false); //TODO: tuning
                 _zeroSync = new IoZeroSemaphoreChannel<T>(asyncTasks, $"pump  {description}", concurrencyLevel, zeroAsyncMode: zeroAsyncMode); //TODO: tuning
 
                 _fanSyncs = Enumerable.Repeat<AsyncDelegate>(BlockOnConsumeAsync, concurrencyLevel).ToArray();
@@ -652,7 +652,7 @@ namespace zero.core.patterns.queue
             }
         }
         public IAsyncEnumerable<T> BlockOnConsumeAsync(int threadIndex) => _fanSyncs[threadIndex]();
-        public IAsyncEnumerable<T> BalanceOnConsumeAsync(int threadIndex) => _balanceSyncs[threadIndex]();
+        public IAsyncEnumerable<T> BalanceOnConsumeAsync(int threadIndex) =>_balanceSyncs[threadIndex]();
         public IAsyncEnumerable<T> PumpOnConsumeAsync(int threadIndex) => _zeroSyncs[threadIndex]();
 
         /// <summary>

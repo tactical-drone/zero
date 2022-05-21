@@ -24,7 +24,7 @@ namespace zero.core.patterns.semaphore.core
     public struct IoZeroCore<T>:IIoZeroSemaphoreBase<T>
     {
         #region Memory management
-        public IoZeroCore(string description, int capacity, int ready = 0, bool zeroAsyncMode = false)
+        public IoZeroCore(string description, int capacity, int ready = 0, bool zeroAsyncMode = false, bool contextUnsafe = false)
         {
             if(capacity > short.MaxValue >> 1)
                 throw new ArgumentOutOfRangeException(nameof(capacity));
@@ -45,11 +45,13 @@ namespace zero.core.patterns.semaphore.core
 
             for (short i = 0; i < capacity; i++)
             {
-                _blocking[i] = new IoManualResetValueTaskSourceCore<T>
+                var core = _blocking[i] = new IoManualResetValueTaskSourceCore<T>
                 {
+                    RunContinuationsUnsafe = contextUnsafe,
                     RunContinuationsAsynchronouslyAlways = zeroAsyncMode, 
                     AutoReset = true
                 };
+                core.Prime(i);
             }
 
             _b_tail = ready;
@@ -62,8 +64,8 @@ namespace zero.core.patterns.semaphore.core
         public IIoZeroSemaphoreBase<T> ZeroRef(ref IIoZeroSemaphoreBase<T> @ref, Func<object, T> primeResult = default,
             object context = null)
         {
-            for (var i = 0; i < ModCapacity; i++)
-                _blocking[i].BurnContext = @ref;
+            //for (var i = 0; i < ModCapacity; i++)
+            //    _blocking[i].BurnContext = @ref;
 
             if (@ref == null)
                 throw new ArgumentNullException(nameof(@ref));
@@ -176,7 +178,7 @@ namespace zero.core.patterns.semaphore.core
             var idx = _b_tail.ZeroNext(cap = origTail > origHead || origTail == origHead && ReadyCount < _capacity? _b_head + _capacity: _b_head);
             if (idx != cap)
             {
-                var slowCore = _blocking[idx %= ModCapacity];
+                var slowCore = _blocking[idx % ModCapacity];
                 slowCore.RunContinuationsAsynchronously = forceAsync;
                 slowCore.SetResult(value);
                 released = 1;
@@ -210,7 +212,7 @@ namespace zero.core.patterns.semaphore.core
             if ((idx = _b_head.ZeroNext(cap = origHead > origTail || WaitCount < _capacity ? _b_tail + _capacity: _b_tail)) != cap)
             {
                 var slowCore = _blocking[idx %= ModCapacity];
-                slowCore.Prime((short)idx);
+                //slowCore.Prime((short)idx);
                 slowTaskCore = new ValueTask<T>(slowCore, (short)idx);
                 return true;
             }

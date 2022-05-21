@@ -242,7 +242,7 @@ namespace zero.core.patterns.queue
 
                 entered = true;
 #if DEBUG
-                Debug.Assert(Interlocked.Increment(ref _insaneExclusive) == 1);
+                Debug.Assert(Interlocked.Increment(ref _insaneExclusive) == 1 || _syncRoot.Zeroed());
                 Debug.Assert(_syncRoot.ReadyCount <= 0 || _syncRoot.Zeroed()); //TODO: Why is this one failing?
                 Debug.Assert(_insaneExclusive < 2);
 #endif
@@ -286,12 +286,12 @@ namespace zero.core.patterns.queue
 #if DEBUG
                             Interlocked.Decrement(ref _insaneExclusive);
 #endif
-                            _syncRoot.Release(true);
+                            _syncRoot.Release(true, true);
                         }
                     }
 
                     if (_pressure != null && success)
-                        _pressure.Release(true);
+                        _pressure.Release(true, false);
                     else
                         _backPressure?.Release(true);
                 }
@@ -343,9 +343,9 @@ namespace zero.core.patterns.queue
 
                 entered = true;
 #if DEBUG
-                Debug.Assert(Interlocked.Increment(ref _insaneExclusive) == 1);
+                Debug.Assert(Interlocked.Increment(ref _insaneExclusive) == 1 || _syncRoot.Zeroed());
                 Debug.Assert(_syncRoot.ReadyCount <= 0 || _syncRoot.Zeroed()); //TODO: Why is this one failing?
-                Debug.Assert(_insaneExclusive < 2);
+                Debug.Assert(_insaneExclusive < 2 || _syncRoot.Zeroed());
 #endif
                 if (_head == null)
                 {
@@ -368,7 +368,7 @@ namespace zero.core.patterns.queue
 #if DEBUG
                     Interlocked.Decrement(ref _insaneExclusive);
 #endif
-                    _syncRoot.Release(true);
+                    _syncRoot.Release(true, true);
                 }
 
                 if (retVal != default)
@@ -404,9 +404,9 @@ namespace zero.core.patterns.queue
                     return default;
                 entered = true;
 #if DEBUG
-                Debug.Assert(Interlocked.Increment(ref _insaneExclusive) == 1);
+                Debug.Assert(Interlocked.Increment(ref _insaneExclusive) == 1 || _syncRoot.Zeroed());
                 Debug.Assert(_syncRoot.ReadyCount <= 0 || _syncRoot.Zeroed()); //TODO: Why is this one failing?
-                Debug.Assert(_insaneExclusive < 2);
+                Debug.Assert(_insaneExclusive < 2 || _syncRoot.Zeroed());
 #endif
                 if (_count == 0)
                     return default;
@@ -437,7 +437,7 @@ namespace zero.core.patterns.queue
                     Interlocked.Decrement(ref _insaneExclusive);
 #endif
                     Debug.Assert(_syncRoot.ReadyCount == 0);
-                    _syncRoot.Release(true);
+                    _syncRoot.Release(true, false);
                 }
             }
             
@@ -480,9 +480,9 @@ namespace zero.core.patterns.queue
                 if (!await _syncRoot.WaitAsync().FastPath())
                     return false;
 #if DEBUG
-                Debug.Assert(Interlocked.Increment(ref _insaneExclusive) == 1);
+                Debug.Assert(Interlocked.Increment(ref _insaneExclusive) == 1 || _syncRoot.Zeroed());
                 Debug.Assert(_syncRoot.ReadyCount <= 0 || _syncRoot.Zeroed()); //TODO: Why is this one failing?
-                Debug.Assert(_insaneExclusive < 2);
+                Debug.Assert(_insaneExclusive < 2 || _syncRoot.Zeroed());
 #endif
                 if (node.Value == null)
                     return true;
@@ -527,7 +527,7 @@ namespace zero.core.patterns.queue
 #if DEBUG
                 Interlocked.Decrement(ref _insaneExclusive);       
 #endif
-                _syncRoot.Release(true, false);
+                _syncRoot.Release(true, true);
                 node.Value = default;
                 _nodeHeap.Return(node, deDup);
             }

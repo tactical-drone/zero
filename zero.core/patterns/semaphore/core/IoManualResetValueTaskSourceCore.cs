@@ -74,7 +74,7 @@ namespace zero.core.patterns.semaphore.core
         /// <summary>
         /// Run continuations on the flowing scheduler, else on the default one
         /// </summary>
-        public bool RunContinuationsNatively { get; set; }
+        public bool RunContinuationsUnsafe { get; set; }
 
         /// <summary>
         /// AutoReset
@@ -119,7 +119,8 @@ namespace zero.core.patterns.semaphore.core
             _continuation = null;
             Thread.MemoryBarrier();
             _completed = false;
-            _version = _burned = 0;
+            //_version = _burned = 0;
+            _burned = 0;
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -201,7 +202,9 @@ namespace zero.core.patterns.semaphore.core
 
         /// <summary>Gets the result of the operation.</summary>
         /// <param name="token">Opaque value that was provided to the <see cref="ValueTask"/>'s constructor.</param>
+#if RELEASE
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
+#endif
         public TResult GetResult(short token)
         {
             if (Interlocked.CompareExchange(ref _burned, 1, 0) != 0)
@@ -244,7 +247,7 @@ namespace zero.core.patterns.semaphore.core
                 _executionContext = ExecutionContext.Capture();
             }
 
-            if ((flags & ValueTaskSourceOnCompletedFlags.UseSchedulingContext) != 0 && !RunContinuationsNatively)
+            if ((flags & ValueTaskSourceOnCompletedFlags.UseSchedulingContext) != 0 && !RunContinuationsUnsafe)
             {
                 var sc = SynchronizationContext.Current;
                 if (sc != null && sc.GetType() != typeof(SynchronizationContext))
@@ -301,17 +304,8 @@ namespace zero.core.patterns.semaphore.core
                 switch (_capturedContext)
                 {
                     case null:
-                    {
-#if ZERO_CORE
-                        //_ = Task.Factory.StartNew(continuation, state, CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Default);
-#else
-                        if (_executionContext == null)
-                            ExecutionContext.SuppressFlow();
-                        
-                        continuation(state);
-#endif
+                        _ = Task.Factory.StartNew(continuation, state, CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Default);
                         break;
-                    }
                     case SynchronizationContext sc:
 #pragma warning disable VSTHRD001 // Avoid legacy thread switching APIs
                         sc.Post(s =>
@@ -355,7 +349,9 @@ namespace zero.core.patterns.semaphore.core
         /// <summary>Signals that the operation has completed.  Invoked after the result or error has been set.</summary>
         /// <param name="async">Signals callback completion asynchronously status back to the caller</param>
         /// <param name="context">Caller context</param>
+#if RELEASE
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
+#endif
         private void SignalCompletion<TContext>(Action<bool, TContext> async = null, TContext context = default)
         {
             if (_completed)
@@ -395,41 +391,20 @@ namespace zero.core.patterns.semaphore.core
         /// This assumes that if <see cref="_executionContext"/> is not null we're already
         /// running within that <see cref="ExecutionContext"/>.
         /// </summary>
+#if RELEASE
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
+#endif
         private void InvokeContinuation()
         {
-            Debug.Assert(_continuation != null);
+            Debug.Assert(_continuation != null && _continuationState != null);
             switch (_capturedContext)
             {
                 case null:
                     if (RunContinuationsAsynchronously || RunContinuationsAsynchronouslyAlways)
-                    {
-#if ZERO_CORE
-                        _ = Task.Factory.StartNew(_continuation, _continuationState, CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Default);
-#else
-                        if (_executionContext != null)
-                        {
-                            ThreadPool.QueueUserWorkItem(_continuation, _continuationState, preferLocal: true);
-                        }
-                        else
-                        {
-                            if (!ThreadPool.UnsafeQueueUserWorkItem(static delegate (object s)
-                                {
-                                    var (callback, state) = (ValueTuple<Action<object>, object>)s;
-                                    callback(state);
-                                }, (_continuation, _continuationState)))
-                            {
-                                _ = Task.Factory.StartNew(_continuation!, _continuationState, CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Default);
-                            }
-                        }
-#endif
-                    }
+                        _ = Task.Factory.StartNew(_continuation!, _continuationState, CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Default);
                     else
-                    {
                         _continuation!(_continuationState);
-                    }
                     break;
-
                 case SynchronizationContext sc:
 #pragma warning disable VSTHRD001 // Avoid legacy thread switching APIs
                     sc.Post(s =>
@@ -439,16 +414,8 @@ namespace zero.core.patterns.semaphore.core
                     }, (_continuation, _continuationState));
 #pragma warning restore VSTHRD001 // Avoid legacy thread switching APIs
                     break;
-                case IoZeroScheduler ts:
-                    //async
-                    if (RunContinuationsAsynchronously || RunContinuationsAsynchronouslyAlways)
-                    {
-                        if (!IoZeroScheduler.Zero.QueueCallback(_continuation, _continuationState))
-                            _ = Task.Factory.StartNew(_continuation!, _continuationState, CancellationToken.None,
-                                TaskCreationOptions.DenyChildAttach, ts);
-                    }//sync
-                    else
-                        _continuation!(_continuationState);
+                case IoZeroScheduler tz when !(RunContinuationsAsynchronously || RunContinuationsAsynchronouslyAlways):
+                    _continuation!(_continuationState);
                     break;
                 case TaskScheduler ts:
                     _ = Task.Factory.StartNew(_continuation!, _continuationState, CancellationToken.None, TaskCreationOptions.DenyChildAttach, ts);

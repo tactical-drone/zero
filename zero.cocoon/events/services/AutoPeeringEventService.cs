@@ -23,11 +23,11 @@ namespace zero.cocoon.events.services
         public static IoZeroQ<AutoPeerEvent>[] QueuedEvents =
         {
             //TODO tuning
-            new IoZeroQ<AutoPeerEvent>($"{nameof(AutoPeeringEventService)}", EventBatchSize<<6, true, new CancellationTokenSource(), 1 ),
+            new IoZeroQ<AutoPeerEvent>($"{nameof(AutoPeeringEventService)}", EventBatchSize<<6, true, new CancellationTokenSource(), 1),
             //new IoZeroQ<AutoPeerEvent>($"{nameof(AutoPeeringEventService)}", 16384, true )
         };
 
-        private static volatile int _operational = 0;
+        private static volatile int _operational = 1;
         private static long _seq;
         private static volatile int _curIdx = 0;
         public static bool Operational => _operational > 0;
