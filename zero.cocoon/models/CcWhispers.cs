@@ -466,8 +466,8 @@ namespace zero.cocoon.models
                     }
 
 
-                    if (req > 2 && Source.Rate.ElapsedMs() < 3000)// && req - _maxReq < 10)
-                        continue;
+                    //if (req > 2 && Source.Rate.ElapsedMs() < 3000)// && req - _maxReq < 10)
+                    //    continue;
 
                     //await Task.Delay(RandomNumberGenerator.GetInt32(5, 350));
                     //await Task.Delay(RandomNumberGenerator.GetInt32(16, 90));
@@ -486,7 +486,7 @@ namespace zero.cocoon.models
                         if(req <= Volatile.Read(ref @this.CcCollective.MaxReq))
                             return;
 
-                        await Task.Delay(RandomNumberGenerator.GetInt32(500, 1500));
+                        //await Task.Delay(RandomNumberGenerator.GetInt32(500, 1500));
 
                         if (req <= Volatile.Read(ref @this.CcCollective.MaxReq))
                             return;

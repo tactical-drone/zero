@@ -18,7 +18,7 @@ namespace zero.core.patterns.semaphore.core
     /// Status: Passes smoke tests but sometimes glitches out, reason unknown...
     /// </summary>
     /// <typeparam name="T">The type that this primitive marshals</typeparam>
-    [StructLayout(LayoutKind.Sequential, Pack = 64)]
+    [StructLayout(LayoutKind.Auto)]
     public struct IoZeroSemCore<T>:IIoZeroSemaphoreBase<T>
     {
         public IoZeroSemCore(string description, int capacity, int ready = 0, bool zeroAsyncMode = false)

@@ -202,7 +202,7 @@ namespace zero.core.patterns.misc
             {
                 var @this = (IoNanoprobe)state;
 
-                await @this.DisposeAsync(@this, $"{nameof(IDisposable)}").FastPath().ConfigureAwait(false);
+                await @this.DisposeAsync(@this, $"{nameof(IDisposable)}").FastPath();
             },this, CancellationToken.None,TaskCreationOptions.DenyChildAttach, TaskScheduler.Default);
         }
 
@@ -233,7 +233,7 @@ namespace zero.core.patterns.misc
             {
                 //prime garbage
 #if ZERO_DISABLE_SCH
-                await @this.ZeroPrimeAsync().FastPath().ConfigureAwait(false);
+                await @this.ZeroPrimeAsync().FastPath();
 #else
                 if(IoZeroScheduler.Zero != null)
                     IoZeroScheduler.Zero.Fork(@this.ZeroPrime);
@@ -242,7 +242,7 @@ namespace zero.core.patterns.misc
                     @this.ZeroPrime();
                 }
 #endif
-                await @this.ZeroAsync(true).FastPath().ConfigureAwait(false);
+                await @this.ZeroAsync(true).FastPath();
             }, this, default,TaskCreationOptions.DenyChildAttach, TaskScheduler.Default, filePath:filePath, methodName:methodName, lineNumber:lineNumber);
 #pragma warning restore CS4014
 
@@ -412,19 +412,19 @@ namespace zero.core.patterns.misc
                 if (_zeroHive != null)
                 {
                     IoZeroSub zeroSub;
-                    while((zeroSub = await _zeroHive.DequeueAsync().FastPath().ConfigureAwait(false)) != null)
+                    while((zeroSub = await _zeroHive.DequeueAsync().FastPath()) != null)
                     {
                         if(zeroSub.Executed) continue;
                         
-                        if (!await zeroSub.ExecuteAsync(this).FastPath().ConfigureAwait(false))
+                        if (!await zeroSub.ExecuteAsync(this).FastPath())
                             _logger.Trace($"{zeroSub.From} - zero sub {((IIoNanite)zeroSub.Target)?.Description} on {Description} returned with errors!");
                     }
                 }
 
                 if (_zeroHiveMind != null)
                 {
-                    while (await _zeroHiveMind.DequeueAsync().FastPath().ConfigureAwait(false) is { } zeroSub)
-                        await zeroSub.DisposeAsync(this, $"[ZERO CASCADE] from {desc}").FastPath().ConfigureAwait(false);
+                    while (await _zeroHiveMind.DequeueAsync().FastPath() is { } zeroSub)
+                        await zeroSub.DisposeAsync(this, $"[ZERO CASCADE] from {desc}").FastPath();
                 }
                 
                 CascadeTime = CascadeTime.ElapsedMs();
@@ -432,7 +432,7 @@ namespace zero.core.patterns.misc
 
                 try
                 {
-                    await ZeroManagedAsync().FastPath().ConfigureAwait(false);
+                    await ZeroManagedAsync().FastPath();
                 }
 #if DEBUG
                 catch (Exception e) when(!Zeroed())

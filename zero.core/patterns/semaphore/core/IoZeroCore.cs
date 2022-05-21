@@ -20,7 +20,7 @@ namespace zero.core.patterns.semaphore.core
     /// This should be a standalone struct with no derivations
     /// </summary>
     /// <typeparam name="T">The type that this primitive marshals</typeparam>
-    [StructLayout(LayoutKind.Sequential, Pack = 64)]
+    [StructLayout(LayoutKind.Auto)]
     public struct IoZeroCore<T>:IIoZeroSemaphoreBase<T>
     {
         #region Memory management
@@ -52,7 +52,6 @@ namespace zero.core.patterns.semaphore.core
                 };
             }
 
-            
             _b_tail = ready;
 
             _primeReady = _ => default;
@@ -150,7 +149,7 @@ namespace zero.core.patterns.semaphore.core
         public int WaitCount => (int)(_b_head > _b_tail? _b_head - _b_tail : 0);
         public int ReadyCount => (int)(_b_tail > _b_head? _b_tail - _b_head : 0);
         public bool ZeroAsyncMode { get; }
-        public long Tail => _b_head;
+        public long Tail => _b_tail;
         public long Head => _b_head;
         #endregion
 
@@ -177,7 +176,6 @@ namespace zero.core.patterns.semaphore.core
             var idx = _b_tail.ZeroNext(cap = origTail > origHead || origTail == origHead && ReadyCount < _capacity? _b_head + _capacity: _b_head);
             if (idx != cap)
             {
-
                 var slowCore = _blocking[idx %= ModCapacity];
                 slowCore.RunContinuationsAsynchronously = forceAsync;
                 slowCore.SetResult(value);

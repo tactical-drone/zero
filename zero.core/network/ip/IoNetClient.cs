@@ -134,8 +134,8 @@ namespace zero.core.network.ip
         /// </summary>
         public override async ValueTask ZeroManagedAsync()
         {
-            await base.ZeroManagedAsync().ConfigureAwait(true);
-            await IoNetSocket.DisposeAsync(this, $"{nameof(ZeroManagedAsync)}: teardown").ConfigureAwait(true);
+            await base.ZeroManagedAsync();
+            await IoNetSocket.DisposeAsync(this, $"{nameof(ZeroManagedAsync)}: teardown");
         }
 
         /// <summary>

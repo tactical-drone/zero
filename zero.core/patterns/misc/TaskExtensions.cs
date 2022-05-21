@@ -27,7 +27,7 @@ namespace zero.core.patterns.misc
                 await Task.Factory.StartNew(static async state =>
                 {
                     var (action, item, nanite) = (ValueTuple<Func<T,TN, ValueTask>, T, TN>)state;
-                    await action(item,nanite).FastPath().ConfigureAwait(true);
+                    await action(item,nanite).FastPath();
                 }, ValueTuple.Create(action, item,nanite), CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Default);
         }
 

@@ -21,7 +21,7 @@ namespace zero.core.patterns.semaphore.core
     /// 
     /// Experimental auto capacity scaling (disabled by default), set max count manually instead for max performance.
     /// </summary>
-    [StructLayout(LayoutKind.Sequential, Pack = 64)]
+    [StructLayout(LayoutKind.Auto)]
     public struct IoZeroSemaphore<T> : IIoZeroSemaphoreBase<T>
     {
         static IoZeroSemaphore()
