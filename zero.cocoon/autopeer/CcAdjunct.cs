@@ -137,10 +137,10 @@ namespace zero.cocoon.autopeer
             var nrOfStates = Enum.GetNames(typeof(AdjunctState)).Length;
             _lastScan = Environment.TickCount - CcCollective.parm_mean_pat_delay_s * 1000 * 2;
 
-            if (CcCollective.ZeroDrone)
-                Volatile.Write(ref ZeroRoot, ZeroSyncRoot(concurrencyLevel: Source.ZeroConcurrencyLevel() * 20 + 200, AsyncTasks));
-            else
-                Volatile.Write(ref ZeroRoot, ZeroSyncRoot(concurrencyLevel: (int)(Source.ZeroConcurrencyLevel() * parm_max_swept_drones), AsyncTasks));
+            //if (CcCollective.ZeroDrone)
+            //    Volatile.Write(ref ZeroRoot, ZeroSyncRoot(concurrencyLevel: Source.ZeroConcurrencyLevel() * 20 + 200, AsyncTasks));
+            //else
+            //    Volatile.Write(ref ZeroRoot, ZeroSyncRoot(concurrencyLevel: (int)(Source.ZeroConcurrencyLevel() * parm_max_swept_drones), AsyncTasks));
         }
 
         public enum AdjunctState

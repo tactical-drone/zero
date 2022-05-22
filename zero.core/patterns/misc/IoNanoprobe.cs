@@ -22,6 +22,7 @@ namespace zero.core.patterns.misc
         /// </summary>
         static IoNanoprobe()
         {
+            Volatile.Write(ref ZeroRoot, ZeroSyncRoot(short.MaxValue>>1, new CancellationTokenSource()));
             _logger = LogManager.GetCurrentClassLogger();
         }
 
@@ -60,7 +61,7 @@ namespace zero.core.patterns.misc
             _zeroHiveMind = new IoQueue<IIoNanite>(string.Empty, 64, _concurrencyLevel, IoQueue<IIoNanite>.Mode.DynamicSize);
 #endif
 
-            Volatile.Write(ref ZeroRoot, ZeroSyncRoot(concurrencyLevel, AsyncTasks));
+            //Volatile.Write(ref ZeroRoot, ZeroSyncRoot(concurrencyLevel, AsyncTasks));
             
             UpTime = Environment.TickCount;
         }
@@ -186,8 +187,7 @@ namespace zero.core.patterns.misc
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         protected static IIoZeroSemaphoreBase<bool> ZeroSyncRoot(int concurrencyLevel, CancellationTokenSource asyncTasks)
         {
-            //TODO: tuning
-            IIoZeroSemaphoreBase<bool> z = new IoZeroCore<bool>(string.Empty, Math.Min(20 + concurrencyLevel * 20, short.MaxValue >> 1), 1);
+            IIoZeroSemaphoreBase<bool> z = new IoZeroCore<bool>(string.Empty, Math.Min(20 + concurrencyLevel * 40, short.MaxValue >> 1), 1);
             z.ZeroRef(ref z, _ => true);
             return z;
         }
@@ -214,7 +214,7 @@ namespace zero.core.patterns.misc
         /// <summary>
         /// root sync
         /// </summary>
-        protected IIoZeroSemaphoreBase<bool> ZeroRoot;
+        private static readonly IIoZeroSemaphoreBase<bool> ZeroRoot;
 
         /// <summary>
         /// ZeroAsync
@@ -525,7 +525,7 @@ namespace zero.core.patterns.misc
             ZeroReason = null;
 #endif
             ZeroedFrom = null;
-            ZeroRoot = null;
+            //ZeroRoot = null;
 #endif
 
 #if DEBUG

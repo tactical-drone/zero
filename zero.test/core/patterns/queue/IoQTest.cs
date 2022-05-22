@@ -335,10 +335,10 @@ namespace zero.test.core.patterns.queue
         [Fact]
         public async Task BlockingCollectionTestAsync()
         {
-            var threads = 2*2;
+            var threads = 2*1;
             
             var cs = new CancellationTokenSource();
-            var bag = new IoZeroQ<IoInt32>("test", 8192, true, cs, threads, zeroAsyncMode:true);
+            var bag = new IoZeroQ<IoInt32>("test", 16384, true, cs, threads, zeroAsyncMode:true);
             
             var c = 0;
             foreach (var ioInt32 in bag)
@@ -399,7 +399,7 @@ namespace zero.test.core.patterns.queue
                 {
                     var (@this, bag,threads) = (ValueTuple<IoQTest, IoZeroQ<IoInt32>,int>)state!;
                     var c = 0;
-                    while (@this._haltCount <= (threads>>1))
+                    while (@this._haltCount < (threads>>1))
                     {
                         if (bag.TryEnqueue(Interlocked.Increment(ref @this.SpamTestAsyncThreadId)) != 1)
                         {

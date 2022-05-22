@@ -39,7 +39,7 @@ namespace zero.core.runtime.scheduler
             _workerCount = Math.Max(Environment.ProcessorCount << 2, 4);
             _queenCount = Math.Max(Environment.ProcessorCount >> 4, 1) + 1;
             _asyncCount = _workerCount>>1;
-            _syncCount = _asyncOSCount = _asyncOSCount = _syncOSCount = _asyncCount;
+            _syncCount = _asyncCount;
             var capacity = MaxWorker + 1;
 
             //TODO: tuning
@@ -48,6 +48,7 @@ namespace zero.core.runtime.scheduler
             _callbackQueue = new IoZeroQ<ZeroContinuation>(string.Empty, (MaxWorker + 1) * 2, true, _asyncTasks, concurrencyLevel: MaxWorker - 1, zeroAsyncMode: false);
             //_contextQueue = new IoZeroQ<ZeroContinuation>(string.Empty, (MaxWorker + 1) * 2, true, _asyncTasks, concurrencyLevel: MaxWorker - 1, zeroAsyncMode: false);
             _asyncCallbackQueue = new IoZeroQ<Func<ValueTask>>(string.Empty, (MaxWorker + 1) * 2, true, _asyncTasks, concurrencyLevel: MaxWorker - 1, zeroAsyncMode: true);
+            //_exclusiveQueue = new IoZeroQ<Func<object,ValueTask>>(string.Empty, (MaxWorker + 1) * 2, true, _asyncTasks, concurrencyLevel: MaxWorker - 1, zeroAsyncMode: true);
             _forkQueue = new IoZeroQ<Action>(string.Empty, (MaxWorker + 1) * 2, true, _asyncTasks, concurrencyLevel: MaxWorker - 1, zeroAsyncMode: true);
 
             _callbackHeap = new IoHeap<ZeroContinuation>(string.Empty, capacity * 2, (_, _) => new ZeroContinuation(), true)
@@ -104,6 +105,13 @@ namespace zero.core.runtime.scheduler
                     await @this.LoadAsyncCallback(i).FastPath();
                 }, (this, i), CancellationToken.None, TaskCreationOptions.DenyChildAttach, this);
             }
+
+            ////exclusive callbacks
+            //_ = Task.Factory.StartNew(static async state =>
+            //{
+            //    var (@this, i) = (ValueTuple<IoZeroScheduler, int>)state;
+            //    await @this.LoadExclusiveZone(i).FastPath();
+            //}, (this, 1), CancellationToken.None, TaskCreationOptions.DenyChildAttach, this);
         }
 
         internal class ZeroSignal
@@ -138,14 +146,13 @@ namespace zero.core.runtime.scheduler
         private readonly IoZeroQ<Action> _forkQueue;
         private readonly IoZeroQ<ZeroContinuation> _callbackQueue;
         private readonly IoHeap<ZeroContinuation> _callbackHeap;
+        //private readonly IoZeroQ<Func<object,ValueTask>> _exclusiveQueue;
         private readonly IoHeap<List<int>> _diagnosticsHeap;
 
         private volatile int _workerCount;
         private volatile int _queenCount;
         private volatile int _asyncCount;
         private volatile int _syncCount;
-        private volatile int _asyncOSCount;
-        private volatile int _syncOSCount;
         private long _completedWorkItemCount;
         private long _completedQItemCount;
         private long _completedAsyncCount;
@@ -305,6 +312,22 @@ namespace zero.core.runtime.scheduler
                 }
             }
         }
+
+        //private async ValueTask LoadExclusiveZone(int threadIndex)
+        //{
+        //    await foreach (var job in _exclusiveQueue.BalanceOnConsumeAsync(threadIndex))
+        //    {
+        //        try
+        //        {
+        //            await job().FastPath();
+        //            Interlocked.Increment(ref _completedAsyncCount);
+        //        }
+        //        catch (Exception e)
+        //        {
+        //            LogManager.GetCurrentClassLogger().Trace(e);
+        //        }
+        //    }
+        //}
 
         private async ValueTask Fork(int threadIndex)
         {
@@ -544,7 +567,11 @@ namespace zero.core.runtime.scheduler
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public bool LoadAsyncCallback(Func<ValueTask> callback, object state = null) => _asyncCallbackQueue.TryEnqueue(callback) > 0;
 
+        //[MethodImpl(MethodImplOptions.AggressiveInlining)]
+        //public bool LoadExclusiveZone(Func<object,ValueTask> callback, object state = null) => _exclusiveQueue.TryEnqueue(callback) > 0;
+
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public bool Fork(Action callback, object state = null) => _forkQueue.TryEnqueue(callback) > 0;
+
     }
 }
