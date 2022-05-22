@@ -49,33 +49,42 @@ namespace zero.core.network.ip
             while (!Zeroed())
             {
                 //Creates a listening socket
-                IoListenSocket = (await ZeroHiveAsync(new IoUdpSocket(Prefetch), true).FastPath()).target;
-
-                await IoListenSocket.BlockOnListenAsync(ListeningAddress, static async (ioSocket,state) =>
+                try
                 {
-                    var (@this, nanite, connectionReceivedAction) = state;
-                    try
+                    IoListenSocket = (await ZeroHiveAsync(new IoUdpSocket(Prefetch), true).FastPath()).target;
+
+                    await IoListenSocket.BlockOnListenAsync(ListeningAddress, static async (ioSocket,state) =>
                     {
-                        //creates a new udp client
-                        await connectionReceivedAction(nanite,
-                            (await @this
-                                .ZeroHiveAsync(new IoUdpClient<TJob>(
-                                    $"{nameof(IoUdpClient<TJob>)} ~> {@this.Description}", ioSocket,
-                                    @this.Prefetch, @this.ConcurrencyLevel)).FastPath()
+                        var (@this, nanite, connectionReceivedAction) = state;
+                        try
+                        {
+                            //creates a new udp client
+                            await connectionReceivedAction(nanite,
+                                (await @this
+                                    .ZeroHiveAsync(new IoUdpClient<TJob>(
+                                        $"{nameof(IoUdpClient<TJob>)} ~> {@this.Description}", ioSocket,
+                                        @this.Prefetch, @this.ConcurrencyLevel)).FastPath()
                                 ).target).FastPath();
-                    }
-                    catch (Exception e)
-                    {
-                        @this._logger.Error(e, $"Accept udp connection failed: {@this.Description}");
+                        }
+                        catch (Exception e)
+                        {
+                            @this._logger.Error(e, $"Accept udp connection failed: {@this.Description}");
 
-                        await ioSocket.DisposeAsync(@this, $"{nameof(ZeroManagedAsync)}: teardown").FastPath();
-                    }
-                },ValueTuple.Create(this,context, connectionReceivedAction), bootstrapAsync).FastPath();
+                            await ioSocket.DisposeAsync(@this, $"{nameof(ZeroManagedAsync)}: teardown").FastPath();
+                        }
+                    },ValueTuple.Create(this,context, connectionReceivedAction), bootstrapAsync).FastPath();
 
-                if(!Zeroed())
-                    _logger.Warn($"Listener stopped, restarting: {Description}");
+                    if(!Zeroed())
+                        _logger.Warn($"Listener stopped, restarting: {Description}");
 
-                await IoListenSocket.DisposeAsync(this, $"{nameof(ZeroManagedAsync)}: teardown").FastPath();
+                    await IoListenSocket.DisposeAsync(this, $"{nameof(ZeroManagedAsync)}: teardown").FastPath();
+                }
+                catch when (Zeroed()){}
+                catch (Exception e) when (!Zeroed())
+                {
+                    _logger.Error(e,$"{nameof(ListenAsync)}: ");
+                    
+                }
             }
         }
 

@@ -174,12 +174,6 @@ namespace zero.core.patterns.misc
         private readonly int _concurrencyLevel;
 
         /// <summary>
-        /// A secondary constructor for async stuff
-        /// </summary>
-        /// <param name="localContext"></param>
-        //public virtual ValueTask<bool> ReuseAsync(object localContext = null) {return new ValueTask<bool>(true);}
-
-        /// <summary>
         /// Initialize concurrency level critical region
         /// </summary>
         /// <param name="concurrencyLevel"></param>
@@ -226,7 +220,12 @@ namespace zero.core.patterns.misc
                 return;
 
             ZeroedFrom = from;
-            ZeroReason = $"ZERO: {reason??"N/A"}";
+#if RELEASE
+            ZeroReason = $"ZERO: {reason??"N/A"}"; 
+#else
+            ZeroReason = $"{methodName}:{lineNumber} - reason = {reason ?? "N/A"}";
+#endif
+
 
 #pragma warning disable CS4014
             await ZeroAsync(static async @this =>
@@ -235,15 +234,11 @@ namespace zero.core.patterns.misc
 #if ZERO_DISABLE_SCH
                 await @this.ZeroPrimeAsync().FastPath();
 #else
-                if(IoZeroScheduler.Zero != null)
-                    IoZeroScheduler.Zero.Fork(@this.ZeroPrime);
-                else
-                {
+                if(IoZeroScheduler.Zero == null || !IoZeroScheduler.Zero.Fork(@this.ZeroPrime))
                     @this.ZeroPrime();
-                }
 #endif
                 await @this.ZeroAsync(true).FastPath();
-            }, this, default,TaskCreationOptions.DenyChildAttach, TaskScheduler.Default, filePath:filePath, methodName:methodName, lineNumber:lineNumber);
+            }, this, default,TaskCreationOptions.DenyChildAttach, filePath:filePath, methodName:methodName, lineNumber:lineNumber);
 #pragma warning restore CS4014
 
             if (Interlocked.Increment(ref _zCount) % 100000 == 0)
@@ -268,11 +263,7 @@ namespace zero.core.patterns.misc
             foreach (var ioZNode in _zeroHiveMind)
             {
                 if (!ioZNode.Value.Zeroed())
-#if ZERO_DISABLE_SCH
-                        await @this.ZeroPrimeAsync().FastPath().ConfigureAwait(false);
-#else
                     IoZeroScheduler.Zero.Fork(ioZNode.Value.ZeroPrime);
-#endif
             }
         }
 
@@ -373,7 +364,7 @@ namespace zero.core.patterns.misc
                 {
                     await ZeroSubAsync(static async (_, state) =>
                     {
-                        var (@this, target, sub) = state;
+                        var (_, target, sub) = state;
                         try
                         {
                             await target.ZeroHiveMind().RemoveAsync(sub).FastPath();
@@ -411,8 +402,7 @@ namespace zero.core.patterns.misc
             {
                 if (_zeroHive != null)
                 {
-                    IoZeroSub zeroSub;
-                    while((zeroSub = await _zeroHive.DequeueAsync().FastPath()) != null)
+                    while(await _zeroHive.DequeueAsync().FastPath() is { } zeroSub)
                     {
                         if(zeroSub.Executed) continue;
                         
@@ -470,10 +460,6 @@ namespace zero.core.patterns.misc
             {
                 _logger.Error(e, $"ZeroAsync [Un]managed errors: {Description}");
             }
-            finally
-            {
-                //AsyncTasks = null;
-            }
 #else
             catch
             {
@@ -500,10 +486,10 @@ namespace zero.core.patterns.misc
             }
 
             GC.SuppressFinalize(this);
-            ZeroedFrom = null;
 #if DEBUG
-            _logger.Trace($"#{Serial} ~> {desc}: Reason: `{reason}'");
+            _logger.Trace($"#{Serial} ~> {desc}: From: {ZeroedFrom.Description}, Reason: `{reason}'");
 #endif
+            ZeroedFrom = null;
         }
 
         /// <summary>
@@ -760,22 +746,6 @@ namespace zero.core.patterns.misc
         /// <param name="state">user state</param>
         /// <param name="options">Task options</param>
         /// <param name="scheduler">The scheduler</param>
-        /// <param name="filePath"></param>
-        /// <param name="methodName"></param>
-        /// <param name="lineNumber"></param>
-        /// <returns>A ValueTask</returns>
-        protected ValueTask<TResult> ZeroAsync<T,TResult>(Func<T, ValueTask<TResult>> continuation, T state, TaskCreationOptions options, TaskScheduler scheduler = null,  [CallerFilePath] string filePath = null, [CallerMemberName] string methodName = null, [CallerLineNumber] int lineNumber = default )
-        {
-            return ZeroAsync(continuation, state, AsyncTasks.Token, options, scheduler, filePath, methodName: methodName, lineNumber);
-        }
-
-        /// <summary>
-        /// Async execution options. <see cref="DisposeAsync"/> needs trust, but verify...
-        /// </summary>
-        /// <param name="continuation">The continuation</param>
-        /// <param name="state">user state</param>
-        /// <param name="options">Task options</param>
-        /// <param name="scheduler">The scheduler</param>
         /// <param name="unwrap"></param>
         /// <param name="filePath"></param>
         /// <param name="methodName"></param>
@@ -819,27 +789,6 @@ namespace zero.core.patterns.misc
                 _logger.Error(e, $"{Description}, c = {continuation}, s = {state}, {Path.GetFileName(filePath)}:{methodName} line {lineNumber}");
             }
             return default;
-        }
-
-        /// <summary>
-        /// Async execution options. <see cref="DisposeAsync"/> needs trust, but verify...
-        /// </summary>
-        /// <param name="continuation">The continuation</param>
-        /// <param name="state">user state</param>
-        /// <param name="asyncToken">The async cancellation token</param>
-        /// <param name="options">Task options</param>
-        /// <param name="unwrap">If the task awaited should be unwrapped, effectively making this a blocking call</param>
-        /// <param name="scheduler">The scheduler</param>
-        /// <param name="filePath"></param>
-        /// <param name="methodName"></param>
-        /// <param name="lineNumber"></param>
-        /// <returns>A ValueTask</returns>
-        protected ValueTask ZeroOptionAsync<T>(Func<T, ValueTask> continuation, T state,
-            CancellationToken asyncToken, TaskCreationOptions options, TaskScheduler scheduler = null,
-            bool unwrap = true, [CallerFilePath] string filePath = null, [CallerMemberName] string methodName = null,
-            [CallerLineNumber] int lineNumber = default)
-        {
-            return ZeroOptionAsync(continuation, state, options, scheduler, unwrap, filePath, methodName, lineNumber);
         }
 
         public class ZeroException:ApplicationException

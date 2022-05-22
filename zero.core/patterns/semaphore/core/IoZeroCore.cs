@@ -122,7 +122,7 @@ namespace zero.core.patterns.semaphore.core
                 }
             }
 
-            ArrayPool<IIoManualResetValueTaskSourceCore<T>>.Shared.Return(_blocking);
+            ArrayPool<IIoManualResetValueTaskSourceCore<T>>.Shared.Return(_blocking, true);
         }
 
         public bool Zeroed() => _zeroed > 0;
