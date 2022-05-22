@@ -405,7 +405,7 @@ namespace zero.core.patterns.bushings
                                 nextJob = null;
 
                                 Source.BackPressure();
-                                Source.PrefetchPressure(zeroAsync:true);
+                                Source.PrefetchPressure(zeroAsync:false);
                                 //how long did this failure take?
 
                                 IsArbitrating = false;
@@ -425,7 +425,7 @@ namespace zero.core.patterns.bushings
                             //Source.Pressure();
 
                             //Fetch more work
-                            Source.PrefetchPressure(zeroAsync:true);
+                            Source.PrefetchPressure(zeroAsync:false);
 
                             if (!IsArbitrating)
                                 IsArbitrating = true;
