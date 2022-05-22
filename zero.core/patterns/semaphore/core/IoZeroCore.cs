@@ -129,7 +129,7 @@ namespace zero.core.patterns.semaphore.core
 
         #region Aligned
         private long _b_head;
-        private long _b_tail;
+        
         
         private readonly IIoManualResetValueTaskSourceCore<T>[] _blocking;
         private Func<object, T> _primeReady;
@@ -137,6 +137,7 @@ namespace zero.core.patterns.semaphore.core
         private readonly string _description;
         private readonly int _capacity;
         private volatile int _zeroed;
+        private long _b_tail;
         #endregion
 
         #region Properties

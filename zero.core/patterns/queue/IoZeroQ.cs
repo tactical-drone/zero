@@ -87,8 +87,7 @@ namespace zero.core.patterns.queue
         }
 
         #region packed
-        private long _head; 
-        private long _tail;
+        private long _head;
         private long _hwm;
 
         private readonly string _description;
@@ -107,17 +106,17 @@ namespace zero.core.patterns.queue
         private readonly AsyncDelegate[] _balanceSyncs;
         private readonly AsyncDelegate[] _zeroSyncs;
         private delegate IAsyncEnumerable<T> AsyncDelegate();
-
+        private long _tail;
         private volatile int _zeroed;
         private volatile int _capacity;
         private volatile int _virility;
-        private volatile int _count;
         private volatile int _blockingConsumers;
         private volatile int _sharingConsumers;
         private volatile int _pumpingConsumers;
         private volatile int _primedForScale;
         private readonly bool _autoScale;
         private readonly bool _blockingCollection;
+        private volatile int _count;
 
         #endregion
 
