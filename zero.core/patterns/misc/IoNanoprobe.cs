@@ -621,7 +621,7 @@ namespace zero.core.patterns.misc
             }
             finally
             {
-                ZeroRoot.Release(true);
+                ZeroRoot.Release(true, true);
             }
 
             return false;
