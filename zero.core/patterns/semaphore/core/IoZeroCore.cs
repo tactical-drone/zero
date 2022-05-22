@@ -1,5 +1,6 @@
 ﻿//#define TRACE
 using System;
+using System.Buffers;
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
@@ -41,10 +42,12 @@ namespace zero.core.patterns.semaphore.core
             capacity *= 2;
             ZeroAsyncMode = zeroAsyncMode;
 
-            _blocking = new IIoManualResetValueTaskSourceCore<T>[capacity];
+            //_blocking = new IIoManualResetValueTaskSourceCore<T>[capacity];
 
+            _blocking = ArrayPool<IIoManualResetValueTaskSourceCore<T>>.Shared.Rent(capacity);
             for (short i = 0; i < capacity; i++)
             {
+                
                 var core = _blocking[i] = new IoManualResetValueTaskSourceCore<T>
                 {
                     RunContinuationsUnsafe = contextUnsafe,
@@ -99,7 +102,7 @@ namespace zero.core.patterns.semaphore.core
                 try
                 {
                     _blocking[i % ModCapacity].SetException(operationCanceledException);
-                    _blocking[i % ModCapacity] = null;
+                    _blocking[i % ModCapacity] = default;
                 }
                 catch
                 {
@@ -111,17 +114,15 @@ namespace zero.core.patterns.semaphore.core
             {
                 try
                 {
-                    if(_blocking[i] != null)
-                    {
-                        _blocking[i % ModCapacity].SetException(operationCanceledException);
-                        _blocking[i % ModCapacity] = null;
-                    }
+                    _blocking[i % ModCapacity].SetException(operationCanceledException);
                 }
                 catch
                 {
                     // ignored
                 }
             }
+
+            ArrayPool<IIoManualResetValueTaskSourceCore<T>>.Shared.Return(_blocking);
         }
 
         public bool Zeroed() => _zeroed > 0;
@@ -129,8 +130,6 @@ namespace zero.core.patterns.semaphore.core
 
         #region Aligned
         private long _b_head;
-        
-        
         private readonly IIoManualResetValueTaskSourceCore<T>[] _blocking;
         private Func<object, T> _primeReady;
         private object _primeContext;
