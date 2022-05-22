@@ -117,12 +117,10 @@ namespace zero.core.patterns.semaphore.core
             _capturedContext = null;
             _continuationState = null;
             _continuation = null;
-            Thread.MemoryBarrier();
             _completed = false;
-            //_version = _burned = 0;
             _burned = 0;
         }
-
+        
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Reset(short index)
         {

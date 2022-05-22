@@ -40,19 +40,7 @@ namespace zero.core.patterns.misc
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
 #pragma warning disable VSTHRD200 // Use "Async" suffix for async methods
 #pragma warning disable VSTHRD103 // Call async methods when in an async method
-        public static ValueTask<T> FastPath<T>(this ValueTask<T> task)
-        {
-            return task.IsCompletedSuccessfully ? new ValueTask<T>(task.Result) : task;
-            //try
-            //{
-            //    return task.IsCompletedSuccessfully ? new ValueTask<T>(task.Result) : task;
-            //}
-            //catch (Exception e)
-            //{
-            //    Console.WriteLine(e);
-            //    throw;
-            //}
-        }
+        public static ValueTask<T> FastPath<T>(this ValueTask<T> task) => task.IsCompletedSuccessfully ? new ValueTask<T>(task.Result) : task;
 #pragma warning restore VSTHRD103 // Call async methods when in an async method
 #pragma warning restore VSTHRD200 // Use "Async" suffix for async methods
 

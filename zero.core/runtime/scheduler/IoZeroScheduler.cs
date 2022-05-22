@@ -324,7 +324,7 @@ namespace zero.core.runtime.scheduler
 
         private async ValueTask LoadTask(int threadIndex)
         {
-            await foreach (var job in _taskQueue.BalanceOnConsumeAsync(threadIndex))
+            await foreach (var job in _taskQueue.PumpOnConsumeAsync(threadIndex))
             {
                 try
                 {
@@ -402,15 +402,12 @@ namespace zero.core.runtime.scheduler
             Console.WriteLine($"<--- Queueing task id = {task.Id}, {task.Status}");
 #endif
             //queue the work for processing
-            if (_taskQueue.TryEnqueue(task) > 0)
+            if (_taskQueue.TryEnqueue(task) <= 0)
             {
-                Interlocked.Increment(ref _completedQItemCount);
+                if (_taskQueue.TryEnqueue(task) <= 0 && !TryExecuteTaskInline(task, false))
+                    throw new InternalBufferOverflowException($"{nameof(_taskQueue)}: count = {_taskQueue.Count}, capacity {_taskQueue.Capacity}");
             }
-            else
-            {
-                TryExecuteTaskInline(task, false);
-                //throw new InternalBufferOverflowException($"{nameof(_taskQueue)}: count = {_taskQueue.Count}, capacity {_taskQueue.Capacity}");
-            }
+            Interlocked.Increment(ref _completedQItemCount);
         }
 
         /// <summary>Tries to execute the task synchronously on this scheduler.</summary>

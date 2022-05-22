@@ -156,6 +156,7 @@ namespace zero.core.patterns.queue
         /// <returns>Object stored at index</returns>
         public T this[long idx]
         {
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
             get
             {
                 Debug.Assert(idx >= 0);
@@ -165,9 +166,9 @@ namespace zero.core.patterns.queue
 
                 idx %= Capacity;
                 var i = IoMath.Log2(unchecked((ulong)idx + 1));
-                //return Volatile.Read(ref _storage[i][idx - ((1 << i) - 1)]);
                 return _storage[i][idx - ((1 << i) - 1)];
             }
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
             protected set
             {
                 Debug.Assert(idx >= 0);
@@ -175,14 +176,12 @@ namespace zero.core.patterns.queue
                 if (!IsAutoScaling)
                 {
                     _fastStorage[idx % _capacity] = value;
-                    //Interlocked.Exchange(ref _fastStorage[idx % _capacity], value);
                     return;
                 }
 
                 idx %= Capacity;
                 var i = IoMath.Log2(unchecked((ulong)idx + 1));
                 _storage[i][idx - ((1 << i) - 1)] = value;
-                //Interlocked.Exchange(ref _storage[i][idx - ((1 << i) - 1)], value);
             }
         }
 
@@ -295,7 +294,7 @@ namespace zero.core.patterns.queue
                 {
                     try
                     {
-                        return _zeroSync.Release(item, 1);
+                        return _zeroSync.Release(item);
                     }
                     catch
                     {
@@ -324,24 +323,17 @@ namespace zero.core.patterns.queue
                     if (Zeroed || !_autoScale && _count >= cap)
                         return -1;
 
-                    //if (slot != null)
-                    //    Interlocked.MemoryBarrierProcessWide();
-                    //else
-                    //    Interlocked.MemoryBarrier();
-
                     race = false;
                 }
 #if DEBUG
                 Debug.Assert(Zeroed || this[tail] == _sentinel);
                 Debug.Assert(Zeroed || tail == Tail);
-                Interlocked.MemoryBarrier();
 #endif
+                this[tail] = item;
                 //execute atomic action on success
                 onAtomicAdd?.Invoke(context);
                     
                 Interlocked.Increment(ref _count);
-                this[tail] = item;
-                Interlocked.MemoryBarrier();
                 Interlocked.Increment(ref _tail);
 
                 //service async blockers
@@ -412,30 +404,20 @@ namespace zero.core.patterns.queue
                 while ((head = Head) >= Tail || (latch = this[head]) == _sentinel || latch == null || head != Head ||
                        (slot = CompareExchange(head, _sentinel, latch)) != latch) 
                 {
-                    //if (slot != null)
-                    //    Interlocked.MemoryBarrierProcessWide();
-                    //else
-                    //    Interlocked.MemoryBarrier();
-
                     if (_count == 0 || Zeroed)
                     {
                         slot = null;
                         return false;
                     }
                 }
-
-
 #if DEBUG
-                Interlocked.MemoryBarrier();
                 Debug.Assert(Zeroed || this[head] == _sentinel);
-                //Debug.Assert(Zeroed || slot != null);
                 Debug.Assert(Zeroed || _count > 0);
                 Debug.Assert(Zeroed || head == Head);
                 Debug.Assert(Zeroed || head != Tail);
 #endif
                 this[head] = null;//restore the sentinel
                 Interlocked.Decrement(ref _count);
-                Interlocked.MemoryBarrier();
                 Interlocked.Increment(ref _head);
                 
                 return true;
