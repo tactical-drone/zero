@@ -460,28 +460,14 @@ namespace zero.sync
 
                     if (line == "L")
                     {
-                        var active = IoZeroScheduler.Zero.Active;
-                        var blocked = IoZeroScheduler.Zero.Blocked;
-                        var free = IoZeroScheduler.Zero.Free;
-                        var qactive = IoZeroScheduler.Zero.QActive;
-                        try
-                        {
-                            Console.WriteLine($"[{free.Count}/{blocked.Count}/{active.Count}] load = {IoZeroScheduler.Zero.Load}({IoZeroScheduler.Zero.LoadFactor * 100:0.0}%), q time = {IoZeroScheduler.Zero.WLength / ((IoZeroScheduler.Zero.CompletedWorkItemCount - LC) / (double)LS.ElapsedMs()):0}ms, workers = {IoZeroScheduler.Zero.ThreadCount}, p = {IoZeroScheduler.Zero.WLength}, C = {IoZeroScheduler.Zero.CompletedWorkItemCount - LOrig}, {(IoZeroScheduler.Zero.CompletedWorkItemCount - LOrig) / (double)LSOrig.ElapsedMsToSec():0.0} ops, c = {IoZeroScheduler.Zero.CompletedWorkItemCount - LC}, {(IoZeroScheduler.Zero.CompletedWorkItemCount - LC) / (double)LS.ElapsedMsToSec():0.0} tps");
-                            Console.WriteLine($"[{IoZeroScheduler.Zero.QFree.Count}/{IoZeroScheduler.Zero.QBlocked.Count}/{qactive.Count}] load = {IoZeroScheduler.Zero.QLoad}({IoZeroScheduler.Zero.QLoadFactor * 100:0.0}%), q time = {IoZeroScheduler.Zero.QLength / ((IoZeroScheduler.Zero.QLength - QC) / (double)QS.ElapsedMs()):0}ms, poll% = {((IoZeroScheduler.Zero.CompletedWorkItemCount - LOrig - LC) - (IoZeroScheduler.Zero.CompletedQItemCount - QC)) / (double)(IoZeroScheduler.Zero.CompletedWorkItemCount - LC) * 100.0:0.0}%, ({(IoZeroScheduler.Zero.CompletedWorkItemCount - LOrig - (IoZeroScheduler.Zero.CompletedQItemCount - QOrig)) / (double)(IoZeroScheduler.Zero.CompletedWorkItemCount - LOrig) * 100.0:0.00}%) ,queens = {IoZeroScheduler.Zero.QThreadCount}, p = {IoZeroScheduler.Zero.QLength}, C = {IoZeroScheduler.Zero.CompletedQItemCount - QOrig}, {(IoZeroScheduler.Zero.CompletedWorkItemCount - QOrig) / (double)QSOrig.ElapsedMsToSec():0.0} ops, c = {IoZeroScheduler.Zero.CompletedQItemCount- QC}, {(IoZeroScheduler.Zero.CompletedQItemCount - QC) / (double)QS.ElapsedMsToSec():0.0} tps, {(IoZeroScheduler.Zero.CompletedAsyncCount - AC) / (double)AS.ElapsedMsToSec():0.0} async/s ({IoZeroScheduler.Zero.CompletedAsyncCount - AC})[{IoZeroScheduler.Zero.CompletedAsyncCount}]");
-                            QS = Environment.TickCount;
-                            AS = Environment.TickCount;
-                            LS = Environment.TickCount;
-                            QC = IoZeroScheduler.Zero.CompletedQItemCount;
-                            LC = IoZeroScheduler.Zero.CompletedWorkItemCount;
-                            AC = IoZeroScheduler.Zero.CompletedAsyncCount;
-                        }
-                        finally
-                        {
-                            IoZeroScheduler.Zero.Return(active);
-                            IoZeroScheduler.Zero.Return(free);
-                            IoZeroScheduler.Zero.Return(blocked);
-                            IoZeroScheduler.Zero.Return(qactive);
-                        }
+                        Console.WriteLine($"ZERO SCHEDULER: load = {IoZeroScheduler.Zero.Load}({IoZeroScheduler.Zero.LoadFactor * 100:0.0}%), q time = {IoZeroScheduler.Zero.WLength / ((IoZeroScheduler.Zero.CompletedWorkItemCount - LC) / (double)LS.ElapsedMs()):0}ms, workers = {IoZeroScheduler.Zero.ThreadCount}, p = {IoZeroScheduler.Zero.WLength}, C = {IoZeroScheduler.Zero.CompletedWorkItemCount - LOrig}, {(IoZeroScheduler.Zero.CompletedWorkItemCount - LOrig) / (double)LSOrig.ElapsedMsToSec():0.0} ops, c = {IoZeroScheduler.Zero.CompletedWorkItemCount - LC}, {(IoZeroScheduler.Zero.CompletedWorkItemCount - LC) / (double)LS.ElapsedMsToSec():0.0} tps");
+                        Console.WriteLine($"[{IoZeroScheduler.Zero.Load}/{IoZeroScheduler.Zero.Capacity}] load = {IoZeroScheduler.Zero.Load/ IoZeroScheduler.Zero.Capacity * 100:0.0}%, q time = {IoZeroScheduler.Zero.QTime:0.0}ms, w time = {IoZeroScheduler.Zero.AsyncTime:0.0}ms, poll% = {((IoZeroScheduler.Zero.CompletedWorkItemCount - LOrig - LC) - (IoZeroScheduler.Zero.CompletedQItemCount - QC)) / (double)(IoZeroScheduler.Zero.CompletedWorkItemCount - LC) * 100.0:0.0}%, ({(IoZeroScheduler.Zero.CompletedWorkItemCount - LOrig - (IoZeroScheduler.Zero.CompletedQItemCount - QOrig)) / (double)(IoZeroScheduler.Zero.CompletedWorkItemCount - LOrig) * 100.0:0.00}%), p = {IoZeroScheduler.Zero.QLength}, C = {IoZeroScheduler.Zero.CompletedQItemCount - QOrig}, {(IoZeroScheduler.Zero.CompletedWorkItemCount - QOrig) / (double)QSOrig.ElapsedMsToSec():0.0} ops, c = {IoZeroScheduler.Zero.CompletedQItemCount- QC}, {(IoZeroScheduler.Zero.CompletedQItemCount - QC) / (double)QS.ElapsedMsToSec():0.0} tps, {(IoZeroScheduler.Zero.CompletedAsyncCount - AC) / (double)AS.ElapsedMsToSec():0.0} async/s ({IoZeroScheduler.Zero.CompletedAsyncCount - AC})[{IoZeroScheduler.Zero.CompletedAsyncCount}]");
+                        QS = Environment.TickCount;
+                        AS = Environment.TickCount;
+                        LS = Environment.TickCount;
+                        QC = IoZeroScheduler.Zero.CompletedQItemCount;
+                        LC = IoZeroScheduler.Zero.CompletedWorkItemCount;
+                        AC = IoZeroScheduler.Zero.CompletedAsyncCount;
                     }
 
                     if (line.StartsWith("W"))

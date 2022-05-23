@@ -42,8 +42,9 @@ namespace zero.core.patterns.bushings
         protected IoJob(string desc, IoSource<TJob> source, int concurrencyLevel = 1) : base($"{nameof(IoJob<TJob>)}: {desc}", concurrencyLevel)
         {
             Source = source;
-            _jobDesc = desc;
+
 #if DEBUG
+            _jobDesc = desc;
             StateTransitionHistory = new IoQueue<IoStateTransition<IoJobMeta.JobState>>($"{nameof(StateTransitionHistory)}: {desc}", 64, concurrencyLevel, IoQueue<IoStateTransition<IoJobMeta.JobState>>.Mode.DynamicSize);
             _stateHeap = new($"{nameof(_stateHeap)}: {desc}", (Enum.GetNames(typeof(IoJobMeta.JobState)).Length * 2), static (_, _) => new IoStateTransition<IoJobMeta.JobState>() { FinalState = IoJobMeta.JobState.Halted })
             {
@@ -59,6 +60,8 @@ namespace zero.core.patterns.bushings
                     nextState.Set(newStateId);
                 }
             };
+#else
+            _jobDesc = string.Empty;
 #endif
 
             ZeroRecovery = new IoManualResetValueTaskSource<bool>(true);
@@ -85,7 +88,7 @@ namespace zero.core.patterns.bushings
 #if DEBUG
         public override string Description => $"{_jobDesc} -> {StateTransitionHistory?.Tail?.Value}";
 #else
-        public override string Description => _jobDesc;
+        public override string Description => string.Empty;
 #endif
 
 

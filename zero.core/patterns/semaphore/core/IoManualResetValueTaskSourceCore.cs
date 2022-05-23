@@ -413,10 +413,10 @@ namespace zero.core.patterns.semaphore.core
 #pragma warning restore VSTHRD001 // Avoid legacy thread switching APIs
                     break;
                 case IoZeroScheduler tz when !(RunContinuationsAsynchronously || RunContinuationsAsynchronouslyAlways):
-                    _continuation!(_continuationState);
+                        _continuation!(_continuationState);
                     break;
                 case TaskScheduler ts:
-                    _ = Task.Factory.StartNew(_continuation!, _continuationState, CancellationToken.None, TaskCreationOptions.DenyChildAttach, ts);
+                    _ = Task.Factory.StartNew(_continuation!, _continuationState, CancellationToken.None, TaskCreationOptions.DenyChildAttach, ts); 
                     break;
             }
         }

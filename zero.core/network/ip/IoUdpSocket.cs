@@ -5,6 +5,7 @@ using System.Net.Sockets;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Threading.Tasks;
+using System.Threading.Tasks.Sources;
 using NLog;
 using zero.core.misc;
 using zero.core.patterns.heap;
@@ -100,33 +101,37 @@ namespace zero.core.network.ip
         {
             if (recv)
             {
-                _recvArgs = new IoHeap<SocketAsyncEventArgs, IoUdpSocket>($"{nameof(_recvArgs)}: {Description}", concurrencyLevel, static (_, @this) =>
+                _recvArgs = new IoHeap<SocketAsyncEventArgs, IoUdpSocket>($"{nameof(_recvArgs)}: {Description}",
+                    concurrencyLevel, static (_, @this) =>
+                    {
+                        //sentinel
+                        if (@this == null)
+                            return new SocketAsyncEventArgs();
+
+                        var args = new SocketAsyncEventArgs { RemoteEndPoint = new IPEndPoint(0, 0) };
+                        args.UserToken = new IoManualResetValueTaskSourceCore<bool> { AutoReset = true };
+                        args.Completed += @this.ZeroCompletion;
+                        args.RemoteEndPoint = new IPEndPoint(IPAddress.Any, 53);
+                        return args;
+                    })
+                {
+                    Context = this
+                };
+            }
+
+            //TODO: tuning
+            _sendArgs = new IoHeap<SocketAsyncEventArgs, IoUdpSocket>($"{nameof(_sendArgs)}: {Description}",
+                concurrencyLevel * 8, static (_, @this) =>
                 {
                     //sentinel
                     if (@this == null)
                         return new SocketAsyncEventArgs();
 
-                    var args = new SocketAsyncEventArgs { RemoteEndPoint = new IPEndPoint(0, 0) };
+                    var args = new SocketAsyncEventArgs();
+                    args.UserToken = new IoManualResetValueTaskSourceCore<bool> { AutoReset = true };
                     args.Completed += @this.ZeroCompletion;
-                    args.RemoteEndPoint = new IPEndPoint(IPAddress.Any, 53);
                     return args;
                 })
-                {
-                    Context = this
-                };
-            }
-            
-            //TODO: tuning
-            _sendArgs = new IoHeap<SocketAsyncEventArgs, IoUdpSocket>($"{nameof(_sendArgs)}: {Description}", concurrencyLevel * 4, static (_, @this) =>
-            {
-                //sentinel
-                if (@this == null)
-                    return new SocketAsyncEventArgs();
-
-                var args = new SocketAsyncEventArgs();
-                args.Completed += @this.ZeroCompletion;
-                return args;
-            })
             {
                 Context = this
             };
@@ -399,10 +404,7 @@ namespace zero.core.network.ip
                     throw new OutOfMemoryException(nameof(_sendArgs));
 
                 var buf = Unsafe.As<ReadOnlyMemory<byte>, Memory<byte>>(ref buffer).Slice(offset, length);
-                IIoManualResetValueTaskSourceCore<bool> taskCore = new IoManualResetValueTaskSourceCore<bool>();
-                var sent = new ValueTask<bool>(taskCore, 0);
-
-                args.UserToken = taskCore;
+                var sent = new ValueTask<bool>((IValueTaskSource<bool>)args.UserToken, 0);
                 args.SetBuffer(buf);
                 args.RemoteEndPoint = endPoint;
 
@@ -440,7 +442,6 @@ namespace zero.core.network.ip
         /// socket args heap
         /// </summary>
         private IoHeap<SocketAsyncEventArgs, IoUdpSocket> _sendArgs;
-
 
         /// <summary>
         /// Interacts with <see cref="SocketAsyncEventArgs"/> to complete async reads
@@ -501,9 +502,8 @@ namespace zero.core.network.ip
                         if (args == null)
                             throw new OutOfMemoryException(nameof(_recvArgs));
 
-                        IIoManualResetValueTaskSourceCore<bool> taskCore = new IoManualResetValueTaskSourceCore<bool>();
-                        var receive = new ValueTask<bool>(taskCore, 0);
-                        args.UserToken = taskCore;
+                        var receive = new ValueTask<bool>((IValueTaskSource<bool>)args.UserToken, 0);
+                        
                         args.SetBuffer(buffer.Slice(offset, length));
 
                         try

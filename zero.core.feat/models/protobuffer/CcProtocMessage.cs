@@ -130,51 +130,35 @@ namespace zero.core.feat.models.protobuffer
                         //----------------------------------------------------------------------------
                         if (!await backPressure(ioJob, ioZero).FastPath())
                         {
+                            _logger.Trace($"{nameof(backPressure)} [FAILED]: {ioJob.Description}");
                             await job.SetStateAsync(IoJobMeta.JobState.ProdCancel).FastPath();
                             return false;
                         }
-                            
-
                         //Async read the message from the message stream
-                        if (job.MessageService.IsOperational() && !job.Zeroed())
+                        
+                        var read = await ((IoNetClient<CcProtocMessage<TModel, TBatch>>)ioSocket).IoNetSocket.ReadAsync(job.MemoryBuffer, job.BufferOffset, job.BufferSize, job.RemoteEndPoint).FastPath();
+                        job.GenerateJobId();
+
+                        //Drop zero reads
+                        if (read == 0)
                         {
-
-                            var read = await ((IoNetClient<CcProtocMessage<TModel, TBatch>>)ioSocket).IoNetSocket.ReadAsync(job.MemoryBuffer, job.BufferOffset, job.BufferSize, job.RemoteEndPoint).FastPath();
-                            job.GenerateJobId();
-
-                            //Drop zero reads
-                            if (read == 0)
+                            if (!job.MessageService.IsOperational())
                             {
-                                //if (!job.MessageService.IsOperational())
-                                {
-                                    await job.MessageService.DisposeAsync(ioJob, "ZERO READS!!!").FastPath();
-                                    await job.SetStateAsync(IoJobMeta.JobState.Error).FastPath();
-                                }
-                                //else
-                                //{
-                                //    job.State = IoJobMeta.JobState.ProduceTo;
-                                //}
-
-                                return false;
+                                _logger.Trace($"ReadAsync [FAILED]: ZERO READS!!! {ioJob.Description}");
+                                await job.MessageService.DisposeAsync(ioJob, "ZERO READS!!!").FastPath();
+                                await job.SetStateAsync(IoJobMeta.JobState.Error).FastPath();
                             }
-
-                            Interlocked.Add(ref job.BytesRead, read);
-
-                            await job.SetStateAsync(IoJobMeta.JobState.Produced).FastPath();
-
-                            //_logger.Trace($"{job.Description} => {job.GetType().Name}[{job.Id}]: r = {job.BytesRead}, r = {job.BytesLeftToProcess}, dc = {job.DatumCount}, ds = {job.DatumSize}, f = {job.DatumFragmentLength}, b = {job.BytesLeftToProcess}/{job.BufferSize + job.DatumProvisionLengthMax}, b = {(int)(job.BytesLeftToProcess / (double)(job.BufferSize + job.DatumProvisionLengthMax) * 100)}%");
-                        }
-                        else
-                        {
-                            await job.SetStateAsync(IoJobMeta.JobState.Cancelled).FastPath();
-                        }
-
-                        if (job.Zeroed())
-                        {
-                            await job.SetStateAsync(IoJobMeta.JobState.Cancelled).FastPath();
+                            else
+                            {
+                                await job.SetStateAsync(IoJobMeta.JobState.ProdSkipped).FastPath();
+                            }
                             return false;
                         }
 
+                        Interlocked.Add(ref job.BytesRead, read);
+                        //_logger.Trace($"{job.Description} => {job.GetType().Name}[{job.Id}]: r = {job.BytesRead}, r = {job.BytesLeftToProcess}, dc = {job.DatumCount}, ds = {job.DatumSize}, f = {job.DatumFragmentLength}, b = {job.BytesLeftToProcess}/{job.BufferSize + job.DatumProvisionLengthMax}, b = {(int)(job.BytesLeftToProcess / (double)(job.BufferSize + job.DatumProvisionLengthMax) * 100)}%");
+                            
+                        await job.SetStateAsync(IoJobMeta.JobState.Produced).FastPath();
                         return true;
                     }
                     catch when (job.Zeroed())

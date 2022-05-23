@@ -356,14 +356,14 @@ namespace zero.core.patterns.bushings
 #endif
                         var ts = Environment.TickCount;
                         //Produce job input
-                        if (await nextJob.ProduceAsync(static async (job, @this) =>
+                        if (!Zeroed() && await nextJob.ProduceAsync(static async (job, @this) =>
                             {
                                 //Block on producer back pressure
                                 if (!await job.Source.WaitForBackPressureAsync().FastPath())
                                     return false;
 
                                 return true;
-                            }, this).FastPath() == IoJobMeta.JobState.Produced && !Zeroed())
+                            }, this).FastPath() == IoJobMeta.JobState.Produced)
                         {
 #if DEBUG
                             //_logger.Debug($"{nameof(ProduceAsync)}: id = {nextJob.Id}, #{nextJob.Serial} - {Description}");
@@ -371,8 +371,6 @@ namespace zero.core.patterns.bushings
                             if (_queue.Count > 1 && _queue.Count > _queue.Capacity * 2 / 3)
                                 _logger.Warn($"[[ENQUEUE]] backlog = {_queue.Count}/{_queue.Capacity}, {nextJob.Description}, {Description}");
 #endif
-
-
                             if (ZeroRecoveryEnabled)
                             {
                                 if ((nextJob.FragmentIdx = await _previousJobFragment.EnqueueAsync(nextJob).FastPath()) == null &&
@@ -387,7 +385,6 @@ namespace zero.core.patterns.bushings
                                     
                                 }
                             }
-
 
                             //Enqueue the job for the consumer
                             await nextJob.SetStateAsync(IoJobMeta.JobState.Queued).FastPath();
@@ -445,7 +442,10 @@ namespace zero.core.patterns.bushings
                             ts = ts.ElapsedMs();
                             IsArbitrating = false;
 
-                            await ZeroJobAsync(nextJob, true).FastPath();
+                            if(nextJob.State == IoJobMeta.JobState.ProdSkipped)
+                                await nextJob.SetStateAsync(IoJobMeta.JobState.Accept).FastPath();
+
+                            await ZeroJobAsync(nextJob, nextJob.State != IoJobMeta.JobState.Accept).FastPath();
                             nextJob = null;
 
                             //signal back pressure
@@ -463,7 +463,7 @@ namespace zero.core.patterns.bushings
                             if((throttleTime = parm_min_failed_production_time - ts) > 0)
                                 await Task.Delay(throttleTime, AsyncTasks.Token);
                             
-                            return true; //maybe we retry instead of crashing the producer
+                            return false;
                         }
                     }
                     else
