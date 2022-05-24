@@ -263,7 +263,8 @@ namespace zero.core.patterns.misc
             foreach (var ioZNode in _zeroHiveMind)
             {
                 if (!ioZNode.Value.Zeroed())
-                    IoZeroScheduler.Zero.Fork(ioZNode.Value.ZeroPrime);
+                    ioZNode.Value.ZeroPrime();
+                //IoZeroScheduler.Zero.Fork(ioZNode.Value.ZeroPrime);
             }
         }
 

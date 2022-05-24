@@ -36,7 +36,7 @@ namespace zero.core.runtime.scheduler
 
             _fallbackScheduler = fallback;
             _asyncTasks = asyncTasks?? new CancellationTokenSource();
-            _workerCount = Math.Max(Environment.ProcessorCount << 2, 4);
+            _workerCount = Math.Max(Environment.ProcessorCount * 4, 4);
             _asyncCount = _workerCount>>1;
             _syncCount =  _forkCount = _asyncCount;
             var capacity = MaxWorker + 1;
@@ -110,7 +110,7 @@ namespace zero.core.runtime.scheduler
                 {
                     var (@this, i) = (ValueTuple<IoZeroScheduler, int>)(state);
                     await @this.AsyncValueTasks(i).FastPath();
-                }, (this, i), CancellationToken.None, TaskCreationOptions.LongRunning, Default);
+                }, (this, i), CancellationToken.None, TaskCreationOptions.LongRunning, this);
             }
 
             //async callbacks
@@ -120,7 +120,7 @@ namespace zero.core.runtime.scheduler
                 {
                     var (@this, i) = (ValueTuple<IoZeroScheduler, int>)state;
                     await @this.ForkAsyncCallbacks(i).FastPath();
-                }, (this, i), CancellationToken.None, TaskCreationOptions.LongRunning, Default);
+                }, (this, i), CancellationToken.None, TaskCreationOptions.LongRunning, this);
             }
 
             //forks
