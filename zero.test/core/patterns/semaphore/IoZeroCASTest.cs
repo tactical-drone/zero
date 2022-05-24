@@ -62,7 +62,7 @@ namespace zero.test.core.patterns.semaphore
                 }, CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Default));
             }
 
-            await Task.WhenAll(tasks).WaitAsync(TimeSpan.FromSeconds(10));
+            await Task.WhenAll(tasks).WaitAsync(TimeSpan.FromSeconds(15));
 
             Assert.Equal(_count - 1, _reg);
         }
