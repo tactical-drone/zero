@@ -66,7 +66,7 @@ namespace zero.sync
             //Task.Factory.StartNew(async () =>
             //{
             //    await SemTestAsync();
-            //    await QueueTestAsync();
+            //    //await QueueTestAsync();
             //}, CancellationToken.None, TaskCreationOptions.DenyChildAttach, IoZeroScheduler.ZeroDefault).Unwrap().GetAwaiter().GetResult();
 
             //Tune dotnet for large tests
@@ -741,7 +741,7 @@ namespace zero.sync
         private static async Task QueueTestAsync() //TODO make unit tests
         {
             await Task.Delay(1000);
-            var concurrencyLevel = 7;
+            var concurrencyLevel = Environment.ProcessorCount;
             IoQueue<int> q = new("test", 16384, concurrencyLevel);
             var head = await q.PushBackAsync(2).FastPath();
             await q.PushBackAsync(1).FastPath();
@@ -911,7 +911,7 @@ namespace zero.sync
             await Task.Delay(1000);
             var asyncTasks = new CancellationTokenSource();
 
-            var capacity = 3;
+            var capacity = 4;
 
             //.NET RUNTIME REFERENCE MUTEX FOR TESTING
             //var mutex = new IoZeroRefMut(asyncTasks.Token);

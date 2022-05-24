@@ -14,7 +14,7 @@ namespace zero.core.patterns.semaphore.core
 
             long inc;
             long latch;
-            while ((inc = (latch = val) + 1) >= cap || Interlocked.CompareExchange(ref val, inc, latch) != latch)
+            while ((inc = (latch = val) + 1) >= cap || Interlocked.CompareExchange(ref val,inc,latch) != latch)
             {
                 if (inc >= cap)
                     return cap;
@@ -29,11 +29,10 @@ namespace zero.core.patterns.semaphore.core
             if (val + 1 > cap)
                 return cap;
 
-            long inc;
             long latch;
-            while ((inc = (latch = val) + 1) > cap || Interlocked.CompareExchange(ref val, inc, latch) != latch)
+            while ((latch = val) + 1 > cap || Interlocked.CompareExchange(ref val,latch + 1,latch) != latch)
             {
-                if (inc > cap)
+                if (latch + 1 > cap)
                     return cap;
             }
 
@@ -46,11 +45,10 @@ namespace zero.core.patterns.semaphore.core
             if (val - 1 < cap)
                 return cap;
 
-            long dec;
             long latch;
-            while ((dec = (latch = val) - 1) < cap || Interlocked.CompareExchange(ref val, dec, latch) != latch)
+            while ((latch = val) - 1 < cap || Interlocked.CompareExchange(ref val,latch - 1,latch) != latch)
             {
-                if (dec < cap)
+                if (latch - 1 < cap)
                     return cap;
             }
 
@@ -65,7 +63,7 @@ namespace zero.core.patterns.semaphore.core
 
             int inc;
             int latch;
-            while ((inc = (latch = val) + 1) > cap || Interlocked.CompareExchange(ref val, inc, latch) != latch)
+            while ((inc = (latch = val) + 1) > cap || Interlocked.CompareExchange(ref val,inc,latch) != latch)
             {
                 if (inc > cap)
                     return cap;
@@ -79,7 +77,7 @@ namespace zero.core.patterns.semaphore.core
         {
             int dec;
             int latch;
-            while ((dec = (latch = val) - 1) < cap || Interlocked.CompareExchange(ref val, dec, latch) != latch)
+            while ((dec = (latch = val) - 1) < cap || Interlocked.CompareExchange(ref val,dec,latch) != latch)
             {
                 if (dec < cap)
                     return cap;

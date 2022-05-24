@@ -510,7 +510,7 @@ namespace zero.cocoon.models
                             {
                                 foreach (var drone in @this.CcCollective.Neighbors.Values.Cast<CcDrone>().Where(d=>d.MessageService?.IsOperational()??false))
                                 {
-                                    if (req != Volatile.Read(ref @this.CcCollective.MaxReq))
+                                    if (@this.CcCollective == null || req != Volatile.Read(ref @this.CcCollective.MaxReq))
                                         break;
                                     try
                                     {
@@ -553,7 +553,7 @@ namespace zero.cocoon.models
                         catch when (@this.Zeroed())
                         {
                         }
-                        catch (Exception e) when (@this.Zeroed())
+                        catch (Exception e) when (!@this.Zeroed())
                         {
                             IoJob<CcWhispers>._logger.Error(e,$"{@this.Description}");
                         }

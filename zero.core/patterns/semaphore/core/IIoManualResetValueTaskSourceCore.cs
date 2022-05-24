@@ -16,8 +16,8 @@ namespace zero.core.patterns.semaphore.core
         bool Primed { get; }
         bool Blocking { get; }
         bool Burned { get; }
-        object BurnContext { get; set; }
-        void SetResult<TContext>(TResult result, Action<bool, TContext> async = null, TContext context = default);
+        //object BurnContext { get; set; }
+        //void SetResult<TContext>(TResult result, Action<bool, TContext> async = null, TContext context = default);
         void SetResult(TResult result);
         //void SetResult(IIoManualResetValueTaskSourceCore<TResult> source);
         void SetException(Exception error);

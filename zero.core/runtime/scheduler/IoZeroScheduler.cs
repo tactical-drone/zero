@@ -2,7 +2,6 @@
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
-using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
@@ -91,7 +90,7 @@ namespace zero.core.runtime.scheduler
                 {
                     var (@this, i) = (ValueTuple<IoZeroScheduler, int>)state;
                     await @this.LoadTask(i).FastPath();
-                }, (this, i), CancellationToken.None, TaskCreationOptions.DenyChildAttach, Default);
+                }, (this, i), CancellationToken.None, TaskCreationOptions.LongRunning, Default);
             }
 
             //callbacks
@@ -101,7 +100,7 @@ namespace zero.core.runtime.scheduler
                 {
                         var (@this,i) = (ValueTuple<IoZeroScheduler, int>)(state);
                         await @this.AsyncCallbacks(i).FastPath();
-                }, (this, i), CancellationToken.None, TaskCreationOptions.DenyChildAttach, Default);
+                }, (this, i), CancellationToken.None, TaskCreationOptions.LongRunning, Default);
             }
 
             //callbacks
@@ -111,7 +110,7 @@ namespace zero.core.runtime.scheduler
                 {
                     var (@this, i) = (ValueTuple<IoZeroScheduler, int>)(state);
                     await @this.AsyncValueTasks(i).FastPath();
-                }, (this, i), CancellationToken.None, TaskCreationOptions.DenyChildAttach, this);
+                }, (this, i), CancellationToken.None, TaskCreationOptions.LongRunning, Default);
             }
 
             //async callbacks
@@ -121,7 +120,7 @@ namespace zero.core.runtime.scheduler
                 {
                     var (@this, i) = (ValueTuple<IoZeroScheduler, int>)state;
                     await @this.ForkAsyncCallbacks(i).FastPath();
-                }, (this, i), CancellationToken.None, TaskCreationOptions.DenyChildAttach, this);
+                }, (this, i), CancellationToken.None, TaskCreationOptions.LongRunning, Default);
             }
 
             //forks
@@ -131,7 +130,7 @@ namespace zero.core.runtime.scheduler
                 {
                     var (@this, i) = (ValueTuple<IoZeroScheduler, int>)state;
                     await @this.ForkCallbacks(i).FastPath();
-                }, (this, i), CancellationToken.None, TaskCreationOptions.DenyChildAttach, Default);
+                }, (this, i), CancellationToken.None, TaskCreationOptions.LongRunning, Default);
             }
         }
 
@@ -254,10 +253,12 @@ namespace zero.core.runtime.scheduler
                 {
                     if (job.Status == TaskStatus.WaitingToRun)
                     {
+                        Interlocked.Increment(ref _workerLoad);
                         if (!TryExecuteTask(job))
                             LogManager.GetCurrentClassLogger().Fatal($"{nameof(LoadTask)}: Unable to execute task, id = {job.Id}, state = {job.Status}, async-state = {job.AsyncState}, success = {job.IsCompletedSuccessfully}");
                         else
                             Interlocked.Increment(ref _completedWorkItemCount);
+                        Interlocked.Decrement(ref _workerLoad);
                     }
                 }
                 catch (Exception e)

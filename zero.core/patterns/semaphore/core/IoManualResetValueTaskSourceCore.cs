@@ -13,7 +13,7 @@ namespace zero.core.patterns.semaphore.core
 {
     /// <summary>Provides the core logic for implementing a manual-reset <see cref="IValueTaskSource"/> or <see cref="IValueTaskSource{TResult}"/>.</summary>
     /// <typeparam name="TResult"></typeparam>
-    [StructLayout(LayoutKind.Sequential, Pack = 64)]
+    [StructLayout(LayoutKind.Auto)]
     public struct IoManualResetValueTaskSourceCore<TResult>: IIoManualResetValueTaskSourceCore<TResult>
     {
         /// <summary>
@@ -38,18 +38,16 @@ namespace zero.core.patterns.semaphore.core
 
         /// <summary>The exception with which the operation failed, or null if it hasn't yet completed or completed successfully.</summary>
         private ExceptionDispatchInfo? _error;
+#pragma warning restore CS8632 // The annotation for nullable reference types should only be used in code within a '#nullable' annotations context.
 
         /// <summary>The result with which the operation succeeded, or the default value if it hasn't yet completed or failed.</summary>
-        //[AllowNull, MaybeNull] private TResult _result;
         [AllowNull, MaybeNull] private TResult _result;
-        
-        public object? _burnContext;
-
-        public Action<bool, object>? _burnResult;
-#pragma warning restore CS8632 // The annotation for nullable reference types should only be used in code within a '#nullable' annotations context.
 
         /// <summary>Whether the current operation has completed.</summary>
         private bool _completed;
+        private volatile bool _runContinuationsAsync;
+        private bool _runContinuationsAsyncAlways;
+        private bool _autoReset;
 
         /// <summary>The current version of this value, used to help prevent misuse.</summary>
         private int _version;
@@ -59,24 +57,32 @@ namespace zero.core.patterns.semaphore.core
         /// </summary>
         private int _burned;
 
+        //public object? _burnContext;
+
+        //public Action<bool, object>? _burnResult;
+
         /// <summary>
         /// Substitute for <see cref="RunContinuationsAsynchronously"/> used internally
         /// </summary>
-        public bool RunContinuationsAsynchronouslyAlways { get; set; }
+        public bool RunContinuationsAsynchronouslyAlways { get => _runContinuationsAsyncAlways; set => Volatile.Write(ref _runContinuationsAsyncAlways,value); }
+        //public bool RunContinuationsAsynchronouslyAlways { get; set; }
 
         /// <summary>Gets or sets whether to force continuations to run asynchronously.</summary>
         /// <remarks>Continuations may run asynchronously if this is false, but they'll never run synchronously if this is true.</remarks>
-        public bool RunContinuationsAsynchronously { get; set; }
+        public bool RunContinuationsAsynchronously { get => _runContinuationsAsync || _runContinuationsAsyncAlways; set => _runContinuationsAsync = value; }
+        //public bool RunContinuationsAsynchronously { get; set; }
 
         /// <summary>
         /// Run continuations on the flowing scheduler, else on the default one
         /// </summary>
         public bool RunContinuationsUnsafe { get; set; }
 
+
         /// <summary>
         /// AutoReset
         /// </summary>
-        public bool AutoReset { get; set; }
+        public bool AutoReset { get => _autoReset; set => Volatile.Write(ref _autoReset,value); }
+        //public bool AutoReset { get; set; }
 
         /// <summary>
         /// Is this core primed with a sentinel?
@@ -93,11 +99,11 @@ namespace zero.core.patterns.semaphore.core
         /// </summary>
         public bool Burned => _burned > 0;
 
-        public object BurnContext
-        {
-            get => _burnContext;
-            set => _burnContext = value;
-        }
+        //public object BurnContext
+        //{
+        //    get => _burnContext;
+        //    set => _burnContext = value;
+        //}
 
 #if DEBUG
         public TResult Result => _result;
@@ -115,6 +121,7 @@ namespace zero.core.patterns.semaphore.core
             _continuationState = null;
             _continuation = null;
             _completed = false;
+            Interlocked.MemoryBarrier();
             _burned = 0;
         }
         
@@ -147,21 +154,20 @@ namespace zero.core.patterns.semaphore.core
             return true;
         }
 
-
-        public void SetResult(TResult result) => SetResult<object>(result);
+        //public void SetResult(TResult result) => SetResult<object>(result);
 
         /// <summary>Completes with a successful result.</summary>
-        /// <param name="result">The result.</param>
-        /// <param name="async"></param>
-        /// <param name="context"></param>
+        /// <param name = "result" > The result.</param>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public void SetResult<TContext>(TResult result, Action<bool, TContext> async = null, TContext context = default)
+        //public void SetResult<TContext>(TResult result, Action<bool, TContext> async = null, TContext context = default)
+        public void SetResult(TResult result)
         {
             if (_completed)
-                throw new InvalidOperationException($"[{Thread.CurrentThread.ManagedThreadId}]: primed = {Primed}, blocking = {Blocking}, burned = {Burned}, completed = {_completed}, {GetStatus((short)Version)}");
+                throw new InvalidOperationException($"[{Thread.CurrentThread.ManagedThreadId}]: set => v = [{_version}], primed = {Primed}, blocking = {Blocking}, burned = {Burned}, completed = {_completed}, {GetStatus((short)Version)}");
 
             _result = result;
-            SignalCompletion(async, context);
+            //SignalCompletion(async, context);
+            SignalCompletion();
         }
 
         /// <summary>Completes with an error.</summary>
@@ -215,7 +221,7 @@ namespace zero.core.patterns.semaphore.core
 
             var r = _result;
 
-            if (AutoReset)
+            if (_autoReset)
                 Reset();
 
             return r;
@@ -265,9 +271,7 @@ namespace zero.core.patterns.semaphore.core
             // To minimize the chances of that, we check preemptively whether _continuation
             // is already set to something other than the completion sentinel.
             object oldContinuation = _continuation;
-#if DEBUG
-            object oldState = _continuationState;
-#endif
+
             if (oldContinuation == null)
             {
                 _continuationState = state;
@@ -277,24 +281,19 @@ namespace zero.core.patterns.semaphore.core
             if (oldContinuation != null)
             {
                 // Operation already completed, so we need to queue the supplied callback.
-                if (!ReferenceEquals(oldContinuation, ManualResetValueTaskSourceCoreShared.SSentinel))
-                {
-#if DEBUG
-                    Console.WriteLine($"// => had = {oldContinuation}, {oldState}, // => has = {continuation}, {state}");
-#endif
-                    //if(_burned != 0) //todo: zeroCore can emit just in time completion sentinels while CompilerServices.AsyncTaskMethodBuilder is doing its thing. This is legal and should be allowed.
-                    //                 //Maybe even in runtime. Could be a runtime bug, if not this might turn into a bug. 
-                        throw new InvalidOperationException($"// => had = {oldContinuation}({oldContinuation.ToString()}), // => has = {continuation}, {state}");
-                }
+#pragma warning disable CS0252 // Possible unintended reference comparison; left hand side needs cast
+                if (oldContinuation != ManualResetValueTaskSourceCoreShared.SSentinel)
+                    throw new InvalidOperationException($"[{Thread.CurrentThread.ManagedThreadId}] // => had = {oldContinuation}, // => has = {continuation}, {state}, v = [{_version}], primed = {Primed}, blocking = {Blocking}, burned = {Burned}, completed = {_completed}, {GetStatus((short)Version)}");
+#pragma warning restore CS0252 // Possible unintended reference comparison; left hand side needs cast
 
-                try
-                {
-                    _burnResult?.Invoke(false, _burnContext);
-                }
-                catch
-                {
-                    // ignored
-                }
+                //try
+                //{
+                //    _burnResult?.Invoke(false, _burnContext);
+                //}
+                //catch
+                //{
+                //    // ignored
+                //}
 
                 switch (_capturedContext)
                 {
@@ -317,14 +316,14 @@ namespace zero.core.patterns.semaphore.core
             }
 
 
-            try
-            {
-                _burnResult?.Invoke(true, _burnContext);
-            }
-            catch
-            {
-                // ignored
-            }
+            //try
+            //{
+            //    _burnResult?.Invoke(true, _burnContext);
+            //}
+            //catch
+            //{
+            //    // ignored
+            //}
         }
 
 #if DEBUG
@@ -339,7 +338,7 @@ namespace zero.core.patterns.semaphore.core
         }
 #endif
 
-        private void SignalCompletion() => SignalCompletion<object>();
+        //private void SignalCompletion() => SignalCompletion<object>();
 
         /// <summary>Signals that the operation has completed.  Invoked after the result or error has been set.</summary>
         /// <param name="async">Signals callback completion asynchronously status back to the caller</param>
@@ -347,10 +346,11 @@ namespace zero.core.patterns.semaphore.core
 #if RELEASE
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
 #endif
-        private void SignalCompletion<TContext>(Action<bool, TContext> async = null, TContext context = default)
+        //private void SignalCompletion<TContext>(Action<bool, TContext> async = null, TContext context = default)
+        private void SignalCompletion()
         {
             if (_completed)
-                throw new InvalidOperationException($"[{Thread.CurrentThread.ManagedThreadId}]: primed = {Primed}, blocking = {Blocking}, burned = {Burned}, completed = {_completed}, {GetStatus((short)Version)}");
+                throw new InvalidOperationException($"[{Thread.CurrentThread.ManagedThreadId}]: set => v = [{_version}], primed = {Primed}, blocking = {Blocking}, burned = {Burned}, completed = {_completed}, {GetStatus((short)Version)}");
 
             _completed = true;
 
@@ -361,12 +361,11 @@ namespace zero.core.patterns.semaphore.core
                 Interlocked.CompareExchange(ref _continuation, ManualResetValueTaskSourceCoreShared.SSentinel, null) ==
                 null)
             {
-                async?.Invoke(false, context);
-
+                //async?.Invoke(false, context);
                 return;
             }
 
-            async?.Invoke(true, context);
+            //async?.Invoke(true, context);
 
             if (_executionContext != null)
             {
@@ -395,7 +394,7 @@ namespace zero.core.patterns.semaphore.core
             switch (_capturedContext)
             {
                 case null:
-                    if (RunContinuationsAsynchronously || RunContinuationsAsynchronouslyAlways)
+                    if (RunContinuationsAsynchronously)
                         _ = Task.Factory.StartNew(_continuation!, _continuationState, CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Default);
                     else
                         _continuation!(_continuationState);
@@ -409,7 +408,7 @@ namespace zero.core.patterns.semaphore.core
                     }, (_continuation, _continuationState));
 #pragma warning restore VSTHRD001 // Avoid legacy thread switching APIs
                     break;
-                case IoZeroScheduler tz when TaskScheduler.Current is IoZeroScheduler && !(RunContinuationsAsynchronously || RunContinuationsAsynchronouslyAlways):
+                case IoZeroScheduler tz when TaskScheduler.Current is IoZeroScheduler && !(RunContinuationsAsynchronously):
                     _continuation!(_continuationState);
                     break;
                 case TaskScheduler ts:
