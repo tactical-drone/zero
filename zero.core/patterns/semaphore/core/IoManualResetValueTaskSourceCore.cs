@@ -16,9 +16,6 @@ namespace zero.core.patterns.semaphore.core
     [StructLayout(LayoutKind.Sequential, Pack = 64)]
     public struct IoManualResetValueTaskSourceCore<TResult>: IIoManualResetValueTaskSourceCore<TResult>
     {
-        // ReSharper disable once StaticMemberInGenericType
-        private static readonly InvalidOperationException _invalidOperationException = new();
-
         /// <summary>
         /// The callback to invoke when the operation completes if <see cref="OnCompleted"/> was called before the operation completed,
         /// or <see cref="ManualResetValueTaskSourceCoreShared.SSentinel"/> if the operation completed before a callback was supplied,
@@ -206,14 +203,14 @@ namespace zero.core.patterns.semaphore.core
         public TResult GetResult(short token)
         {
             if (Interlocked.CompareExchange(ref _burned, 1, 0) != 0)
-                throw _invalidOperationException;
+                throw new InvalidOperationException($"{nameof(GetResult)}: core already burned");
 
 #if DEBUG
             ValidateToken(token);   
 #endif
             if (!_completed)
             {
-                throw _invalidOperationException;
+                throw new InvalidOperationException($"{nameof(GetResult)}: core already completed");
             }
 
             _error?.Throw();
@@ -337,7 +334,7 @@ namespace zero.core.patterns.semaphore.core
         {
             if (token != _version)
             {
-                throw _invalidOperationException;
+                throw new InvalidOperationException($"{nameof(ValidateToken)}: Invalid core token detected: wants = {token}, has = {_version}");
             }
         }
 #endif
