@@ -175,7 +175,7 @@ namespace zero.core.patterns.semaphore.core
             var origTail = _b_tail;
             var origHead = _b_head;
             
-            var idx = _b_tail.ZeroNext(cap = origTail > origHead || origTail == origHead && ReadyCount < _capacity? _b_head + _capacity: _b_head);
+            var idx = _b_tail.ZeroNext(cap = origTail > origHead || origTail == origHead && ReadyCount < _capacity? origHead + _capacity: origHead);
             if (idx != cap)
             {
                 var slowCore = _blocking[idx % ModCapacity];
@@ -209,11 +209,10 @@ namespace zero.core.patterns.semaphore.core
             var origTail = _b_tail;
             var origHead = _b_head;
             
-            if ((idx = _b_head.ZeroNext(cap = origHead > origTail || WaitCount < _capacity ? _b_tail + _capacity: _b_tail)) != cap)
+            if ((idx = _b_head.ZeroNext(cap = origHead > origTail || origHead == origTail && WaitCount < _capacity ? origTail + _capacity: origTail)) != cap)
             {
                 var slowCore = _blocking[idx %= ModCapacity];
-                //slowCore.Prime((short)idx);
-                slowTaskCore = new ValueTask<T>(slowCore, (short)idx);
+                slowTaskCore = !slowCore.Primed ? new ValueTask<T>(slowCore, (short)idx) : new ValueTask<T>(slowCore.GetResult((short)idx));
                 return true;
             }
             if(retry-->0)
@@ -269,7 +268,10 @@ namespace zero.core.patterns.semaphore.core
                 return slowCore;
             
             // => API implementation error
-            throw new InvalidOperationException($"{nameof(IoZeroCore<T>)}: Invalid concurrency level detected, check that {_capacity} matches or exceeds the expected level of concurrent blockers expected. {Description}");
+            if(!Zeroed())
+                throw new InvalidOperationException($"{nameof(IoZeroCore<T>)}: Invalid concurrency level detected, check that {_capacity} matches or exceeds the expected level of concurrent blockers expected. {Description}");
+
+            return default;
         }
 
         int IIoZeroSemaphoreBase<T>.ZeroDecAsyncCount()

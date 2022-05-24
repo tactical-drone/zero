@@ -111,7 +111,7 @@ namespace zero.core.runtime.scheduler
                 {
                     var (@this, i) = (ValueTuple<IoZeroScheduler, int>)(state);
                     await @this.AsyncValueTasks(i).FastPath();
-                }, (this, i), CancellationToken.None, TaskCreationOptions.DenyChildAttach, Default);
+                }, (this, i), CancellationToken.None, TaskCreationOptions.DenyChildAttach, this);
             }
 
             //async callbacks
@@ -121,7 +121,7 @@ namespace zero.core.runtime.scheduler
                 {
                     var (@this, i) = (ValueTuple<IoZeroScheduler, int>)state;
                     await @this.ForkAsyncCallbacks(i).FastPath();
-                }, (this, i), CancellationToken.None, TaskCreationOptions.DenyChildAttach, Default);
+                }, (this, i), CancellationToken.None, TaskCreationOptions.DenyChildAttach, this);
             }
 
             //forks
@@ -269,7 +269,7 @@ namespace zero.core.runtime.scheduler
 
         private async ValueTask AsyncCallbacks(int threadIndex)
         {
-            await foreach (var job in _asyncCallbackQueue.BalanceOnConsumeAsync(threadIndex).ConfigureAwait(false))
+            await foreach (var job in _asyncCallbackQueue.BalanceOnConsumeAsync(threadIndex))
             {
                 try
                 {
@@ -290,10 +290,11 @@ namespace zero.core.runtime.scheduler
         }
         private async ValueTask AsyncValueTasks(int threadIndex)
         {
-            await foreach (var job in _asyncQueue.BalanceOnConsumeAsync(threadIndex))
+            await foreach (var job in _asyncQueue.BalanceOnConsumeAsync(threadIndex).ConfigureAwait(false))
             {
                 try
                 {
+                    Debug.Assert(TaskScheduler.Current.Id == IoZeroScheduler.Zero.Id);
                     await job.ValueTask.FastPath();
                     Interlocked.Increment(ref _completedAsyncCount);
                     Interlocked.Add(ref _asyncQTime, job.timestamp.ElapsedMs());

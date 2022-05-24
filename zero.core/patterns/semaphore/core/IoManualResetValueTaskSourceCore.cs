@@ -203,16 +203,14 @@ namespace zero.core.patterns.semaphore.core
         public TResult GetResult(short token)
         {
             if (Interlocked.CompareExchange(ref _burned, 1, 0) != 0)
-                throw new InvalidOperationException($"{nameof(GetResult)}: core already burned");
+                throw new InvalidOperationException($"[{Thread.CurrentThread.ManagedThreadId}] {nameof(GetResult)}: core already burned");
 
 #if DEBUG
             ValidateToken(token);   
 #endif
             if (!_completed)
-            {
-                throw new InvalidOperationException($"{nameof(GetResult)}: core already completed");
-            }
-
+                throw new InvalidOperationException($"[{Thread.CurrentThread.ManagedThreadId}] {nameof(GetResult)}: core already completed");
+            
             _error?.Throw();
 
             var r = _result;
@@ -282,9 +280,11 @@ namespace zero.core.patterns.semaphore.core
                 if (!ReferenceEquals(oldContinuation, ManualResetValueTaskSourceCoreShared.SSentinel))
                 {
 #if DEBUG
-                    Console.WriteLine($"// => had = {oldContinuation}({oldContinuation.ToString()}), {oldState}, // => has = {continuation}, {state}");
+                    Console.WriteLine($"// => had = {oldContinuation}, {oldState}, // => has = {continuation}, {state}");
 #endif
-                    throw new InvalidOperationException($"// => had = {oldContinuation}({oldContinuation.ToString()}), // => has = {continuation}, {state}");
+                    //if(_burned != 0) //todo: zeroCore can emit just in time completion sentinels while CompilerServices.AsyncTaskMethodBuilder is doing its thing. This is legal and should be allowed.
+                    //                 //Maybe even in runtime. Could be a runtime bug, if not this might turn into a bug. 
+                        throw new InvalidOperationException($"// => had = {oldContinuation}({oldContinuation.ToString()}), // => has = {continuation}, {state}");
                 }
 
                 try
@@ -410,7 +410,7 @@ namespace zero.core.patterns.semaphore.core
 #pragma warning restore VSTHRD001 // Avoid legacy thread switching APIs
                     break;
                 case IoZeroScheduler tz when TaskScheduler.Current is IoZeroScheduler && !(RunContinuationsAsynchronously || RunContinuationsAsynchronouslyAlways):
-                        _continuation!(_continuationState);
+                    _continuation!(_continuationState);
                     break;
                 case TaskScheduler ts:
                     _ = Task.Factory.StartNew(_continuation!, _continuationState, CancellationToken.None, TaskCreationOptions.DenyChildAttach, ts); 

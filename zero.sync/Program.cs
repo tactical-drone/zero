@@ -62,10 +62,10 @@ namespace zero.sync
         /// <param name="args"></param>
         static void Main(string[] args)
         {
-            //Console.WriteLine($"zero ({Environment.OSVersion}: {Environment.MachineName} - dotnet v{Environment.Version}, CPUs = {Environment.ProcessorCount})");
+            Console.WriteLine($"zero ({Environment.OSVersion}: {Environment.MachineName} - dotnet v{Environment.Version}, CPUs = {Environment.ProcessorCount})");
             //Task.Factory.StartNew(async () =>
             //{
-            //    //await SemTestAsync();
+            //    await SemTestAsync();
             //    await QueueTestAsync();
             //}, CancellationToken.None, TaskCreationOptions.DenyChildAttach, IoZeroScheduler.ZeroDefault).Unwrap().GetAwaiter().GetResult();
 
@@ -1212,7 +1212,7 @@ namespace zero.sync
                             Console.WriteLine($"3:{e}");
                             throw;
                         }
-                    }, asyncTasks.Token, options, TaskScheduler.Default);
+                    }, asyncTasks.Token, options, TaskScheduler.Current);
                 }
 
             Console.ReadLine();
