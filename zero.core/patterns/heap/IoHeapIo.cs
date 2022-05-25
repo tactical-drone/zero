@@ -49,7 +49,7 @@ namespace zero.core.patterns.heap
                     throw new InvalidOperationException($"{nameof(next.HeapConstructAsync)} FAILED: ");
                 }
 
-#if DEBUG
+#if TRACE
                 if (heapItem.malloc)
                 {
                     await heapItem.item.ZeroSubAsync<object>((t, u) =>
