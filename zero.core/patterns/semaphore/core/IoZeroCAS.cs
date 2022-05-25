@@ -14,7 +14,7 @@ namespace zero.core.patterns.semaphore.core
 
             long inc;
             long latch;
-            while ((inc = (latch = val) + 1) >= cap || Interlocked.CompareExchange(ref val,inc,latch) != latch)
+            while ((inc = (latch = val) + 1) >= cap || Interlocked.CompareExchange(ref val, inc, latch) != latch)
             {
                 if (inc >= cap)
                     return cap;
@@ -30,7 +30,7 @@ namespace zero.core.patterns.semaphore.core
                 return cap;
 
             long latch;
-            while ((latch = val) + 1 > cap || Interlocked.CompareExchange(ref val,latch + 1,latch) != latch)
+            while ((latch = val) + 1 > cap || Interlocked.CompareExchange(ref val, latch + 1, latch) != latch)
             {
                 if (latch + 1 > cap)
                     return cap;
@@ -46,7 +46,7 @@ namespace zero.core.patterns.semaphore.core
                 return cap;
 
             long latch;
-            while ((latch = val) - 1 < cap || Interlocked.CompareExchange(ref val,latch - 1,latch) != latch)
+            while ((latch = val) - 1 < cap || Interlocked.CompareExchange(ref val, latch - 1, latch) != latch)
             {
                 if (latch - 1 < cap)
                     return cap;
@@ -63,7 +63,7 @@ namespace zero.core.patterns.semaphore.core
 
             int inc;
             int latch;
-            while ((inc = (latch = val) + 1) > cap || Interlocked.CompareExchange(ref val,inc,latch) != latch)
+            while ((inc = (latch = val) + 1) > cap || Interlocked.CompareExchange(ref val, inc, latch) != latch)
             {
                 if (inc > cap)
                     return cap;
@@ -77,7 +77,7 @@ namespace zero.core.patterns.semaphore.core
         {
             int dec;
             int latch;
-            while ((dec = (latch = val) - 1) < cap || Interlocked.CompareExchange(ref val,dec,latch) != latch)
+            while ((dec = (latch = val) - 1) < cap || Interlocked.CompareExchange(ref val, dec, latch) != latch)
             {
                 if (dec < cap)
                     return cap;
