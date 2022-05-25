@@ -163,7 +163,9 @@ namespace zero.core.patterns.semaphore.core
         /// <param name="released">The number of blockers released with <see cref="value"/></param>
         /// <param name="forceAsync"></param>
         /// <returns>If a waiter was unblocked, false otherwise</returns>
+#if RELEASE
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
+#endif
         private bool ZeroSetResult(T value, out int released, bool forceAsync = false)
         {
             if (ReadyCount >= _capacity)
@@ -172,10 +174,10 @@ namespace zero.core.patterns.semaphore.core
                 return false;
             }
             long cap;
-            var origTail = _b_tail;
-            var origHead = _b_head;
-            
-            var idx = _b_tail.ZeroNext(cap = origTail >= origHead? origHead + _capacity: origHead);
+
+            long origHead;
+            long origTail;
+            var idx = _b_tail.ZeroNext(cap = (origTail = _b_tail) >= (origHead = _b_head)? origHead + _capacity: origTail + _capacity);
             if (idx != cap)
             {
                 var slowCore = _blocking[idx % ModCapacity];
@@ -194,7 +196,9 @@ namespace zero.core.patterns.semaphore.core
         /// </summary>
         /// <param name="slowTaskCore">The resulting core that will most likely result in a block</param>
         /// <returns>True if there was a core created, false if all <see cref="_capacity"/> cores are still blocked</returns>
+#if RELEASE
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
+#endif
         private bool ZeroBlock(out ValueTask<T> slowTaskCore)
         {
             Debug.Assert(WaitCount <= _capacity);
@@ -203,15 +207,15 @@ namespace zero.core.patterns.semaphore.core
             long cap;
 
             slowTaskCore = default;
-
             var retry = _capacity;
             race:
-            var origTail = _b_tail;
-            var origHead = _b_head;
-            
-            if ((idx = _b_head.ZeroNext(cap = origHead >= origTail? origTail + _capacity: origTail)) != cap)
+
+            long origTail;
+            long origHead;
+            if ((idx = _b_head.ZeroNext(cap = (origHead = _b_head) >= (origTail = _b_tail)? origTail + _capacity: origHead + _capacity)) != cap)
             {
                 var slowCore = _blocking[idx %= ModCapacity];
+                Debug.Assert(!slowCore.Burned);
                 slowTaskCore = !slowCore.Primed ? new ValueTask<T>(slowCore, (short)idx) : new ValueTask<T>(slowCore.GetResult((short)idx));
                 return true;
             }
@@ -220,9 +224,9 @@ namespace zero.core.patterns.semaphore.core
             
             return false;
         }
-        #endregion
+#endregion
 
-        #region API
+#region API
         public T GetResult(short token) => throw new NotImplementedException(nameof(GetResult));
 
         public ValueTaskSourceStatus GetStatus(short token) => throw new NotImplementedException(nameof(GetStatus));
@@ -278,6 +282,6 @@ namespace zero.core.patterns.semaphore.core
         {
             throw new NotImplementedException();
         }
-        #endregion
+#endregion
     }
 }

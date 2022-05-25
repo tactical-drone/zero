@@ -24,7 +24,7 @@
 		<PackageReference Include="JetBrains.DotMemoryUnit" Version="3.2.20220510" />
 		<PackageReference Include="JUnitTestLogger" Version="1.1.0" />
 		<PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.2.0" />
-		<PackageReference Include="System.Diagnostics.PerformanceCounter" Version="7.0.0-preview.5.22274.7" />
+		<PackageReference Include="System.Diagnostics.PerformanceCounter" Version="7.0.0-preview.5.22275.3" />
 		<PackageReference Include="coverlet.collector" Version="3.1.2">
 			<IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
 			<PrivateAssets>all</PrivateAssets>

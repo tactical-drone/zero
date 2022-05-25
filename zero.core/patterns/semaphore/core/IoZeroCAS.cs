@@ -1,4 +1,5 @@
-﻿using System.Runtime.CompilerServices;
+﻿using System.Diagnostics;
+using System.Runtime.CompilerServices;
 using System.Threading;
 using NLog;
 
@@ -36,6 +37,7 @@ namespace zero.core.patterns.semaphore.core
                     return cap;
             }
 
+            Debug.Assert(latch < cap);
             return latch;
         }
 

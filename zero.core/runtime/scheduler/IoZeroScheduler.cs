@@ -201,8 +201,8 @@ namespace zero.core.runtime.scheduler
         private int _forkLoad;
         public int ForkLoad => _forkLoad;
 
-        public double QTime => (double)_taskQTime / _completedWorkItemCount;
-        public double AsyncTime => (double)_asyncQTime / _completedAsyncCount;
+        public double QTime => (double)_taskQTime / _completedQItemCount;
+        public double AQTime => (double)_asyncQTime / _completedAsyncCount;
 
         private volatile int _workerCount;
         private volatile int _asyncCount;
@@ -215,7 +215,7 @@ namespace zero.core.runtime.scheduler
         private long _asyncQTime;
         private long _taskQTime;
         private long _completedForkCount;
-        private long _callbackCount;
+        //private long _callbackCount;
         private readonly TaskScheduler _fallbackScheduler;
 
         public int WLength => _taskQueue?.Count ?? 0;
@@ -270,15 +270,20 @@ namespace zero.core.runtime.scheduler
                     {
                         Interlocked.Increment(ref _workerLoad);
                         if (!TryExecuteTask(job))
-                            LogManager.GetCurrentClassLogger().Fatal($"{nameof(LoadTask)}: Unable to execute task, id = {job.Id}, state = {job.Status}, async-state = {job.AsyncState}, success = {job.IsCompletedSuccessfully}");
+                            LogManager.GetCurrentClassLogger()
+                                .Fatal(
+                                    $"{nameof(LoadTask)}: Unable to execute task, id = {job.Id}, state = {job.Status}, async-state = {job.AsyncState}, success = {job.IsCompletedSuccessfully}");
                         else
                             Interlocked.Increment(ref _completedWorkItemCount);
-                        Interlocked.Decrement(ref _workerLoad);
                     }
                 }
                 catch (Exception e)
                 {
                     LogManager.GetCurrentClassLogger().Trace(e);
+                }
+                finally
+                {
+                    Interlocked.Decrement(ref _workerLoad);
                 }
             }
         }
@@ -329,15 +334,15 @@ namespace zero.core.runtime.scheduler
 
         private async ValueTask AsyncValueContextTasks(int threadIndex)
         {
-            await foreach (var job in _asyncContextQueue.BalanceOnConsumeAsync(threadIndex).ConfigureAwait(false))
+            await foreach (var job in _asyncContextQueue.BalanceOnConsumeAsync(threadIndex))
             {
                 try
                 {
+                    Interlocked.Increment(ref _asyncLoad);
                     Debug.Assert(TaskScheduler.Current.Id == IoZeroScheduler.Zero.Id);
                     await job.ValueFunc(job.Context).FastPath();
                     Interlocked.Increment(ref _completedAsyncCount);
                     Interlocked.Add(ref _asyncQTime, job.Timestamp.ElapsedMs());
-
                 }
                 catch (Exception e)
                 {
@@ -345,6 +350,7 @@ namespace zero.core.runtime.scheduler
                 }
                 finally
                 {
+                    Interlocked.Decrement(ref _asyncLoad);
                     _asyncHeap.Return(job);
                 }
             }
@@ -449,6 +455,7 @@ namespace zero.core.runtime.scheduler
             long result = -1;
             try
             {
+                Interlocked.Increment(ref _forkLoad);
                 handler = _callbackHeap.Take();
                 if (handler == null) return false;
 
@@ -459,6 +466,7 @@ namespace zero.core.runtime.scheduler
             }
             finally
             {
+                Interlocked.Decrement(ref _forkLoad);
                 if (result <= 0 && handler != null)
                     _callbackHeap.Return(handler);
             }
@@ -468,7 +476,7 @@ namespace zero.core.runtime.scheduler
         public bool LoadAsyncContext(Func<object,ValueTask> valueTask, object context)
         {
             var c = _asyncHeap.Take();
-            if (c == null) throw new OutOfMemoryException(nameof(LoadAsyncCallback));
+            if (c == null) throw new OutOfMemoryException(nameof(LoadAsyncContext));
             c.ValueFunc = valueTask;
             c.Context = context;
             while (_asyncContextQueue.TryEnqueue(c) <= 0) { };
@@ -497,7 +505,10 @@ namespace zero.core.runtime.scheduler
         //public bool LoadExclusiveZone(Func<object,ValueTask> callback, object state = null) => _exclusiveQueue.TryEnqueue(callback) > 0;
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public bool Fork(Action callback, object state = null) => _forkQueue.TryEnqueue(callback) > 0;
-
+        public bool Fork(Action callback, object state = null)
+        {
+            while (_forkQueue.TryEnqueue(callback) <= 0){};
+            return true;
+        }
     }
 }

@@ -17,13 +17,12 @@ namespace zero.gauge.core.misc
             var _count = 100000;
             var threads = 100;
             
-
             var tasks = new List<Task>();
             for (var t = 0; t < threads; t++)
             {
                 tasks.Add(Task.Factory.StartNew(() =>
                 {
-                    for (int i = 0; i < _count; i++)
+                    for (var i = 0; i < _count; i++)
                     {
                         _reg.ZeroNext(_count);
                     }

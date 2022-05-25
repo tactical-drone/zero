@@ -28,13 +28,13 @@ namespace zero.core.patterns.semaphore.core
         private object? _continuationState;
 
         /// <summary><see cref="ExecutionContext"/> to flow to the callback, or null if no flowing is required.</summary>
-        private ExecutionContext _executionContext;
+        private volatile ExecutionContext _executionContext;
 
         /// <summary>
         /// A "captured" <see cref="SynchronizationContext"/> or <see cref="TaskScheduler"/> with which to invoke the callback,
         /// or null if no special context is required.
         /// </summary>
-        private object? _capturedContext;
+        private volatile object? _capturedContext;
 
         /// <summary>The exception with which the operation failed, or null if it hasn't yet completed or completed successfully.</summary>
         private ExceptionDispatchInfo? _error;
@@ -44,7 +44,7 @@ namespace zero.core.patterns.semaphore.core
         [AllowNull, MaybeNull] private TResult _result;
 
         /// <summary>Whether the current operation has completed.</summary>
-        private bool _completed;
+        private volatile bool _completed;
         private volatile bool _runContinuationsAsync;
         private bool _runContinuationsAsyncAlways;
         private bool _autoReset;
@@ -55,7 +55,7 @@ namespace zero.core.patterns.semaphore.core
         /// <summary>
         /// Whether this core has been burned?
         /// </summary>
-        private int _burned;
+        private volatile int _burned;
 
         //public object? _burnContext;
 
@@ -77,11 +77,10 @@ namespace zero.core.patterns.semaphore.core
         /// </summary>
         public bool RunContinuationsUnsafe { get; set; }
 
-
         /// <summary>
         /// AutoReset
         /// </summary>
-        public bool AutoReset { get => _autoReset; set => Volatile.Write(ref _autoReset,value); }
+        public bool AutoReset { get => _autoReset; set => _autoReset = value; }
         //public bool AutoReset { get; set; }
 
         /// <summary>
@@ -210,7 +209,6 @@ namespace zero.core.patterns.semaphore.core
         {
             if (Interlocked.CompareExchange(ref _burned, 1, 0) != 0)
                 throw new InvalidOperationException($"[{Thread.CurrentThread.ManagedThreadId}] {nameof(GetResult)}: core already burned");
-
 #if DEBUG
             ValidateToken(token);   
 #endif

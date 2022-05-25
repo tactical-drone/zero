@@ -213,11 +213,11 @@ namespace zero.core.patterns.misc
         /// <summary>
         /// ZeroAsync
         /// </summary>
-        public async ValueTask DisposeAsync(IIoNanite @from, string reason, [CallerFilePath] string filePath = null, [CallerMemberName] string methodName = null, [CallerLineNumber] int lineNumber = default)
+        public ValueTask DisposeAsync(IIoNanite @from, string reason, [CallerFilePath] string filePath = null, [CallerMemberName] string methodName = null, [CallerLineNumber] int lineNumber = default)
         {
             // Only once
             if (_zeroed > 0 || Interlocked.CompareExchange(ref _zeroed, 1, 0) != 0)
-                return;
+                return default;
 
             ZeroedFrom = from;
 #if RELEASE
@@ -246,6 +246,8 @@ namespace zero.core.patterns.misc
             {
                 Console.WriteLine("z");
             }
+
+            return default;
         }
 
         //private void ZeroPrimed(object _) => ZeroPrimeAsync();
@@ -264,8 +266,8 @@ namespace zero.core.patterns.misc
             foreach (var ioZNode in _zeroHiveMind)
             {
                 if (!ioZNode.Value.Zeroed())
-                    ioZNode.Value.ZeroPrime();
-                //IoZeroScheduler.Zero.Fork(ioZNode.Value.ZeroPrime);
+                    IoZeroScheduler.Zero.Fork(ioZNode.Value.ZeroPrime);
+                    //ioZNode.Value.ZeroPrime();
             }
         }
 
