@@ -63,11 +63,11 @@ namespace zero.sync
         static void Main(string[] args)
         {
             Console.WriteLine($"zero ({Environment.OSVersion}: {Environment.MachineName} - dotnet v{Environment.Version}, CPUs = {Environment.ProcessorCount})");
-            //Task.Factory.StartNew(async () =>
-            //{
-            //    await SemTestAsync();
-            //    //await QueueTestAsync();
-            //}, CancellationToken.None, TaskCreationOptions.DenyChildAttach, IoZeroScheduler.ZeroDefault).Unwrap().GetAwaiter().GetResult();
+            Task.Factory.StartNew(async () =>
+            {
+                await SemTestAsync();
+                //await QueueTestAsync();
+            }, CancellationToken.None, TaskCreationOptions.DenyChildAttach, IoZeroScheduler.ZeroDefault).Unwrap().GetAwaiter().GetResult();
 
             //Tune dotnet for large tests
             ThreadPool.GetMinThreads(out var wt, out var cp);

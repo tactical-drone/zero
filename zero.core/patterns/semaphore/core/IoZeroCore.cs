@@ -175,7 +175,7 @@ namespace zero.core.patterns.semaphore.core
             var origTail = _b_tail;
             var origHead = _b_head;
             
-            var idx = _b_tail.ZeroNext(cap = origTail > origHead || origTail == origHead && ReadyCount < _capacity? origHead + _capacity: origHead);
+            var idx = _b_tail.ZeroNext(cap = origTail >= origHead? origHead + _capacity: origHead);
             if (idx != cap)
             {
                 var slowCore = _blocking[idx % ModCapacity];
@@ -209,7 +209,7 @@ namespace zero.core.patterns.semaphore.core
             var origTail = _b_tail;
             var origHead = _b_head;
             
-            if ((idx = _b_head.ZeroNext(cap = origHead > origTail || origHead == origTail && WaitCount < _capacity ? origTail + _capacity: origTail)) != cap)
+            if ((idx = _b_head.ZeroNext(cap = origHead >= origTail? origTail + _capacity: origTail)) != cap)
             {
                 var slowCore = _blocking[idx %= ModCapacity];
                 slowTaskCore = !slowCore.Primed ? new ValueTask<T>(slowCore, (short)idx) : new ValueTask<T>(slowCore.GetResult((short)idx));
