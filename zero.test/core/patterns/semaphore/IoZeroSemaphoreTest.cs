@@ -380,7 +380,7 @@ namespace zero.test.core.patterns.semaphore
         async Task TestIoZeroSemaphoreSlimAsync()
         {
             var count = 50;
-            var minDelay = 16 * 2;
+            var minDelay = 16 * 3;
             var v = new IoZeroSemaphoreSlim(new CancellationTokenSource(), string.Empty, 1, 0);
             //v.Release(true);
             var t = Task.Factory.StartNew(async () =>

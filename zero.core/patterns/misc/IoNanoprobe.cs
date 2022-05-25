@@ -228,8 +228,9 @@ namespace zero.core.patterns.misc
 
 
 #pragma warning disable CS4014
-            await ZeroAsync(static async @this =>
+            IoZeroScheduler.Zero.LoadAsyncContext(static async state =>
             {
+                var @this = (IoNanoprobe)state;
                 //prime garbage
 #if ZERO_DISABLE_SCH
                 await @this.ZeroPrimeAsync().FastPath();
@@ -238,7 +239,7 @@ namespace zero.core.patterns.misc
                     @this.ZeroPrime();
 #endif
                 await @this.ZeroAsync(true).FastPath();
-            }, this, default,TaskCreationOptions.DenyChildAttach, filePath:filePath, methodName:methodName, lineNumber:lineNumber);
+            }, this);
 #pragma warning restore CS4014
 
             if (Interlocked.Increment(ref _zCount) % 100000 == 0)

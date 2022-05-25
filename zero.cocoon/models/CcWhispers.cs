@@ -1,5 +1,6 @@
 using System;
 using System.Linq;
+using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Security.Cryptography;
 using System.Threading;
@@ -17,6 +18,7 @@ using zero.core.patterns.bushings;
 using zero.core.patterns.bushings.contracts;
 using zero.core.patterns.heap;
 using zero.core.patterns.misc;
+using zero.core.runtime.scheduler;
 using Zero.Models.Protobuf;
 
 namespace zero.cocoon.models
@@ -76,6 +78,7 @@ namespace zero.cocoon.models
         /// Zeroed?
         /// </summary>
         /// <returns>True of false</returns>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public override bool Zeroed()
         {
             return base.Zeroed() || Source.Zeroed();
@@ -479,10 +482,11 @@ namespace zero.cocoon.models
                     IoZero.IncEventCounter();
                     CcCollective.IncEventCounter();
 
-                    await ZeroAsync(static async state =>
+                    IoZeroScheduler.Zero.LoadAsyncContext(static async state =>
                     {
-                        var (@this, req) = state;
-                        
+                        var (@this, req) = (ValueTuple<CcWhispers,long>)state;
+
+
                         if(req <= Volatile.Read(ref @this.CcCollective.MaxReq))
                             return;
 
@@ -561,7 +565,7 @@ namespace zero.cocoon.models
                         {
                             @this._sendBuf.Return(socketBuf);
                         }
-                    }, (this, req), TaskCreationOptions.DenyChildAttach).FastPath();
+                    }, (this, req));
 
                 }
 
