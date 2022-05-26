@@ -168,7 +168,7 @@ namespace zero.test.core.patterns.semaphore
         async Task SpamTestAsync()
         {
             var batchLog = 10000000;
-            var threads = short.MaxValue>>1;
+            var threads = short.MaxValue/3;
             var spamFactor = 2000;
             //var batchLog = 1;
             //var threads = 10;

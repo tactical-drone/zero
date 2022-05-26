@@ -422,7 +422,7 @@ namespace zero.core.patterns.bushings
                             //Source.Pressure();
 
                             //Fetch more work
-                            Source.PrefetchPressure(zeroAsync:false);
+                            Source.PrefetchPressure(zeroAsync:true);
 
                             if (!IsArbitrating)
                                 IsArbitrating = true;

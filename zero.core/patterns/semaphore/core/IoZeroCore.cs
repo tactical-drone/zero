@@ -1,12 +1,17 @@
 ﻿//#define TRACE
 using System;
 using System.Buffers;
+using System.Collections.Concurrent;
 using System.Diagnostics;
+using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Threading.Tasks.Sources;
+using NLog;
+using zero.core.misc;
+using zero.core.patterns.queue;
 
 namespace zero.core.patterns.semaphore.core
 {
@@ -27,7 +32,7 @@ namespace zero.core.patterns.semaphore.core
         #region Memory management
         public IoZeroCore(string description, int capacity, int ready = 0, bool zeroAsyncMode = false, bool contextUnsafe = false)
         {
-            if(capacity > short.MaxValue >> 1)
+            if(capacity > short.MaxValue / 3)
                 throw new ArgumentOutOfRangeException(nameof(capacity));
 
             if(ready > capacity)
@@ -39,7 +44,7 @@ namespace zero.core.patterns.semaphore.core
             _zeroed = 0;
             _description = description;
             _capacity = capacity;
-            capacity *= 2;
+            capacity *= 3;
             ZeroAsyncMode = zeroAsyncMode;
 
             //_blocking = new IIoManualResetValueTaskSourceCore<T>[capacity];
@@ -140,7 +145,7 @@ namespace zero.core.patterns.semaphore.core
         #endregion
 
         #region Properties
-        private readonly int ModCapacity => _capacity<<1;
+        private readonly int ModCapacity => _capacity * 3;
         //private IIoZeroSemaphoreBase<T> _zeroRef;
         #endregion
 
@@ -175,10 +180,11 @@ namespace zero.core.patterns.semaphore.core
             }
             long cap;
 
-            long origHead;
-            long origTail;
-            var idx = _b_tail.ZeroNext(cap = (origTail = _b_tail) >= (origHead = _b_head)? origHead + _capacity: origTail + _capacity);
-            if (idx != cap)
+            long headLatch;
+            long tailLatch;
+            long idx;
+            
+            if ((idx = _b_tail.ZeroNext(cap = (headLatch = _b_head) <= (tailLatch = _b_tail) ? headLatch + _capacity : tailLatch + _capacity * 2)) < cap) //TODO:hack
             {
                 var slowCore = _blocking[idx % ModCapacity];
                 slowCore.RunContinuationsAsynchronously = forceAsync;
@@ -191,6 +197,7 @@ namespace zero.core.patterns.semaphore.core
             return false;
         }
 
+        private ConcurrentQueue<long> _backlog = new ConcurrentQueue<long>();
         /// <summary>
         /// Creates a new blocking core and releases the current thread to the pool
         /// </summary>
@@ -210,13 +217,38 @@ namespace zero.core.patterns.semaphore.core
             var retry = _capacity;
             race:
 
-            long origTail;
-            long origHead;
-            if ((idx = _b_head.ZeroNext(cap = (origHead = _b_head) >= (origTail = _b_tail)? origTail + _capacity: origHead + _capacity)) != cap)
+            long taiLatch;
+            long headLatch;
+            var ts = Environment.TickCount;
+            if ((idx = _b_head.ZeroNext(cap = (taiLatch = _b_tail) <= (headLatch = _b_head)? taiLatch + _capacity: headLatch + _capacity)) < cap)//TODO: hack
             {
                 var slowCore = _blocking[idx %= ModCapacity];
+#if DEBUG
+                //TODO: what is going on here? Old indexes pop up here with low probability 
+                if (slowCore.Burned)
+                {
+                    lock (_blocking)
+                    {
+                        //var r = ((IoManualResetValueTaskSourceCore<T>)slowCore).Result;
+                        //int.TryParse(r.ToString(), out var I);
+                        LogManager.GetCurrentClassLogger().Fatal($" idx = {idx}, t = {ts.ElapsedMs()} ms, {((IoManualResetValueTaskSourceCore<T>)slowCore).Completed.ElapsedMs()} ms < ------------------- {Description}");
+                        IoZeroCore<T> tmpThis = this;
+                        tmpThis._backlog.Take(tmpThis.ModCapacity).ToList().ForEach(i => LogManager.GetCurrentClassLogger().Fatal($"-> {i} {((IoManualResetValueTaskSourceCore<T>)tmpThis._blocking[i]).Completed.ElapsedMs()} ms"));
+                        _backlog.Reverse().Take(ModCapacity).ToList().ForEach(i => LogManager.GetCurrentClassLogger().Fatal($"<- {i} {((IoManualResetValueTaskSourceCore<T>)tmpThis._blocking[i]).Completed.ElapsedMs()} ms"));
+                    }
+
+                    goto race;
+                }
                 Debug.Assert(!slowCore.Burned);
-                slowTaskCore = !slowCore.Primed ? new ValueTask<T>(slowCore, (short)idx) : new ValueTask<T>(slowCore.GetResult((short)idx));
+#else
+                if (slowCore.Burned)//TODO: hack!
+                    goto race;
+#endif
+                    slowTaskCore = !slowCore.Primed ? new ValueTask<T>(slowCore, (short)idx) : new ValueTask<T>(slowCore.GetResult((short)idx));
+
+                _backlog.Enqueue(idx);
+                if (_backlog.Count > ModCapacity * 2)
+                    _backlog.TryDequeue(out var _);
                 return true;
             }
             if(retry-->0)

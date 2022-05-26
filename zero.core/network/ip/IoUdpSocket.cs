@@ -393,9 +393,6 @@ namespace zero.core.network.ip
             SocketAsyncEventArgs args = default;
             try
             {
-                if (!IsConnected())
-                    return 0;
-
                 //if (!await _sendSync.WaitAsync().FastPath())
                 //    return 0;
 
@@ -485,9 +482,6 @@ namespace zero.core.network.ip
         {
             try
             {
-                if (!IsConnected())
-                    return 0;
-
                 //concurrency
                 //if (!await _rcvSync.WaitAsync().FastPath())
                 //    return 0;
@@ -513,7 +507,8 @@ namespace zero.core.network.ip
                                 return 0;
                             }
                         }
-                        catch (Exception e)
+                        catch when(Zeroed()){}
+                        catch (Exception e) when (!Zeroed())
                         {
                             _logger.Trace(e, Description);
                             try

@@ -7,6 +7,7 @@ using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Threading.Tasks.Sources;
+using zero.core.misc;
 using zero.core.runtime.scheduler;
 
 namespace zero.core.patterns.semaphore.core
@@ -45,6 +46,7 @@ namespace zero.core.patterns.semaphore.core
 
         /// <summary>Whether the current operation has completed.</summary>
         private volatile bool _completed;
+        private volatile int _completeTime;
         private volatile bool _runContinuationsAsync;
         private bool _runContinuationsAsyncAlways;
         private bool _autoReset;
@@ -106,6 +108,7 @@ namespace zero.core.patterns.semaphore.core
 
 #if DEBUG
         public TResult Result => _result;
+        public int Completed => _completeTime;
 #endif
 
         /// <summary>Resets to prepare for the next operation.</summary>
@@ -119,8 +122,10 @@ namespace zero.core.patterns.semaphore.core
             _capturedContext = null;
             _continuationState = null;
             _continuation = null;
+            _completeTime = 0;
             _completed = false;
-            Interlocked.MemoryBarrier();
+            //Interlocked.MemoryBarrier();
+            Interlocked.MemoryBarrierProcessWide();
             _burned = 0;
         }
         
@@ -165,6 +170,7 @@ namespace zero.core.patterns.semaphore.core
                 throw new InvalidOperationException($"[{Thread.CurrentThread.ManagedThreadId}]: set => v = [{_version}], primed = {Primed}, blocking = {Blocking}, burned = {Burned}, completed = {_completed}, {GetStatus((short)Version)}");
 
             _result = result;
+            _completeTime = Environment.TickCount;
             //SignalCompletion(async, context);
             SignalCompletion();
         }
@@ -208,18 +214,18 @@ namespace zero.core.patterns.semaphore.core
         public TResult GetResult(short token)
         {
             if (Interlocked.CompareExchange(ref _burned, 1, 0) != 0)
-                throw new InvalidOperationException($"[{Thread.CurrentThread.ManagedThreadId}] {nameof(GetResult)}: core already burned");
+                throw new InvalidOperationException($"[{Thread.CurrentThread.ManagedThreadId}] {nameof(GetResult)}: core already burned {_completeTime.ElapsedMs()} ms");
 #if DEBUG
             ValidateToken(token);   
 #endif
             if (!_completed)
-                throw new InvalidOperationException($"[{Thread.CurrentThread.ManagedThreadId}] {nameof(GetResult)}: core already completed");
+                throw new InvalidOperationException($"[{Thread.CurrentThread.ManagedThreadId}] {nameof(GetResult)}: core already completed {_completeTime.ElapsedMs()} ms");
             
             _error?.Throw();
 
             var r = _result;
 
-            if (_autoReset)
+            //if (_autoReset)
                 Reset();
 
             return r;

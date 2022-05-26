@@ -73,7 +73,7 @@ namespace zero.test.core.patterns.semaphore
             await Task.Factory.StartNew(async state =>
             {
                 var threads = 4;
-                var preloadCount = short.MaxValue>>1;
+                var preloadCount = short.MaxValue/3;
                 var m = new IoZeroSemaphoreSlim(new CancellationTokenSource(), "test mutex", maxBlockers: preloadCount, initialCount: preloadCount, zeroAsyncMode:false);
 
                 var c = 0;

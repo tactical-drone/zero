@@ -291,7 +291,7 @@ namespace zero.core.patterns.queue
                     }
 
                     if (_pressure != null && success)
-                        _pressure.Release(true, false);
+                        _pressure.Release(true, true);
                     else
                         _backPressure?.Release(true);
                 }
