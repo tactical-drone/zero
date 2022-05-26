@@ -197,7 +197,9 @@ namespace zero.core.patterns.semaphore.core
             return false;
         }
 
+#if DEBUG
         private ConcurrentQueue<long> _backlog = new ConcurrentQueue<long>();
+#endif
         /// <summary>
         /// Creates a new blocking core and releases the current thread to the pool
         /// </summary>
@@ -219,7 +221,11 @@ namespace zero.core.patterns.semaphore.core
 
             long taiLatch;
             long headLatch;
-            var ts = Environment.TickCount;
+
+#if DEBUG
+            var ts = Environment.TickCount;   
+#endif
+
             if ((idx = _b_head.ZeroNext(cap = (taiLatch = _b_tail) <= (headLatch = _b_head)? taiLatch + _capacity: headLatch + _capacity)) < cap)//TODO: hack
             {
                 var slowCore = _blocking[idx %= ModCapacity];
@@ -229,8 +235,6 @@ namespace zero.core.patterns.semaphore.core
                 {
                     lock (_blocking)
                     {
-                        //var r = ((IoManualResetValueTaskSourceCore<T>)slowCore).Result;
-                        //int.TryParse(r.ToString(), out var I);
                         LogManager.GetCurrentClassLogger().Fatal($" idx = {idx}, t = {ts.ElapsedMs()} ms, {((IoManualResetValueTaskSourceCore<T>)slowCore).Completed.ElapsedMs()} ms < ------------------- {Description}");
                         IoZeroCore<T> tmpThis = this;
                         tmpThis._backlog.Take(tmpThis.ModCapacity).ToList().ForEach(i => LogManager.GetCurrentClassLogger().Fatal($"-> {i} {((IoManualResetValueTaskSourceCore<T>)tmpThis._blocking[i]).Completed.ElapsedMs()} ms"));
@@ -246,9 +250,11 @@ namespace zero.core.patterns.semaphore.core
 #endif
                     slowTaskCore = !slowCore.Primed ? new ValueTask<T>(slowCore, (short)idx) : new ValueTask<T>(slowCore.GetResult((short)idx));
 
+#if DEBUG
                 _backlog.Enqueue(idx);
                 if (_backlog.Count > ModCapacity * 2)
                     _backlog.TryDequeue(out var _);
+#endif
                 return true;
             }
             if(retry-->0)

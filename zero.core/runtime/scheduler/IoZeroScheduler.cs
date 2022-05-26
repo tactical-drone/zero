@@ -37,7 +37,7 @@ namespace zero.core.runtime.scheduler
             _fallbackScheduler = fallback;
             _asyncTasks = asyncTasks ?? new CancellationTokenSource();
             _workerCount = Math.Max(Environment.ProcessorCount * 4, 32);
-            _asyncCount = _workerCount;
+            _asyncCount = _workerCount * 2;
             _syncCount = _forkCount = _asyncCount;
             var capacity = MaxWorker + 1;
 
@@ -170,7 +170,7 @@ namespace zero.core.runtime.scheduler
         }
 
         //The rate at which the scheduler will be allowed to "burst" allowing per tick unchecked new threads to be spawned until one of them spawns
-        private static readonly int WorkerSpawnBurstTimeMs = 100;
+        private static readonly int WorkerSpawnBurstTimeMs = 16;
         private static readonly int MaxWorker = short.MaxValue / 3;
         public static readonly TaskScheduler ZeroDefault;
         public static readonly IoZeroScheduler Zero;
@@ -371,9 +371,8 @@ namespace zero.core.runtime.scheduler
 #if _TRACE_
             Console.WriteLine($"<--- Queueing task id = {task.Id}, {task.Status}");
 #endif
-            if (LoadFactor > 0.98 && _lastWorkerSpawnedTime.ElapsedMs() > WorkerSpawnBurstTimeMs && _workerCount < short.MaxValue)
+            if (LoadFactor > 0.98 && _lastWorkerSpawnedTime.ElapsedMs() > WorkerSpawnBurstTimeMs && _workerCount < short.MaxValue / 3)
             {
-                _lastWorkerSpawnedTime = Environment.TickCount;
                 _ = Task.Factory.StartNew(static async state =>
                 {
                     var (@this, i) = (ValueTuple<IoZeroScheduler, int>)state;
@@ -385,6 +384,8 @@ namespace zero.core.runtime.scheduler
                     var (@this, i) = (ValueTuple<IoZeroScheduler, int>)(state);
                     await @this.AsyncValueContextTasks(i).FastPath();
                 }, (this, Interlocked.Increment(ref _asyncCount)), CancellationToken.None, TaskCreationOptions.LongRunning, this);
+
+                _lastWorkerSpawnedTime = Environment.TickCount;
             }
             //queue the work for processing
             var ts = Environment.TickCount;
