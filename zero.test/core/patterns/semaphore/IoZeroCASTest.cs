@@ -13,7 +13,7 @@ namespace zero.test.core.patterns.semaphore
     public class IoZeroCASTest
     {
         private long _reg;
-        private int _count = 1000000;
+        private int _count = 1000;
         private readonly ITestOutputHelper _output;
 
         public IoZeroCASTest(ITestOutputHelper output)
@@ -21,6 +21,9 @@ namespace zero.test.core.patterns.semaphore
             _output = output;
         }
 
+        List<long> _selection = new List<long>(short.MaxValue);
+        private int _accepted;
+        private int _rejected;
         [Fact]
         async Task NextAsync()
         {
@@ -34,7 +37,19 @@ namespace zero.test.core.patterns.semaphore
                     for (int i = 0; i < _count; i++)
                     {
                         var l = _reg;
-                        //Assert.InRange(_reg.ZeroNext(_count), l, _count);
+                        var r = _reg.ZeroNext(_count);
+                        if (r < _count)
+                        {
+                            Interlocked.Increment(ref _accepted);
+                            _selection.Add(r);
+                        }
+                        else
+                            Interlocked.Decrement(ref _rejected);
+
+                        Assert.InRange(r, l, _count);
+
+                        if(r == _count)
+                            return;
                     }
                 }, CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Default));
             }
@@ -42,6 +57,16 @@ namespace zero.test.core.patterns.semaphore
             await Task.WhenAll(tasks).WaitAsync(TimeSpan.FromSeconds(15));
 
             Assert.Equal(_count, _reg);
+            var sorted = _selection.OrderBy(i => i);
+            long prev = -1;
+
+            foreach (var next in sorted)
+            {
+                _output.WriteLine($"next = {next}");
+                Assert.True(next > prev);
+                Assert.True(next == prev + 1);
+                prev = next;
+            }
         }
 
         [Fact]
@@ -72,8 +97,7 @@ namespace zero.test.core.patterns.semaphore
         {
             var cap = 10L;
             var idx1 = 9L;
-            var idx2 = 9L;
-            long prev;
+            //long prev;
             _output.WriteLine($"idx = {idx1}, cap = {cap}");
             //if ((prev = idx1.ZeroNext(cap)) != cap)
             //{

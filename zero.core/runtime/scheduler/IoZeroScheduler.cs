@@ -22,8 +22,8 @@ namespace zero.core.runtime.scheduler
         static IoZeroScheduler()
         {
             Zero = new IoZeroScheduler(Default);
-            Zero.InitQueues();
             ZeroDefault = Zero;
+            Zero.InitQueues();
             //ZeroDefault = Default; //TODO: Uncomment to enable native .net scheduler...
         }
 
@@ -42,12 +42,12 @@ namespace zero.core.runtime.scheduler
             var capacity = MaxWorker + 1;
 
             //TODO: tuning
-            _taskQueue = new IoZeroQ<Task>(string.Empty, 8192, true, _asyncTasks, MaxWorker - 1, zeroAsyncMode: true);
-            _asyncCallbackQueue = new IoZeroQ<ZeroContinuation>(string.Empty, 8192, true, _asyncTasks, concurrencyLevel: MaxWorker - 1, zeroAsyncMode: true);
-            _asyncQueue = new IoZeroQ<ZeroValueContinuation>(string.Empty, 8192, true, _asyncTasks, concurrencyLevel: MaxWorker - 1, zeroAsyncMode: true);
-            _asyncForkQueue = new IoZeroQ<Func<ValueTask>>(string.Empty, 8192, true, _asyncTasks, concurrencyLevel: MaxWorker - 1, zeroAsyncMode: true);
-            _asyncContextQueue = new IoZeroQ<ZeroValueContinuation>(string.Empty, 8192, true, _asyncTasks, concurrencyLevel: MaxWorker - 1, zeroAsyncMode: true);
-            _forkQueue = new IoZeroQ<Action>(string.Empty, 8192, true, _asyncTasks, concurrencyLevel: MaxWorker - 1, zeroAsyncMode: true);
+            _taskQueue = new IoZeroQ<Task>(string.Empty, short.MaxValue/3, false, _asyncTasks, MaxWorker - 1, zeroAsyncMode: true);
+            _asyncCallbackQueue = new IoZeroQ<ZeroContinuation>(string.Empty, short.MaxValue / 3, false, _asyncTasks, concurrencyLevel: MaxWorker - 1, zeroAsyncMode: true);
+            _asyncQueue = new IoZeroQ<ZeroValueContinuation>(string.Empty, short.MaxValue / 3, false, _asyncTasks, concurrencyLevel: MaxWorker - 1, zeroAsyncMode: true);
+            _asyncForkQueue = new IoZeroQ<Func<ValueTask>>(string.Empty, short.MaxValue / 3, false, _asyncTasks, concurrencyLevel: MaxWorker - 1, zeroAsyncMode: true);
+            _asyncContextQueue = new IoZeroQ<ZeroValueContinuation>(string.Empty, short.MaxValue / 3, false, _asyncTasks, concurrencyLevel: MaxWorker - 1, zeroAsyncMode: true);
+            _forkQueue = new IoZeroQ<Action>(string.Empty, short.MaxValue / 3, false, _asyncTasks, concurrencyLevel: MaxWorker - 1, zeroAsyncMode: true);
 
             _callbackHeap = new IoHeap<ZeroContinuation>(string.Empty, 16384 * 2, (_, _) => new ZeroContinuation(), true)
             {
@@ -85,8 +85,8 @@ namespace zero.core.runtime.scheduler
                 _ = Task.Factory.StartNew(static async state =>
                 {
                     var (@this, i) = (ValueTuple<IoZeroScheduler, int>)state;
-                    await @this.LoadTask(i).FastPath();
-                }, (this, i), CancellationToken.None, TaskCreationOptions.LongRunning, Default);
+                    await @this.LoadTask(i).FastPath().ConfigureAwait(false);
+                }, (this, i), CancellationToken.None, TaskCreationOptions.LongRunning | TaskCreationOptions.HideScheduler, Default);
             }
 
             //callbacks
@@ -96,7 +96,7 @@ namespace zero.core.runtime.scheduler
                 {
                     var (@this, i) = (ValueTuple<IoZeroScheduler, int>)(state);
                     await @this.AsyncCallbacks(i).FastPath();
-                }, (this, i), CancellationToken.None, TaskCreationOptions.LongRunning, Default);
+                }, (this, i), CancellationToken.None, TaskCreationOptions.LongRunning, ZeroDefault);
             }
 
             //callbacks
@@ -106,7 +106,7 @@ namespace zero.core.runtime.scheduler
                 {
                     var (@this, i) = (ValueTuple<IoZeroScheduler, int>)(state);
                     await @this.AsyncValueTasks(i).FastPath();
-                }, (this, i), CancellationToken.None, TaskCreationOptions.LongRunning, this);
+                }, (this, i), CancellationToken.None, TaskCreationOptions.LongRunning, ZeroDefault);
             }
 
             //callbacks
@@ -116,7 +116,7 @@ namespace zero.core.runtime.scheduler
                 {
                     var (@this, i) = (ValueTuple<IoZeroScheduler, int>)(state);
                     await @this.AsyncValueContextTasks(i).FastPath();
-                }, (this, i), CancellationToken.None, TaskCreationOptions.LongRunning, this);
+                }, (this, i), CancellationToken.None, TaskCreationOptions.LongRunning, ZeroDefault);
             }
 
             //async callbacks
@@ -126,7 +126,7 @@ namespace zero.core.runtime.scheduler
                 {
                     var (@this, i) = (ValueTuple<IoZeroScheduler, int>)state;
                     await @this.ForkAsyncCallbacks(i).FastPath();
-                }, (this, i), CancellationToken.None, TaskCreationOptions.LongRunning, this);
+                }, (this, i), CancellationToken.None, TaskCreationOptions.LongRunning, ZeroDefault);
             }
 
             //forks
@@ -136,14 +136,8 @@ namespace zero.core.runtime.scheduler
                 {
                     var (@this, i) = (ValueTuple<IoZeroScheduler, int>)state;
                     await @this.ForkCallbacks(i).FastPath();
-                }, (this, i), CancellationToken.None, TaskCreationOptions.LongRunning, Default);
+                }, (this, i), CancellationToken.None, TaskCreationOptions.LongRunning, ZeroDefault);
             }
-        }
-
-        internal class ZeroSignal
-        {
-            public volatile Task Task;
-            public volatile int Processed = -1;
         }
 
         internal class ZeroContinuation
@@ -255,19 +249,17 @@ namespace zero.core.runtime.scheduler
 
         private async ValueTask LoadTask(int threadIndex)
         {
-            await foreach (var job in _taskQueue.BalanceOnConsumeAsync(threadIndex))
+            await foreach (var job in _taskQueue.PumpOnConsumeAsync(threadIndex).ConfigureAwait(false))
             {
                 try
                 {
-                    if (job.Status == TaskStatus.WaitingToRun)
+                    if (job.Status <= TaskStatus.WaitingToRun)
                     {
                         Interlocked.Increment(ref _workerLoad);
                         try
                         {
-                            if (!TryExecuteTask(job))
-                                LogManager.GetCurrentClassLogger()
-                                    .Fatal(
-                                        $"{nameof(LoadTask)}: Unable to execute task, id = {job.Id}, state = {job.Status}, async-state = {job.AsyncState}, success = {job.IsCompletedSuccessfully}");
+                            if (!TryExecuteTask(job)) //&& job.Status <= TaskStatus.Running)
+                                LogManager.GetCurrentClassLogger().Fatal($"{nameof(LoadTask)}: Unable to execute task, id = {job.Id}, state = {job.Status}, async-state = {job.AsyncState}, success = {job.IsCompletedSuccessfully}");
                             else
                                 Interlocked.Increment(ref _completedWorkItemCount);
                         }
@@ -371,7 +363,8 @@ namespace zero.core.runtime.scheduler
 #if _TRACE_
             Console.WriteLine($"<--- Queueing task id = {task.Id}, {task.Status}");
 #endif
-            if (LoadFactor > 0.98 && _lastWorkerSpawnedTime.ElapsedMs() > WorkerSpawnBurstTimeMs && _workerCount < short.MaxValue / 3)
+            
+            if (LoadFactor > 0.9 && _lastWorkerSpawnedTime.ElapsedMs() > WorkerSpawnBurstTimeMs && _workerCount < short.MaxValue / 3)
             {
                 _ = Task.Factory.StartNew(static async state =>
                 {
@@ -391,6 +384,7 @@ namespace zero.core.runtime.scheduler
             var ts = Environment.TickCount;
             if (_taskQueue.TryEnqueue(task) <= 0)
             {
+                //TODO: What is this bug on getting a task.id = 1? How does it get here? Debugging it heisenbugs... 
                 if (_taskQueue.TryEnqueue(task) <= 0 && !TryExecuteTaskInline(task, false))
                     throw new InternalBufferOverflowException($"{nameof(_taskQueue)}: count = {_taskQueue.Count}, capacity {_taskQueue.Capacity}");
             }

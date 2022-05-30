@@ -135,13 +135,13 @@ namespace zero.core.patterns.semaphore.core
 
         #region Aligned
         private long _b_head;
+        private long _b_tail;
         private readonly IIoManualResetValueTaskSourceCore<T>[] _blocking;
         private Func<object, T> _primeReady;
         private object _primeContext;
         private readonly string _description;
         private readonly int _capacity;
         private volatile int _zeroed;
-        private long _b_tail;
         #endregion
 
         #region Properties
@@ -173,7 +173,7 @@ namespace zero.core.patterns.semaphore.core
 #endif
         private bool ZeroSetResult(T value, out int released, bool forceAsync = false)
         {
-            if (ReadyCount >= _capacity)
+            if (ReadyCount > _capacity)
             {
                 released = 0;
                 return false;
@@ -184,7 +184,7 @@ namespace zero.core.patterns.semaphore.core
             long tailLatch;
             long idx;
             
-            if ((idx = _b_tail.ZeroNext(cap = (headLatch = _b_head) <= (tailLatch = _b_tail) ? headLatch + _capacity : tailLatch + _capacity * 2)) < cap) //TODO:hack
+            if ((idx = _b_tail.ZeroNext(cap = (headLatch = _b_head) <= (tailLatch = _b_tail) ? headLatch + _capacity : tailLatch + 1)) < cap) //TODO:hack
             {
                 var slowCore = _blocking[idx % ModCapacity];
                 slowCore.RunContinuationsAsynchronously = forceAsync;
@@ -207,10 +207,12 @@ namespace zero.core.patterns.semaphore.core
         /// <returns>True if there was a core created, false if all <see cref="_capacity"/> cores are still blocked</returns>
 #if RELEASE
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
+#else
+        [MethodImpl(MethodImplOptions.NoInlining)]
 #endif
         private bool ZeroBlock(out ValueTask<T> slowTaskCore)
         {
-            Debug.Assert(WaitCount <= _capacity);
+            Debug.Assert(Zeroed() || WaitCount < _capacity);
 
             long idx;
             long cap;
@@ -221,7 +223,6 @@ namespace zero.core.patterns.semaphore.core
 
             long taiLatch;
             long headLatch;
-
 #if DEBUG
             var ts = Environment.TickCount;   
 #endif
@@ -237,18 +238,19 @@ namespace zero.core.patterns.semaphore.core
                     {
                         LogManager.GetCurrentClassLogger().Fatal($" idx = {idx}, t = {ts.ElapsedMs()} ms, {((IoManualResetValueTaskSourceCore<T>)slowCore).Completed.ElapsedMs()} ms < ------------------- {Description}");
                         IoZeroCore<T> tmpThis = this;
-                        tmpThis._backlog.Take(tmpThis.ModCapacity).ToList().ForEach(i => LogManager.GetCurrentClassLogger().Fatal($"-> {i} {((IoManualResetValueTaskSourceCore<T>)tmpThis._blocking[i]).Completed.ElapsedMs()} ms"));
-                        _backlog.Reverse().Take(ModCapacity).ToList().ForEach(i => LogManager.GetCurrentClassLogger().Fatal($"<- {i} {((IoManualResetValueTaskSourceCore<T>)tmpThis._blocking[i]).Completed.ElapsedMs()} ms"));
+                        tmpThis._backlog.Take(10).ToList().ForEach(i => LogManager.GetCurrentClassLogger().Fatal($"-> {i} {((IoManualResetValueTaskSourceCore<T>)tmpThis._blocking[i]).Completed.ElapsedMs()} ms"));
+                        _backlog.Reverse().Take(10).ToList().ForEach(i => LogManager.GetCurrentClassLogger().Fatal($"<- {i} {((IoManualResetValueTaskSourceCore<T>)tmpThis._blocking[i]).Completed.ElapsedMs()} ms"));
                     }
 
-                    goto race;
+                    if (retry-- > 0)
+                        goto race;
                 }
                 Debug.Assert(!slowCore.Burned);
 #else
                 if (slowCore.Burned)//TODO: hack!
                     goto race;
 #endif
-                    slowTaskCore = !slowCore.Primed ? new ValueTask<T>(slowCore, (short)idx) : new ValueTask<T>(slowCore.GetResult((short)idx));
+                slowTaskCore = new ValueTask<T>(slowCore, (short)idx);
 
 #if DEBUG
                 _backlog.Enqueue(idx);

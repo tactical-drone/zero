@@ -1,4 +1,5 @@
 ﻿using System.Runtime.CompilerServices;
+using System.Threading;
 
 namespace zero.@unsafe.core.math
 {
@@ -8,6 +9,7 @@ namespace zero.@unsafe.core.math
 
         public static unsafe int ByPtr754_64(ulong bits)
         {
+            
             var fp = (double)bits;
             return ((int)(*(ulong*)&fp >> (Fp64Prec - 1)) & 2047) - 1023;
         }
@@ -31,4 +33,6 @@ namespace zero.@unsafe.core.math
             return (r = TableMix[bits >> Fp64Prec]) > 0 ? r : ByPtr754_64(bits);
         }
     }
+
+
 }

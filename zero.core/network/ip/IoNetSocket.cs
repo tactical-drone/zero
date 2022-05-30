@@ -59,7 +59,7 @@ namespace zero.core.network.ip
                 return;
             }
 
-            NativeSocket.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.DontLinger, true);
+            //NativeSocket.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.DontLinger, true);
 
             NativeSocket.DontFragment = true;
 

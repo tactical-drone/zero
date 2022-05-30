@@ -291,7 +291,7 @@ namespace zero.core.patterns.queue
                     }
 
                     if (_pressure != null && success)
-                        _pressure.Release(true, true);
+                        _pressure.Release(true, false);
                     else
                         _backPressure?.Release(true);
                 }
@@ -437,7 +437,7 @@ namespace zero.core.patterns.queue
                     Interlocked.Decrement(ref _insaneExclusive);
 #endif
                     Debug.Assert(_syncRoot.ReadyCount == 0);
-                    _syncRoot.Release(true, false);
+                    _syncRoot.Release(true, true);
                 }
             }
             

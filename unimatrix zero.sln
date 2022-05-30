@@ -22,7 +22,7 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "zero.core.feat", "zero.core
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "zero.gauge", "zero.gauge\zero.gauge.csproj", "{9C5A0E2C-1537-4E19-8BD2-2E9F87D221EB}"
 EndProject
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "zero.unsafe", "zero.unsafe\zero.unsafe.csproj", "{182128CC-3536-4120-B973-558DF16F1E1B}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "zero.unsafe", "zero.unsafe\zero.unsafe.csproj", "{6B982419-9BEA-4F6E-AF9C-81E9D543272A}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -67,12 +67,12 @@ Global
 		{9C5A0E2C-1537-4E19-8BD2-2E9F87D221EB}.Release|Any CPU.Build.0 = Release|Any CPU
 		{9C5A0E2C-1537-4E19-8BD2-2E9F87D221EB}.Trace|Any CPU.ActiveCfg = Debug|Any CPU
 		{9C5A0E2C-1537-4E19-8BD2-2E9F87D221EB}.Trace|Any CPU.Build.0 = Debug|Any CPU
-		{182128CC-3536-4120-B973-558DF16F1E1B}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{182128CC-3536-4120-B973-558DF16F1E1B}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{182128CC-3536-4120-B973-558DF16F1E1B}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{182128CC-3536-4120-B973-558DF16F1E1B}.Release|Any CPU.Build.0 = Release|Any CPU
-		{182128CC-3536-4120-B973-558DF16F1E1B}.Trace|Any CPU.ActiveCfg = Debug|Any CPU
-		{182128CC-3536-4120-B973-558DF16F1E1B}.Trace|Any CPU.Build.0 = Debug|Any CPU
+		{6B982419-9BEA-4F6E-AF9C-81E9D543272A}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{6B982419-9BEA-4F6E-AF9C-81E9D543272A}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{6B982419-9BEA-4F6E-AF9C-81E9D543272A}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{6B982419-9BEA-4F6E-AF9C-81E9D543272A}.Release|Any CPU.Build.0 = Release|Any CPU
+		{6B982419-9BEA-4F6E-AF9C-81E9D543272A}.Trace|Any CPU.ActiveCfg = Debug|Any CPU
+		{6B982419-9BEA-4F6E-AF9C-81E9D543272A}.Trace|Any CPU.Build.0 = Debug|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

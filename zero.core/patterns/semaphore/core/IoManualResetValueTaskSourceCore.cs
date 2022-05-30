@@ -7,6 +7,7 @@ using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Threading.Tasks.Sources;
+using NLog;
 using zero.core.misc;
 using zero.core.runtime.scheduler;
 
@@ -23,10 +24,10 @@ namespace zero.core.patterns.semaphore.core
         /// or null if a callback hasn't yet been provided and the operation hasn't yet completed.
         /// </summary>
 #pragma warning disable CS8632 // The annotation for nullable reference types should only be used in code within a '#nullable' annotations context.
-        private Action<object?>? _continuation;
+        private volatile Action<object?>? _continuation;
 
         /// <summary>State to pass to <see cref="_continuation"/>.</summary>
-        private object? _continuationState;
+        private volatile object? _continuationState;
 
         /// <summary><see cref="ExecutionContext"/> to flow to the callback, or null if no flowing is required.</summary>
         private volatile ExecutionContext _executionContext;
@@ -41,15 +42,13 @@ namespace zero.core.patterns.semaphore.core
         private ExceptionDispatchInfo? _error;
 #pragma warning restore CS8632 // The annotation for nullable reference types should only be used in code within a '#nullable' annotations context.
 
-        /// <summary>The result with which the operation succeeded, or the default value if it hasn't yet completed or failed.</summary>
-        [AllowNull, MaybeNull] private TResult _result;
-
         /// <summary>Whether the current operation has completed.</summary>
         private volatile bool _completed;
         private volatile int _completeTime;
+        private volatile int _burnTime;
         private volatile bool _runContinuationsAsync;
-        private bool _runContinuationsAsyncAlways;
-        private bool _autoReset;
+        private volatile bool _runContinuationsAsyncAlways;
+        private volatile bool _autoReset;
 
         /// <summary>The current version of this value, used to help prevent misuse.</summary>
         private int _version;
@@ -59,6 +58,9 @@ namespace zero.core.patterns.semaphore.core
         /// </summary>
         private volatile int _burned;
 
+        /// <summary>The result with which the operation succeeded, or the default value if it hasn't yet completed or failed.</summary>
+        [AllowNull, MaybeNull] private TResult _result;
+
         //public object? _burnContext;
 
         //public Action<bool, object>? _burnResult;
@@ -66,7 +68,7 @@ namespace zero.core.patterns.semaphore.core
         /// <summary>
         /// Substitute for <see cref="RunContinuationsAsynchronously"/> used internally
         /// </summary>
-        public bool RunContinuationsAsynchronouslyAlways { get => _runContinuationsAsyncAlways; set => Volatile.Write(ref _runContinuationsAsyncAlways,value); }
+        public bool RunContinuationsAsynchronouslyAlways { get => _runContinuationsAsyncAlways; set => _runContinuationsAsyncAlways = value; }
         //public bool RunContinuationsAsynchronouslyAlways { get; set; }
 
         /// <summary>Gets or sets whether to force continuations to run asynchronously.</summary>
@@ -121,11 +123,10 @@ namespace zero.core.patterns.semaphore.core
             _executionContext = null;
             _capturedContext = null;
             _continuationState = null;
-            _continuation = null;
             _completeTime = 0;
             _completed = false;
-            //Interlocked.MemoryBarrier();
-            Interlocked.MemoryBarrierProcessWide();
+            _continuation = null;
+            Interlocked.MemoryBarrier();
             _burned = 0;
         }
         
@@ -171,6 +172,7 @@ namespace zero.core.patterns.semaphore.core
 
             _result = result;
             _completeTime = Environment.TickCount;
+            _burnTime = 0;
             //SignalCompletion(async, context);
             SignalCompletion();
         }
@@ -213,21 +215,24 @@ namespace zero.core.patterns.semaphore.core
 #endif
         public TResult GetResult(short token)
         {
+            //Interlocked.MemoryBarrierProcessWide();
+            Interlocked.MemoryBarrier();
             if (Interlocked.CompareExchange(ref _burned, 1, 0) != 0)
-                throw new InvalidOperationException($"[{Thread.CurrentThread.ManagedThreadId}] {nameof(GetResult)}: core already burned {_completeTime.ElapsedMs()} ms");
+                throw new InvalidOperationException($"[{Thread.CurrentThread.ManagedThreadId}] {nameof(GetResult)}: core #{_version} already burned {_completeTime.ElapsedMs()} ms, burned = {_burnTime.ElapsedMs()} ms");
 #if DEBUG
             ValidateToken(token);   
 #endif
             if (!_completed)
-                throw new InvalidOperationException($"[{Thread.CurrentThread.ManagedThreadId}] {nameof(GetResult)}: core already completed {_completeTime.ElapsedMs()} ms");
+                throw new InvalidOperationException($"[{Thread.CurrentThread.ManagedThreadId}] {nameof(GetResult)}: core  #{_version} not completed {_completeTime.ElapsedMs()} ms, burned = {_burnTime.ElapsedMs()} ms");
             
-            _error?.Throw();
-
             var r = _result;
 
-            //if (_autoReset)
+            if (_autoReset)
                 Reset();
 
+            _error?.Throw();
+
+            _burnTime = Environment.TickCount;
             return r;
         }
 
@@ -279,9 +284,19 @@ namespace zero.core.patterns.semaphore.core
             if (oldContinuation == null)
             {
                 _continuationState = state;
+#if DEBUG
+                var ts = Environment.TickCount;
+#endif
+
                 oldContinuation = Interlocked.CompareExchange(ref _continuation, continuation, null);
+
+#if DEBUG
+                if (ts.ElapsedMs() > 16)
+                    LogManager.GetCurrentClassLogger().Fatal($"OnComplete CAS took => {ts.ElapsedMs()}");
+                //Debug.Assert(ts.ElapsedMs() <= 16);       
+#endif
             }
-            
+
             if (oldContinuation != null)
             {
                 // Operation already completed, so we need to queue the supplied callback.
@@ -361,12 +376,27 @@ namespace zero.core.patterns.semaphore.core
             //if(source != null)
             //    _result = source.GetResult((short)source.Version);
 
-            if (_continuation == null &&
-                Interlocked.CompareExchange(ref _continuation, ManualResetValueTaskSourceCoreShared.SSentinel, null) ==
-                null)
+#if DEBUG
+            var ts = Environment.TickCount;
+#endif
+            try
             {
-                //async?.Invoke(false, context);
-                return;
+                if (_continuation == null &&
+                    Interlocked.CompareExchange(ref _continuation, ManualResetValueTaskSourceCoreShared.SSentinel, null) ==
+                    null)
+                {
+                    //async?.Invoke(false, context);
+                    return;
+                }
+            }
+            finally
+            {
+#if DEBUG
+                if (ts.ElapsedMs() > 16)
+                {
+                    LogManager.GetCurrentClassLogger().Fatal($"{nameof(SignalCompletion)}: CAS took => {ts.ElapsedMs()} ms");
+                }
+#endif
             }
 
             //async?.Invoke(true, context);

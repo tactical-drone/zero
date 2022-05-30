@@ -1,7 +1,9 @@
-﻿using System.Diagnostics;
+﻿using System;
+using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using System.Threading;
 using NLog;
+using zero.core.misc;
 
 namespace zero.core.patterns.semaphore.core
 {
@@ -23,22 +25,40 @@ namespace zero.core.patterns.semaphore.core
 
             return latch;
         }
-
+        static object _syncroot = new object();
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static long ZeroNext(this ref long val, long cap)
         {
             if (val + 1 > cap)
                 return cap;
 
-            long latch;
-            while ((latch = val) + 1 > cap || Interlocked.CompareExchange(ref val, latch + 1, latch) != latch)
-            {
-                if (latch + 1 > cap)
-                    return cap;
-            }
 
-            Debug.Assert(latch < cap);
-            return latch;
+            long latch;
+            //lock (_syncroot)
+            {
+#if DEBUG
+                var ts = Environment.TickCount;
+#endif
+                try
+                {
+                    while ((latch = val) + 1 > cap || Interlocked.CompareExchange(ref val, val + 1, val) != latch)
+                    {
+                        if (val + 1 > cap)
+                            return cap;
+                    }
+                }
+                finally
+                {
+#if DEBUG
+                    if (ts.ElapsedMs() > 16)
+                    {
+                        LogManager.GetCurrentClassLogger().Fatal($"{nameof(ZeroNext)}: CAS took => {ts.ElapsedMs()} ms");
+                    }
+#endif
+                }
+                Debug.Assert(latch < cap);
+                return latch>cap?cap:latch;
+            }
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]

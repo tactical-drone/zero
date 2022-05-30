@@ -8,10 +8,10 @@ using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
 using NLog;
+using zero.core.misc;
 using zero.core.patterns.misc;
 using zero.core.patterns.queue.enumerator;
 using zero.core.patterns.semaphore;
-using zero.@unsafe.core.math;
 
 namespace zero.core.patterns.queue
 {
@@ -53,7 +53,7 @@ namespace zero.core.patterns.queue
                 _storage = new T[32][];
                 _storage[0] = _fastStorage = new T[_capacity];
 
-                var v = IoMath.Log2((ulong)capacity) - 1;
+                var v = Math.Log10(capacity - 1)/Math.Log10(2);
                 var scaled = false;
                 for (var i = 0; i < v; i++)
                 {
@@ -82,8 +82,6 @@ namespace zero.core.patterns.queue
             }
             
             _curEnumerator = new IoQEnumerator<T>(this);
-
-            _sentinel = Unsafe.As<T>(new object());
         }
 
         #region packed
@@ -95,7 +93,6 @@ namespace zero.core.patterns.queue
         private readonly T[][] _storage;
         private readonly T[] _fastStorage;
 
-        private readonly T _sentinel;
         private readonly object _syncRoot = new();
         
         private volatile IoQEnumerator<T> _curEnumerator;
@@ -164,7 +161,8 @@ namespace zero.core.patterns.queue
                 if (!IsAutoScaling) return _fastStorage[idx % _capacity];
 
                 idx %= Capacity;
-                var i = IoMath.Log2(unchecked((ulong)idx + 1));
+
+                var i = (int)(Math.Log10(idx + 1) / Math.Log10(2));
                 return _storage[i][idx - ((1 << i) - 1)];
             }
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -179,7 +177,7 @@ namespace zero.core.patterns.queue
                 }
 
                 idx %= Capacity;
-                var i = IoMath.Log2(unchecked((ulong)idx + 1));
+                var i = (int)(Math.Log10(idx + 1) / Math.Log10(2));
                 _storage[i][idx - ((1 << i) - 1)] = value;
             }
         }
@@ -228,11 +226,26 @@ namespace zero.core.patterns.queue
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private T CompareExchange(long idx, T value, T compare)
         {
-            if (!IsAutoScaling) return Interlocked.CompareExchange(ref _fastStorage[idx % _capacity], value, compare);
+#if DEBUG
+            var ts = Environment.TickCount;
+#endif
+            try
+            {
+                if (!IsAutoScaling) return Interlocked.CompareExchange(ref _fastStorage[idx % _capacity], value, compare);
 
-            idx %= Capacity;
-            var i = IoMath.Log2(unchecked((ulong)idx + 1));
-            return Interlocked.CompareExchange(ref _storage[i][idx - ((1 << i) - 1)], value, compare);
+                idx %= Capacity;
+                var i = (int)(Math.Log10(idx + 1) / Math.Log10(2));
+                return Interlocked.CompareExchange(ref _storage[i][idx - ((1 << i) - 1)], value, compare);
+            }
+            finally
+            {
+#if DEBUG
+                if (ts.ElapsedMs() > 16)
+                {
+                    LogManager.GetCurrentClassLogger().Fatal($"{nameof(CompareExchange)}: Q, CAS took => {ts.ElapsedMs()} ms");
+                }
+#endif
+            }
         }
 
         /// <summary>
@@ -307,28 +320,24 @@ namespace zero.core.patterns.queue
                 var race = false;
 
                 while ((tail = Tail) >= Head + (cap = Capacity) || _count >= cap || this[tail] != null || tail != Tail ||
-                       CompareExchange(tail, _sentinel, null) != null || (race = tail != Tail))
+                       CompareExchange(tail, item, null) != null || (race = tail != Tail))
                 {
                     if (race)
                     {
-                        if (CompareExchange(tail, null, _sentinel) != _sentinel && !Zeroed)
+                        if (CompareExchange(tail, null, item) != item && !Zeroed)
                         {
-                            LogManager.GetCurrentClassLogger()
-                                .Fatal(
-                                    $"{nameof(TryEnqueue)}: Unable to restore lock at tail = {tail} != {Tail}, slot = `{null}', cur = `{this[tail]}'");
+                            LogManager.GetCurrentClassLogger().Fatal($"{nameof(TryEnqueue)}: Unable to restore lock at tail = {tail} != {Tail}, slot = `{null}', cur = `{this[tail]}', {Description}");
                         }
+
+                        race = false;
                     }
 
                     if (Zeroed || !_autoScale && _count >= cap)
                         return -1;
-
-                    race = false;
                 }
 #if DEBUG
-                Debug.Assert(Zeroed || this[tail] == _sentinel);
                 Debug.Assert(Zeroed || tail == Tail);
 #endif
-                this[tail] = item;
                 //execute atomic action on success
                 onAtomicAdd?.Invoke(context);
                     
@@ -389,6 +398,7 @@ namespace zero.core.patterns.queue
 #endif
         public bool TryDequeue([MaybeNullWhen(false)] out T slot)
         {
+            slot = null;
             try
             {
                 if (_count == 0)
@@ -399,10 +409,17 @@ namespace zero.core.patterns.queue
 
                 long head;
                 T latch;
-                
-                while ((head = Head) >= Tail || (latch = this[head]) == _sentinel || latch == null || head != Head ||
-                       (slot = CompareExchange(head, _sentinel, latch)) != latch) 
+                var race = false;
+                while ((head = Head) >= Tail || (latch = this[head]) == null || head != Head ||
+                       (slot = CompareExchange(head, null, latch)) != latch  || (race = head != Head)) 
                 {
+                    if (race && slot != null)
+                    {
+                        LogManager.GetCurrentClassLogger().Error($"!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! slot = {slot}, {Description}");
+                        Interlocked.Decrement(ref _count);
+                        //Interlocked.Increment(ref _head);
+                        return true;
+                    }
                     if (_count == 0 || Zeroed)
                     {
                         slot = null;
@@ -410,12 +427,10 @@ namespace zero.core.patterns.queue
                     }
                 }
 #if DEBUG
-                Debug.Assert(Zeroed || this[head] == _sentinel);
-                Debug.Assert(Zeroed || _count > 0);
                 Debug.Assert(Zeroed || head == Head);
-                Debug.Assert(Zeroed || head != Tail);
+                Debug.Assert(Zeroed || _count > 0);
+                //Debug.Assert(Zeroed || head != Tail);
 #endif
-                this[head] = null;//restore the sentinel
                 Interlocked.Decrement(ref _count);
                 Interlocked.Increment(ref _head);
                 
@@ -493,7 +508,7 @@ namespace zero.core.patterns.queue
             }
             finally
             {
-                _count = 0;
+                _count = (int)(_head = _tail = 0);
             }
 
             return true;
@@ -547,7 +562,7 @@ namespace zero.core.patterns.queue
                         break;
 
                     var newItem = this[cur];
-                    if (newItem != _sentinel && newItem != null)
+                    if (newItem != null)
                         yield return newItem;
 
                     cur++;

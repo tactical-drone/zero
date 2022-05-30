@@ -63,8 +63,8 @@
     <Folder Include="patterns\cmdline\" />
   </ItemGroup>
 
-	<ItemGroup>
+	<!--<ItemGroup>
 	  <ProjectReference Include="..\zero.unsafe\zero.unsafe.csproj" />
-	</ItemGroup>
+	</ItemGroup>-->
 
 </Project>
