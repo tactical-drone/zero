@@ -411,7 +411,7 @@ namespace zero.core.patterns.queue
                 T latch;
                 var race = false;
                 while ((head = Head) >= Tail || (latch = this[head]) == null || head != Head ||
-                       (slot = CompareExchange(head, null, latch)) != latch  || (race = head != Head)) 
+                       (slot = CompareExchange(head, null, latch)) != latch  || (race = head != Head)) //TODO: hack
                 {
                     if (race && slot != null)
                     {

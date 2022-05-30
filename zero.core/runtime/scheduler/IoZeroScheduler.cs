@@ -24,7 +24,7 @@ namespace zero.core.runtime.scheduler
             Zero = new IoZeroScheduler(Default);
             ZeroDefault = Zero;
             Zero.InitQueues();
-            //ZeroDefault = Default; //TODO: Uncomment to enable native .net scheduler...
+            ZeroDefault = Default; //TODO: Uncomment to enable native .net scheduler...
         }
 
         public IoZeroScheduler(TaskScheduler fallback, CancellationTokenSource asyncTasks = null)

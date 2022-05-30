@@ -401,8 +401,16 @@ namespace zero.core.patterns.bushings
                                 await ZeroJobAsync(nextJob, true).FastPath();
                                 nextJob = null;
 
-                                Source.BackPressure();
-                                Source.PrefetchPressure(zeroAsync:false);
+                                if (Source.BackPressure() != 1)
+                                {
+                                    _logger.Fatal($"{nameof(ConsumeAsync)}: Backpressure [FAILED] - {Description}");
+                                }
+
+                                if (Source.PrefetchPressure(zeroAsync: false) != 1)
+                                {
+                                    _logger.Fatal($"{nameof(ConsumeAsync)}: PrefetchPressure [FAILED], {Description}");
+                                }
+                                
                                 //how long did this failure take?
 
                                 IsArbitrating = false;
@@ -422,7 +430,10 @@ namespace zero.core.patterns.bushings
                             //Source.Pressure();
 
                             //Fetch more work
-                            Source.PrefetchPressure(zeroAsync:false);
+                            if (Source.PrefetchPressure(zeroAsync: false) != 1)
+                            {
+                                _logger.Fatal($"{nameof(ConsumeAsync)}: PrefetchPressure [FAILED] - {Description}");
+                            }
 
                             if (!IsArbitrating)
                                 IsArbitrating = true;
@@ -449,10 +460,17 @@ namespace zero.core.patterns.bushings
                             nextJob = null;
 
                             //signal back pressure
-                            Source.BackPressure();
+                            if (Source.BackPressure() != 1)
+                            {
+                                _logger.Fatal($"{nameof(ConsumeAsync)}: BackPressure [FAILED] - {Description}");
+                            }
 
                             // prefetch pressure
-                            Source.PrefetchPressure();
+                            if (Source.PrefetchPressure() != 1)
+                            {
+                                _logger.Fatal($"{nameof(ConsumeAsync)}: PrefetchPressure [FAILED] - {Description}");
+                            }
+                            
 
                             //Are we in teardown?
                             if (Zeroed())
@@ -472,8 +490,16 @@ namespace zero.core.patterns.bushings
                         if (Zeroed() || JobHeap.Zeroed)
                             return false;
 
-                        Source.BackPressure();
-                        Source.PrefetchPressure();
+                        if (Source.BackPressure() != 1)
+                        {
+                            _logger.Fatal($"{nameof(ConsumeAsync)}: BackPressure [FAILED] - {Description}");
+                        }
+
+                        // prefetch pressure
+                        if (Source.PrefetchPressure() != 1)
+                        {
+                            _logger.Fatal($"{nameof(ConsumeAsync)}: PrefetchPressure [FAILED] - {Description}");
+                        }
 
                         _logger.Warn($"{GetType().Name}:Q = {Source.QueueStatus}, backlog = {_previousJobFragment?.Count},  Production for: {Description} failed. Cannot allocate job resources!, heap =>  {JobHeap.Count}/{JobHeap.Capacity}");
                         await Task.Delay(parm_min_failed_production_time, AsyncTasks.Token);
@@ -665,7 +691,10 @@ namespace zero.core.patterns.bushings
 
                             await ZeroJobAsync(curJob, curJob.FinalState == IoJobMeta.JobState.Accept).FastPath();
 
-                            Source.BackPressure(zeroAsync:false); //TODO: Why is true here cata?
+                            if (Source.BackPressure(zeroAsync: false) != 1)//TODO: Why is true here cata?
+                            {
+                                _logger.Fatal($"{nameof(ConsumeAsync)}: Backpressure [FAILED], {Description}");
+                            }
                         }
                         catch when (Zeroed())
                         {

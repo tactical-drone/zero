@@ -184,9 +184,9 @@ namespace zero.core.patterns.semaphore.core
             long tailLatch;
             long idx;
             
-            if ((idx = _b_tail.ZeroNext(cap = (headLatch = _b_head) <= (tailLatch = _b_tail) ? headLatch + _capacity : tailLatch + 1)) < cap) //TODO:hack
+            if ((idx = _b_tail.ZeroNext(cap = (headLatch = _b_head) <= (tailLatch = _b_tail) ? headLatch + _capacity : tailLatch + _capacity)) < cap) //TODO:hack
             {
-                var slowCore = _blocking[idx % ModCapacity];
+                var slowCore = _blocking[idx %= ModCapacity];
                 slowCore.RunContinuationsAsynchronously = forceAsync;
                 slowCore.SetResult(value);
                 released = 1;
@@ -234,16 +234,17 @@ namespace zero.core.patterns.semaphore.core
                 //TODO: what is going on here? Old indexes pop up here with low probability 
                 if (slowCore.Burned)
                 {
-                    lock (_blocking)
-                    {
-                        LogManager.GetCurrentClassLogger().Fatal($" idx = {idx}, t = {ts.ElapsedMs()} ms, {((IoManualResetValueTaskSourceCore<T>)slowCore).Completed.ElapsedMs()} ms < ------------------- {Description}");
-                        IoZeroCore<T> tmpThis = this;
-                        tmpThis._backlog.Take(10).ToList().ForEach(i => LogManager.GetCurrentClassLogger().Fatal($"-> {i} {((IoManualResetValueTaskSourceCore<T>)tmpThis._blocking[i]).Completed.ElapsedMs()} ms"));
-                        _backlog.Reverse().Take(10).ToList().ForEach(i => LogManager.GetCurrentClassLogger().Fatal($"<- {i} {((IoManualResetValueTaskSourceCore<T>)tmpThis._blocking[i]).Completed.ElapsedMs()} ms"));
-                    }
+                    slowCore.Reset((short)idx);
+                    //lock (_blocking)
+                    //{
+                    //    LogManager.GetCurrentClassLogger().Fatal($" idx = {idx}, t = {ts.ElapsedMs()} ms, {((IoManualResetValueTaskSourceCore<T>)slowCore).Completed.ElapsedMs()} ms < ------------------- {Description}");
+                    //    IoZeroCore<T> tmpThis = this;
+                    //    tmpThis._backlog.Take(10).ToList().ForEach(i => LogManager.GetCurrentClassLogger().Fatal($"-> {i} {((IoManualResetValueTaskSourceCore<T>)tmpThis._blocking[i]).Completed.ElapsedMs()} ms"));
+                    //    _backlog.Reverse().Take(10).ToList().ForEach(i => LogManager.GetCurrentClassLogger().Fatal($"<- {i} {((IoManualResetValueTaskSourceCore<T>)tmpThis._blocking[i]).Completed.ElapsedMs()} ms"));
+                    //}
 
-                    if (retry-- > 0)
-                        goto race;
+                    //if (retry-- > 0)
+                    //    goto race;
                 }
                 Debug.Assert(!slowCore.Burned);
 #else

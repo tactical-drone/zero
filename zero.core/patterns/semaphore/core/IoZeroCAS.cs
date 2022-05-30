@@ -41,10 +41,12 @@ namespace zero.core.patterns.semaphore.core
 #endif
                 try
                 {
-                    while ((latch = val) + 1 > cap || Interlocked.CompareExchange(ref val, val + 1, val) != latch)
+                    Interlocked.MemoryBarrier();
+                    while ((latch = val) + 1 > cap || Interlocked.CompareExchange(ref val, latch + 1, latch) != latch)
                     {
                         if (val + 1 > cap)
                             return cap;
+                        Interlocked.MemoryBarrierProcessWide();
                     }
                 }
                 finally
@@ -57,7 +59,7 @@ namespace zero.core.patterns.semaphore.core
 #endif
                 }
                 Debug.Assert(latch < cap);
-                return latch>cap?cap:latch;
+                return latch;
             }
         }
 
