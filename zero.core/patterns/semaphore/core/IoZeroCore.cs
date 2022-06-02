@@ -164,7 +164,7 @@ namespace zero.core.patterns.semaphore.core
             if (_results.Reader.Count == 0)
             {
                 //unblock
-                while (_waiters.Reader.TryPeek(out var peek) && _waiters.Reader.TryRead(out var waiter))
+                while (_waiters.Reader.TryRead(out var waiter))
                 {
                     try
                     {
@@ -195,25 +195,6 @@ namespace zero.core.patterns.semaphore.core
             //prime
             if (_results.Writer.TryWrite(value))
             {
-                //unblock on race with prime
-                if (_waiters.Reader.TryPeek(out var peek) && _waiters.Reader.TryRead(out var waiter))
-                {
-                    if (!waiter.Burned)
-                    {
-                        waiter.RunContinuationsAsynchronously = forceAsync || ZeroAsyncMode;
-                        try
-                        {
-                            waiter.SetResult(value);
-                            released = 1;
-                            return true;
-                        }
-                        catch
-                        {
-                            // ignored
-                        }
-                    }
-                    waiter.Reset();
-                }
                 released = 1;
                 return true;
             }
@@ -258,16 +239,8 @@ namespace zero.core.patterns.semaphore.core
                 Interlocked.MemoryBarrier();
                 waiter.Reset(static state =>
                 {
-                    try
-                    {
-                        var (@this, waiter) = (ValueTuple<IoZeroCore<T>, IIoManualResetValueTaskSourceCore<T>>)state;
-                        @this._heap.Writer.TryWrite(waiter);
-                    }
-                    catch (Exception e)
-                    {
-                        Console.WriteLine(e);
-                        throw;
-                    }
+                    var (@this, waiter) = (ValueTuple<IoZeroCore<T>, IIoManualResetValueTaskSourceCore<T>>)state;
+                    @this._heap.Writer.TryWrite(waiter);
                 }, (this, waiter));
             }
             

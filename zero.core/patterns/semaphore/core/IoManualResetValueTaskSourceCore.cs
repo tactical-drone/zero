@@ -76,7 +76,7 @@ namespace zero.core.patterns.semaphore.core
 
         /// <summary>Gets or sets whether to force continuations to run asynchronously.</summary>
         /// <remarks>Continuations may run asynchronously if this is false, but they'll never run synchronously if this is true.</remarks>
-        public bool RunContinuationsAsynchronously { get => _runContinuationsAsync || _runContinuationsAsyncAlways; set => _runContinuationsAsync = value; }
+        public bool RunContinuationsAsynchronously { get => _runContinuationsAsync || _runContinuationsAsyncAlways; set => Volatile.Write(ref _runContinuationsAsync,value); }
         //public bool RunContinuationsAsynchronously { get; set; }
 
         /// <summary>
