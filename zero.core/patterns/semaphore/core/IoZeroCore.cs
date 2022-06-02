@@ -160,26 +160,31 @@ namespace zero.core.patterns.semaphore.core
 #endif
         private bool ZeroSetResult(T value, out int released, bool forceAsync = false)
         {
-            //unblock
-            while (_waiters.Reader.TryPeek(out var peek) && _waiters.Reader.TryRead(out var waiter))
+            retry:
+            if (_results.Reader.Count == 0)
             {
-                try
+                //unblock
+                while (_waiters.Reader.TryPeek(out var peek) && _waiters.Reader.TryRead(out var waiter))
                 {
-                    if (!waiter.Burned)
+                    try
                     {
                         waiter.RunContinuationsAsynchronously = forceAsync || ZeroAsyncMode;
-                        waiter.SetResult(value);
-                        released = 1;
-                        return true;
+                        if (!waiter.Burned)
+                        {
+                            waiter.SetResult(value);
+                            released = 1;
+                            return true;
+                        }
+                        waiter.Reset();
                     }
+                    catch
+                    {
+                        // ignored
+                    }
+                    goto retry;
                 }
-                catch
-                {
-                    // ignored
-                }
-                waiter.Reset();
             }
-
+            
             //insane
             if (_results.Reader.Count >= ModCapacity)
             {
@@ -195,9 +200,9 @@ namespace zero.core.patterns.semaphore.core
                 {
                     if (!waiter.Burned)
                     {
+                        waiter.RunContinuationsAsynchronously = forceAsync || ZeroAsyncMode;
                         try
                         {
-                            waiter.RunContinuationsAsynchronously = forceAsync || ZeroAsyncMode;
                             waiter.SetResult(value);
                             released = 1;
                             return true;
