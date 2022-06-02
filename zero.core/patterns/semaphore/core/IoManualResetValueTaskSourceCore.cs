@@ -129,6 +129,9 @@ namespace zero.core.patterns.semaphore.core
             _completeTime = 0;
             _completed = false;
             _continuation = null;
+
+            _heapAction?.Invoke(_executionContext);
+
             Interlocked.MemoryBarrier();
             _burned = 0;
         }
