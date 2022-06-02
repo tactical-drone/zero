@@ -181,7 +181,7 @@ namespace zero.core.patterns.misc
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         protected static IIoZeroSemaphoreBase<bool> ZeroSyncRoot(int concurrencyLevel, CancellationTokenSource asyncTasks)
         {
-            IIoZeroSemaphoreBase<bool> z = new IoZeroCore<bool>(string.Empty, Math.Min(20 + concurrencyLevel * 40, short.MaxValue / 3), 1);
+            IIoZeroSemaphoreBase<bool> z = new IoZeroCore<bool>(string.Empty, Math.Min(20 + concurrencyLevel * 40, short.MaxValue / 3), asyncTasks,1);
             z.ZeroRef(ref z, _ => true);
             return z;
         }

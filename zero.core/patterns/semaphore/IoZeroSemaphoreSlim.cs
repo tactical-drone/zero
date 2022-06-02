@@ -20,7 +20,7 @@ namespace zero.core.patterns.semaphore
             bool enableAutoScale = false, bool enableFairQ = false, bool enableDeadlockDetection = false) : base($"{nameof(IoZeroSemaphoreSlim)}: {description}", maxBlockers)
         {
             //IIoZeroSemaphoreBase<bool> newSem = new IoZeroSemaphore<bool>(description, maxBlockers, initialCount, zeroAsyncMode, enableAutoScale: enableAutoScale, cancellationTokenSource: asyncTasks);
-            IIoZeroSemaphoreBase<bool> newSem = new IoZeroCore<bool>(description, maxBlockers, initialCount, zeroAsyncMode, contextUnsafe);
+            IIoZeroSemaphoreBase<bool> newSem = new IoZeroCore<bool>(description, maxBlockers, asyncTasks,initialCount, zeroAsyncMode);
             _semaphore = newSem.ZeroRef(ref newSem, _ => true);
         }
 

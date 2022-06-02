@@ -471,10 +471,7 @@ namespace zero.sync
                         AC = IoZeroScheduler.Zero.CompletedAsyncCount;
                     }
 
-                    if (line.StartsWith("W"))
-                    {
-                        IoZeroScheduler.Dump();
-                    }
+                    
                     if (line.StartsWith("logf"))
                     {
                         try
@@ -917,10 +914,10 @@ namespace zero.sync
             //.NET RUNTIME REFERENCE MUTEX FOR TESTING
             //var mutex = new IoZeroRefMut(asyncTasks.Token);
             //var mutex = new IoZeroSemaphoreSlim(asyncTasks, "zero slim", maxBlockers: capacity, initialCount: 1, zeroAsyncMode: false, enableAutoScale: false, enableFairQ: false, enableDeadlockDetection: true);
-            IIoZeroSemaphoreBase<int> mutex = new IoZeroCore<int>("zero core", capacity, 1, false);
+            IIoZeroSemaphoreBase<int> mutex = new IoZeroCore<int>("zero core", capacity, new CancellationTokenSource(), 0, false);
             mutex = mutex.ZeroRef(ref mutex, o => Environment.TickCount);
                  
-            var releaseCount = 2;
+            var releaseCount = 1;
             var waiters = 3;
             var releasers = 4;
             var disableRelease = false;
@@ -966,6 +963,7 @@ namespace zero.sync
                      while (waiters>0)
                      {
                          mainSW.Restart();
+                         //await Task.Delay(2500);
                          var qt = await mutex.WaitAsync().FastPath();
                          //Debug.Assert(qt.ElapsedMs() < ERR_T);
                          if (qt.ElapsedMs() < targetSleep + ERR_T)
@@ -1176,7 +1174,7 @@ namespace zero.sync
                                 {
                                     if (targetSleep > 0)
                                         await Task.Delay((int)targetSleep, asyncTasks.Token);
-
+                                    
                                     if (totalReleases > 0 && (curCount = mutex.Release(Environment.TickCount, releaseCount)) > 0)
                                     {
                                         Interlocked.Add(ref semCount, curCount);
@@ -1190,7 +1188,8 @@ namespace zero.sync
                                         //await Task.Yield();
                                         await Task.Delay(1, asyncTasks.Token);
                                     }
-
+                                    //if(i1 != 0)
+                                    //    Console.WriteLine($"exit! {i1}");
                                 }
                                 catch (InvalidOperationException e)
                                 {

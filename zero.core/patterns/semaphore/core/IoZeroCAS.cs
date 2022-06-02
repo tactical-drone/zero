@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Diagnostics;
+using System.Net.Http.Headers;
 using System.Runtime.CompilerServices;
 using System.Threading;
 using NLog;
@@ -25,7 +26,71 @@ namespace zero.core.patterns.semaphore.core
 
             return latch;
         }
-        static object _syncroot = new object();
+        static volatile object _syncroot = new object();
+        private static int _redundency = 3;
+        static volatile int _cheapMonitor = _redundency;
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static long ZeroNextHard(this ref long val, long cap)
+        {
+            if (val + 1 > cap)
+                return cap;
+
+            long latch;
+            //lock (_syncroot)
+            {
+#if DEBUG
+                var ts = Environment.TickCount;
+#endif
+                try
+                {
+                    try
+                    {
+                        retry:
+                        var curLevel = _redundency;
+                        while (curLevel > 0)
+                        {
+                            while (Interlocked.CompareExchange(ref _cheapMonitor, curLevel - 1, curLevel) != curLevel)
+                            {
+                                Debug.Assert(false);
+                                Interlocked.MemoryBarrierProcessWide();
+                                goto retry;
+                            }
+                            curLevel--;
+                        }
+
+                        Interlocked.MemoryBarrier();
+                        latch = val + 1;
+                        return latch > cap ? cap : Interlocked.Exchange(ref val, latch);
+                    }
+                    finally
+                    {
+                        
+                        Interlocked.Exchange(ref _cheapMonitor, _redundency);
+                    }
+
+                    //Interlocked.MemoryBarrier();
+                    //while ((latch = val) + 1 > cap || Interlocked.CompareExchange(ref val, latch + 1, latch) != latch)
+                    //{
+                    //    if (latch + 1 > cap)
+                    //        return cap;
+                    //    //Interlocked.MemoryBarrierProcessWide();
+                    //    //Interlocked.MemoryBarrier();
+                    //}
+                }
+                finally
+                {
+#if DEBUG
+                    if (ts.ElapsedMs() > 16)
+                    {
+                        LogManager.GetCurrentClassLogger().Fatal($"{nameof(ZeroNext)}: CAS took => {ts.ElapsedMs()} ms");
+                    }
+#endif
+                }
+                Debug.Assert(latch < cap);
+                return latch;
+            }
+        }
+
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static long ZeroNext(this ref long val, long cap)
         {
@@ -41,7 +106,6 @@ namespace zero.core.patterns.semaphore.core
 #endif
                 try
                 {
-                    Interlocked.MemoryBarrier();
                     while ((latch = val) + 1 > cap || Interlocked.CompareExchange(ref val, latch + 1, latch) != latch)
                     {
                         if (val + 1 > cap)

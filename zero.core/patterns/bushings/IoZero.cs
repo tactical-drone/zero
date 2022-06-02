@@ -629,7 +629,7 @@ namespace zero.core.patterns.bushings
             try
             {
                 //A job was produced. Dequeue it and process
-                await foreach (var curJob in _queue.BalanceOnConsumeAsync(threadIndex))
+                await foreach (var curJob in _queue.PumpOnConsumeAsync(threadIndex))
                 {
                     if (curJob == null)
                         return false;

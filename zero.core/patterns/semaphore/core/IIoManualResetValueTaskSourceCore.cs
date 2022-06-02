@@ -21,5 +21,6 @@ namespace zero.core.patterns.semaphore.core
         void SetResult(TResult result);
         //void SetResult(IIoManualResetValueTaskSourceCore<TResult> source);
         void SetException(Exception error);
+        void Reset(Action<object> index, object context);
     }
 }

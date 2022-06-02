@@ -61,6 +61,9 @@ namespace zero.core.patterns.semaphore.core
         /// <summary>The result with which the operation succeeded, or the default value if it hasn't yet completed or failed.</summary>
         [AllowNull, MaybeNull] private TResult _result;
 
+        private Action<object> _heapAction;
+        private object _heapContext;
+
         //public object? _burnContext;
 
         //public Action<bool, object>? _burnResult;
@@ -184,6 +187,12 @@ namespace zero.core.patterns.semaphore.core
         {
             _error = ExceptionDispatchInfo.Capture(error);
             SignalCompletion();
+        }
+
+        public void Reset(Action<object> index, object context)
+        {
+            _heapAction = index;
+            _heapContext = context;
         }
 
 #if DEBUG 

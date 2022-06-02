@@ -1,7 +1,9 @@
 ﻿using System;
 using System.IO;
+using System.Net.Http.Headers;
 using System.Runtime.CompilerServices;
 using System.Threading;
+using System.Threading.Channels;
 using System.Threading.Tasks;
 using NLog;
 using zero.core.patterns.misc;
@@ -38,8 +40,11 @@ namespace zero.core.patterns.heap
         {
             _description = description;
             Malloc = malloc;
-            _ioHeapBuf = new IoZeroQ<TItem>($"{nameof(_ioHeapBuf)}: {description}", capacity,autoScale);
+            //_ioHeapBuf = new IoZeroQ<TItem>($"{nameof(_ioHeapBuf)}: {description}", capacity,autoScale);
+            _ioHeapBuf = Channel.CreateBounded<TItem>(capacity);
             Context = context;
+            _capacity = capacity;
+            _autoScale = autoScale;
         }
 
         /// <summary>
@@ -55,7 +60,7 @@ namespace zero.core.patterns.heap
         /// <summary>
         /// 
         /// </summary>
-        public string Description => $"#{GetHashCode()}:{nameof(IoHeap<TItem,TContext>)}: {nameof(Count)} = {Count}, capacity = {Capacity}, refs = {_refCount}, desc = {_description}, bag ~> {_ioHeapBuf.Description}";
+        public string Description => $"#{GetHashCode()}:{nameof(IoHeap<TItem,TContext>)}: {nameof(Count)} = {Count}, capacity = {Capacity}, refs = {_refCount}, desc = {_description}, bag ~> _ioHeapBuf.Description";
 
 
         /// <summary>
@@ -71,18 +76,18 @@ namespace zero.core.patterns.heap
         /// <summary>
         /// The heap buffer space
         /// </summary>
-        private IoZeroQ<TItem> _ioHeapBuf;
+        private Channel<TItem> _ioHeapBuf;
 
         /// <summary>
         /// The current WorkHeap size
         /// </summary>
-        public int Count => _ioHeapBuf.Count;
+        public int Count => _ioHeapBuf.Reader.Count;
         
 
         /// <summary>
         /// The maximum heap size
         /// </summary>
-        public int Capacity => (int)_ioHeapBuf.Capacity;
+        public int Capacity => _capacity;
 
         /// <summary>
         /// The number of outstanding references
@@ -97,7 +102,7 @@ namespace zero.core.patterns.heap
         /// <summary>
         /// Whether we are auto scaling
         /// </summary>
-        public bool IsAutoScaling => _ioHeapBuf.IsAutoScaling;
+        public bool IsAutoScaling => _autoScale;
 
         /// <summary>
         /// zero unmanaged
@@ -120,10 +125,11 @@ namespace zero.core.patterns.heap
             if (Interlocked.CompareExchange(ref _zeroed, 1, 0) != 0 )
                 return;
             
-            if (zeroAction != null)
-                await _ioHeapBuf.ZeroManagedAsync(zeroAction, nanite, true).FastPath();
-            else
-                await _ioHeapBuf.ZeroManagedAsync<object>(zero:true).FastPath();
+            _ioHeapBuf.Writer.Complete();
+            //if (zeroAction != null)
+            //    await _ioHeapBuf.ZeroManagedAsync(zeroAction, nanite, true).FastPath();
+            //else
+            //    await _ioHeapBuf.ZeroManagedAsync<object>(zero:true).FastPath();
 
             _refCount = 0;
         }
@@ -147,12 +153,20 @@ namespace zero.core.patterns.heap
         {
             try
             {
+                retry:
                 //If the heap is empty
-                if (!_ioHeapBuf.TryDequeue(out var heapItem))
+                if (!_ioHeapBuf.Reader.TryRead(out var heapItem))
                 {
-                    if (_refCount == _ioHeapBuf.Capacity && !IsAutoScaling)
-                        throw new OutOfMemoryException($"{nameof(_ioHeapBuf)}: Heap -> {Description}: Q -> {_ioHeapBuf.Description}");
+                    if (_ioHeapBuf.Reader.Count > 0)
+                        goto retry;//TODO: hack
 
+                    //TODO: Leak
+                    if (_refCount == Capacity && !IsAutoScaling)
+                    {
+                        _logger.Debug($"{nameof(_ioHeapBuf)}: LEAK DETECTED!!! Heap -> {Description}: Q -> _ioHeapBuf.Description");
+                        //throw new OutOfMemoryException($"{nameof(_ioHeapBuf)}: Heap -> {Description}: Q -> _ioHeapBuf.Description");
+                    }
+                    
                     heapItem = Malloc(userData, Context);
 
                     customConstructor?.Invoke(heapItem, userData);
@@ -170,8 +184,8 @@ namespace zero.core.patterns.heap
                 }
             }
             catch when (_zeroed > 0) { }
-            catch (Exception) when (_ioHeapBuf.Zeroed) { }
-            catch (Exception e) when(!Zeroed && !_ioHeapBuf.Zeroed)
+            catch (Exception) when (Zeroed) { }
+            catch (Exception e) when(!Zeroed)
             {
                 _logger.Error(e, $"{GetType().Name}: Failed to malloc {typeof(TItem)}");
             }
@@ -196,10 +210,9 @@ namespace zero.core.patterns.heap
             try
             {
                 if (!zero)
-                    _ioHeapBuf.TryEnqueue(item, deDup);
+                    _ioHeapBuf.Writer.TryWrite(item);
             }
             catch when(_zeroed > 0){ }
-            catch when(_ioHeapBuf.Zeroed){ }
             catch (Exception e) when (!Zeroed)
             {
                 _logger.Error(e, $"{GetType().Name}: Failed malloc {typeof(TItem)}");
@@ -226,6 +239,9 @@ namespace zero.core.patterns.heap
         /// </summary>
         public Action<TItem, object> PopAction;
 
+        private readonly int _capacity;
+        private readonly bool _autoScale;
+
         /// <summary>
         /// Returns the amount of space left in the buffer
         /// </summary>
@@ -236,15 +252,7 @@ namespace zero.core.patterns.heap
         /// Cache size.
         /// </summary>
         /// <returns>The number of unused heap items</returns>
-        public long CacheSize => _ioHeapBuf.Count;
-
-        /// <summary>
-        /// Clear
-        /// </summary>
-        public async ValueTask ClearAsync(bool zero = false)
-        {
-            await _ioHeapBuf.ZeroManagedAsync<object>(zero: zero).FastPath();
-        }
+        public long CacheSize => _capacity;
 
         public override string ToString()
         {

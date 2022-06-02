@@ -401,6 +401,7 @@ namespace zero.core.patterns.queue
             slot = null;
             try
             {
+                retry:
                 if (_count == 0)
                 {
                     slot = null;
@@ -408,18 +409,25 @@ namespace zero.core.patterns.queue
                 }
 
                 long head;
-                T latch;
+                //T latch;
                 var race = false;
-                while ((head = Head) >= Tail || (latch = this[head]) == null || head != Head ||
-                       (slot = CompareExchange(head, null, latch)) != latch  || (race = head != Head)) //TODO: hack
+                while ((head = Head) >= Tail || (slot = this[head]) == null || head != Head ||
+                       CompareExchange(head, null, slot) != slot || (race = head != Head)) //TODO: hack
                 {
-                    if (race && slot != null)
+                    if (race && slot != null && !Zeroed)
                     {
                         LogManager.GetCurrentClassLogger().Error($"!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! slot = {slot}, {Description}");
-                        Interlocked.Decrement(ref _count);
-                        //Interlocked.Increment(ref _head);
-                        return true;
+
+                        T latch;
+                        if ((latch = CompareExchange(head, slot, null)) != null)
+                        {
+                            LogManager.GetCurrentClassLogger().Fatal($"{nameof(TryEnqueue)}: Unable to restore lock at head = {head} != {Head}, slot = `{slot}', latch = `{latch}', cur = `{this[head]}', {Description}");
+                        }
+
+                        goto retry;
+                        //return true;
                     }
+
                     if (_count == 0 || Zeroed)
                     {
                         slot = null;

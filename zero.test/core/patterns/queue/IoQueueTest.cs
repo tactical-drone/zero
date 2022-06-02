@@ -326,7 +326,7 @@ namespace zero.test.core.patterns.queue{
             Assert.Equal(0, c);
         }
 
-        [Fact]
+        //[Fact]
         async Task AutoScaleAsync()
         {
             await Task.Yield();

@@ -90,6 +90,7 @@ namespace zero.test.core.patterns.bushings
             {
                 if (c1.EventCount > count || ts.ElapsedMs() > targetTime * 3)
                 {
+                    _output.WriteLine($"test done!!!!!!!!!!!");
                     await c1.DisposeAsync(null, "test done");
                 }
                 _output.WriteLine($"{c1.EventCount}/{count}");

@@ -44,7 +44,16 @@ namespace zero.core.network.ip
         {
             await base.ZeroManagedAsync();
 
-            await _listenerSourceCore.ZeroManagedAsync<object>();
+
+            try
+            {
+                await _listenerSourceCore.ZeroManagedAsync<object>();
+            }
+            catch
+            {
+                // ignored
+            }
+
             await _connectSourceCore.ZeroManagedAsync<object>();
         }
 
@@ -57,8 +66,6 @@ namespace zero.core.network.ip
 
 #if SAFE_RELEASE
             _logger = null;
-            _listenerSourceCore = null;
-            _connectSourceCore = null;
 #endif
         }
 
@@ -67,8 +74,8 @@ namespace zero.core.network.ip
         /// </summary>
         private Logger _logger;
 
-        private IoHeap<IIoManualResetValueTaskSourceCore<Socket>> _listenerSourceCore;
-        private IoHeap<IIoManualResetValueTaskSourceCore<bool>> _connectSourceCore;
+        private readonly IoHeap<IIoManualResetValueTaskSourceCore<Socket>> _listenerSourceCore;
+        private readonly IoHeap<IIoManualResetValueTaskSourceCore<bool>> _connectSourceCore;
 
         [IoParameter]
         // ReSharper disable once InconsistentNaming

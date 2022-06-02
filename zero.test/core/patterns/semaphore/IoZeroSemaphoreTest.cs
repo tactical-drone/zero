@@ -123,7 +123,7 @@ namespace zero.test.core.patterns.semaphore
                     }
                 }
 
-                Assert.InRange(_releaseCount, -1, 0);
+                Assert.InRange(_releaseCount, -2, 0);
             },this, CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Default).Unwrap();
         }
 
@@ -169,7 +169,7 @@ namespace zero.test.core.patterns.semaphore
             }, CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Default);
 
             var ts = Environment.TickCount;
-            
+
             await m.WaitAsync();
             await m.WaitAsync();
             await m.WaitAsync();

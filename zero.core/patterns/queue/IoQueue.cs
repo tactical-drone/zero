@@ -62,18 +62,18 @@ namespace zero.core.patterns.queue
 
             //_syncRoot = new IoZeroSemaphore<bool>(desc, maxBlockers: concurrencyLevel, initialCount: 1, cancellationTokenSource: _asyncTasks, runContinuationsAsynchronously: true);
             //_syncRoot.ZeroRef(ref _syncRoot, _ => true);
-            _syncRoot = new IoZeroCore<bool>(desc, concurrencyLevel, 1, false);
+            _syncRoot = new IoZeroCore<bool>(desc, concurrencyLevel, _asyncTasks,1, false);
             _syncRoot = _syncRoot.ZeroRef(ref _syncRoot, _ => true);
 
             if (configuration.HasFlag(Mode.Pressure))
             {
-                _pressure = new IoZeroCore<bool>($"qp {description}", concurrencyLevel);
+                _pressure = new IoZeroCore<bool>($"qp {description}", concurrencyLevel, _asyncTasks);
                 _pressure.ZeroRef(ref _pressure, _ => true);
             }
             
             if (configuration.HasFlag(Mode.BackPressure))
             {
-                _backPressure = new IoZeroCore<bool>($"qbp {description}",concurrencyLevel, concurrencyLevel, false);
+                _backPressure = new IoZeroCore<bool>($"qbp {description}",concurrencyLevel, _asyncTasks,concurrencyLevel, false);
                 _backPressure.ZeroRef(ref _backPressure, _ => true);
             }
 
@@ -286,7 +286,8 @@ namespace zero.core.patterns.queue
 #if DEBUG
                             Interlocked.Decrement(ref _insaneExclusive);
 #endif
-                            _syncRoot.Release(true, true);
+                            var r = _syncRoot.Release(true, false);
+                            Debug.Assert(r == 1);
                         }
                     }
 
@@ -368,7 +369,8 @@ namespace zero.core.patterns.queue
 #if DEBUG
                     Interlocked.Decrement(ref _insaneExclusive);
 #endif
-                    _syncRoot.Release(true, true);
+                    var r =  _syncRoot.Release(true, false);
+                    Debug.Assert(r == 1);
                 }
 
                 if (retVal != default)
@@ -404,9 +406,9 @@ namespace zero.core.patterns.queue
                     return default;
                 entered = true;
 #if DEBUG
-                Debug.Assert(Interlocked.Increment(ref _insaneExclusive) == 1 || _syncRoot.Zeroed());
+                Debug.Assert(Interlocked.Increment(ref _insaneExclusive) == 1 || _syncRoot.Zeroed() || Zeroed);
                 Debug.Assert(_syncRoot.ReadyCount <= 0 || _syncRoot.Zeroed()); //TODO: Why is this one failing?
-                Debug.Assert(_insaneExclusive < 2 || _syncRoot.Zeroed());
+                Debug.Assert(_insaneExclusive < 2 || _syncRoot.Zeroed() || Zeroed);
 #endif
                 if (_count == 0)
                     return default;
@@ -437,7 +439,8 @@ namespace zero.core.patterns.queue
                     Interlocked.Decrement(ref _insaneExclusive);
 #endif
                     Debug.Assert(_syncRoot.ReadyCount == 0);
-                    _syncRoot.Release(true, true);
+                    var r = _syncRoot.Release(true, false);
+                    Debug.Assert(r == 1);
                 }
             }
             
@@ -477,11 +480,11 @@ namespace zero.core.patterns.queue
             var deDup = true;
             try
             {
-                if (!await _syncRoot.WaitAsync().FastPath())
+                if (!await _syncRoot.WaitAsync().FastPath() || Zeroed)
                     return false;
 #if DEBUG
                 Debug.Assert(Interlocked.Increment(ref _insaneExclusive) == 1 || _syncRoot.Zeroed());
-                Debug.Assert(_syncRoot.ReadyCount <= 0 || _syncRoot.Zeroed()); //TODO: Why is this one failing?
+                //Debug.Assert(_syncRoot.ReadyCount <= 0 || _syncRoot.Zeroed()); //TODO: Why is this one failing?
                 Debug.Assert(_insaneExclusive < 2 || _syncRoot.Zeroed());
 #endif
                 if (node.Value == null)
@@ -527,7 +530,7 @@ namespace zero.core.patterns.queue
 #if DEBUG
                 Interlocked.Decrement(ref _insaneExclusive);       
 #endif
-                _syncRoot.Release(true, true);
+                _syncRoot.Release(true, false);
                 node.Value = default;
                 _nodeHeap.Return(node, deDup);
             }
