@@ -207,6 +207,21 @@ namespace zero.core.patterns.bushings
             internal set => _rate = value;
         }
 
+        private long _zeroTimeStamp = -1;
+
+        /// <summary>
+        /// Current timestamp
+        /// </summary>
+        public long ZeroTimeStamp
+        {
+            get => _zeroTimeStamp;
+            set
+            {
+                _zeroTimeStamp = value;
+                Interlocked.MemoryBarrier();
+            }
+        }
+
         public int SetRate(int value, int cmp) => Interlocked.CompareExchange(ref _rate, value, cmp);
         
         /// <summary>

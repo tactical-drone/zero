@@ -1047,7 +1047,7 @@ namespace zero.cocoon
         /// </summary>
         public bool Online { get; private set; }
 
-        public long MaxReq;
+        public long MaxReq = -1;
 
         /// <summary>
         /// Boots the node

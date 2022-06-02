@@ -163,6 +163,11 @@ namespace zero.core.patterns.bushings.contracts
         int Rate { get;}
 
         /// <summary>
+        /// Current timestamp
+        /// </summary>
+        long ZeroTimeStamp { get; set; }
+
+        /// <summary>
         /// Sets the current rate
         /// </summary>
         /// <param name="rate"></param>

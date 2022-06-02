@@ -460,6 +460,10 @@ namespace zero.cocoon.models
                     {
                         _logger.Info($"[{Id}]: {req}, recover = {Source.Counters[(int)IoJobMeta.JobState.Synced]}/{Source.Counters[(int)IoJobMeta.JobState.ZeroRecovery]} ({Source.Counters[(int)IoJobMeta.JobState.Synced]/(double)Source.Counters[(int)IoJobMeta.JobState.ZeroRecovery]*100:0.0}%), frag = {Source.Counters[(int)IoJobMeta.JobState.Fragmented]}, bad = {Source.Counters[(int)IoJobMeta.JobState.BadData]}, success = {Source.Counters[(int)IoJobMeta.JobState.Consumed]}, fail = {Source.Counters[(int)IoJobMeta.JobState.Queued] - Source.Counters[(int)IoJobMeta.JobState.Consumed]}");
                     }
+
+                    if(req > IoZero.IoSource.ZeroTimeStamp)
+                        IoZero.IoSource.ZeroTimeStamp = req;
+
                     req++;
 
                     if (req is > uint.MaxValue or < 0 || req <= Volatile.Read(ref CcCollective.MaxReq))
@@ -468,6 +472,9 @@ namespace zero.cocoon.models
                         continue;
                     }
 
+                    var l = CcCollective.MaxReq;
+                    if (Interlocked.CompareExchange(ref CcCollective.MaxReq, req, CcCollective.MaxReq) != l)
+                        continue;
 
                     //if (req > 2 && Source.Rate.ElapsedMs() < 3000)// && req - _maxReq < 10)
                     //    continue;
@@ -475,9 +482,9 @@ namespace zero.cocoon.models
                     //await Task.Delay(RandomNumberGenerator.GetInt32(5, 350));
                     //await Task.Delay(RandomNumberGenerator.GetInt32(16, 90));
 
-                    var latch = Source.Rate;
-                    if( Source.SetRate(Environment.TickCount, latch) != latch)
-                        continue;
+                    //var latch = Source.Rate;
+                    //if( Source.SetRate(Environment.TickCount, latch) != latch)
+                    //    continue;
                     
                     IoZero.IncEventCounter();
                     CcCollective.IncEventCounter();
@@ -487,17 +494,7 @@ namespace zero.cocoon.models
                         var (@this, req) = (ValueTuple<CcWhispers,long>)state;
 
 
-                        if(req <= Volatile.Read(ref @this.CcCollective.MaxReq))
-                            return;
-
                         //await Task.Delay(RandomNumberGenerator.GetInt32(500, 1500));
-
-                        if (req <= Volatile.Read(ref @this.CcCollective.MaxReq))
-                            return;
-
-                        var latch = @this.CcCollective.MaxReq;
-                        if (Interlocked.CompareExchange(ref @this.CcCollective.MaxReq, req, @this.CcCollective.MaxReq) != latch)
-                            return;
 
                         byte[] socketBuf = null;
                         try
@@ -514,7 +511,7 @@ namespace zero.cocoon.models
                             {
                                 foreach (var drone in @this.CcCollective.Neighbors.Values.Cast<CcDrone>().Where(d=>d.MessageService?.IsOperational()??false))
                                 {
-                                    if (@this.CcCollective == null || req != Volatile.Read(ref @this.CcCollective.MaxReq))
+                                    if (@this.CcCollective == null || req + 1 < Volatile.Read(ref @this.CcCollective.MaxReq))
                                         break;
                                     try
                                     {
@@ -523,6 +520,8 @@ namespace zero.cocoon.models
                                         //Don't forward new messages to nodes from which we have received the msg in the mean time.
                                         //This trick has the added bonus of using congestion as a governor to catch more of those overlaps, 
                                         //which in turn lowers the traffic causing less congestion
+                                        if (req <= source.ZeroTimeStamp)
+                                            return;
 #if DUPCHECK
                             if (source.IoNetSocket.RemoteAddress == endpoint || dupEndpoints != null && dupEndpoints.Contains(source.IoNetSocket.RemoteAddress.GetHashCode()))
                                 continue;
