@@ -24,31 +24,31 @@ namespace zero.core.patterns.semaphore.core
         /// or null if a callback hasn't yet been provided and the operation hasn't yet completed.
         /// </summary>
 #pragma warning disable CS8632 // The annotation for nullable reference types should only be used in code within a '#nullable' annotations context.
-        private volatile Action<object?>? _continuation;
+        private Action<object?>? _continuation;
 
         /// <summary>State to pass to <see cref="_continuation"/>.</summary>
-        private volatile object? _continuationState;
+        private object? _continuationState;
 
         /// <summary><see cref="ExecutionContext"/> to flow to the callback, or null if no flowing is required.</summary>
-        private volatile ExecutionContext _executionContext;
+        private ExecutionContext _executionContext;
 
         /// <summary>
         /// A "captured" <see cref="SynchronizationContext"/> or <see cref="TaskScheduler"/> with which to invoke the callback,
         /// or null if no special context is required.
         /// </summary>
-        private volatile object? _capturedContext;
+        private object? _capturedContext;
 
         /// <summary>The exception with which the operation failed, or null if it hasn't yet completed or completed successfully.</summary>
         private ExceptionDispatchInfo? _error;
 #pragma warning restore CS8632 // The annotation for nullable reference types should only be used in code within a '#nullable' annotations context.
 
         /// <summary>Whether the current operation has completed.</summary>
-        private volatile bool _completed;
-        private volatile int _completeTime;
-        private volatile int _burnTime;
-        private volatile bool _runContinuationsAsync;
-        private volatile bool _runContinuationsAsyncAlways;
-        private volatile bool _autoReset;
+        private bool _completed;
+        private int _completeTime;
+        private int _burnTime;
+        private bool _runContinuationsAsync;
+        private bool _runContinuationsAsyncAlways;
+        private bool _autoReset;
 
         /// <summary>The current version of this value, used to help prevent misuse.</summary>
         private int _version;
@@ -56,7 +56,7 @@ namespace zero.core.patterns.semaphore.core
         /// <summary>
         /// Whether this core has been burned?
         /// </summary>
-        private volatile int _burned;
+        private int _burned;
 
         /// <summary>The result with which the operation succeeded, or the default value if it hasn't yet completed or failed.</summary>
         [AllowNull, MaybeNull] private TResult _result;
@@ -130,7 +130,8 @@ namespace zero.core.patterns.semaphore.core
             _completed = false;
             _continuation = null;
 
-            _heapAction?.Invoke(_executionContext);
+            if(_burned > 0)
+                _heapAction?.Invoke(_heapContext);
 
             Interlocked.MemoryBarrier();
             _burned = 0;
@@ -227,8 +228,6 @@ namespace zero.core.patterns.semaphore.core
 #endif
         public TResult GetResult(short token)
         {
-            //Interlocked.MemoryBarrierProcessWide();
-            Interlocked.MemoryBarrier();
             if (Interlocked.CompareExchange(ref _burned, 1, 0) != 0)
                 throw new InvalidOperationException($"[{Thread.CurrentThread.ManagedThreadId}] {nameof(GetResult)}: core #{_version} already burned {_completeTime.ElapsedMs()} ms, burned = {_burnTime.ElapsedMs()} ms");
 #if DEBUG

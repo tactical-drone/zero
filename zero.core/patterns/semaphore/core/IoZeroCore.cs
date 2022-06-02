@@ -177,6 +177,7 @@ namespace zero.core.patterns.semaphore.core
                 {
                     // ignored
                 }
+                waiter.Reset();
             }
 
             //insane
@@ -206,6 +207,7 @@ namespace zero.core.patterns.semaphore.core
                             // ignored
                         }
                     }
+                    waiter.Reset();
                 }
                 released = 1;
                 return true;
@@ -244,15 +246,23 @@ namespace zero.core.patterns.semaphore.core
             if (_heap.Reader.TryRead(out var cached))
             {
                 waiter = cached;
-                waiter.Reset();
             }
             else
             {
                 waiter = new IoManualResetValueTaskSourceCore<T> { AutoReset = false };
+                Interlocked.MemoryBarrier();
                 waiter.Reset(static state =>
                 {
-                    var (@this, waiter) = (ValueTuple<IoZeroCore<T>, IIoManualResetValueTaskSourceCore<T>>)state;
-                    @this._heap.Writer.TryWrite(waiter);
+                    try
+                    {
+                        var (@this, waiter) = (ValueTuple<IoZeroCore<T>, IIoManualResetValueTaskSourceCore<T>>)state;
+                        @this._heap.Writer.TryWrite(waiter);
+                    }
+                    catch (Exception e)
+                    {
+                        Console.WriteLine(e);
+                        throw;
+                    }
                 }, (this, waiter));
             }
             
