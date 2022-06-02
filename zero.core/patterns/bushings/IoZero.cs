@@ -86,7 +86,7 @@ namespace zero.core.patterns.bushings
             try
             {
                 //TODO tuning
-                _queue = new IoZeroQ<IoSink<TJob>>($"zero Q: {_description}", capacity, asyncTasks:AsyncTasks, concurrencyLevel:ZeroConcurrencyLevel(),zeroAsyncMode:false);
+                _queue = new IoZeroQ<IoSink<TJob>>($"zero Q: {_description}", capacity, asyncTasks:AsyncTasks, concurrencyLevel:ZeroConcurrencyLevel(),zeroAsyncMode:true);
                 JobHeap = new IoHeapIo<IoSink<TJob>>($"{nameof(JobHeap)}: {_description}", capacity, jobMalloc) {
                     Constructor = (sink, zero) =>
                     {
@@ -691,7 +691,7 @@ namespace zero.core.patterns.bushings
 
                             await ZeroJobAsync(curJob, curJob.FinalState == IoJobMeta.JobState.Accept).FastPath();
 
-                            if (Source.BackPressure(zeroAsync: false) != 1)//TODO: Why is true here cata?
+                            if (Source.BackPressure(zeroAsync: true) != 1)//TODO: Why is true here cata?
                             {
                                 _logger?.Fatal($"{nameof(ConsumeAsync)}: Backpressure [FAILED], {Description}");
                             }

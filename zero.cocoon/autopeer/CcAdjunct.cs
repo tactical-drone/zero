@@ -1754,7 +1754,7 @@ namespace zero.cocoon.autopeer
                 return;
             }
 
-            _logger.Debug($"<\\- {nameof(CcAdjunctResponse)}: Received {response.Contacts.Count} potentials from {Description}");
+            //_logger.Debug($"<\\- {nameof(CcAdjunctResponse)}: Received {response.Contacts.Count} potentials from {Description}");
 
             _lastScan = Environment.TickCount;
 
@@ -1796,6 +1796,9 @@ namespace zero.cocoon.autopeer
                 }
                 processed++;
             }
+
+            if (processed > 0)
+                _logger.Debug($"<\\- {nameof(CcAdjunctResponse)}: Processed {processed}/{response.Contacts.Count} potential adjuncts from {Description}");
         }
 
         /// <summary>
