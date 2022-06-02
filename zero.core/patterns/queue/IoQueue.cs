@@ -62,12 +62,12 @@ namespace zero.core.patterns.queue
 
             //_syncRoot = new IoZeroSemaphore<bool>(desc, maxBlockers: concurrencyLevel, initialCount: 1, cancellationTokenSource: _asyncTasks, runContinuationsAsynchronously: true);
             //_syncRoot.ZeroRef(ref _syncRoot, _ => true);
-            _syncRoot = new IoZeroCore<bool>(desc, concurrencyLevel, _asyncTasks,1, false);
+            _syncRoot = new IoZeroCore<bool>(desc, concurrencyLevel, _asyncTasks,1, true);
             _syncRoot = _syncRoot.ZeroRef(ref _syncRoot, _ => true);
 
             if (configuration.HasFlag(Mode.Pressure))
             {
-                _pressure = new IoZeroCore<bool>($"qp {description}", concurrencyLevel, _asyncTasks);
+                _pressure = new IoZeroCore<bool>($"qp {description}", concurrencyLevel, _asyncTasks, zeroAsyncMode:true);
                 _pressure.ZeroRef(ref _pressure, _ => true);
             }
             

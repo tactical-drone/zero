@@ -430,7 +430,7 @@ namespace zero.core.patterns.bushings
                             //Source.Pressure();
 
                             //Fetch more work
-                            if (Source.PrefetchPressure(zeroAsync: false) != 1)
+                            if (Source.PrefetchPressure(zeroAsync: true) != 1)
                             {
                                 _logger.Fatal($"{nameof(ConsumeAsync)}: PrefetchPressure [FAILED] - {Description}");
                             }
@@ -662,7 +662,7 @@ namespace zero.core.patterns.bushings
                                  curJob.State != IoJobMeta.JobState.Fragmented &&
                                  curJob.State != IoJobMeta.JobState.BadData && !Zeroed() && !curJob.Zeroed())
                         {
-                            _logger.Error($"{Description}: {curJob.TraceDescription} consuming job: {curJob.Description} was unsuccessful, state = {curJob.State}");
+                            _logger?.Error($"{Description}: {curJob.TraceDescription} consuming job: {curJob.Description} was unsuccessful, state = {curJob.State}");
                         }
                     }
                     catch (Exception) when (Zeroed() || curJob.Zeroed())
@@ -693,7 +693,7 @@ namespace zero.core.patterns.bushings
 
                             if (Source.BackPressure(zeroAsync: false) != 1)//TODO: Why is true here cata?
                             {
-                                _logger.Fatal($"{nameof(ConsumeAsync)}: Backpressure [FAILED], {Description}");
+                                _logger?.Fatal($"{nameof(ConsumeAsync)}: Backpressure [FAILED], {Description}");
                             }
                         }
                         catch when (Zeroed())
