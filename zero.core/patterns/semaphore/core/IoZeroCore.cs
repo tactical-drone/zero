@@ -49,8 +49,17 @@ namespace zero.core.patterns.semaphore.core
             capacity *= 3;
             ZeroAsyncMode = zeroAsyncMode;
 
-            _waiters = Channel.CreateBounded<IIoManualResetValueTaskSourceCore<T>>(capacity);
-            _results = Channel.CreateBounded<T>(capacity);
+            _waiters = Channel.CreateBounded<IIoManualResetValueTaskSourceCore<T>>(new BoundedChannelOptions(capacity)
+            {
+                SingleWriter = false,
+                SingleReader = false,
+            });
+
+            _results = Channel.CreateBounded<T>(new BoundedChannelOptions(capacity)
+            {
+                SingleWriter = false,
+                SingleReader = false,
+            });
             _heap = Channel.CreateBounded<IIoManualResetValueTaskSourceCore<T>>(capacity);
 
             _b_tail = ready;

@@ -45,12 +45,26 @@ namespace zero.core.runtime.scheduler
 
             //TODO: tuning
             //_taskQueue = new IoZeroQ<Task>(string.Empty, short.MaxValue / 3, false, _asyncTasks, MaxWorker - 1, zeroAsyncMode: true);
-            _taskQueue = Channel.CreateBounded<Task>(_workerCount * 1024);//TODO: tuning
+            _taskQueue = Channel.CreateBounded<Task>(new BoundedChannelOptions(_workerCount * 1024)
+            {
+                AllowSynchronousContinuations = false,
+                FullMode = BoundedChannelFullMode.Wait,
+                SingleReader = false,
+                SingleWriter = false
+            });//TODO: tuning
+
             _asyncCallbackQueue = new IoZeroQ<ZeroContinuation>(string.Empty, short.MaxValue / 3, false, _asyncTasks, concurrencyLevel: MaxWorker - 1, zeroAsyncMode: true);
             _asyncQueue = new IoZeroQ<ZeroValueContinuation>(string.Empty, short.MaxValue / 3, false, _asyncTasks, concurrencyLevel: MaxWorker - 1, zeroAsyncMode: true);
             _asyncForkQueue = new IoZeroQ<Func<ValueTask>>(string.Empty, short.MaxValue / 3, false, _asyncTasks, concurrencyLevel: MaxWorker - 1, zeroAsyncMode: true);
             //_asyncContextQueue = new IoZeroQ<ZeroValueContinuation>(string.Empty, short.MaxValue / 3, false, _asyncTasks, concurrencyLevel: MaxWorker - 1, zeroAsyncMode: true);
-            _asyncContextQueue = Channel.CreateBounded<ZeroValueContinuation>(_workerCount * 1024);
+            _asyncContextQueue = Channel.CreateBounded<ZeroValueContinuation>(new BoundedChannelOptions(_workerCount * 1024)
+            {
+                AllowSynchronousContinuations = false,
+                FullMode = BoundedChannelFullMode.Wait,
+                SingleReader = false,
+                SingleWriter = false
+            });//TODO: tuning
+
             _forkQueue = new IoZeroQ<Action>(string.Empty, short.MaxValue / 3, false, _asyncTasks, concurrencyLevel: MaxWorker - 1, zeroAsyncMode: true);
 
             _callbackHeap = new IoHeap<ZeroContinuation>(string.Empty, 16384 * 2, (_, _) => new ZeroContinuation(), true)
