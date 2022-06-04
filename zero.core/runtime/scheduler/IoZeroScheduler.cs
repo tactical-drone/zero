@@ -22,7 +22,7 @@ namespace zero.core.runtime.scheduler
         public static bool Enabled = true;
         static IoZeroScheduler()
         {
-            Zero = new IoZeroScheduler(Default, native:true);
+            Zero = new IoZeroScheduler(Default, native:true); 
             ZeroDefault = Zero;
             //ZeroDefault = Default; //TODO: Uncomment to enable native .net scheduler...
             Zero.InitQueues();
@@ -37,9 +37,9 @@ namespace zero.core.runtime.scheduler
 
             _fallbackScheduler = fallback;
             _asyncTasks = asyncTasks ?? new CancellationTokenSource();
-            _workerCount = Math.Max(Environment.ProcessorCount * 4, 32);
+            _workerCount = Math.Max(Environment.ProcessorCount * 2, 4);
             //_workerCount = 10;
-            _asyncCount = _workerCount * 2;
+            _asyncCount = _workerCount * 4;
             _syncCount = _forkCount = _asyncCount;
             var capacity = MaxWorker + 1;
 
@@ -183,12 +183,15 @@ namespace zero.core.runtime.scheduler
         }
 
         //The rate at which the scheduler will be allowed to "burst" allowing per tick unchecked new threads to be spawned until one of them spawns
-        private static readonly int WorkerSpawnBurstTimeMs = 16;
+        private static readonly int WorkerSpawnBurstTimeMs = 250;
+        //TODO: tuning; 25 threads per second <<--- these two values need more research. It is not at all clear why
+        //TODO: thread lockups happen when you change these values.Too high and you get CPU flat-lining without any work being done. To little, deadlock! How to tune is unclear?
+        private static readonly int WorkerSpawnBurstMax = 5; 
+        private static int _workerSpawnBurstMax = WorkerSpawnBurstMax; 
         private static readonly int MaxWorker = short.MaxValue / 3;
         public static readonly TaskScheduler ZeroDefault;
         public static readonly IoZeroScheduler Zero;
         private readonly CancellationTokenSource _asyncTasks;
-        //private readonly IoZeroQ<Task> _taskQueue;
         private readonly Channel<Task> _taskQueue;
         private readonly IoZeroQ<Func<ValueTask>> _asyncForkQueue;
         private readonly Channel<ZeroValueContinuation> _asyncContextQueue;
@@ -199,15 +202,12 @@ namespace zero.core.runtime.scheduler
         private readonly IoHeap<ZeroValueContinuation> _asyncHeap;
         private readonly IoHeap<List<int>> _diagnosticsHeap;
 
-        private int _workerLoad;
+        private volatile int _workerLoad;
         public int Load => _workerLoad;
-        private int _asyncLoad;
+        private volatile int _asyncLoad;
         public int AsyncLoad => _asyncLoad;
-        private int _syncLoad;
-        public int SyncLoad => _syncLoad;
-        private int _forkLoad;
+        private volatile int _forkLoad;
         public int ForkLoad => _forkLoad;
-
         public double QTime => (double)_taskQTime / _completedQItemCount;
         public double AQTime => (double)_asyncQTime / _completedAsyncCount;
 
@@ -389,22 +389,28 @@ namespace zero.core.runtime.scheduler
 #if _TRACE_
             Console.WriteLine($"<--- Queueing task id = {task.Id}, {task.Status}");
 #endif
-            
-            if (LoadFactor > 0.9 && _lastWorkerSpawnedTime.ElapsedMs() > WorkerSpawnBurstTimeMs && _workerCount < short.MaxValue / 3)
+
+            if (LoadFactor > 0.8 && _lastWorkerSpawnedTime.ElapsedMs() > WorkerSpawnBurstTimeMs && _workerCount < short.MaxValue / 3)
             {
-                _ = Task.Factory.StartNew(static async state =>
+                Console.WriteLine($"Adding zero thread {_workerCount + 1}");
+                if (Interlocked.Decrement(ref _workerSpawnBurstMax) > 0)
                 {
-                    var (@this, i) = (ValueTuple<IoZeroScheduler, int>)state;
-                    await @this.LoadTask(i).FastPath();
-                }, (this, Interlocked.Increment(ref _workerCount) - 1), CancellationToken.None, TaskCreationOptions.LongRunning, Default);
+                    _ = Task.Factory.StartNew(static async state =>
+                    {
+                        var (@this, i) = (ValueTuple<IoZeroScheduler, int>)state;
+                        await @this.LoadTask(i).FastPath();
+                    }, (this, Interlocked.Increment(ref _workerCount) - 1), CancellationToken.None, TaskCreationOptions.LongRunning, Default);
 
-                _ = Task.Factory.StartNew(static async state =>
-                {
-                    var (@this, i) = (ValueTuple<IoZeroScheduler, int>)(state);
-                    await @this.AsyncValueContextTasks(i).FastPath();
-                }, (this, Interlocked.Increment(ref _asyncCount)), CancellationToken.None, TaskCreationOptions.LongRunning, this);
+                    _ = Task.Factory.StartNew(static async state =>
+                    {
+                        var (@this, i) = (ValueTuple<IoZeroScheduler, int>)state;
+                        await @this.AsyncValueContextTasks(i).FastPath();
+                    }, (this, Interlocked.Increment(ref _asyncCount)), CancellationToken.None, TaskCreationOptions.LongRunning, ZeroDefault);
 
-                _lastWorkerSpawnedTime = Environment.TickCount;
+                    _lastWorkerSpawnedTime = Environment.TickCount;
+                    _workerSpawnBurstMax = WorkerSpawnBurstMax;
+                    Interlocked.MemoryBarrierProcessWide();
+                }
             }
             //queue the work for processing
             var ts = Environment.TickCount;
@@ -521,7 +527,6 @@ namespace zero.core.runtime.scheduler
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public bool LoadAsyncCallback(Func<ValueTask> callback, object state = null) => _asyncForkQueue.TryEnqueue(callback) > 0;
-
 
         //[MethodImpl(MethodImplOptions.AggressiveInlining)]
         //public bool LoadExclusiveZone(Func<object,ValueTask> callback, object state = null) => _exclusiveQueue.TryEnqueue(callback) > 0;

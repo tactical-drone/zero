@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Diagnostics;
 using System.IO;
 using System.Runtime.CompilerServices;
 using System.Text;
@@ -179,10 +180,10 @@ namespace zero.core.patterns.misc
         /// <param name="concurrencyLevel"></param>
         /// <param name="asyncTasks"></param>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        protected static IIoZeroSemaphoreBase<bool> ZeroSyncRoot(int concurrencyLevel, CancellationTokenSource asyncTasks)
+        protected static IIoZeroSemaphoreBase<int> ZeroSyncRoot(int concurrencyLevel, CancellationTokenSource asyncTasks)
         {
-            IIoZeroSemaphoreBase<bool> z = new IoZeroCore<bool>(string.Empty, Math.Min(20 + concurrencyLevel * 40, short.MaxValue / 3), asyncTasks,1);
-            z.ZeroRef(ref z, _ => true);
+            IIoZeroSemaphoreBase<int> z = new IoZeroCore<int>(string.Empty, Math.Min(20 + concurrencyLevel * 40, short.MaxValue / 3), asyncTasks,1);
+            z.ZeroRef(ref z, _ => Environment.TickCount);
             return z;
         }
 
@@ -208,7 +209,7 @@ namespace zero.core.patterns.misc
         /// <summary>
         /// root sync
         /// </summary>
-        private static readonly IIoZeroSemaphoreBase<bool> ZeroRoot;
+        private static readonly IIoZeroSemaphoreBase<int> ZeroRoot;
 
         /// <summary>
         /// ZeroAsync
@@ -265,9 +266,15 @@ namespace zero.core.patterns.misc
 
             foreach (var ioZNode in _zeroHiveMind)
             {
-                if (!ioZNode.Value.Zeroed())
-                    IoZeroScheduler.Zero.Fork(ioZNode.Value.ZeroPrime);
-                    //ioZNode.Value.ZeroPrime();
+                try
+                {
+                    if (ioZNode.Value!= null && !ioZNode.Value.Zeroed())
+                        IoZeroScheduler.Zero.Fork(ioZNode.Value.ZeroPrime);
+                }
+                catch
+                {
+                    // ignored
+                }
             }
         }
 
@@ -371,7 +378,8 @@ namespace zero.core.patterns.misc
                         var (_, target, sub) = state;
                         try
                         {
-                            await target.ZeroHiveMind().RemoveAsync(sub).FastPath();
+                            if(!target.Zeroed())
+                                await target.ZeroHiveMind().RemoveAsync(sub).FastPath();
                         }
                         catch
                         {
@@ -561,11 +569,11 @@ namespace zero.core.patterns.misc
         {
             try
             {
-                if (!await ZeroRoot.WaitAsync().FastPath())
-                {
-                    return false;
-                }
-
+                await ZeroRoot.WaitAsync().FastPath();
+#if DEBUG
+                Interlocked.MemoryBarrier();
+                Debug.Assert(Zeroed() || ZeroRoot.Zeroed() || ZeroRoot.ReadyCount == 0);
+#endif
                 //Prevents strange things from happening
                 if (_zeroed > 0 && !force)
                     return false;
@@ -573,33 +581,16 @@ namespace zero.core.patterns.misc
                 try
                 {
                     if (!force)
-                    {
-                        try
-                        {
-                            return _zeroed == 0 && await ownershipAction(this, userData, disposing).FastPath();
-                        }
-                        catch when (Zeroed())
-                        {
-                        }
-                        catch (Exception e) when (!Zeroed())
-                        {
-                            _logger.Error(e,
-                                $"{Description}: Unable to ensure action {ownershipAction}, target = {ownershipAction.Target}");
-                            return false;
-                        }
-                    }
+                        return _zeroed == 0 && await ownershipAction(this, userData, disposing).FastPath();
                     else
-                    {
                         return await ownershipAction(this, userData, disposing).FastPath();
-                    }
                 }
                 catch when (Zeroed())
                 {
                 }
                 catch (Exception e) when (!Zeroed())
                 {
-                    _logger.Error(e, $"{Description}");
-                    // ignored
+                    _logger.Error(e, $"{Description}: Unable to ensure action {ownershipAction}, target = {ownershipAction.Target}");
                 }
             }
             catch when (Zeroed())
@@ -611,76 +602,10 @@ namespace zero.core.patterns.misc
             }
             finally
             {
-                ZeroRoot.Release(true, true);
+                ZeroRoot.Release(Environment.TickCount, true);
             }
 
             return false;
-        }
-
-        /// <summary>
-        /// Async execution options. <see cref="DisposeAsync"/> needs trust, but verify...
-        /// </summary>
-        /// <param name="continuation">The continuation</param>
-        /// <param name="state">user state</param>
-        /// <param name="asyncToken">The async cancellation token</param>
-        /// <param name="options">Task options</param>
-        /// <param name="scheduler">The scheduler</param>
-        /// <param name="filePath"></param>
-        /// <param name="methodName"></param>
-        /// <param name="lineNumber"></param>
-        /// <returns>A ValueTask</returns>
-        protected async ValueTask<TResult> ZeroAsync<T,TResult>(Func<T, ValueTask<TResult>> continuation, T state, CancellationToken asyncToken, TaskCreationOptions options, TaskScheduler scheduler = null, [CallerFilePath] string filePath = null,[CallerMemberName] string methodName = null, [CallerLineNumber] int lineNumber = default )
-        {
-            var nanite = state as IoNanoprobe??this;
-            try
-            {
-                var zeroAsyncTask = Task.Factory.StartNew<ValueTask<TResult>>(static async nanite =>
-                {
-                    var (@this, action, state, fileName, methodName, lineNumber) = (ValueTuple<IoNanoprobe, Func<T, ValueTask<TResult>>, T, string, string, int>)nanite;
-
-                    var nanoprobe = state as IoNanoprobe;
-                    try
-                    {
-                        return await action(state).FastPath();
-                    }
-#if DEBUG
-                    catch (TaskCanceledException e) when ( nanoprobe != null && !nanoprobe.Zeroed() ||
-                                               nanoprobe == null && @this._zeroed == 0)
-                    {
-                        _logger.Trace(e,$"{Path.GetFileName(fileName)}:{methodName}() line {lineNumber} - [{@this.Description}]: {nameof(DisposeAsync)}");
-                    }
-#else
-                    catch (TaskCanceledException) { }
-#endif
-                    catch when (nanoprobe != null && nanoprobe.Zeroed() ||
-                                nanoprobe == null && @this._zeroed > 0)
-                    { }
-                    catch (Exception e) when (nanoprobe != null && !nanoprobe.Zeroed() ||
-                                              nanoprobe == null && @this._zeroed == 0)
-                    {
-                        _logger.Error(e, $"{Path.GetFileName(fileName)}:{methodName}() line {lineNumber} - [{@this.Description}]: {nameof(DisposeAsync)}");
-                    }
-
-                    return default;
-                }, ValueTuple.Create(this, continuation, state, filePath, methodName, lineNumber), asyncToken, options, scheduler??TaskScheduler.Current);
-
-#pragma warning disable VSTHRD103 // Call async methods when in an async method
-                return await zeroAsyncTask.Result.FastPath();
-#pragma warning restore VSTHRD103 // Call async methods when in an async method
-
-            }
-            catch (TaskCanceledException e) when (!nanite.Zeroed())
-            {
-                _logger.Trace(e, Description);
-            }
-            catch(TaskCanceledException) when (nanite.Zeroed()){}
-            catch(Exception) when (nanite.Zeroed()){}
-            catch (Exception e) when (!nanite.Zeroed())
-            {
-                throw ZeroException.ErrorReport(this, $"{nameof(DisposeAsync)} returned with errors!", e);
-            }
-
-            return default;
         }
 
         /// <summary>

@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using System.Security.Cryptography;
 using System.Threading;
@@ -128,79 +129,78 @@ namespace zero.core.feat.misc
                 response.Key = key;
                 response.Body = body;
 
-                await ZeroAtomicAsync(static async (_, state, _) =>
+                IoChallenge challenge = null;
+                try
                 {
-                    var (@this, response) = state;
-                    //var @this = this;
-                    IoChallenge challenge = null;
-                    try
+                    if ((challenge = _valHeap.Take()) == null)
                     {
-                        if ((challenge = @this._valHeap.Take()) == null)
+                        try
                         {
-                            try
-                            {
-                                await @this.PurgeAsync().FastPath();
-                            }
-                            catch (Exception e)
-                            {
-                                @this._logger.Error(e, $" Purge failed: {@this.Description}");
-                                // ignored
-                            }
-
-                            challenge = @this._valHeap.Take();
-                        
-                            if (challenge == null)
-                            {
-                                var c = @this._lut.Head;
-                                long ave = 0;
-                                var aveCounter = 0;
-                                while(c != null)
-                                {
-                                    ave += c.Value.TimestampMs.ElapsedMs();
-                                    aveCounter++;
-                                    c = c.Next;
-                                }
-
-                                if (aveCounter == 0)
-                                    aveCounter = 1;
-
-                                throw new OutOfMemoryException($"{@this.Description}: {nameof(_valHeap)} - heapSize = {@this._valHeap.Count}, ref = {@this._valHeap.ReferenceCount}, ave Ttl = {ave/aveCounter}ms / {@this._ttlMs}ms, (c = {aveCounter})");
-                            }
+                            await PurgeAsync().FastPath();
+                        }
+                        catch (Exception e)
+                        {
+                            _logger.Error(e, $" Purge failed: {Description}");
+                            // ignored
                         }
 
-                        if (!Sha256.TryComputeHash(response.Body, challenge.Hash, out var bytesWritten))
-                        {
-                            LogManager.GetCurrentClassLogger().Fatal($"{@this._description}: Unable to compute hash");
-                            return false;
-                        }
+                        challenge = _valHeap.Take();
 
-                        if (bytesWritten > 0)
+                        if (challenge == null)
                         {
-                            challenge.Key = response.Key;
-                            challenge.TimestampMs = Environment.TickCount;
-                            response.Node = await @this._lut.EnqueueAsync(challenge).FastPath();
-                            return true;
+                            var c = _lut.Head;
+                            long ave = 0;
+                            var aveCounter = 0;
+                            while (c != null)
+                            {
+                                ave += c.Value.TimestampMs.ElapsedMs();
+                                aveCounter++;
+                                c = c.Next;
+                            }
+
+                            if (aveCounter == 0)
+                                aveCounter = 1;
+
+                            throw new OutOfMemoryException(
+                                $"{Description}: {nameof(_valHeap)} - heapSize = {_valHeap.Count}, ref = {_valHeap.ReferenceCount}, ave Ttl = {ave / aveCounter}ms / {_ttlMs}ms, (c = {aveCounter})");
                         }
-                    }
-                    catch when (@this.Zeroed()) { }
-                    catch (Exception e) when (!@this.Zeroed())
-                    {
-                        @this._logger.Fatal(e);
-                        // ignored
-                    }
-                    finally
-                    {
-                        if (challenge != null && response.Node == null && @this._valHeap != null)
-                            @this._valHeap.Return(challenge);
                     }
 
-                    return false;
-                }, (this,response)).FastPath();
+                    if (!Sha256.TryComputeHash(response.Body, challenge.Hash, out var bytesWritten))
+                    {
+                        LogManager.GetCurrentClassLogger().Fatal($"{_description}: Unable to compute hash");
+                        return default;
+                    }
+
+                    if (bytesWritten > 0)
+                    {
+                        challenge.Key = response.Key;
+                        challenge.TimestampMs = Environment.TickCount;
+                        response.Node = await _lut.EnqueueAsync(challenge).FastPath();
+                        if (response.Node == null)
+                        {
+                            _logger.Fatal($"{nameof(ChallengeAsync)}: unable to Q challange, {_lut.Description}");
+                        }
+                    }
+                }
+                catch when (Zeroed())
+                {
+                }
+                catch (Exception e) when (!Zeroed())
+                {
+                    _logger.Fatal(e);
+                    // ignored
+                }
+                finally
+                {
+                    if (challenge != null && response.Node == null && _valHeap != null)
+                        _valHeap.Return(challenge);
+                }
             }
             finally
             {
                 node = response?.Node;
-                _carHeap.Return(response);
+                _carHeap?.Return(response);
             }
 
             return node;
@@ -361,6 +361,9 @@ namespace zero.core.feat.misc
         /// <returns>true on success, false otherwise</returns>
         public async ValueTask<bool> RemoveAsync(IoQueue<IoChallenge>.IoZNode node)
         {
+            if (Zeroed())
+                return false;
+
             var value = node.Value;
             await _lut.RemoveAsync(node).FastPath();
             _valHeap.Return(value);

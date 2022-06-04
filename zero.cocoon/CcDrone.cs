@@ -244,12 +244,12 @@ namespace zero.cocoon
 
                 if (attached)
                 {
-                    _logger.Trace($"{nameof(AttachViaAdjunctAsync)}: {direction} attach to adjunct {Adjunct.Description}");
+                    _logger?.Trace($"{nameof(AttachViaAdjunctAsync)}: {direction} attach to adjunct {Adjunct.Description}");
                     _assimulated = true;
                 }
                 else
                 {
-                    _logger.Trace($"{nameof(AttachViaAdjunctAsync)}: [RACE LOST]{direction} attach to adjunct {Adjunct.Description}, {Adjunct.MetaDesc}");
+                    _logger?.Trace($"{nameof(AttachViaAdjunctAsync)}: [RACE LOST]{direction} attach to adjunct {Adjunct.Description}, {Adjunct.MetaDesc}");
                 }
 
                 return attached;
@@ -257,7 +257,7 @@ namespace zero.cocoon
             catch (Exception) when (Zeroed()) { }
             catch (Exception e) when(!Zeroed())
             {
-                _logger.Error(e, $"");                               
+                _logger?.Error(e, $"{nameof(AttachViaAdjunctAsync)}:");                               
             }            
             return false; 
         }

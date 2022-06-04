@@ -11,7 +11,7 @@ namespace zero.core.patterns.semaphore
     /// <summary>
     /// Wraps a <see cref="IoZeroSemaphore"/> for use
     /// </summary>
-    public class IoZeroSemaphoreSlim: IoNanoprobe, IIoZeroSemaphore
+    public class IoZeroSemaphoreSlim: IoNanoprobe, IIoZeroSemaphoreBase<int>
     {
         public IoZeroSemaphoreSlim(CancellationTokenSource asyncTasks,
             string description = "IoZeroSemaphoreSlim", int maxBlockers = 1, int initialCount = 0,
@@ -20,11 +20,11 @@ namespace zero.core.patterns.semaphore
             bool enableAutoScale = false, bool enableFairQ = false, bool enableDeadlockDetection = false) : base($"{nameof(IoZeroSemaphoreSlim)}: {description}", maxBlockers)
         {
             //IIoZeroSemaphoreBase<bool> newSem = new IoZeroSemaphore<bool>(description, maxBlockers, initialCount, zeroAsyncMode, enableAutoScale: enableAutoScale, cancellationTokenSource: asyncTasks);
-            IIoZeroSemaphoreBase<bool> newSem = new IoZeroCore<bool>(description, maxBlockers, asyncTasks,initialCount, zeroAsyncMode);
-            _semaphore = newSem.ZeroRef(ref newSem, _ => true);
+            IIoZeroSemaphoreBase<int> newSem = new IoZeroCore<int>(description, maxBlockers, asyncTasks,initialCount, zeroAsyncMode);
+            _semaphore = newSem.ZeroRef(ref newSem, _ => Environment.TickCount);
         }
 
-        private readonly IIoZeroSemaphoreBase<bool> _semaphore;
+        private readonly IIoZeroSemaphoreBase<int> _semaphore;
 
         public override async ValueTask ZeroManagedAsync()
         {
@@ -33,7 +33,7 @@ namespace zero.core.patterns.semaphore
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public bool GetResult(short token)
+        public int GetResult(short token)
         {
             return _semaphore.GetResult(token);
         }
@@ -50,28 +50,28 @@ namespace zero.core.patterns.semaphore
             _semaphore.OnCompleted(continuation, state, token, flags);
         }
 
-        public IIoZeroSemaphoreBase<bool> ZeroRef(ref IIoZeroSemaphoreBase<bool> @ref, Func<object, bool> primeResult,
+        public IIoZeroSemaphoreBase<int> ZeroRef(ref IIoZeroSemaphoreBase<int> @ref, Func<object, int> primeResult,
             object context = null) => _semaphore.ZeroRef(ref @ref, primeResult);
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public int Release(bool value, int releaseCount, bool forceAsync = false)
+        public int Release(int value, int releaseCount, bool forceAsync = false)
         {
             return _semaphore.Release(value, releaseCount, forceAsync);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public int Release(bool value, bool forceAsync = false)
+        public int Release(int value, bool forceAsync = false)
         {
             return _semaphore.Release(value, forceAsync);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public int Release(bool[] value, bool forceAsync = false)
+        public int Release(int[] value, bool forceAsync = false)
         {
             return _semaphore.Release(value, forceAsync);
         }
 
-        public ValueTask<bool> WaitAsync()
+        public ValueTask<int> WaitAsync()
         {
             return _semaphore.WaitAsync();
         }
@@ -87,14 +87,11 @@ namespace zero.core.patterns.semaphore
         public int WaitCount => _semaphore.WaitCount;
         public bool ZeroAsyncMode => _semaphore.ZeroAsyncMode;
         public int Capacity => _semaphore.Capacity;
-        int IIoZeroSemaphoreBase<bool>.ZeroDecAsyncCount()
+        int IIoZeroSemaphoreBase<int>.ZeroDecAsyncCount()
         {
             throw new NotImplementedException();
         }
-
-        public long Tail => ((IoZeroCore<bool>)_semaphore).Tail;
-        public long Head => ((IoZeroCore<bool>)_semaphore).Head;
-        public long EgressCount => ((IoZeroSemaphore<bool>)_semaphore).EgressCount;
+        public long EgressCount => ((IoZeroSemaphore<int>)_semaphore).EgressCount;
 
         public override bool Zeroed()
         {

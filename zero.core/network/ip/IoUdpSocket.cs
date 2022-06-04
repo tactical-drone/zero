@@ -12,6 +12,7 @@ using zero.core.patterns.heap;
 using zero.core.patterns.misc;
 using zero.core.patterns.semaphore;
 using zero.core.patterns.semaphore.core;
+using zero.core.runtime.scheduler;
 
 
 namespace zero.core.network.ip
@@ -219,12 +220,13 @@ namespace zero.core.network.ip
         /// <param name="listeningAddress">The address to listen on</param>
         /// <param name="acceptConnectionHandler">The handler once a connection is made, mostly used in UDPs case to look function like <see cref="T:zero.core.network.ip.IoTcpSocket" /></param>
         /// <param name="context">Context</param>
-        /// <param name="bootstrapAsync">Bootstrap callback invoked when a listener has started</param>
+        /// <param name="bootFunc">Bootstrap callback invoked when a listener has started</param>
         /// <returns>True if successful, false otherwise</returns>
-        public override async ValueTask BlockOnListenAsync<T>(IoNodeAddress listeningAddress,
-            Func<IoSocket,T, ValueTask> acceptConnectionHandler,
+        public override async ValueTask BlockOnListenAsync<T, TBoot>(IoNodeAddress listeningAddress,
+            Func<IoSocket, T, ValueTask> acceptConnectionHandler,
             T context,
-            Func<ValueTask> bootstrapAsync = null)
+            Func<TBoot, ValueTask> bootFunc = null,
+            TBoot bootData = default)
         {
 
             //TODO sec
@@ -238,7 +240,7 @@ namespace zero.core.network.ip
             ConfigureSocket();
 
             //base
-            await base.BlockOnListenAsync(listeningAddress, acceptConnectionHandler, context,bootstrapAsync).FastPath();
+            await base.BlockOnListenAsync(listeningAddress, acceptConnectionHandler, context,bootFunc, bootData).FastPath();
 
             //Init connection tracking
             try
@@ -256,25 +258,26 @@ namespace zero.core.network.ip
                 }
                 
                 //Bootstrap on listener start
-                if (bootstrapAsync != null)
+                if (bootFunc != null)
                 {
-                    await ZeroAsync(static async bootstrapAsync =>
+                    IoZeroScheduler.Zero.LoadAsyncContext(static async state =>
                     {
+                        var (bootstrapAsync, bContext) = (ValueTuple<Func<TBoot, ValueTask>, TBoot>)state;
                         //TODO: tuning;
                         await Task.Delay(2000);
-                        await bootstrapAsync().FastPath();
-                    }, bootstrapAsync, TaskCreationOptions.DenyChildAttach).FastPath();
+                        await bootstrapAsync(bContext).FastPath();
+                    },(bootFunc,bootData));
                 }
                 
                 //block
                 await AsyncTasks.Token.BlockOnNotCanceledAsync().FastPath();
 
-                _logger.Trace($"Stopped listening at {LocalNodeAddress}");
+                _logger?.Trace($"Stopped listening at {LocalNodeAddress}");
             }
             catch when (Zeroed()) { }
             catch (Exception e)when (!Zeroed())
             {
-                _logger.Error(e, $"Error while listening: {Description}");
+                _logger?.Error(e, $"Error while listening: {Description}");
             }
         }
 
@@ -544,7 +547,7 @@ namespace zero.core.network.ip
                                 args.Dispose();
                             }
 
-                            _recvArgs.Return(args, dispose);
+                            _recvArgs?.Return(args, dispose);
                         }
                     }
                 }

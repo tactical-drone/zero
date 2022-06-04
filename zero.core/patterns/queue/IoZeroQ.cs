@@ -269,7 +269,7 @@ namespace zero.core.patterns.queue
                     {
                         try
                         {
-                            _balanceSync.Release(true);
+                            _balanceSync.Release(Environment.TickCount);
                         }
                         catch
                         {
@@ -281,7 +281,7 @@ namespace zero.core.patterns.queue
                     {
                         try
                         {
-                            _fanSync.Release(true, _blockingConsumers);
+                            _fanSync.Release(Environment.TickCount, _blockingConsumers);
                         }
                         catch
                         {
@@ -349,7 +349,7 @@ namespace zero.core.patterns.queue
                 {
                     try
                     {
-                        _balanceSync.Release(true);
+                        _balanceSync.Release(Environment.TickCount);
                     }
                     catch
                     {
@@ -361,7 +361,7 @@ namespace zero.core.patterns.queue
                 {
                     try
                     {
-                        _fanSync.Release(true,_blockingConsumers);
+                        _fanSync.Release(Environment.TickCount, _blockingConsumers);
                     }
                     catch
                     {
@@ -566,7 +566,7 @@ namespace zero.core.patterns.queue
                 var cur = Head;
                 while (!_fanSync.Zeroed())
                 {
-                    if (cur >= Tail && !await _fanSync.WaitAsync().FastPath())
+                    if (cur >= Tail && (await _fanSync.WaitAsync().FastPath()).ElapsedMs() > 0x7ffffff)
                         break;
 
                     var newItem = this[cur];
@@ -600,7 +600,7 @@ namespace zero.core.patterns.queue
                 {
                     try
                     {
-                        if (_count == 0 && !await _balanceSync.WaitAsync().FastPath())
+                        if (_count == 0 && (await _balanceSync.WaitAsync().FastPath()).ElapsedMs() > 0x7ffffff)
                             break;
                     }
                     catch (Exception e)

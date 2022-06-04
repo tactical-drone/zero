@@ -66,8 +66,8 @@ namespace zero.sync
             Console.WriteLine($"zero ({Environment.OSVersion}: {Environment.MachineName} - dotnet v{Environment.Version}, CPUs = {Environment.ProcessorCount})");
             //Task.Factory.StartNew(async () =>
             //{
-            //    //await SemTestAsync();
-            //    await QueueTestAsync();
+            //    await SemTestAsync();
+            //    //await QueueTestAsync();
             //}, CancellationToken.None, TaskCreationOptions.DenyChildAttach, IoZeroScheduler.ZeroDefault).Unwrap().GetAwaiter().GetResult();
 
             //Tune dotnet for large tests
@@ -914,10 +914,10 @@ namespace zero.sync
             //.NET RUNTIME REFERENCE MUTEX FOR TESTING
             //var mutex = new IoZeroRefMut(asyncTasks.Token);
             //var mutex = new IoZeroSemaphoreSlim(asyncTasks, "zero slim", maxBlockers: capacity, initialCount: 1, zeroAsyncMode: false, enableAutoScale: false, enableFairQ: false, enableDeadlockDetection: true);
-            IIoZeroSemaphoreBase<int> mutex = new IoZeroCore<int>("zero core", capacity, new CancellationTokenSource(), 0, false);
+            IIoZeroSemaphoreBase<int> mutex = new IoZeroCore<int>("zero core", capacity, new CancellationTokenSource(), 1, false);
             mutex = mutex.ZeroRef(ref mutex, o => Environment.TickCount);
                  
-            var releaseCount = 1;
+            var releaseCount = 2;
             var waiters = 3;
             var releasers = 4;
             var disableRelease = false;
@@ -1177,9 +1177,9 @@ namespace zero.sync
                                     
                                     if (totalReleases > 0 && (curCount = mutex.Release(Environment.TickCount, releaseCount)) > 0)
                                     {
-                                        Interlocked.Add(ref semCount, curCount);
+                                        //Interlocked.Add(ref semCount, curCount);
                                         Interlocked.Increment(ref semPollCount);
-                                        Interlocked.Add(ref dq[i1], releaseCount);
+                                        Interlocked.Add(ref dq[i1], curCount);
                                         if (Interlocked.Decrement(ref totalReleases) <= 0)
                                             break;
                                     }
@@ -1314,7 +1314,7 @@ namespace zero.sync
             var t = new Task<CcCollective>(static cocoon =>
             {
                 ((CcCollective)cocoon).Emit();
-                ((CcCollective)cocoon).StartAsync().AsTask().GetAwaiter().GetResult();
+                ((CcCollective)cocoon).StartAsync<object>().AsTask().GetAwaiter().GetResult();
                 return (CcCollective)cocoon;
             }, cocoon, TaskCreationOptions.DenyChildAttach);
             return t;

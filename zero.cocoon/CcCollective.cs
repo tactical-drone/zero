@@ -233,12 +233,12 @@ namespace zero.cocoon
             await _autoPeering.DisposeAsync(this, $"{nameof(ZeroManagedAsync)}: teardown").FastPath();
 
 
-#pragma warning disable VSTHRD103 // Call async methods when in an async method
-            if (!_autoPeeringTask.Wait(TimeSpan.FromSeconds(parm_hub_teardown_timeout_s)))
-            {
-                _logger.Warn(_autoPeeringTask.Exception,$"{nameof(CcCollective)}.{nameof(ZeroManagedAsync)}: {nameof(_autoPeeringTask)} exit slow..., {autoPeeringDesc}");
-            }
-#pragma warning restore VSTHRD103 // Call async methods when in an async method
+//#pragma warning disable VSTHRD103 // Call async methods when in an async method
+//            if (!_autoPeeringTask.Wait(TimeSpan.FromSeconds(parm_hub_teardown_timeout_s)))
+//            {
+//                _logger.Warn(_autoPeeringTask.Exception,$"{nameof(CcCollective)}.{nameof(ZeroManagedAsync)}: {nameof(_autoPeeringTask)} exit slow..., {autoPeeringDesc}");
+//            }
+//#pragma warning restore VSTHRD103 // Call async methods when in an async method
 
             var id = Hub.Router?.Designation?.IdString();
             await DupSyncRoot.DisposeAsync(this, $"{nameof(ZeroManagedAsync)}: teardown").FastPath();
@@ -461,16 +461,20 @@ namespace zero.cocoon
         /// </summary>
         /// <param name="acceptConnection"></param>
         /// <param name="context"></param>
-        /// <param name="bootstrapAsync"></param>
+        /// <param name="bootFunc"></param>
         /// <returns></returns>
-        protected override async ValueTask SpawnListenerAsync<T>(Func<IoNeighbor<CcProtocMessage<CcWhisperMsg, CcGossipBatch>>, T,ValueTask<bool>> acceptConnection = null, T context = default, Func<ValueTask> bootstrapAsync = null)
+
+
+
+        //protected override async ValueTask SpawnListenerAsync<T,TContext>(Func<IoNeighbor<CcProtocMessage<CcWhisperMsg, CcGossipBatch>>, T,ValueTask<bool>> acceptConnection = null, T context = default, Func<TContext,ValueTask> bootFunc = null, TContext bootData = default)
+        protected override async ValueTask SpawnListenerAsync<T, TContext>(Func<IoNeighbor<CcProtocMessage<CcWhisperMsg, CcGossipBatch>>, T, ValueTask<bool>> acceptConnection = null, T context = default, Func<TContext, ValueTask> bootFunc = null, TContext bootData = default)
         {
             //Start the hub
             await ZeroAsync(static async @this =>
             {
                 while (!@this.Zeroed())
                 {
-                    @this._autoPeeringTask = @this._autoPeering.StartAsync(() => @this.DeepScanAsync()).AsTask();
+                    @this._autoPeeringTask = @this._autoPeering.StartAsync(static @this => @this.DeepScanAsync(), @this).AsTask();
                     await @this._autoPeeringTask;
 
                     if(!@this.Zeroed())
@@ -479,7 +483,7 @@ namespace zero.cocoon
             }, this, TaskCreationOptions.DenyChildAttach).FastPath();
 
             //start node listener
-            await base.SpawnListenerAsync(static async (drone,@this) =>
+            await base.SpawnListenerAsync<CcCollective, TContext>(static async (drone,@this) =>
             {
                 var success = false;
                 var ccDrone = (CcDrone)drone;
@@ -533,7 +537,7 @@ namespace zero.cocoon
                         //await @this.Hub.Router.DeFuseAsync();
                     }
                 }
-            },this, bootstrapAsync).FastPath();
+            },this, bootFunc, bootData).FastPath();
         }
 
         /// <summary>
@@ -557,8 +561,8 @@ namespace zero.cocoon
 
             var protocolRaw = responsePacket.ToByteArray();
 
-            int sent;
-            if ((sent = await drone.MessageService.IoNetSocket.SendAsync(protocolRaw, 0, protocolRaw.Length, timeout: timeout).FastPath()) == protocolRaw.Length)
+            int sent = 0;
+            if (!drone.Zeroed() && (sent = await drone.MessageService.IoNetSocket.SendAsync(protocolRaw, 0, protocolRaw.Length, timeout: timeout).FastPath()) == protocolRaw.Length)
             {
                 _logger.Trace($"~/> {type}({sent}): {drone.MessageService.IoNetSocket.LocalAddress} ~> {drone.MessageService.IoNetSocket.RemoteAddress} ({Enum.GetName(typeof(CcDiscoveries.MessageTypes), responsePacket.Type)})");
                 return msg.Length;
@@ -599,7 +603,7 @@ namespace zero.cocoon
                 var ioNetSocket = drone.MessageService.IoNetSocket;
 
                 //inbound
-                if (drone.MessageService.IoNetSocket.IsIngress)
+                if (drone.MessageService?.IoNetSocket?.IsIngress??false)
                 {
                     var verified = false;
                     
@@ -696,7 +700,7 @@ namespace zero.cocoon
                     }
                 }
                 //-----------------------------------------------------//
-                else if (drone.MessageService.IoNetSocket.IsEgress) //Outbound
+                else if (drone.MessageService?.IoNetSocket?.IsEgress??false) //Outbound
                 {
                     var ccFutileRequest = new CcFutileRequest
                     {
@@ -1108,8 +1112,13 @@ namespace zero.cocoon
 
                     if (!await adjunct.ScanAsync().FastPath())
                     {
-                        if (!Zeroed())
-                            _logger.Trace($"{nameof(adjunct.ScanAsync)}: Unable to probe adjuncts, {Description}");
+                        if (adjunct.Zeroed())
+                            await adjunct.DisposeAsync(this, $"Zombie on scan! {adjunct.Description}");
+                        else
+                        {
+                            if (!Zeroed())
+                                _logger.Trace($"{nameof(adjunct.ScanAsync)}: Unable to probe adjuncts, state = {adjunct.State}, z = {adjunct.Zeroed()}, zr = {adjunct.ZeroReason} {Description}");
+                        }
                     }
                     else
                     {

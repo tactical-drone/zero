@@ -229,7 +229,7 @@ namespace zero.test.core.patterns.semaphore
         [Fact]
         public async Task ExclusiveZoneAsync()
         {                        
-            var realThreads = 3;
+            var realThreads = Environment.ProcessorCount * 2;
             var spamFactor = 10000;
             var delayTime = 0;
 
@@ -243,7 +243,8 @@ namespace zero.test.core.patterns.semaphore
             {
                 tests.Add(Task.Factory.StartNew(async () =>
                 {
-                    _output.WriteLine($"Staring thread [{Thread.CurrentThread.ManagedThreadId}]");
+                    await Task.Delay(Random.Shared.Next(realThreads));
+                    //_output.WriteLine($"Staring thread [{Thread.CurrentThread.ManagedThreadId}]");
                     var t = Environment.TickCount;
                     long x = 0;
                     for (int i = 0; i < spamFactor; i++)
@@ -252,7 +253,7 @@ namespace zero.test.core.patterns.semaphore
                         {
                             var qt = await m.WaitAsync().FastPath();
 
-                            if(i% (spamFactor/10) == 0)
+                            if(i% (spamFactor/2) == 0 && i > 0)
                                 _output.WriteLine($"[{Thread.CurrentThread.ManagedThreadId}] R => {i} , {qt.ElapsedMs()}ms, {(double)_exclusiveCount / t.ElapsedMsToSec():0.0} r/s");
                             Assert.InRange(qt.ElapsedMs(), -ERR_T, delayTime + ERR_T);
                             var Q = qt.ElapsedMs();
@@ -275,13 +276,10 @@ namespace zero.test.core.patterns.semaphore
                             Assert.Equal(0, Interlocked.Decrement(ref _exclusiveCheck));
                             await Task.Delay(delayTime);
                             //Assert.Equal(0, m.ReadyCount);
-                            if (m.Release(Environment.TickCount) <= 0)
-                            {
-                                _output.WriteLine("UNSET FAIL!");
-                            }
+                            m.Release(Environment.TickCount, true);
                         }
                     }
-                    _output.WriteLine($"Done signalling count = {_exclusiveCheck}, {(double)_exclusiveCheck / t.ElapsedMsToSec():0.0} r/s");
+                    //_output.WriteLine($"Done signalling count = {_exclusiveCheck}, {(double)_exclusiveCheck / t.ElapsedMsToSec():0.0} r/s");
                 },CancellationToken.None,TaskCreationOptions.DenyChildAttach, TaskScheduler.Default).Unwrap());
             }
 

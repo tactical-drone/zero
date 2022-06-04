@@ -27,7 +27,7 @@ namespace zero.cocoon.events.services
             //new IoZeroQ<AutoPeerEvent>($"{nameof(AutoPeeringEventService)}", 16384, true )
         };
 
-        private static volatile int _operational = 0;
+        private static volatile int _operational = 1;
         private static long _seq;
         private static volatile int _curIdx = 0;
         public static bool Operational => _operational > 0;

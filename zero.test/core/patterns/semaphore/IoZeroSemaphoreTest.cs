@@ -35,7 +35,7 @@ namespace zero.test.core.patterns.semaphore
 
             await Task.Yield();
 
-            Assert.True(await m.WaitAsync().FastPath());
+            Assert.True((await m.WaitAsync().FastPath()).ElapsedMs() < 0x7ffffff);
 
             var t = Task.Factory.StartNew(static async state =>
             {
@@ -43,7 +43,7 @@ namespace zero.test.core.patterns.semaphore
                 while(@this._running)
                 {
                     await Task.Delay(targetSleep);
-                    m.Release(true);
+                    m.Release(Environment.TickCount);
                 }
             },(this,m,targetSleep), CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Default);
 
@@ -52,7 +52,7 @@ namespace zero.test.core.patterns.semaphore
             while (c++ < loopCount)
             {
                 var s = Environment.TickCount;
-                Assert.True(await m.WaitAsync().FastPath());
+                Assert.True((await m.WaitAsync().FastPath()).ElapsedMs() < 0x7ffffff);
                 var delta = Environment.TickCount - s;
                 ave += delta;
                 _output.WriteLine($"d = {delta}");
@@ -98,7 +98,7 @@ namespace zero.test.core.patterns.semaphore
                         {
                             if (Interlocked.Decrement(ref _releaseCount) >= 0)
                             {
-                                if (m.Release(true) <= 0)
+                                if (m.Release(Environment.TickCount) <= 0)
                                     await Task.Delay(100);
                             }
                         }
@@ -135,7 +135,7 @@ namespace zero.test.core.patterns.semaphore
             await Task.Factory.StartNew(async () =>
             {
                 await Task.Delay(500);
-                m.Release(true);
+                m.Release(Environment.TickCount);
             }, CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Default);
 
             var ts = Environment.TickCount;
@@ -163,9 +163,9 @@ namespace zero.test.core.patterns.semaphore
             
             await Task.Factory.StartNew(async () =>
             {
-                m.Release(true, 2);
+                m.Release(Environment.TickCount, 2);
                 await Task.Delay(500);
-                m.Release(true);
+                m.Release(Environment.TickCount);
             }, CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Default);
 
             var ts = Environment.TickCount;
@@ -178,7 +178,6 @@ namespace zero.test.core.patterns.semaphore
 
             Assert.InRange(ts.ElapsedMs(), 0, 50);
             await m.WaitAsync();
-            _output.WriteLine($"6 {m.Tail} -> {m.Head}");
             Assert.InRange(ts.ElapsedMs(), 400, 2000);
         }
 
@@ -202,7 +201,7 @@ namespace zero.test.core.patterns.semaphore
                     try
                     {
                         //Assert.Equal(1, m.WaitCount);
-                        int r = m.Release(true);
+                        int r = m.Release(Environment.TickCount);
                         if (r > 0)
                         {
                             Assert.InRange(ts.ElapsedMs(), 0, 16*2);
@@ -231,7 +230,7 @@ namespace zero.test.core.patterns.semaphore
                     }
                 }
 
-                while(m.Release(true) == 1){}
+                while(m.Release(Environment.TickCount) == 1){}
 
                 _output.WriteLine("Release done");
             },CancellationToken.None,TaskCreationOptions.DenyChildAttach, scheduler).Unwrap();
@@ -241,7 +240,7 @@ namespace zero.test.core.patterns.semaphore
                 while (running)
                 {
                     var ts = Environment.TickCount;
-                    Assert.True(await m.WaitAsync().FastPath());
+                    Assert.True((await m.WaitAsync().FastPath()).ElapsedMs() < 0x7ffffff);
                     if (ts.ElapsedMs() > 15*2)
                     {
                         _output.WriteLine($"DQ took {ts.ElapsedMs()} ms!!!");
@@ -397,7 +396,7 @@ namespace zero.test.core.patterns.semaphore
                     {
                         _output.WriteLine($"{e.Message}: RELEASE FAILED!");
                     }
-                    v.Release(true);
+                    v.Release(Environment.TickCount);
                 }
             }, CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Default).Unwrap();
 
@@ -410,7 +409,7 @@ namespace zero.test.core.patterns.semaphore
             {
                 ts = Environment.TickCount;
                 Assert.Equal(0, v.ReadyCount);
-                if (!await v.WaitAsync().FastPath())
+                if ((await v.WaitAsync().FastPath()).ElapsedMs() > 0x7ffffff)
                 {
                     Assert.Equal(0, v.ReadyCount);
                     _output.WriteLine($"FAIL[{Thread.CurrentThread.ManagedThreadId}] -> {i} -> {v.EgressCount}, r = {v.ReadyCount}");
@@ -448,7 +447,7 @@ namespace zero.test.core.patterns.semaphore
                 int i = 0;
                 while (!v.Zeroed())
                 {
-                    if (v.Release(true) != 1)
+                    if (v.Release(Environment.TickCount) != 1)
                         await Task.Yield();
                     else
                         i++;
@@ -462,7 +461,7 @@ namespace zero.test.core.patterns.semaphore
                 for (i = 0; i < count; i++)
                 {
                     var ts = Environment.TickCount;
-                    Assert.True(await v.WaitAsync().FastPath());
+                    Assert.True((await v.WaitAsync().FastPath()).ElapsedMs() < 0x7ffffff);
                     ave += ts.ElapsedMs();
                 }
 

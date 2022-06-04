@@ -326,7 +326,7 @@ namespace zero.core.patterns.bushings
                 try
                 {
                     //wait for prefetch pressure
-                    if (!await Source.WaitForPrefetchPressureAsync().FastPath())
+                    if ((await Source.WaitForPrefetchPressureAsync().FastPath()).ElapsedMs() > 0x7ffffff)
                         return false;
 
                     //Allocate a job from the heap
@@ -359,7 +359,7 @@ namespace zero.core.patterns.bushings
                         if (!Zeroed() && await nextJob.ProduceAsync(static async (job, @this) =>
                             {
                                 //Block on producer back pressure
-                                if (!await job.Source.WaitForBackPressureAsync().FastPath())
+                                if ((await job.Source.WaitForBackPressureAsync().FastPath()).ElapsedMs() > 0x7ffffff)
                                     return false;
 
                                 return true;
@@ -401,19 +401,10 @@ namespace zero.core.patterns.bushings
                                 await ZeroJobAsync(nextJob, true).FastPath();
                                 nextJob = null;
 
-                                if (Source.BackPressure() != 1)
-                                {
-                                    _logger.Fatal($"{nameof(ConsumeAsync)}: Backpressure [FAILED] - {Description}");
-                                }
+                                Source.BackPressure();
+                                Source.PrefetchPressure(zeroAsync: false);
 
-                                if (Source.PrefetchPressure(zeroAsync: false) != 1)
-                                {
-                                    _logger.Fatal($"{nameof(ConsumeAsync)}: PrefetchPressure [FAILED], {Description}");
-                                }
-                                
-                                //how long did this failure take?
-
-                                IsArbitrating = false;
+                                //IsArbitrating = false;
                                 //Is the producer spinning? Slow it down
                                 int throttleTime;
                                 if ((throttleTime = parm_min_failed_production_time - ts) > 0)
@@ -430,13 +421,10 @@ namespace zero.core.patterns.bushings
                             //Source.Pressure();
 
                             //Fetch more work
-                            if (Source.PrefetchPressure(zeroAsync: true) != 1)
-                            {
-                                _logger.Fatal($"{nameof(ConsumeAsync)}: PrefetchPressure [FAILED] - {Description}");
-                            }
-
-                            if (!IsArbitrating)
-                                IsArbitrating = true;
+                            Source.PrefetchPressure(zeroAsync: true);
+                            
+                            //if (!IsArbitrating)
+                            //    IsArbitrating = true;
 
                             //TODO:Is this still a good idea?
                             if (ZeroRecoveryEnabled && _previousJobFragment.Count > Source.PrefetchSize + Source.ZeroConcurrencyLevel() * 2)
@@ -459,22 +447,15 @@ namespace zero.core.patterns.bushings
                             await ZeroJobAsync(nextJob, nextJob.State != IoJobMeta.JobState.Accept).FastPath();
                             nextJob = null;
 
-                            //signal back pressure
-                            if (Source.BackPressure() != 1)
-                            {
-                                _logger.Fatal($"{nameof(ConsumeAsync)}: BackPressure [FAILED] - {Description}");
-                            }
-
-                            // prefetch pressure
-                            if (Source.PrefetchPressure() != 1)
-                            {
-                                _logger.Fatal($"{nameof(ConsumeAsync)}: PrefetchPressure [FAILED] - {Description}");
-                            }
-                            
-
                             //Are we in teardown?
                             if (Zeroed())
                                 return false;
+
+                            //signal back pressure
+                            Source.BackPressure();
+
+                            // prefetch pressure
+                            Source.PrefetchPressure();
 
                             //Is the producer spinning? Slow it down
                             int throttleTime;
@@ -490,17 +471,10 @@ namespace zero.core.patterns.bushings
                         if (Zeroed() || JobHeap.Zeroed)
                             return false;
 
-                        if (Source.BackPressure() != 1)
-                        {
-                            _logger.Fatal($"{nameof(ConsumeAsync)}: BackPressure [FAILED] - {Description}");
-                        }
-
+                        Source.BackPressure();
                         // prefetch pressure
-                        if (Source.PrefetchPressure() != 1)
-                        {
-                            _logger.Fatal($"{nameof(ConsumeAsync)}: PrefetchPressure [FAILED] - {Description}");
-                        }
-
+                        Source.PrefetchPressure();
+                        
                         _logger.Warn($"{GetType().Name}:Q = {Source.QueueStatus}, backlog = {_previousJobFragment?.Count},  Production for: {Description} failed. Cannot allocate job resources!, heap =>  {JobHeap.Count}/{JobHeap.Capacity}");
                         await Task.Delay(parm_min_failed_production_time, AsyncTasks.Token);
 
@@ -523,7 +497,8 @@ namespace zero.core.patterns.bushings
                         if (!Zeroed() && !nextJob.Zeroed())
                             _logger?.Fatal($"{GetType().Name} ({nextJob.GetType().Name}): [FATAL] Job resources were not freed..., state = {nextJob.State}");
 
-                        await ZeroJobAsync(nextJob, true).FastPath();
+                        if(!Zeroed())
+                            await ZeroJobAsync(nextJob, true).FastPath();
                         nextJob = null;
                     }
                 }
@@ -557,7 +532,7 @@ namespace zero.core.patterns.bushings
             IoSink<TJob> prevJob = null;
             try
             {
-                if (job == null)
+                if (job == null || Zeroed())
                     return;
 
                 if (purge && job.FinalState == 0)
@@ -691,10 +666,7 @@ namespace zero.core.patterns.bushings
 
                             await ZeroJobAsync(curJob, curJob.FinalState == IoJobMeta.JobState.Accept).FastPath();
 
-                            if (Source.BackPressure(zeroAsync: true) != 1)//TODO: Why is true here cata?
-                            {
-                                _logger?.Fatal($"{nameof(ConsumeAsync)}: Backpressure [FAILED], {Description}");
-                            }
+                            Source.BackPressure(zeroAsync: true);
                         }
                         catch when (Zeroed())
                         {

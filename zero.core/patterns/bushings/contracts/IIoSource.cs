@@ -32,7 +32,7 @@ namespace zero.core.patterns.bushings.contracts
         /// Wait for source pressure
         /// </summary>
         /// <returns></returns>
-        public ValueTask<bool> WaitForPressureAsync();
+        public ValueTask<int> WaitForPressureAsync();
         
         /// <summary>
         /// Apply sink "back" pressure
@@ -43,7 +43,7 @@ namespace zero.core.patterns.bushings.contracts
         /// Wait for sink back pressure
         /// </summary>
         /// <returns></returns>
-        public ValueTask<bool> WaitForBackPressureAsync();
+        public ValueTask<int> WaitForBackPressureAsync();
         
         /// <summary>
         /// Enable prefetch
@@ -70,7 +70,7 @@ namespace zero.core.patterns.bushings.contracts
         /// Wait on prefetch pressure
         /// </summary>
         /// <returns></returns>
-        public ValueTask<bool> WaitForPrefetchPressureAsync();
+        public ValueTask<int> WaitForPrefetchPressureAsync();
         
         /// <summary>
         /// Which source job is next in line

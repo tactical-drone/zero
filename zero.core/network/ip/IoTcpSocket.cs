@@ -44,17 +44,11 @@ namespace zero.core.network.ip
         {
             await base.ZeroManagedAsync();
 
-
-            try
-            {
+            if(_listenerSourceCore!=null)
                 await _listenerSourceCore.ZeroManagedAsync<object>();
-            }
-            catch
-            {
-                // ignored
-            }
-
-            await _connectSourceCore.ZeroManagedAsync<object>();
+            
+            if(_connectSourceCore != null)
+                await _connectSourceCore.ZeroManagedAsync<object>();
         }
 
         /// <summary>
@@ -87,14 +81,14 @@ namespace zero.core.network.ip
         /// <param name="listeningAddress">The <see cref="IoNodeAddress"/> that this socket listener will initialize with</param>
         /// <param name="acceptConnectionHandler">A handler that is called once a new connection was formed</param>
         /// <param name="context">handler context</param>
-        /// <param name="bootstrapAsync">Optional bootstrap function called after connect</param>
+        /// <param name="bootFunc">Optional bootstrap function called after connect</param>
         /// <returns></returns>
-        public override async ValueTask BlockOnListenAsync<T>(IoNodeAddress listeningAddress,
+        public override async ValueTask BlockOnListenAsync<T, TContext>(IoNodeAddress listeningAddress,
             Func<IoSocket, T,ValueTask> acceptConnectionHandler, T context,
-            Func<ValueTask> bootstrapAsync = null)
+            Func<TContext,ValueTask> bootFunc = null, TContext bootData = default)
         {
             //base
-            await base.BlockOnListenAsync(listeningAddress, acceptConnectionHandler, context, bootstrapAsync).FastPath();
+            await base.BlockOnListenAsync(listeningAddress, acceptConnectionHandler, context, bootFunc, bootData).FastPath();
             
             //Put the socket in listen mode
             try
@@ -108,8 +102,8 @@ namespace zero.core.network.ip
             }
 
             //Execute bootstrap
-            if(bootstrapAsync!=null)
-                await bootstrapAsync().FastPath();
+            if(bootFunc!=null)
+                await bootFunc(bootData).FastPath();
 
             var description = Description;
             // Accept incoming connections
@@ -272,8 +266,11 @@ namespace zero.core.network.ip
 
                         try
                         {
-                            @this.NativeSocket.EndConnect(connectAsync);
-                            taskCore.SetResult(@this.NativeSocket.Connected && @this.NativeSocket.IsBound);
+                            if (@this.NativeSocket != null)
+                            {
+                                @this.NativeSocket.EndConnect(connectAsync);
+                                taskCore.SetResult(@this.NativeSocket.Connected && @this.NativeSocket.IsBound);
+                            }
                         }
                         catch
                         {

@@ -105,6 +105,11 @@ namespace zero.core.patterns.semaphore.core
         /// </summary>
         public bool Burned => _burned > 0;
 
+        /// <summary>
+        /// Whether this core is busy relaying
+        /// </summary>
+        public int Relay { get; set; }
+
         //public object BurnContext
         //{
         //    get => _burnContext;
@@ -127,6 +132,7 @@ namespace zero.core.patterns.semaphore.core
             _capturedContext = null;
             _continuationState = null;
             _completeTime = 0;
+            Relay = 0;
             _completed = false;
             _continuation = null;
 
@@ -137,17 +143,16 @@ namespace zero.core.patterns.semaphore.core
             _burned = 0;
         }
         
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public void Reset(short index)
+        public void Reset(int version)
         {
             Reset();
-            _version = index;
+            _version = version;
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public void Prime(short index)
+        public void Prime(int version)
         {
-            _version = index;
+            _version = version;
         }
 
         /// <summary>

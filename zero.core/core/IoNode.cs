@@ -31,7 +31,7 @@ namespace zero.core.core
             MallocNeighbor = mallocNeighbor;
             _preFetch = prefetch;
             _logger = LogManager.GetCurrentClassLogger();
-            NeighborTasks = new IoQueue<Task>($"{nameof(NeighborTasks)}", 32, concurrencyLevel, IoQueue<Task>.Mode.DynamicSize);
+            NeighborTasks = new IoQueue<Task>($"{nameof(NeighborTasks)}", 32, concurrencyLevel * 20, IoQueue<Task>.Mode.DynamicSize);
         }
 
         /// <summary>
@@ -158,11 +158,11 @@ namespace zero.core.core
 
             _netServer?.DisposeAsync(this, $"{nameof(ZeroManagedAsync)}: teardown");
 
-            await NeighborTasks.ZeroManagedAsync(static (neighborTask, @this) =>
-            {
-                neighborTask.Value.Wait(TimeSpan.FromSeconds(@this.parm_nb_teardown_timeout_s));
-                return default;
-            }, this, zero: true).FastPath();
+            //await NeighborTasks.ZeroManagedAsync(static (neighborTask, @this) =>
+            //{
+            //    neighborTask.Value?.Wait(TimeSpan.FromSeconds(@this.parm_nb_teardown_timeout_s));
+            //    return default;
+            //}, this, zero: true).FastPath();
         }
 
         /// <summary>
@@ -173,14 +173,18 @@ namespace zero.core.core
         public override void ZeroPrime()
         {
             base.ZeroPrime();
-            foreach (var ioNeighbor in Neighbors.Values)
-                ioNeighbor.ZeroPrime();
+
+            if (Neighbors != null)
+            {
+                foreach (var ioNeighbor in Neighbors.Values)
+                    ioNeighbor.ZeroPrime();
+            }
         }
 
         /// <summary>
         /// Starts the node's listener
         /// </summary>
-        protected virtual async ValueTask SpawnListenerAsync<T>(Func<IoNeighbor<TJob>, T, ValueTask<bool>> acceptConnection = null, T context = default, Func<ValueTask> bootstrapAsync = null)
+        protected virtual async ValueTask SpawnListenerAsync<T,Tboot>(Func<IoNeighbor<TJob>, T, ValueTask<bool>> acceptConnection = null, T context = default, Func<Tboot, ValueTask> bootFunc = null, Tboot bootData = default)
         {
             //clear previous attempts
             if (_netServer != null)
@@ -286,7 +290,7 @@ namespace zero.core.core
                                                 {
                                                     try
                                                     {
-                                                        if (!existingNeighbor.Source.IsOperational() && existingNeighbor.UpTime.ElapsedMsToSec() > @this.parm_zombie_connect_time_threshold_s)
+                                                        if (!existingNeighbor.Zeroed() && !existingNeighbor.Source.IsOperational() && existingNeighbor.UpTime.ElapsedMsToSec() > @this.parm_zombie_connect_time_threshold_s)
                                                         {
                                                             var errMsg = $"{nameof(SpawnListenerAsync)}: Connection {newNeighbor.Key} [REPLACED], existing {existingNeighbor.Key} with uptime {existingNeighbor.UpTime.ElapsedMs()}ms [DC]";
                                                             @this._logger.Warn(errMsg);
@@ -343,7 +347,7 @@ namespace zero.core.core
                         }
                     }, (@this, newNeighbor), CancellationToken.None, TaskContinuationOptions.DenyChildAttach, TaskScheduler.Default);
                 }
-            }, ValueTuple.Create(this, context, acceptConnection), bootstrapAsync);
+            }, ValueTuple.Create(this, context, acceptConnection), bootFunc, bootData);
 
             await _listenerTask.FastPath();
         }
@@ -377,11 +381,15 @@ namespace zero.core.core
                         @this._logger.Warn($"{nameof(newNeighbor.BlockOnReplicateAsync)}: [FAILED]... restarting...");
                 }, ValueTuple.Create(this, newNeighbor), TaskCreationOptions.DenyChildAttach).AsTask()).FastPath();
 
-                await node.Value.ContinueWith(static async (_, state) =>
+                if (node != null)
                 {
-                    var (@this, node) = (ValueTuple<IoNode<TJob>, IoQueue<Task>.IoZNode>)state;
-                    await @this.NeighborTasks.RemoveAsync(node).FastPath();
-                }, (this, node), CancellationToken.None, TaskContinuationOptions.DenyChildAttach, TaskScheduler.Default);
+                    await node.Value.ContinueWith(static async (_, state) =>
+                    {
+                        var (@this, node) = (ValueTuple<IoNode<TJob>, IoQueue<Task>.IoZNode>)state;
+                        if(@this.NeighborTasks != null)
+                            await @this.NeighborTasks.RemoveAsync(node).FastPath();
+                    }, (this, node), CancellationToken.None, TaskContinuationOptions.DenyChildAttach, TaskScheduler.Default);
+                }
             }
             catch when(Zeroed()){}
             catch (Exception e) when(!Zeroed())
@@ -501,7 +509,7 @@ namespace zero.core.core
         /// <summary>
         /// Start the node
         /// </summary>
-        public async ValueTask StartAsync(Func<ValueTask> bootstrapFunc = null, TaskScheduler customScheduler = null)
+        public async ValueTask StartAsync<TBoot>(Func<TBoot,ValueTask> bootFunc = null, TBoot bootData = default, TaskScheduler customScheduler = null)
         {
             if(Interlocked.CompareExchange(ref _activated, 1, 0) != 0)
                 return;
@@ -510,11 +518,11 @@ namespace zero.core.core
             
             await ZeroAsync(static async state =>
             {
-                var (@this, bootstrapFunc) = state;
+                var (@this, bootFunc, bootData) = state;
                 var retry = 3;
                 while (!@this.Zeroed() && retry-- > 0)
                 {
-                    await @this.SpawnListenerAsync<object>(bootstrapAsync: bootstrapFunc).FastPath();
+                    await @this.SpawnListenerAsync<object,TBoot>(bootFunc: bootFunc, bootData: bootData).FastPath();
                     if (!@this.Zeroed())
                         @this._logger.Warn($"Listener restart... {@this.Description}");
                     else
@@ -523,7 +531,7 @@ namespace zero.core.core
 
                 if (!@this.Zeroed())
                     @this._logger.Trace($"{@this.Description}: {(@this._listenerTask.IsCompletedSuccessfully ? "clean" : "dirty")} exit ({@this._listenerTask}), retries left = {retry}");
-            },(this, bootstrapFunc), TaskCreationOptions.DenyChildAttach, customScheduler??IoZeroScheduler.ZeroDefault, true).FastPath();
+            },(this, bootFunc, bootData), TaskCreationOptions.DenyChildAttach, customScheduler??IoZeroScheduler.ZeroDefault, true).FastPath();
             
             _activated = 0;
         }

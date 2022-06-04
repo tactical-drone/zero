@@ -205,8 +205,11 @@ namespace zero.core.network.ip
             {
                 try
                 {
-                    NativeSocket.Shutdown(SocketShutdown.Both);
-                    NativeSocket.Disconnect(false);
+                    if (NativeSocket != null)
+                    {
+                        NativeSocket.Shutdown(SocketShutdown.Both);
+                        NativeSocket.Disconnect(false);
+                    }
                 }
                 catch when (Zeroed()) { }
                 catch (Exception e) when (!Zeroed())
@@ -222,12 +225,12 @@ namespace zero.core.network.ip
         /// <param name="listeningAddress">Address to listen on</param>
         /// <param name="acceptConnectionHandler">The callback that handles a new connection</param>
         /// <param name="context"></param>
-        /// <param name="bootstrapAsync"></param>
+        /// <param name="bootFunc"></param>
         /// <returns>True on success, false otherwise</returns>
-        public virtual ValueTask BlockOnListenAsync<T>(IoNodeAddress listeningAddress,
+        public virtual ValueTask BlockOnListenAsync<T,TContext>(IoNodeAddress listeningAddress,
             Func<IoSocket, T, ValueTask> acceptConnectionHandler,
             T context,
-            Func<ValueTask> bootstrapAsync = null)
+            Func<TContext, ValueTask> bootFunc = null, TContext bootData = default)
         {
             //If there was a coding mistake throw
             if (NativeSocket.IsBound)

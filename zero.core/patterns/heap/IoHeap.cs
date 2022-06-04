@@ -120,10 +120,10 @@ namespace zero.core.patterns.heap
         /// <summary>
         /// zero managed
         /// </summary>
-        public async ValueTask ZeroManagedAsync<TC>(Func<TItem,TC,ValueTask> zeroAction = null, TC nanite = default)
+        public ValueTask ZeroManagedAsync<TC>(Func<TItem,TC,ValueTask> zeroAction = null, TC nanite = default)
         {
             if (Interlocked.CompareExchange(ref _zeroed, 1, 0) != 0 )
-                return;
+                return default;
             
             _ioHeapBuf.Writer.Complete();
             //if (zeroAction != null)
@@ -132,6 +132,7 @@ namespace zero.core.patterns.heap
             //    await _ioHeapBuf.ZeroManagedAsync<object>(zero:true).FastPath();
 
             _refCount = 0;
+            return default;
         }
 
         /// <summary>
