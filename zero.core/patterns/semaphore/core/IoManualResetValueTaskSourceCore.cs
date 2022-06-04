@@ -110,6 +110,18 @@ namespace zero.core.patterns.semaphore.core
         /// </summary>
         public int Relay { get; set; }
 
+        private int _heapItemLock;
+
+        public bool Lock() => Interlocked.CompareExchange(ref _heapItemLock, 1, 0) == 0;
+
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public IIoManualResetValueTaskSourceCore<TResult> Free()
+        {
+            Interlocked.CompareExchange(ref _heapItemLock, 0, 1);
+            return this;
+        }
+
         //public object BurnContext
         //{
         //    get => _burnContext;

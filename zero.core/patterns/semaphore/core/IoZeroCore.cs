@@ -23,7 +23,7 @@ namespace zero.core.patterns.semaphore.core
     ///
     /// Status: Tests OK
     ///
-    /// Note: This struct does not need to derive from <see cref="IIoZeroSemaphoreBase{T}"/>, it does not use the <see cref="IValueTaskSource"/> parts of the interface.
+    /// Note: This struct does not need to implement <see cref="IIoZeroSemaphoreBase{T}"/>, it does not use the <see cref="IValueTaskSource"/> parts of the interface.
     /// Because this core is supposed to be interchangeable with <see cref="IoZeroSemaphore{T}"/> that does need it, the interface is derived from here.
     /// This should be a standalone struct with no derivations
     /// </summary>
@@ -52,13 +52,14 @@ namespace zero.core.patterns.semaphore.core
                 SingleReader = false,
             });
 
-            _results = Channel.CreateBounded<IoValueCore>(new BoundedChannelOptions(capacity + 1)
+            _results = Channel.CreateBounded<IIoValueCore>(new BoundedChannelOptions(capacity + 1)
             {
                 SingleWriter = false,
                 SingleReader = false,
             });
 
-            _heap = Channel.CreateBounded<IIoManualResetValueTaskSourceCore<T>>(capacity + 1);
+            _heapCore = Channel.CreateBounded<IIoManualResetValueTaskSourceCore<T>>(capacity + 1);
+            _heapValue = Channel.CreateBounded<IIoValueCore>(capacity + 1);
 
             _primeReady = _ => default;
             _primeContext = null;
@@ -82,8 +83,7 @@ namespace zero.core.patterns.semaphore.core
             {
                 _results.Writer.TryWrite(new IoValueCore
                 {
-                    Kernel = _primeReady!(_primeContext),
-                    Burned = false
+                    Kernel = _primeReady!(_primeContext)
                 });
             }
 
@@ -117,8 +117,9 @@ namespace zero.core.patterns.semaphore.core
 
         #region Aligned
         private readonly Channel<IIoManualResetValueTaskSourceCore<T>> _waiters;
-        private readonly Channel<IoValueCore> _results;
-        private readonly Channel<IIoManualResetValueTaskSourceCore<T>> _heap;
+        private readonly Channel<IIoValueCore> _results;
+        private readonly Channel<IIoManualResetValueTaskSourceCore<T>> _heapCore;
+        private readonly Channel<IIoValueCore> _heapValue;
         private readonly CancellationTokenSource _asyncTasks;
         private Func<object, T> _primeReady;
         private object _primeContext;
@@ -135,10 +136,35 @@ namespace zero.core.patterns.semaphore.core
         private const int CoreReady = 0;
         private const int CoreWait  = 1;
         private const int CoreRace  = 2;
-        internal struct IoValueCore
+
+        public interface IIoValueCore
         {
-            public T Kernel;
-            public bool Burned;
+            T Kernel { get; set; }
+
+            bool Burned { get; }
+            bool Burn();
+            void Prime();
+            bool Lock();
+            IIoValueCore Free();
+        }
+        internal struct IoValueCore : IIoValueCore
+        {
+            public T Kernel { get; set; }
+
+            private int _burned;
+            public bool Burned => _burned > 0;
+            public bool Burn() => Interlocked.CompareExchange(ref _burned, 1, 0) == 0;
+            public void Prime() => Interlocked.Exchange(ref _burned, 0);
+
+            private int _heapItemLock;
+            public bool Lock() => Interlocked.CompareExchange(ref _heapItemLock, 1,0) == 0;
+
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            public IIoValueCore Free()
+            {
+                Interlocked.Exchange(ref _heapItemLock, 0);
+                return this;
+            }
         }
 
         //private IIoZeroSemaphoreBase<T> _zeroRef;
@@ -147,7 +173,7 @@ namespace zero.core.patterns.semaphore.core
         #region State
 
         public string Description =>
-            $"{nameof(IoZeroSemCore<T>)}: r = {ReadyCount}/{_capacity}, w = {WaitCount}/{_capacity}, z = {_zeroed > 0}, heap = {_heap.Reader.Count}, {_description}";
+            $"{nameof(IoZeroSemCore<T>)}: r = {ReadyCount}/{_capacity}, w = {WaitCount}/{_capacity}, z = {_zeroed > 0}, heap = {_heapCore.Reader.Count}, {_description}";
         public int Capacity => _capacity;
         public int WaitCount => _waiters.Reader.Count;
         public int ReadyCount => _results.Reader.Count;
@@ -176,6 +202,8 @@ namespace zero.core.patterns.semaphore.core
                     try
                     {
                         waiter.RunContinuationsAsynchronously = forceAsync || @this.ZeroAsyncMode;
+
+                        //wait for the core to become ready
                         while (waiter.Relay == CoreWait)
                         {
                             if (@this.Zeroed())
@@ -185,14 +213,21 @@ namespace zero.core.patterns.semaphore.core
                             }
                         }
 
+                        overflow:
+                        //use the core
                         if (waiter.Relay == CoreReady)
                         {
                             if (@this._results.Reader.Count >= @this.ModCapacity &&
-                                @this._results.Reader.TryRead(out var swap) && !swap.Burned)
+                                @this._results.Reader.TryRead(out var swap))
                             {
-                                swap.Burned = true;
-                                Interlocked.MemoryBarrier();
-                                waiter.SetResult(swap.Kernel); //drop overflow
+                                if (swap.Burn())
+                                {
+                                    Interlocked.MemoryBarrier();
+                                    waiter.SetResult(swap.Kernel); //drop overflow
+                                    @this._heapValue.Writer.TryWrite(swap.Free());
+                                }
+                                else
+                                    goto overflow;
                             }
                             else
                             {
@@ -200,13 +235,11 @@ namespace zero.core.patterns.semaphore.core
                             }
                             
                             released = 1;
-                            //if(blocking > 0)
-                            //    Console.WriteLine($"Relay taken after {blocking}");
                             return true;
                         }
 
+                        //discard the core
                         waiter.Reset();
-                        //Console.WriteLine($"Relay skipped after {blocking}");
                     }
                     catch
                     {
@@ -220,20 +253,46 @@ namespace zero.core.patterns.semaphore.core
         retry:
 
             //fast track next result, incoming value is dropped
-            if (_results.Reader.Count >= ModCapacity && _results.Reader.TryRead(out var fastTracked) &&
-                !fastTracked.Burned)
+            if (_results.Reader.Count >= ModCapacity && _results.Reader.TryRead(out var fastTracked) && fastTracked.Burn())
             {
-                fastTracked.Burned = true;
                 Interlocked.MemoryBarrier();
-                return Unblock(this, fastTracked.Kernel, out released, false);
+                try
+                {
+                    return Unblock(this, fastTracked.Kernel, out released, false);
+                }
+                finally
+                {
+                    _heapValue.Writer.TryWrite(fastTracked.Free());
+                }
             }
 
             //fast path
             if (_results.Reader.Count == 0)
                 if (Unblock(this, value, out released, forceAsync)) return true;
             
+            //heap
+            if (!_heapValue.Reader.TryRead(out var valueCore) || !valueCore.Lock())
+                valueCore = new IoValueCore { Kernel = value };
+            else
+            {
+                valueCore.Kernel = value;
+                valueCore.Prime();
+                Interlocked.MemoryBarrier();
+            }
+
+            //TODO: Is this a hack?
+            //heap jit 
+            if (_results.Reader.Count == 0)
+            {
+                if (Unblock(this, value, out released, forceAsync))
+                {
+                    _heapValue.Writer.TryWrite(valueCore.Free());
+                    return true;
+                }
+            }
+
             ////prime
-            if (!_results.Writer.TryWrite(new IoValueCore{Kernel = value, Burned = false}))
+            if (!_results.Writer.TryWrite(valueCore))
             {
                 released = 0;
                 return false;
@@ -244,9 +303,6 @@ namespace zero.core.patterns.semaphore.core
             {
                 if(_results.Reader.TryRead(out var banked))
                 {
-                    if (!banked.Burned)
-                        _results.Writer.TryWrite(banked);
-
                     if (Unblock(this, value, out released,forceAsync)) return true;
 
                     goto retry;
@@ -274,45 +330,34 @@ namespace zero.core.patterns.semaphore.core
             slowTaskCore = default;
             
             //fast path
-            if (_waiters.Reader.Count == 0 && _results.Reader.TryRead(out var result))
+            while (_waiters.Reader.Count == 0 && _results.Reader.TryRead(out var primedCore) && primedCore.Burn())
             {
-                if (result.Burned) return true;
-
-                result.Burned = true;
                 Interlocked.MemoryBarrier();
-                slowTaskCore = new ValueTask<T>(result.Kernel);
-
+                slowTaskCore = new ValueTask<T>(primedCore.Kernel);
+                _heapValue.Writer.TryWrite(primedCore.Free());
                 return true;
             }
 
             //heap
-            IIoManualResetValueTaskSourceCore<T> waiter;
-            if (_heap.Reader.TryRead(out var cached))
-            {
-                waiter = cached;
-            }
-            else
+            if (!_heapCore.Reader.TryRead(out var waiter) || !waiter.Lock())
             {
                 waiter = new IoManualResetValueTaskSourceCore<T> { AutoReset = false };
                 Interlocked.MemoryBarrier();
                 waiter.Reset(static state =>
                 {
                     var (@this, waiter) = (ValueTuple<IoZeroCore<T>, IIoManualResetValueTaskSourceCore<T>>)state;
-                    @this._heap.Writer.TryWrite(waiter);
+                    @this._heapCore.Writer.TryWrite(waiter.Free());
                 }, (this, waiter));
             }
 
             //fast jit
-            if (_waiters.Reader.Count == 0 && _results.Reader.TryRead(out var jit))
+            while (_waiters.Reader.Count == 0 && _results.Reader.TryRead(out var jitCore) && jitCore.Burn())
             {
-                if (!jit.Burned)
-                {
-                    jit.Burned = true;
-                    Interlocked.MemoryBarrier();
-                    slowTaskCore = new ValueTask<T>(jit.Kernel);
-                    waiter.Reset();
-                    return true;
-                }
+                Interlocked.MemoryBarrier();
+                slowTaskCore = new ValueTask<T>(jitCore.Kernel);
+                _heapValue.Writer.TryWrite(jitCore.Free());
+                waiter.Reset();
+                return true;
             }
 
             //block
@@ -320,17 +365,14 @@ namespace zero.core.patterns.semaphore.core
             if (_waiters.Writer.TryWrite(waiter))
             {
                 //ensure critical region
-                if (_ensureCriticalRegion && _results.Reader.Count == 1 && _results.Reader.TryRead(out var race))
+                while (_ensureCriticalRegion && _results.Reader.Count == 1 && _results.Reader.TryRead(out var racedCore) && racedCore.Burn())
                 {
-                    if (!race.Burned)
-                    {
-                        race.Burned = true;
-                        Interlocked.MemoryBarrier();
-                        waiter.Relay = CoreRace;
+                    Interlocked.MemoryBarrier();
+                    waiter.Relay = CoreRace;
 
-                        slowTaskCore = new ValueTask<T>(race.Kernel);
-                        return true;
-                    }
+                    slowTaskCore = new ValueTask<T>(racedCore.Kernel);
+                    _heapValue.Writer.TryWrite(racedCore.Free());
+                    return true;
                 }
 
                 waiter.Relay = CoreReady;

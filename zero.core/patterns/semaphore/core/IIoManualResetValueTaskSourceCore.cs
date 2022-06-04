@@ -17,6 +17,10 @@ namespace zero.core.patterns.semaphore.core
         bool Blocking { get; }
         bool Burned { get; }
         int Relay { get; set; }
+
+        bool Lock();
+        IIoManualResetValueTaskSourceCore<TResult> Free();
+
         //object BurnContext { get; set; }
         //void SetResult<TContext>(TResult result, Action<bool, TContext> async = null, TContext context = default);
         void SetResult(TResult result);

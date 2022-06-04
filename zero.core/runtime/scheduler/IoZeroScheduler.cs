@@ -183,10 +183,10 @@ namespace zero.core.runtime.scheduler
         }
 
         //The rate at which the scheduler will be allowed to "burst" allowing per tick unchecked new threads to be spawned until one of them spawns
-        private static readonly int WorkerSpawnBurstTimeMs = 250;
-        //TODO: tuning; 25 threads per second <<--- these two values need more research. It is not at all clear why
+        private static readonly int WorkerSpawnBurstTimeMs = 200;
+        //TODO: tuning; 50 threads per second <<--- these two values need more research. It is not at all clear why
         //TODO: thread lockups happen when you change these values.Too high and you get CPU flat-lining without any work being done. To little, deadlock! How to tune is unclear?
-        private static readonly int WorkerSpawnBurstMax = 5; 
+        private static readonly int WorkerSpawnBurstMax = 10; 
         private static int _workerSpawnBurstMax = WorkerSpawnBurstMax; 
         private static readonly int MaxWorker = short.MaxValue / 3;
         public static readonly TaskScheduler ZeroDefault;
