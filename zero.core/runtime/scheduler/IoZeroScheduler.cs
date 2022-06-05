@@ -40,7 +40,7 @@ namespace zero.core.runtime.scheduler
             _workerCount = Math.Max(Environment.ProcessorCount * 2, 4);
             //_workerCount = 10;
             _asyncCount = _workerCount * 4;
-            _syncCount = _forkCount = _asyncCount;
+            _syncCount = _forkCount = _forkContextCount =_asyncCount;
             var capacity = MaxWorker + 1;
 
             //TODO: tuning
@@ -65,9 +65,16 @@ namespace zero.core.runtime.scheduler
                 SingleWriter = false
             });//TODO: tuning
 
-            _forkQueue = new IoZeroQ<Action>(string.Empty, short.MaxValue / 3, false, _asyncTasks, concurrencyLevel: MaxWorker - 1, zeroAsyncMode: true);
+            _forkContextQueue = Channel.CreateBounded<ZeroContinuation>(new BoundedChannelOptions(_workerCount * 1024)
+            {
+                AllowSynchronousContinuations = false,
+                FullMode = BoundedChannelFullMode.Wait,
+                SingleReader = false,
+                SingleWriter = false
+            });//TODO: tuning
 
-            _callbackHeap = new IoHeap<ZeroContinuation>(string.Empty, 16384 * 2, (_, _) => new ZeroContinuation(), true)
+
+            _callbackHeap = new IoHeap<ZeroContinuation>(string.Empty, short.MaxValue << 1, (_, _) => new ZeroContinuation(), true)
             {
                 PopAction = (signal, _) =>
                 {
@@ -77,7 +84,7 @@ namespace zero.core.runtime.scheduler
                 }
             };
 
-            _diagnosticsHeap = new IoHeap<List<int>>(string.Empty, 16384 * 2, (context, _) => new List<int>(context is int i ? i : 0), true)
+            _diagnosticsHeap = new IoHeap<List<int>>(string.Empty, short.MaxValue << 1, (context, _) => new List<int>(context is int i ? i : 0), true)
             {
                 PopAction = (list, _) =>
                 {
@@ -85,8 +92,17 @@ namespace zero.core.runtime.scheduler
                 }
             };
 
-            _asyncHeap = new IoHeap<ZeroValueContinuation>(string.Empty, 16384 * 2,
+            _asyncHeap = new IoHeap<ZeroValueContinuation>(string.Empty, short.MaxValue << 1,
                 (_, _) => new ZeroValueContinuation(), true)
+            {
+                PopAction = (valueTask, _) =>
+                {
+                    valueTask.Timestamp = Environment.TickCount;
+                }
+            };
+
+            _forkContextHeap = new IoHeap<ZeroContinuation>(string.Empty, short.MaxValue << 1,
+                (_, _) => new ZeroContinuation(), true)
             {
                 PopAction = (valueTask, _) =>
                 {
@@ -157,6 +173,16 @@ namespace zero.core.runtime.scheduler
                     await @this.ForkCallbacks(i).FastPath();
                 }, (this, i), CancellationToken.None, TaskCreationOptions.LongRunning, ZeroDefault);
             }
+
+            //forks with context
+            for (var i = 0; i < _forkContextCount; i++)
+            {
+                _ = Task.Factory.StartNew(static async state =>
+                {
+                    var (@this, i) = (ValueTuple<IoZeroScheduler, int>)state;
+                    await @this.ForkContextCallbacks(i).FastPath().ConfigureAwait(false);
+                }, (this, i), CancellationToken.None, TaskCreationOptions.LongRunning, ZeroDefault);
+            }
         }
 
         internal class ZeroContinuation
@@ -182,12 +208,19 @@ namespace zero.core.runtime.scheduler
             Queen = 1 << 1
         }
 
-        //The rate at which the scheduler will be allowed to "burst" allowing per tick unchecked new threads to be spawned until one of them spawns
-        private static readonly int WorkerSpawnBurstTimeMs = 200;
-        //TODO: tuning; 50 threads per second <<--- these two values need more research. It is not at all clear why
+        //TODO: <<--- these values need more research. It is not at all clear why
         //TODO: thread lockups happen when you change these values.Too high and you get CPU flat-lining without any work being done. To little, deadlock! How to tune is unclear?
-        private static readonly int WorkerSpawnBurstMax = 10; 
-        private static int _workerSpawnBurstMax = WorkerSpawnBurstMax; 
+
+        //The rate at which the scheduler will be allowed to "burst" allowing per tick unchecked new threads to be spawned until one of them spawns
+        private static readonly int WorkerSpawnBurstTimeMs = 1000;
+        private static readonly int WorkerSpawnPassThrough = 3;
+        //The maximum burst rate per WorkerSpawnBurstTimeMs tick
+        private static readonly int WorkerSpawnBurstMax = Math.Max(Environment.ProcessorCount, WorkerSpawnPassThrough * WorkerSpawnPassThrough) / WorkerSpawnPassThrough * WorkerSpawnPassThrough;
+        //The load threshold at which more workers are added
+        private static readonly double WorkerSpawnThreshold = 0.7;
+
+
+        private static volatile int _workerSpawnBurstMax = WorkerSpawnBurstMax; 
         private static readonly int MaxWorker = short.MaxValue / 3;
         public static readonly TaskScheduler ZeroDefault;
         public static readonly IoZeroScheduler Zero;
@@ -197,9 +230,11 @@ namespace zero.core.runtime.scheduler
         private readonly Channel<ZeroValueContinuation> _asyncContextQueue;
         private readonly IoZeroQ<ZeroValueContinuation> _asyncQueue;
         private readonly IoZeroQ<Action> _forkQueue;
+        private readonly Channel<ZeroContinuation> _forkContextQueue;
         private readonly IoZeroQ<ZeroContinuation> _asyncCallbackQueue;
         private readonly IoHeap<ZeroContinuation> _callbackHeap;
         private readonly IoHeap<ZeroValueContinuation> _asyncHeap;
+        private readonly IoHeap<ZeroContinuation> _forkContextHeap;
         private readonly IoHeap<List<int>> _diagnosticsHeap;
 
         private volatile int _workerLoad;
@@ -216,6 +251,7 @@ namespace zero.core.runtime.scheduler
         private volatile int _asyncCount;
         private volatile int _syncCount;
         private volatile int _forkCount;
+        private volatile int _forkContextCount;
         private long _completedWorkItemCount;
         private long _completedQItemCount;
         private long _completedForkAsyncCount;
@@ -264,6 +300,26 @@ namespace zero.core.runtime.scheduler
                 catch (Exception e)
                 {
                     LogManager.GetCurrentClassLogger().Trace(e);
+                }
+            }
+        }
+
+        private async ValueTask ForkContextCallbacks(int threadIndex)
+        {
+            await foreach (var job in _forkContextQueue.Reader.ReadAllAsync().ConfigureAwait(false))
+            {
+                try
+                {
+                    job.Callback(job.State);
+                    Interlocked.Increment(ref _completedForkCount);
+                }
+                catch (Exception e)
+                {
+                    LogManager.GetCurrentClassLogger().Trace(e);
+                }
+                finally
+                {
+                    _callbackHeap.Return(job);
                 }
             }
         }
@@ -389,29 +445,6 @@ namespace zero.core.runtime.scheduler
 #if _TRACE_
             Console.WriteLine($"<--- Queueing task id = {task.Id}, {task.Status}");
 #endif
-
-            if (LoadFactor > 0.8 && _lastWorkerSpawnedTime.ElapsedMs() > WorkerSpawnBurstTimeMs && _workerCount < short.MaxValue / 3)
-            {
-                Console.WriteLine($"Adding zero thread {_workerCount + 1}");
-                if (Interlocked.Decrement(ref _workerSpawnBurstMax) > 0)
-                {
-                    _ = Task.Factory.StartNew(static async state =>
-                    {
-                        var (@this, i) = (ValueTuple<IoZeroScheduler, int>)state;
-                        await @this.LoadTask(i).FastPath();
-                    }, (this, Interlocked.Increment(ref _workerCount) - 1), CancellationToken.None, TaskCreationOptions.LongRunning, Default);
-
-                    _ = Task.Factory.StartNew(static async state =>
-                    {
-                        var (@this, i) = (ValueTuple<IoZeroScheduler, int>)state;
-                        await @this.AsyncValueContextTasks(i).FastPath();
-                    }, (this, Interlocked.Increment(ref _asyncCount)), CancellationToken.None, TaskCreationOptions.LongRunning, ZeroDefault);
-
-                    _lastWorkerSpawnedTime = Environment.TickCount;
-                    _workerSpawnBurstMax = WorkerSpawnBurstMax;
-                    Interlocked.MemoryBarrierProcessWide();
-                }
-            }
             //queue the work for processing
             var ts = Environment.TickCount;
             if (!_taskQueue.Writer.TryWrite(task))
@@ -423,6 +456,35 @@ namespace zero.core.runtime.scheduler
 
             Interlocked.Add(ref _taskQTime, ts.ElapsedMs());
             Interlocked.Increment(ref _completedQItemCount);
+
+            //insane checks
+            if (LoadFactor > WorkerSpawnThreshold && _lastWorkerSpawnedTime.ElapsedMs() > WorkerSpawnBurstTimeMs && _workerCount < short.MaxValue / WorkerSpawnPassThrough)
+            {
+                ForkContext(static state =>
+                {
+                    var @this = (IoZeroScheduler)state;
+                    Console.WriteLine($"Adding zero thread {@this._workerCount}, load = {@this.LoadFactor * 100:0.0}%");
+                    int slot;
+                    if ((slot = Interlocked.Decrement(ref _workerSpawnBurstMax)) > 0 && slot % 3 == 0)
+                    {
+                        _ = Task.Factory.StartNew(static async state =>
+                        {
+                            var (@this, i) = (ValueTuple<IoZeroScheduler, int>)state;
+                            await @this.LoadTask(i).FastPath();
+                        }, (@this, Interlocked.Increment(ref @this._workerCount) - 1), CancellationToken.None, TaskCreationOptions.LongRunning, Default);
+
+                        _ = Task.Factory.StartNew(static async state =>
+                        {
+                            var (@this, i) = (ValueTuple<IoZeroScheduler, int>)state;
+                            await @this.AsyncValueContextTasks(i).FastPath();
+                        }, (@this, Interlocked.Increment(ref @this._asyncCount)), CancellationToken.None, TaskCreationOptions.LongRunning, ZeroDefault);
+
+                        _workerSpawnBurstMax = WorkerSpawnBurstMax;
+                        @this._lastWorkerSpawnedTime = Environment.TickCount;
+                        Interlocked.MemoryBarrier();
+                    }
+                }, this);
+            }
         }
 
         /// <summary>Tries to execute the task synchronously on this scheduler.</summary>
@@ -535,6 +597,17 @@ namespace zero.core.runtime.scheduler
         public bool Fork(Action callback, object state = null)
         {
             while (_forkQueue.TryEnqueue(callback) <= 0){};
+            return true;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public bool ForkContext(Action<object> callback, object context = null)
+        {
+            var qItem = _forkContextHeap.Take();
+            if (qItem == null) throw new OutOfMemoryException(nameof(ForkContext));
+            qItem.Callback = callback;
+            qItem.State = context;
+            while (!_forkContextQueue.Writer.TryWrite(qItem)) { };
             return true;
         }
     }
