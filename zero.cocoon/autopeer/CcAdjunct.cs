@@ -2486,10 +2486,6 @@ namespace zero.cocoon.autopeer
                     return false;
                 }
 
-#if !DEBUG
-                _logger.Trace($"{nameof(ProbeAsync)} <-- ");
-#endif
-
                 // Is this a routed request?
                 if (IsProxy)
                 {
@@ -2509,7 +2505,7 @@ namespace zero.cocoon.autopeer
                     if (sent > 0)
                     {
                         Interlocked.Increment(ref _zeroProbes);
-#if !DEBUG
+#if DEBUG
                         try
                         {
                             _logger.Trace($"-/> {nameof(CcProbeMessage)}({sent})[{probeMsgBuf.PayloadSig()}, hash = {challenge.Value.Hash.HashSig()}]: sent [[{desc}]] {Description}");
@@ -2536,7 +2532,7 @@ namespace zero.cocoon.autopeer
                     }
                     else
                     {
-#if !DEBUG
+#if DEBUG
                         _logger.Trace($"-/> {nameof(CcProbeMessage)}({sent})[{probeMsgBuf.PayloadSig()}, hash = {challenge.Value.Hash.HashSig()}]: sent [FAILED] [[{desc}]] {Description}");
 #endif
                     }

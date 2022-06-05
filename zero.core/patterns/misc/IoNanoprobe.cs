@@ -233,12 +233,17 @@ namespace zero.core.patterns.misc
             {
                 var @this = (IoNanoprobe)state;
                 //prime garbage
-#if ZERO_DISABLE_SCH
-                await @this.ZeroPrimeAsync().FastPath();
-#else
-                if(IoZeroScheduler.Zero == null || !IoZeroScheduler.Zero.Fork(@this.ZeroPrime))
-                    @this.ZeroPrime();
-#endif
+
+                try
+                {
+                    if(@this.Serial % 2 == 0 || IoZeroScheduler.Zero == null || !IoZeroScheduler.Zero.Fork(@this.ZeroPrime))
+                        @this.ZeroPrime();
+                }
+                catch (Exception e)
+                {
+                    _logger.Trace(e, $"{@this.Description}");
+                }
+
                 await @this.ZeroAsync(true).FastPath();
             }, this);
 #pragma warning restore CS4014

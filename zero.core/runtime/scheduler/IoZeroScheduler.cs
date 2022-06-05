@@ -45,7 +45,7 @@ namespace zero.core.runtime.scheduler
 
             //TODO: tuning
             //_taskQueue = new IoZeroQ<Task>(string.Empty, short.MaxValue / 3, false, _asyncTasks, MaxWorker - 1, zeroAsyncMode: true);
-            _taskQueue = Channel.CreateBounded<Task>(new BoundedChannelOptions(_workerCount * 1024)
+            _taskQueue = Channel.CreateBounded<Task>(new BoundedChannelOptions(int.MaxValue)
             {
                 AllowSynchronousContinuations = false,
                 FullMode = BoundedChannelFullMode.Wait,
@@ -56,8 +56,9 @@ namespace zero.core.runtime.scheduler
             _asyncCallbackQueue = new IoZeroQ<ZeroContinuation>(string.Empty, short.MaxValue / 3, false, _asyncTasks, concurrencyLevel: MaxWorker - 1, zeroAsyncMode: true);
             _asyncQueue = new IoZeroQ<ZeroValueContinuation>(string.Empty, short.MaxValue / 3, false, _asyncTasks, concurrencyLevel: MaxWorker - 1, zeroAsyncMode: true);
             _asyncForkQueue = new IoZeroQ<Func<ValueTask>>(string.Empty, short.MaxValue / 3, false, _asyncTasks, concurrencyLevel: MaxWorker - 1, zeroAsyncMode: true);
+            _forkQueue = new IoZeroQ<Action>(string.Empty, short.MaxValue / 3, false, _asyncTasks, concurrencyLevel: MaxWorker - 1, zeroAsyncMode: true);
             //_asyncContextQueue = new IoZeroQ<ZeroValueContinuation>(string.Empty, short.MaxValue / 3, false, _asyncTasks, concurrencyLevel: MaxWorker - 1, zeroAsyncMode: true);
-            _asyncContextQueue = Channel.CreateBounded<ZeroValueContinuation>(new BoundedChannelOptions(_workerCount * 1024)
+            _asyncContextQueue = Channel.CreateBounded<ZeroValueContinuation>(new BoundedChannelOptions(int.MaxValue)
             {
                 AllowSynchronousContinuations = false,
                 FullMode = BoundedChannelFullMode.Wait,
@@ -65,7 +66,7 @@ namespace zero.core.runtime.scheduler
                 SingleWriter = false
             });//TODO: tuning
 
-            _forkContextQueue = Channel.CreateBounded<ZeroContinuation>(new BoundedChannelOptions(_workerCount * 1024)
+            _forkContextQueue = Channel.CreateBounded<ZeroContinuation>(new BoundedChannelOptions(int.MaxValue)
             {
                 AllowSynchronousContinuations = false,
                 FullMode = BoundedChannelFullMode.Wait,
@@ -294,12 +295,17 @@ namespace zero.core.runtime.scheduler
             {
                 try
                 {
+                    Interlocked.Increment(ref _forkLoad);
                     job();
                     Interlocked.Increment(ref _completedForkCount);
                 }
                 catch (Exception e)
                 {
                     LogManager.GetCurrentClassLogger().Trace(e);
+                }
+                finally
+                {
+                    Interlocked.Decrement(ref _forkLoad);
                 }
             }
         }
@@ -549,7 +555,6 @@ namespace zero.core.runtime.scheduler
             long result = -1;
             try
             {
-                Interlocked.Increment(ref _forkLoad);
                 handler = _callbackHeap.Take();
                 if (handler == null) return false;
 
@@ -560,7 +565,6 @@ namespace zero.core.runtime.scheduler
             }
             finally
             {
-                Interlocked.Decrement(ref _forkLoad);
                 if (result <= 0 && handler != null)
                     _callbackHeap.Return(handler);
             }
@@ -597,11 +601,7 @@ namespace zero.core.runtime.scheduler
         //public bool LoadExclusiveZone(Func<object,ValueTask> callback, object state = null) => _exclusiveQueue.TryEnqueue(callback) > 0;
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public bool Fork(Action callback, object state = null)
-        {
-            while (_forkQueue.TryEnqueue(callback) <= 0){};
-            return true;
-        }
+        public bool Fork(Action callback) =>_forkQueue.TryEnqueue(callback) > 0;
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public bool ForkContext(Action<object> callback, object context = null)
@@ -610,8 +610,7 @@ namespace zero.core.runtime.scheduler
             if (qItem == null) throw new OutOfMemoryException(nameof(ForkContext));
             qItem.Callback = callback;
             qItem.State = context;
-            while (!_forkContextQueue.Writer.TryWrite(qItem)) { };
-            return true;
+            return _forkContextQueue.Writer.TryWrite(qItem);
         }
     }
 }
