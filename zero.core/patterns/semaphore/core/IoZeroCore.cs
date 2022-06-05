@@ -222,7 +222,6 @@ namespace zero.core.patterns.semaphore.core
                             {
                                 if (swap.Burn())
                                 {
-                                    Interlocked.MemoryBarrier();
                                     waiter.SetResult(swap.Kernel); //drop overflow
                                     @this._heapValue.Writer.TryWrite(swap.Free());
                                 }
@@ -255,7 +254,6 @@ namespace zero.core.patterns.semaphore.core
             //fast track next result, incoming value is dropped
             if (_results.Reader.Count >= ModCapacity && _results.Reader.TryRead(out var fastTracked) && fastTracked.Burn())
             {
-                Interlocked.MemoryBarrier();
                 try
                 {
                     return Unblock(this, fastTracked.Kernel, out released, false);
@@ -332,7 +330,6 @@ namespace zero.core.patterns.semaphore.core
             //fast path
             while (_waiters.Reader.Count == 0 && _results.Reader.TryRead(out var primedCore) && primedCore.Burn())
             {
-                Interlocked.MemoryBarrier();
                 slowTaskCore = new ValueTask<T>(primedCore.Kernel);
                 _heapValue.Writer.TryWrite(primedCore.Free());
                 return true;
@@ -342,7 +339,6 @@ namespace zero.core.patterns.semaphore.core
             if (!_heapCore.Reader.TryRead(out var waiter) || !waiter.Lock())
             {
                 waiter = new IoManualResetValueTaskSourceCore<T> { AutoReset = false };
-                Interlocked.MemoryBarrier();
                 waiter.Reset(static state =>
                 {
                     var (@this, waiter) = (ValueTuple<IoZeroCore<T>, IIoManualResetValueTaskSourceCore<T>>)state;
@@ -353,7 +349,6 @@ namespace zero.core.patterns.semaphore.core
             //fast jit
             while (_waiters.Reader.Count == 0 && _results.Reader.TryRead(out var jitCore) && jitCore.Burn())
             {
-                Interlocked.MemoryBarrier();
                 slowTaskCore = new ValueTask<T>(jitCore.Kernel);
                 _heapValue.Writer.TryWrite(jitCore.Free());
                 waiter.Reset();
@@ -367,9 +362,7 @@ namespace zero.core.patterns.semaphore.core
                 //ensure critical region
                 while (_ensureCriticalRegion && _results.Reader.Count == 1 && _results.Reader.TryRead(out var racedCore) && racedCore.Burn())
                 {
-                    Interlocked.MemoryBarrier();
                     waiter.Relay = CoreRace;
-
                     slowTaskCore = new ValueTask<T>(racedCore.Kernel);
                     _heapValue.Writer.TryWrite(racedCore.Free());
                     return true;

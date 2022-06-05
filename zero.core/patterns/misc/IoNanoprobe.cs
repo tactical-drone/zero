@@ -571,7 +571,6 @@ namespace zero.core.patterns.misc
             {
                 await ZeroRoot.WaitAsync().FastPath();
 #if DEBUG
-                Interlocked.MemoryBarrier();
                 Debug.Assert(Zeroed() || ZeroRoot.Zeroed() || ZeroRoot.ReadyCount == 0, $"{nameof(ZeroRoot)}: [FAILED], ReadyCount = {ZeroRoot.ReadyCount}");
 #endif
                 //Prevents strange things from happening
