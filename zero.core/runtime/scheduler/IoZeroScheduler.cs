@@ -463,25 +463,28 @@ namespace zero.core.runtime.scheduler
                 ForkContext(static state =>
                 {
                     var @this = (IoZeroScheduler)state;
-                    Console.WriteLine($"Adding zero thread {@this._workerCount}, load = {@this.LoadFactor * 100:0.0}%");
                     int slot;
                     if ((slot = Interlocked.Decrement(ref _workerSpawnBurstMax)) > 0 && slot % 3 == 0)
                     {
-                        _ = Task.Factory.StartNew(static async state =>
+                        if (@this.LoadFactor > WorkerSpawnThreshold)
                         {
-                            var (@this, i) = (ValueTuple<IoZeroScheduler, int>)state;
-                            await @this.LoadTask(i).FastPath();
-                        }, (@this, Interlocked.Increment(ref @this._workerCount) - 1), CancellationToken.None, TaskCreationOptions.LongRunning, Default);
+                            _ = Task.Factory.StartNew(static async state =>
+                            {
+                                var (@this, i) = (ValueTuple<IoZeroScheduler, int>)state;
+                                await @this.LoadTask(i).FastPath();
+                            }, (@this, Interlocked.Increment(ref @this._workerCount) - 1), CancellationToken.None, TaskCreationOptions.LongRunning, Default);
 
-                        _ = Task.Factory.StartNew(static async state =>
-                        {
-                            var (@this, i) = (ValueTuple<IoZeroScheduler, int>)state;
-                            await @this.AsyncValueContextTasks(i).FastPath();
-                        }, (@this, Interlocked.Increment(ref @this._asyncCount)), CancellationToken.None, TaskCreationOptions.LongRunning, ZeroDefault);
+                            _ = Task.Factory.StartNew(static async state =>
+                            {
+                                var (@this, i) = (ValueTuple<IoZeroScheduler, int>)state;
+                                await @this.AsyncValueContextTasks(i).FastPath();
+                            }, (@this, Interlocked.Increment(ref @this._asyncCount)), CancellationToken.None, TaskCreationOptions.LongRunning, ZeroDefault);
 
-                        _workerSpawnBurstMax = WorkerSpawnBurstMax;
-                        @this._lastWorkerSpawnedTime = Environment.TickCount;
-                        Interlocked.MemoryBarrier();
+                            _workerSpawnBurstMax = WorkerSpawnBurstMax;
+                            @this._lastWorkerSpawnedTime = Environment.TickCount;
+                            Interlocked.MemoryBarrier();
+                            Console.WriteLine($"Adding zero thread {@this._workerCount}, load = {@this.LoadFactor * 100:0.0}%");
+                        }
                     }
                 }, this);
             }
