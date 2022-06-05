@@ -665,7 +665,7 @@ namespace zero.core.patterns.bushings
 
                             await ZeroJobAsync(curJob, curJob.FinalState == IoJobMeta.JobState.Accept).FastPath();
 
-                            Source.BackPressure(zeroAsync: true);
+                            Source.BackPressure(zeroAsync: false);
                         }
                         catch when (Zeroed())
                         {
