@@ -298,14 +298,7 @@ namespace zero.core.patterns.semaphore.core
 
             //ensure critical region
             if (_ensureCriticalRegion && _waiters.Reader.Count > 0 && _results.Reader.Count > 0)
-            {
-                if(_results.Reader.TryRead(out var banked))
-                {
-                    if (Unblock(this, value, out released,forceAsync)) return true;
-
-                    goto retry;
-                }
-            }
+                goto retry;
 
             released = 0;
             return false;
