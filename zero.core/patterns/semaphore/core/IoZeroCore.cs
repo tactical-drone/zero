@@ -66,6 +66,8 @@ namespace zero.core.patterns.semaphore.core
             _asyncTasks = asyncTasks;
             
             _ensureCriticalRegion = (_ready = ready) == 1; //a mutex will always have a 1 here
+            _waitersWriteLock = 0;
+            _resultsWriteLock = 0;
             //_zeroRef = null;
         }
 
@@ -128,6 +130,8 @@ namespace zero.core.patterns.semaphore.core
         private volatile int _zeroed;
         private readonly bool _ensureCriticalRegion;
         private readonly int _ready;
+        private volatile int _resultsWriteLock;
+        private volatile int _waitersWriteLock;
         #endregion
 
         #region Properties
@@ -290,10 +294,19 @@ namespace zero.core.patterns.semaphore.core
             }
 
             ////prime
-            if (!_results.Writer.TryWrite(valueCore))
+            while(Interlocked.CompareExchange(ref _resultsWriteLock, 1, 0) != 0 ){}
+
+            try
             {
-                released = 0;
-                return false;
+                if (!_results.Writer.TryWrite(valueCore))
+                {
+                    released = 0;
+                    return false;
+                }
+            }
+            finally
+            {
+                Interlocked.Exchange(ref _resultsWriteLock, 0);
             }
 
             //ensure critical region
@@ -350,20 +363,30 @@ namespace zero.core.patterns.semaphore.core
 
             //block
             waiter.Relay = CoreWait;
-            if (_waiters.Writer.TryWrite(waiter))
+            while(Interlocked.CompareExchange(ref _waitersWriteLock, 0, 1) != 0){}
+
+            try
             {
-                //ensure critical region
-                while (_ensureCriticalRegion && _results.Reader.Count == 1 && _results.Reader.TryRead(out var racedCore) && racedCore.Burn())
+                if (_waiters.Writer.TryWrite(waiter))
                 {
-                    waiter.Relay = CoreRace;
-                    slowTaskCore = new ValueTask<T>(racedCore.Kernel);
-                    _heapValue.Writer.TryWrite(racedCore.Free());
+                    Interlocked.Exchange(ref _waitersWriteLock, 0);
+                    //ensure critical region
+                    while (_ensureCriticalRegion && _results.Reader.Count == 1 && _results.Reader.TryRead(out var racedCore) && racedCore.Burn())
+                    {
+                        waiter.Relay = CoreRace;
+                        slowTaskCore = new ValueTask<T>(racedCore.Kernel);
+                        _heapValue.Writer.TryWrite(racedCore.Free());
+                        return true;
+                    }
+
+                    waiter.Relay = CoreReady;
+                    slowTaskCore = new ValueTask<T>(waiter, 0);
                     return true;
                 }
-
-                waiter.Relay = CoreReady;
-                slowTaskCore = new ValueTask<T>(waiter, 0);
-                return true;
+            }
+            finally
+            {
+                Interlocked.Exchange(ref _waitersWriteLock, 0);
             }
 
             return false;

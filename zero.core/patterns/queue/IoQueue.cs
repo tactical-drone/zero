@@ -431,7 +431,7 @@ namespace zero.core.patterns.queue
                     Interlocked.Decrement(ref _insaneExclusive);
 #endif
                     Debug.Assert(_syncRoot.ReadyCount == 0);
-                    _syncRoot.Release(Environment.TickCount, true);//FALSE!
+                    _syncRoot.Release(Environment.TickCount, false);//FALSE!
                 }
             }
             
@@ -523,7 +523,7 @@ namespace zero.core.patterns.queue
 #if DEBUG
                 Interlocked.Decrement(ref _insaneExclusive);       
 #endif
-                _syncRoot.Release(Environment.TickCount, true);//FALSE
+                _syncRoot.Release(Environment.TickCount, false);//FALSE
                 node.Value = default;
                 _nodeHeap?.Return(node, deDup);
             }
