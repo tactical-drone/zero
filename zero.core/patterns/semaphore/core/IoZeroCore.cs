@@ -294,7 +294,12 @@ namespace zero.core.patterns.semaphore.core
             }
 
             ////prime
-            while(Interlocked.CompareExchange(ref _resultsWriteLock, 1, 0) != 0 ){}
+            while (Interlocked.CompareExchange(ref _resultsWriteLock, 1, 0) != 0)
+            {
+                if (!Zeroed()) continue;
+                released = 0;   
+                return false;
+            }
 
             try
             {
@@ -363,7 +368,11 @@ namespace zero.core.patterns.semaphore.core
 
             //block
             waiter.Relay = CoreWait;
-            while(Interlocked.CompareExchange(ref _waitersWriteLock, 0, 1) != 0){}
+            while (Interlocked.CompareExchange(ref _waitersWriteLock, 0, 1) != 0)
+            {
+                if (Zeroed())
+                    return false;
+            }
 
             try
             {
