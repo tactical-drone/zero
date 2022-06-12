@@ -1,19 +1,12 @@
 ﻿//#define TRACE
 using System;
-using System.Buffers;
-using System.Collections.Concurrent;
 using System.Diagnostics;
-using System.Linq;
-using System.Net.Http.Headers;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Channels;
 using System.Threading.Tasks;
 using System.Threading.Tasks.Sources;
-using NLog;
-using zero.core.misc;
-using zero.core.patterns.queue;
 
 namespace zero.core.patterns.semaphore.core
 {
@@ -294,7 +287,7 @@ namespace zero.core.patterns.semaphore.core
             }
 
             ////prime
-            while (Interlocked.CompareExchange(ref _resultsWriteLock, 1, 0) != 0)
+            while (_ensureCriticalRegion && Interlocked.CompareExchange(ref _resultsWriteLock, 1, 0) != 0)
             {
                 if (!Zeroed()) continue;
                 released = 0;   
@@ -311,7 +304,8 @@ namespace zero.core.patterns.semaphore.core
             }
             finally
             {
-                Interlocked.Exchange(ref _resultsWriteLock, 0);
+                if(_ensureCriticalRegion)
+                    Interlocked.Exchange(ref _resultsWriteLock, 0);
             }
 
             //ensure critical region
@@ -368,7 +362,7 @@ namespace zero.core.patterns.semaphore.core
 
             //block
             waiter.Relay = CoreWait;
-            while (Interlocked.CompareExchange(ref _waitersWriteLock, 0, 1) != 0)
+            while (_ensureCriticalRegion && Interlocked.CompareExchange(ref _waitersWriteLock, 0, 1) != 0)
             {
                 if (Zeroed())
                     return false;
@@ -395,7 +389,8 @@ namespace zero.core.patterns.semaphore.core
             }
             finally
             {
-                Interlocked.Exchange(ref _waitersWriteLock, 0);
+                if(_ensureCriticalRegion)
+                    Interlocked.Exchange(ref _waitersWriteLock, 0);
             }
 
             return false;

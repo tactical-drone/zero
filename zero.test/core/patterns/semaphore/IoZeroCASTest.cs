@@ -83,7 +83,7 @@ namespace zero.test.core.patterns.semaphore
                 //Assert.True(next == prev + 1);
                 prev = next;
             }
-            _output.WriteLine($"Bad = {bad}/{_count}, {(double)bad/(_count) * 100:0.0}%, rejected = {_rejected}/{_accepted} = {(_rejected)/(_accepted) * 100:0.0}%, duplicates = {duplicates}");
+            _output.WriteLine($"Bad = {bad}/{_count}, {(double)bad/(_count) * 100:0.0}%, rejected = {_rejected}/{_accepted} = {(double)_rejected/_accepted * 100:0.0}%, duplicates = {duplicates}");
             Assert.InRange(bad, 0,0);
         }
 
