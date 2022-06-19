@@ -10,6 +10,7 @@ using zero.core.patterns.bushings.contracts;
 using zero.core.patterns.heap;
 using zero.core.patterns.misc;
 using zero.core.patterns.queue;
+using zero.core.patterns.semaphore;
 using zero.core.patterns.semaphore.core;
 
 namespace zero.core.patterns.bushings
@@ -44,6 +45,10 @@ namespace zero.core.patterns.bushings
 
             ConfigureAsync(description, source, mallocJob, cascadeOnSource).AsTask().GetAwaiter();
 
+            //TODO tuning
+            if (ZeroRecoveryEnabled)
+                _previousJobFragment = new IoQueue<IoSink<TJob>>($"{description}", (Source.PrefetchSize + Source.ZeroConcurrencyLevel()) * 2, Source.PrefetchSize);
+
             _zeroSync = new IoManualResetValueTaskSource<bool>();
 
             //What to do when certain parameters change
@@ -76,7 +81,7 @@ namespace zero.core.patterns.bushings
         {
             _description = description;
             Source = source;
-            var capacity = Source.PrefetchSize + Source.ZeroConcurrencyLevel();
+            var capacity = (Source.PrefetchSize + Source.ZeroConcurrencyLevel()) * 2;
 
             //These numbers were numerically established
             if (ZeroRecoveryEnabled)
@@ -85,7 +90,9 @@ namespace zero.core.patterns.bushings
             try
             {
                 //TODO tuning
-                _queue = new IoZeroQ<IoSink<TJob>>($"zero Q: {_description}", capacity, asyncTasks:AsyncTasks, concurrencyLevel:ZeroConcurrencyLevel(),zeroAsyncMode:false);
+                //_queue = new IoZeroQ<IoSink<TJob>>($"zero Q: {_description}", capacity, asyncTasks:AsyncTasks, concurrencyLevel:ZeroConcurrencyLevel(),zeroAsyncMode:false);
+                _queue = new IoZeroSemaphoreChannel<IoSink<TJob>>($"zero Q: {_description}",capacity, zeroAsyncMode:false);//FALSE
+
                 JobHeap = new IoHeapIo<IoSink<TJob>>($"{nameof(JobHeap)}: {_description}", capacity, jobMalloc) {
                     Constructor = (sink, zero) =>
                     {
@@ -100,10 +107,6 @@ namespace zero.core.patterns.bushings
 
             if (cascade)
                 await Source.ZeroHiveAsync(this).FastPath();
-
-            //TODO tuning
-            if (ZeroRecoveryEnabled)
-                Volatile.Write(ref _previousJobFragment, new IoQueue<IoSink<TJob>>($"{description}", capacity, Source.PrefetchSize));
         }
 
         /// <summary>
@@ -136,13 +139,13 @@ namespace zero.core.patterns.bushings
         /// The job queue
         /// </summary>
         //private IoQueue<IoSink<TJob>> _queue;
-        private IoZeroQ<IoSink<TJob>> _queue;
+        //private IoZeroQ<IoSink<TJob>> _queue;
+        private IoZeroSemaphoreChannel<IoSink<TJob>> _queue;
 
         /// <summary>
         /// The heap where new consumable meta data is allocated from
         /// </summary>
         public IoHeapIo<IoSink<TJob>> JobHeap { get; protected set; }
-
 
         /// <summary>
         /// Syncs producer and consumer queues
@@ -173,7 +176,7 @@ namespace zero.core.patterns.bushings
         /// Maintains a handle to a job if fragmentation was detected so that the
         /// source can marshal fragments into the next production
         /// </summary>
-        private IoQueue<IoSink<TJob>> _previousJobFragment;
+        private readonly IoQueue<IoSink<TJob>> _previousJobFragment;
 
         private long _eventCounter;
         /// <summary>
@@ -279,8 +282,7 @@ namespace zero.core.patterns.bushings
 #if SAFE_RELEASE
             Source = null;
             JobHeap = null;
-            _queue = null;
-            _previousJobFragment = null;
+            //_queue = null;
 #endif
 
         }
@@ -294,7 +296,7 @@ namespace zero.core.patterns.bushings
 
             await Source.DisposeAsync(this, $"{nameof(ZeroManagedAsync)}: teardown").FastPath();
 
-            await _queue.ZeroManagedAsync(static async (sink, @this) => await sink.DisposeAsync(@this, $"{nameof(ZeroManagedAsync)}: teardown").FastPath(), this,zero: true).FastPath();
+            //await _queue.ZeroManagedAsync(static async (sink, @this) => await sink.DisposeAsync(@this, $"{nameof(ZeroManagedAsync)}: teardown").FastPath(), this,zero: true).FastPath();
 
             await JobHeap.ZeroManagedAsync(static async (sink, @this) =>
             {
@@ -367,8 +369,8 @@ namespace zero.core.patterns.bushings
 #if DEBUG
                             //_logger.Debug($"{nameof(ProduceAsync)}: id = {nextJob.Id}, #{nextJob.Serial} - {Description}");
 
-                            if (_queue.Count > 1 && _queue.Count > _queue.Capacity * 2 / 3)
-                                _logger.Warn($"[[ENQUEUE]] backlog = {_queue.Count}/{_queue.Capacity}, {nextJob.Description}, {Description}");
+                            if (_queue.WaitCount > 1 && _queue.WaitCount > _queue.Capacity * 2 / 3)
+                                _logger.Warn($"[[ENQUEUE]] backlog = {_queue.WaitCount}/{_queue.Capacity}, {nextJob.Description}, {Description}");
 #endif
                             if (ZeroRecoveryEnabled)
                             {
@@ -388,11 +390,12 @@ namespace zero.core.patterns.bushings
                             //Enqueue the job for the consumer
                             await nextJob.SetStateAsync(IoJobMeta.JobState.Queued).FastPath();
 
-                            if (_queue.TryEnqueue(nextJob, false,static nextJob =>
-                                {
-                                    if (nextJob.Id == -1)
-                                        nextJob.GenerateJobId();
-                                },(nextJob)) < 0 || nextJob.Source == null)
+                            //if (_queue.TryEnqueue(nextJob, false,static nextJob =>
+                            //    {
+                            //        if (nextJob.Id == -1)
+                            //            nextJob.GenerateJobId();
+                            //    },nextJob) < 0 || nextJob.Source == null)
+                            if(_queue.Release(nextJob) == 0)
                             {
                                 ts = ts.ElapsedMs();
 
@@ -409,7 +412,8 @@ namespace zero.core.patterns.bushings
                                 if ((throttleTime = parm_min_failed_production_time - ts) > 0)
                                     await Task.Delay(throttleTime, AsyncTasks.Token);
 
-                                _logger.Warn($"Producer stalled.... {Description}");
+                                if(!Zeroed())
+                                    _logger.Warn($"Producer stalled.... {Description}");
                                 return true;  //maybe we retry instead of crashing the producer
                             }
 
@@ -420,7 +424,7 @@ namespace zero.core.patterns.bushings
                             //Source.Pressure();
 
                             //Fetch more work
-                            Source.PrefetchPressure(zeroAsync: true);
+                            Source.PrefetchPressure(zeroAsync: false);
                             
                             //if (!IsArbitrating)
                             //    IsArbitrating = true;
@@ -553,7 +557,7 @@ namespace zero.core.patterns.bushings
                 {
                     try
                     {
-                        job.ZeroRecovery.SetResult(job.ZeroEnsureRecovery());
+                        job.ZeroRecovery.SetResult(true);
                     }
                     catch
                     {
@@ -575,7 +579,7 @@ namespace zero.core.patterns.bushings
                             await _previousJobFragment.RemoveAsync(latch).FastPath();
 
                         //_logger.Error($"{nameof(ZeroJobAsync)}: id = {job.Id}, #{job.Serial}");
-                        JobHeap.Return(job, true, true);
+                        JobHeap.Return(job, true);
                     }
                 }
             }
@@ -603,14 +607,15 @@ namespace zero.core.patterns.bushings
             try
             {
                 //A job was produced. Dequeue it and process
-                await foreach (var curJob in _queue.PumpOnConsumeAsync(threadIndex))
+                //await foreach (var curJob in _queue.PumpOnConsumeAsync(threadIndex))
+                var curJob = await _queue.WaitAsync().FastPath();
                 {
                     if (curJob == null)
                         return false;
                     Debug.Assert(curJob != null);
 #if DEBUG
-                    if (_queue.Count > 1 && _queue.Count > _queue.Capacity * 2 / 3)
-                        _logger.Warn($"[[DEQUEUE]] backlog = {_queue.Count}, {curJob.Description}, {Description}");
+                    if (_queue.WaitCount > 1 && _queue.WaitCount > _queue.Capacity * 2 / 3)
+                        _logger.Warn($"[[DEQUEUE]] backlog = {_queue.WaitCount}, {curJob.Description}, {Description}");
 #endif
                     try
                     {

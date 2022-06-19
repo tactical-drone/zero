@@ -1,5 +1,4 @@
 ﻿using System;
-using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using System.Security.Cryptography;
 using System.Threading;
@@ -278,12 +277,8 @@ namespace zero.core.feat.misc
         /// <param name="key">The response key</param>
         /// <param name="reqHash"></param>
         /// <returns>The response payload</returns>
-        public async ValueTask<bool> ResponseAsync(string key, ByteString reqHash)
-        {
-            return reqHash.Length != 0 && await ZeroAtomicAsync(MatchAsync, (this, key, reqHash)).FastPath();
-            //return reqHash.Length != 0 && await MatchAsync( null, (this, key, reqHash), false);
-        }
-
+        public ValueTask<bool> ResponseAsync(string key, ByteString reqHash) => ZeroAtomicAsync(MatchAsync, (this, key, reqHash));
+        
         /// <summary>
         /// Purge the lut from old challenges
         /// </summary>

@@ -31,10 +31,7 @@ namespace zero.core.feat.models.protobuffer.sources
             _logger = LogManager.GetCurrentClassLogger();
 
             UpstreamSource = ioSource;
-            //BatchQueue = new IoQueue<TBatch>($"{nameof(CcProtocBatchSource<TModel, TBatch>)}: {ioSource.Description}", prefetchSize + concurrencyLevel, prefetchSize, IoQueue<TBatch>.Mode.Pressure | IoQueue<TBatch>.Mode.BackPressure);
-            //BatchQueue = new IoQueue<TBatch>($"{nameof(CcProtocBatchSource<TModel, TBatch>)}: {ioSource.Description}", (prefetchSize + concurrencyLevel) * 2, prefetchSize, IoQueue<TBatch>.Mode.Pressure | IoQueue<TBatch>.Mode.BackPressure);
-            BatchQueue = new IoQueue<TBatch>($"{nameof(CcProtocBatchSource<TModel, TBatch>)}: {ioSource.Description}", (prefetchSize + concurrencyLevel), prefetchSize, IoQueue<TBatch>.Mode.Pressure | IoQueue<TBatch>.Mode.BackPressure);
-            //BatchQueue = new IoQueue<TBatch>($"{nameof(CcProtocBatchSource<TModel, TBatch>)}: {ioSource.Description}", (prefetchSize + concurrencyLevel) * 8, concurrencyLevel);
+            BatchQueue = new IoQueue<TBatch>($"{nameof(CcProtocBatchSource<TModel, TBatch>)}: {ioSource.Description}", (prefetchSize + concurrencyLevel), prefetchSize + 1, IoQueue<TBatch>.Mode.Pressure | IoQueue<TBatch>.Mode.BackPressure);
         }
 
         /// <summary>
@@ -45,7 +42,7 @@ namespace zero.core.feat.models.protobuffer.sources
         /// <summary>
         /// Used to load the next value to be produced
         /// </summary>
-        protected IoQueue<TBatch> BatchQueue;
+        protected readonly IoQueue<TBatch> BatchQueue;
 
         /// <summary>
         /// Keys this instance.
@@ -74,7 +71,6 @@ namespace zero.core.feat.models.protobuffer.sources
 
 #if SAFE_RELEASE
             _logger = null;
-            BatchQueue = null;
 #endif
         }
 

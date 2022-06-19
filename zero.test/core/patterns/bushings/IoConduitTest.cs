@@ -110,7 +110,7 @@ namespace zero.test.core.patterns.bushings
         public async Task IoConduitSpamAsync()
         {
 #if DEBUG
-            var count = 50000;
+            var count = 500000;
             var concurrencyLevel = 10;
 #else
             var count = 1000000;
@@ -144,7 +144,7 @@ namespace zero.test.core.patterns.bushings
 #if DEBUG
             Assert.InRange(fpses, 5, int.MaxValue);
 #else
-            Assert.InRange(fpses, 100, int.MaxValue);
+            Assert.InRange(fpses, 25, int.MaxValue);
 #endif
             _output.WriteLine($"FPSes = {fpses:0.0} kub/s, {ts.ElapsedMs()}ms ~ {targetTime}ms");
 

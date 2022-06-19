@@ -74,7 +74,7 @@ namespace zero.core.patterns.queue
             {
                 _fanSync = new IoZeroSemaphoreSlim(asyncTasks, $"fan {description}", concurrencyLevel, zeroAsyncMode: zeroAsyncMode); //TODO: tuning
                 _balanceSync = new IoZeroSemaphoreSlim(asyncTasks, $"balance {description}", concurrencyLevel, zeroAsyncMode: zeroAsyncMode, contextUnsafe:false); //TODO: tuning
-                _zeroSync = new IoZeroSemaphoreChannel<T>(asyncTasks, $"pump  {description}", concurrencyLevel, zeroAsyncMode: zeroAsyncMode); //TODO: tuning
+                _zeroSync = new IoZeroSemaphoreChannel<T>($"pump  {description}", concurrencyLevel, zeroAsyncMode: zeroAsyncMode); //TODO: tuning
 
                 _fanSyncs = Enumerable.Repeat<AsyncDelegate>(BlockOnConsumeAsync, concurrencyLevel).ToArray();
                 _balanceSyncs = Enumerable.Repeat<AsyncDelegate>(BalanceOnConsumeAsync, concurrencyLevel).ToArray();
@@ -275,13 +275,24 @@ namespace zero.core.patterns.queue
                         {
                             // ignored
                         }
-                    }
-
-                    if (_blockingCollection && _blockingConsumers > 0)
+                    } 
+                    else if (_blockingCollection && _blockingConsumers > 0)
                     {
                         try
                         {
                             _fanSync.Release(Environment.TickCount, _blockingConsumers);
+                        }
+                        catch
+                        {
+                            // ignored
+                        }
+                    }
+                    else if (_blockingCollection && _pumpingConsumers > 0)
+                    {
+                        try
+                        {
+                            if(_zeroSync.Release(item) > 0)
+                                return 0;
                         }
                         catch
                         {
@@ -305,15 +316,15 @@ namespace zero.core.patterns.queue
                 if (_blockingCollection && _pumpingConsumers > 0)
                 {
                     try
-                    {
-                        return _zeroSync.Release(item);
+                    { 
+                        _zeroSync.Release(item);
+                        return 0;
                     }
                     catch
                     {
                         // ignored
                     }
                 }
-
 
                 long tail;
                 long cap;

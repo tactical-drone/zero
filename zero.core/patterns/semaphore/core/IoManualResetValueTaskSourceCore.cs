@@ -43,12 +43,12 @@ namespace zero.core.patterns.semaphore.core
 #pragma warning restore CS8632 // The annotation for nullable reference types should only be used in code within a '#nullable' annotations context.
 
         /// <summary>Whether the current operation has completed.</summary>
-        private bool _completed;
-        private int _completeTime;
-        private int _burnTime;
-        private bool _runContinuationsAsync;
-        private bool _runContinuationsAsyncAlways;
-        private bool _autoReset;
+        private volatile bool _completed;
+        private volatile int _completeTime;
+        private volatile int _burnTime;
+        private volatile bool _runContinuationsAsync;
+        private volatile bool _runContinuationsAsyncAlways;
+        private volatile bool _autoReset;
 
         /// <summary>The current version of this value, used to help prevent misuse.</summary>
         private int _version;
@@ -112,15 +112,26 @@ namespace zero.core.patterns.semaphore.core
 
         private int _heapItemLock;
 
-        public bool Lock() => Interlocked.CompareExchange(ref _heapItemLock, 1, 0) == 0;
+//#if ZERO_CHECK
+//        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+//        public bool Lock() => Interlocked.CompareExchange(ref _heapItemLock, 1, 0) == 0;
 
 
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public IIoManualResetValueTaskSourceCore<TResult> Free()
-        {
-            Interlocked.CompareExchange(ref _heapItemLock, 0, 1);
-            return this;
-        }
+//        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+//        public IIoManualResetValueTaskSourceCore<TResult> Free()
+//        {
+//            Interlocked.CompareExchange(ref _heapItemLock, 0, 1);
+//            return this;
+//        }
+//#else
+//        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+//        public bool Lock() => true;
+
+
+//        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+//        public IIoManualResetValueTaskSourceCore<TResult> Free() => this;
+        
+//#endif
 
         //public object BurnContext
         //{
@@ -346,6 +357,10 @@ namespace zero.core.patterns.semaphore.core
                 {
                     case null:
                         _ = Task.Factory.StartNew(continuation, state, CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Default);
+                        //if(RunContinuationsAsynchronously)
+                        //    _ = Task.Factory.StartNew(continuation, state, CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Default);
+                        //else
+                        //    continuation(state);
                         break;
                     case SynchronizationContext sc:
 #pragma warning disable VSTHRD001 // Avoid legacy thread switching APIs
@@ -356,6 +371,9 @@ namespace zero.core.patterns.semaphore.core
                         }, (continuation, state));
 #pragma warning restore VSTHRD001 // Avoid legacy thread switching APIs
                         break;
+                    //case IoZeroScheduler tz when TaskScheduler.Current is IoZeroScheduler && !RunContinuationsAsynchronously:
+                    //    continuation(state);
+                    //    break;
                     case TaskScheduler ts:
                         _ = Task.Factory.StartNew(continuation, state, CancellationToken.None, TaskCreationOptions.DenyChildAttach, ts);
                         break;

@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Runtime.CompilerServices;
-using System.Threading;
 using System.Threading.Tasks;
 using System.Threading.Tasks.Sources;
 using zero.core.patterns.misc;
@@ -13,22 +12,19 @@ namespace zero.core.patterns.semaphore
     /// </summary>
     public class IoZeroSemaphoreChannel<T>: IoNanoprobe, IIoZeroSemaphoreBase<T>
     {
-        public IoZeroSemaphoreChannel(CancellationTokenSource asyncTasks,
-            string description = "IoZeroSemaphoreSlim", int maxBlockers = 1, int initialCount = 0,
-            bool zeroAsyncMode = false,
-            bool enableAutoScale = false, bool enableFairQ = false, bool enableDeadlockDetection = false) : base($"{nameof(IoZeroSemaphoreSlim)}: {description}", maxBlockers)
+        public IoZeroSemaphoreChannel(string description = "IoZeroSemaphoreSlim", int maxBlockers = 1, int initialCount = 0,
+            bool zeroAsyncMode = false) : base($"{nameof(IoZeroSemaphoreSlim)}: {description}", maxBlockers)
         {
-            //_semaphore = new IoZeroSemaphore<T>(description, maxBlockers, initialCount, zeroAsyncMode, enableAutoScale: enableAutoScale, cancellationTokenSource: asyncTasks);
-            _semaphore = new IoZeroCore<T>(description, maxBlockers, AsyncTasks, initialCount, zeroAsyncMode);
-            _semaphore.ZeroRef(ref _semaphore, default);
+            //IIoZeroSemaphoreBase<T> c = new IoZeroSemaphore<T>(description, maxBlockers, initialCount, zeroAsyncMode);
+            IIoZeroSemaphoreBase<T> c = new IoZeroCore<T>(description, maxBlockers, AsyncTasks, initialCount, zeroAsyncMode);
+            _semaphore = c.ZeroRef(ref c, default);
         }
 
-        private IIoZeroSemaphoreBase<T> _semaphore;
+        private readonly IIoZeroSemaphoreBase<T> _semaphore;
 
         public override void ZeroUnmanaged()
         {
             base.ZeroUnmanaged();
-            _semaphore = null;
         }
 
         public override async ValueTask ZeroManagedAsync()

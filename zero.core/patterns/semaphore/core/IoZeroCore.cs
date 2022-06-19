@@ -36,31 +36,38 @@ namespace zero.core.patterns.semaphore.core
             _zeroed = 0;
             _description = description;
             _capacity = capacity;
-            capacity *= 2;
+            capacity *= 4;
             ZeroAsyncMode = zeroAsyncMode;
 
-            _waiters = Channel.CreateBounded<IIoManualResetValueTaskSourceCore<T>>(new BoundedChannelOptions(capacity + 1)
+            _waiters = Channel.CreateBounded<IIoManualResetValueTaskSourceCore<T>>(new BoundedChannelOptions(capacity)
             {
                 SingleWriter = false,
                 SingleReader = false,
+                AllowSynchronousContinuations = true,
+                FullMode = BoundedChannelFullMode.DropWrite
             });
 
-            _results = Channel.CreateBounded<IIoValueCore>(new BoundedChannelOptions(capacity + 1)
+            _results = Channel.CreateBounded<T>(new BoundedChannelOptions(capacity)
             {
                 SingleWriter = false,
                 SingleReader = false,
+                AllowSynchronousContinuations = true,
+                FullMode = BoundedChannelFullMode.DropWrite
             });
 
-            _heapCore = Channel.CreateBounded<IIoManualResetValueTaskSourceCore<T>>(capacity + 1);
-            _heapValue = Channel.CreateBounded<IIoValueCore>(capacity + 1);
-
+            _heapCore = Channel.CreateBounded<IIoManualResetValueTaskSourceCore<T>>(new BoundedChannelOptions(capacity)
+            {
+                SingleWriter = false,
+                SingleReader = false,
+                AllowSynchronousContinuations = true,
+                FullMode = BoundedChannelFullMode.DropWrite
+            });
+            
             _primeReady = _ => default;
             _primeContext = null;
             _asyncTasks = asyncTasks;
             
             _ensureCriticalRegion = (_ready = ready) == 1; //a mutex will always have a 1 here
-            _waitersWriteLock = 0;
-            _resultsWriteLock = 0;
             //_zeroRef = null;
         }
 
@@ -76,10 +83,7 @@ namespace zero.core.patterns.semaphore.core
 
             for (int i = 0; i < _ready; i++)
             {
-                _results.Writer.TryWrite(new IoValueCore
-                {
-                    Kernel = _primeReady!(_primeContext)
-                });
+                _results.Writer.TryWrite(_primeReady!(_primeContext));
             }
 
             //return _zeroRef = @ref;
@@ -98,7 +102,6 @@ namespace zero.core.patterns.semaphore.core
                     cancelled.RunContinuationsAsynchronouslyAlways = false;
                     cancelled.RunContinuationsAsynchronously = false;
                     cancelled.SetException(new TaskCanceledException($"{nameof(ZeroSem)}: [TEARDOWN DIRECT] {Description}"));
-                    //cancelled.SetResult(_primeReady(_primeContext));
                 }
                 catch
                 {
@@ -112,9 +115,8 @@ namespace zero.core.patterns.semaphore.core
 
         #region Aligned
         private readonly Channel<IIoManualResetValueTaskSourceCore<T>> _waiters;
-        private readonly Channel<IIoValueCore> _results;
+        private readonly Channel<T> _results;
         private readonly Channel<IIoManualResetValueTaskSourceCore<T>> _heapCore;
-        private readonly Channel<IIoValueCore> _heapValue;
         private readonly CancellationTokenSource _asyncTasks;
         private Func<object, T> _primeReady;
         private object _primeContext;
@@ -123,8 +125,6 @@ namespace zero.core.patterns.semaphore.core
         private volatile int _zeroed;
         private readonly bool _ensureCriticalRegion;
         private readonly int _ready;
-        private volatile int _resultsWriteLock;
-        private volatile int _waitersWriteLock;
         #endregion
 
         #region Properties
@@ -134,40 +134,10 @@ namespace zero.core.patterns.semaphore.core
         private const int CoreWait  = 1;
         private const int CoreRace  = 2;
 
-        public interface IIoValueCore
-        {
-            T Kernel { get; set; }
-
-            bool Burned { get; }
-            bool Burn();
-            void Prime();
-            bool Lock();
-            IIoValueCore Free();
-        }
-        internal struct IoValueCore : IIoValueCore
-        {
-            public T Kernel { get; set; }
-
-            private int _burned;
-            public bool Burned => _burned > 0;
-            public bool Burn() => Interlocked.CompareExchange(ref _burned, 1, 0) == 0;
-            public void Prime() => Interlocked.Exchange(ref _burned, 0);
-
-            private int _heapItemLock;
-            public bool Lock() => Interlocked.CompareExchange(ref _heapItemLock, 1,0) == 0;
-
-            [MethodImpl(MethodImplOptions.AggressiveInlining)]
-            public IIoValueCore Free()
-            {
-                Interlocked.Exchange(ref _heapItemLock, 0);
-                return this;
-            }
-        }
-
         //private IIoZeroSemaphoreBase<T> _zeroRef;
-        #endregion
+#endregion
 
-        #region State
+#region State
 
         public string Description =>
             $"{nameof(IoZeroSemCore<T>)}: r = {ReadyCount}/{_capacity}, w = {WaitCount}/{_capacity}, z = {_zeroed > 0}, heap = {_heapCore.Reader.Count}, {_description}";
@@ -178,6 +148,42 @@ namespace zero.core.patterns.semaphore.core
         #endregion
 
         #region Core
+        /// <summary>
+        /// Unblocks a core
+        /// </summary>
+        /// <param name="value">The value to unblock with</param>
+        /// <param name="forceAsync">To continue asynchronously</param>
+        /// <returns>True on success</returns>
+#if !DEBUG
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+#endif
+        private bool Unblock(T value, bool forceAsync)
+        {
+            retry:
+            //unblock
+            if (!_waiters.Reader.TryRead(out var waiter)) return false;
+
+            waiter.RunContinuationsAsynchronously = forceAsync || ZeroAsyncMode;
+
+            //wait for the core to become ready
+            while (waiter.Relay == CoreWait)
+            {
+                if (!Zeroed()) continue;
+                return false;
+            }
+
+            switch (waiter.Relay)
+            {
+                //use the core
+                case CoreReady:
+                    waiter.SetResult(value);
+                    return true;
+                case CoreRace:
+                    goto retry;
+            }
+            return false;
+        }
+
         /// <summary>
         /// Dequeue a slow core and unblock it using the <see cref="value"/> provided
         /// </summary>
@@ -190,130 +196,31 @@ namespace zero.core.patterns.semaphore.core
 #endif
         private bool ZeroSetResult(T value, out int released, bool forceAsync = false)
         {
-            [MethodImpl(MethodImplOptions.AggressiveInlining)]
-            static bool Unblock(IoZeroCore<T> @this, T value, out int released, bool forceAsync)
-            {
-                //unblock
-                while (@this._waiters.Reader.TryRead(out var waiter))
-                {
-                    try
-                    {
-                        waiter.RunContinuationsAsynchronously = forceAsync || @this.ZeroAsyncMode;
-
-                        //wait for the core to become ready
-                        while (waiter.Relay == CoreWait)
-                        {
-                            if (@this.Zeroed())
-                            {
-                                released = 0;
-                                return false;
-                            }
-                        }
-
-                        overflow:
-                        //use the core
-                        if (waiter.Relay == CoreReady)
-                        {
-                            if (@this._results.Reader.Count >= @this.ModCapacity &&
-                                @this._results.Reader.TryRead(out var swap))
-                            {
-                                if (swap.Burn())
-                                {
-                                    waiter.SetResult(swap.Kernel); //drop overflow
-                                    @this._heapValue.Writer.TryWrite(swap.Free());
-                                }
-                                else
-                                    goto overflow;
-                            }
-                            else
-                            {
-                                waiter.SetResult(value);
-                            }
-                            
-                            released = 1;
-                            return true;
-                        }
-
-                        //discard the core
-                        waiter.Reset();
-                    }
-                    catch
-                    {
-                        // ignored
-                    }
-                }
-                released = 0;
-                return false;
-            }
-
-        retry:
-
-            //fast track next result, incoming value is dropped
-            if (_results.Reader.Count >= ModCapacity && _results.Reader.TryRead(out var fastTracked) && fastTracked.Burn())
-            {
-                try
-                {
-                    return Unblock(this, fastTracked.Kernel, out released, false);
-                }
-                finally
-                {
-                    _heapValue.Writer.TryWrite(fastTracked.Free());
-                }
-            }
-
-            //fast path
-            if (_results.Reader.Count == 0)
-                if (Unblock(this, value, out released, forceAsync)) return true;
-            
-            //heap
-            if (!_heapValue.Reader.TryRead(out var valueCore) || !valueCore.Lock())
-                valueCore = new IoValueCore { Kernel = value };
-            else
-            {
-                valueCore.Kernel = value;
-                valueCore.Prime();
-                Interlocked.MemoryBarrier();
-            }
-
-            //TODO: Is this a hack?
-            //heap jit 
-            if (_results.Reader.Count == 0)
-            {
-                if (Unblock(this, value, out released, forceAsync))
-                {
-                    _heapValue.Writer.TryWrite(valueCore.Free());
-                    return true;
-                }
-            }
-
-            ////prime
-            while (_ensureCriticalRegion && Interlocked.CompareExchange(ref _resultsWriteLock, 1, 0) != 0)
-            {
-                if (!Zeroed()) continue;
-                released = 0;   
-                return false;
-            }
-
-            try
-            {
-                if (!_results.Writer.TryWrite(valueCore))
-                {
-                    released = 0;
-                    return false;
-                }
-            }
-            finally
-            {
-                if(_ensureCriticalRegion)
-                    Interlocked.Exchange(ref _resultsWriteLock, 0);
-            }
-
-            //ensure critical region
-            if (_ensureCriticalRegion && _waiters.Reader.Count > 0 && _results.Reader.Count > 0)
-                goto retry;
-
+            var banked = false;
             released = 0;
-            return false;
+            if (_results.Reader.Count < ModCapacity)
+            {
+                if (_results.Writer.TryWrite(value))
+                    banked = true;
+            }
+
+            //drain the Q
+            while (_waiters.Reader.Count > 0 && _results.Reader.TryRead(out var fastTracked))
+            {
+                if (Unblock(fastTracked, forceAsync))
+                    released++;
+                else
+                    _results.Writer.TryWrite(fastTracked);
+            }
+
+            //downstream mechanics require there be a 1 if either released or unblocked
+            if (released == 0 && banked)
+            {
+                released = 1;
+                return true;
+            }
+            
+            return released > 0;
         }
 
         /// <summary>
@@ -333,71 +240,51 @@ namespace zero.core.patterns.semaphore.core
             slowTaskCore = default;
             
             //fast path
-            while (_waiters.Reader.Count == 0 && _results.Reader.TryRead(out var primedCore) && primedCore.Burn())
+            if (_waiters.Reader.Count == 0 && _results.Reader.TryRead(out var primedCore))
             {
-                slowTaskCore = new ValueTask<T>(primedCore.Kernel);
-                _heapValue.Writer.TryWrite(primedCore.Free());
+                slowTaskCore = new ValueTask<T>(primedCore);
                 return true;
             }
 
             //heap
-            if (!_heapCore.Reader.TryRead(out var waiter) || !waiter.Lock())
+            if (!_heapCore.Reader.TryRead(out var waiter))
             {
                 waiter = new IoManualResetValueTaskSourceCore<T> { AutoReset = false };
                 waiter.Reset(static state =>
                 {
                     var (@this, waiter) = (ValueTuple<IoZeroCore<T>, IIoManualResetValueTaskSourceCore<T>>)state;
-                    @this._heapCore.Writer.TryWrite(waiter.Free());
+                    @this._heapCore.Writer.TryWrite(waiter);
                 }, (this, waiter));
             }
 
             //fast jit
-            while (_waiters.Reader.Count == 0 && _results.Reader.TryRead(out var jitCore) && jitCore.Burn())
+            if (_waiters.Reader.Count == 0 && _results.Reader.TryRead(out var jitCore))
             {
-                slowTaskCore = new ValueTask<T>(jitCore.Kernel);
-                _heapValue.Writer.TryWrite(jitCore.Free());
-                waiter.Reset();
+                slowTaskCore = new ValueTask<T>(jitCore);
                 return true;
             }
 
+            waiter.Relay = _ensureCriticalRegion? CoreWait : CoreReady;
+
             //block
-            waiter.Relay = CoreWait;
-            while (_ensureCriticalRegion && Interlocked.CompareExchange(ref _waitersWriteLock, 0, 1) != 0)
+            if (!_waiters.Writer.TryWrite(waiter)) return false;
+
+            //ensure critical region
+            if (_ensureCriticalRegion && _results.Reader.Count == 1 && _results.Reader.TryRead(out var racedCore))
             {
-                if (Zeroed())
-                    return false;
+                waiter.Relay = CoreRace;
+                slowTaskCore = new ValueTask<T>(racedCore);
+                return true;
             }
 
-            try
-            {
-                if (_waiters.Writer.TryWrite(waiter))
-                {
-                    Interlocked.Exchange(ref _waitersWriteLock, 0);
-                    //ensure critical region
-                    while (_ensureCriticalRegion && _results.Reader.Count == 1 && _results.Reader.TryRead(out var racedCore) && racedCore.Burn())
-                    {
-                        waiter.Relay = CoreRace;
-                        slowTaskCore = new ValueTask<T>(racedCore.Kernel);
-                        _heapValue.Writer.TryWrite(racedCore.Free());
-                        return true;
-                    }
-
-                    waiter.Relay = CoreReady;
-                    slowTaskCore = new ValueTask<T>(waiter, 0);
-                    return true;
-                }
-            }
-            finally
-            {
-                if(_ensureCriticalRegion)
-                    Interlocked.Exchange(ref _waitersWriteLock, 0);
-            }
-
-            return false;
+            //prime blocking core
+            waiter.Relay = CoreReady;
+            slowTaskCore = new ValueTask<T>(waiter, 0);
+            return true;
         }
 #endregion
 
-        #region API
+#region API
         public T GetResult(short token) => throw new NotImplementedException(nameof(GetResult));
 
         public ValueTaskSourceStatus GetStatus(short token) => throw new NotImplementedException(nameof(GetStatus));

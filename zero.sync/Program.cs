@@ -21,6 +21,7 @@ using zero.core.misc;
 using zero.core.network.ip;
 using zero.core.patterns.misc;
 using zero.core.patterns.queue;
+using zero.core.patterns.semaphore;
 using zero.core.patterns.semaphore.core;
 using zero.core.runtime.scheduler;
 using LogLevel = Microsoft.Extensions.Logging.LogLevel;
@@ -62,7 +63,6 @@ namespace zero.sync
         /// <param name="args"></param>
         static void Main(string[] args)
         {
-            var prime = IoZeroScheduler.Zero.Capacity;
             Console.WriteLine($"zero ({Environment.OSVersion}: {Environment.MachineName} - dotnet v{Environment.Version}, CPUs = {Environment.ProcessorCount})");
             //Task.Factory.StartNew(async () =>
             //{
@@ -86,7 +86,7 @@ namespace zero.sync
 
             var random = new Random((int)DateTime.Now.Ticks);
             //Tangle("tcp://192.168.1.2:15600");
-            var total = 50;
+            var total = 702;
             var maxDrones = 3;
             var maxAdjuncts = 16;
             var boot = false;
@@ -454,15 +454,15 @@ namespace zero.sync
 
                     if (line == "t")
                     {
-                        Console.WriteLine($"load = {IoZeroScheduler.Zero.Load}({IoZeroScheduler.Zero.LoadFactor * 100:0.0}%), q time = {ThreadPool.PendingWorkItemCount / ((ThreadPool.CompletedWorkItemCount - c) / (double)ts.ElapsedMs()):0}ms, threads = {ThreadPool.ThreadCount}({IoZeroScheduler.Zero.ThreadCount}), p = {ThreadPool.PendingWorkItemCount}({IoZeroScheduler.Zero.WLength}), t = {ThreadPool.CompletedWorkItemCount}, {(ThreadPool.CompletedWorkItemCount - cOrig) / (double)tsOrig.ElapsedMsToSec():0.0} ops, c = {ThreadPool.CompletedWorkItemCount-c}, {(ThreadPool.CompletedWorkItemCount-c)/(double)ts.ElapsedMsToSec():0.0} tps");
+                        Console.WriteLine($"load = {IoZeroScheduler.Zero.Load}({IoZeroScheduler.Zero.LoadFactor * 100:0.0}%), q time = {ThreadPool.PendingWorkItemCount / ((ThreadPool.CompletedWorkItemCount - c) / (double)ts.ElapsedMs()):0}ms, threads = {ThreadPool.ThreadCount}({IoZeroScheduler.Zero.ThreadCount}), p = {ThreadPool.PendingWorkItemCount}({IoZeroScheduler.Zero.QLength}), t = {ThreadPool.CompletedWorkItemCount}, {(ThreadPool.CompletedWorkItemCount - cOrig) / (double)tsOrig.ElapsedMsToSec():0.0} ops, c = {ThreadPool.CompletedWorkItemCount-c}, {(ThreadPool.CompletedWorkItemCount-c)/(double)ts.ElapsedMsToSec():0.0} tps");
                         ts = Environment.TickCount;
                         c = ThreadPool.CompletedWorkItemCount;
                     }
 
                     if (line == "L")
                     {
-                        Console.WriteLine($"ZERO SCHEDULER: load = {IoZeroScheduler.Zero.Load}({IoZeroScheduler.Zero.LoadFactor * 100:0.0}%), q time = {IoZeroScheduler.Zero.WLength / ((IoZeroScheduler.Zero.CompletedWorkItemCount - LC) / (double)LS.ElapsedMs()):0}ms, workers = {IoZeroScheduler.Zero.ThreadCount}, p = {IoZeroScheduler.Zero.WLength}, C = {IoZeroScheduler.Zero.CompletedWorkItemCount - LOrig}, {(IoZeroScheduler.Zero.CompletedWorkItemCount - LOrig) / (double)LSOrig.ElapsedMsToSec():0.0} ops, c = {IoZeroScheduler.Zero.CompletedWorkItemCount - LC}, {(IoZeroScheduler.Zero.CompletedWorkItemCount - LC) / (double)LS.ElapsedMsToSec():0.0} tps");
-                        Console.WriteLine($"[{IoZeroScheduler.Zero.Load}/{IoZeroScheduler.Zero.AsyncLoad}/{IoZeroScheduler.Zero.ForkLoad}/{IoZeroScheduler.Zero.Capacity}] load = {IoZeroScheduler.Zero.Load/ IoZeroScheduler.Zero.Capacity * 100:0.0}%, w time = {IoZeroScheduler.Zero.QTime:0.0}ms, aq time = {IoZeroScheduler.Zero.AQTime:0.0}ms, poll% = {((IoZeroScheduler.Zero.CompletedWorkItemCount - LOrig - LC) - (IoZeroScheduler.Zero.CompletedQItemCount - QC)) / (double)(IoZeroScheduler.Zero.CompletedWorkItemCount - LC) * 100.0:0.0}%, ({(IoZeroScheduler.Zero.CompletedWorkItemCount - LOrig - (IoZeroScheduler.Zero.CompletedQItemCount - QOrig)) / (double)(IoZeroScheduler.Zero.CompletedWorkItemCount - LOrig) * 100.0:0.00}%), p = {IoZeroScheduler.Zero.QLength}, F = {IoZeroScheduler.Zero.ForkLoad}, C = {IoZeroScheduler.Zero.CompletedQItemCount - QOrig}, {(IoZeroScheduler.Zero.CompletedWorkItemCount - QOrig) / (double)QSOrig.ElapsedMsToSec():0.0} ops, c = {IoZeroScheduler.Zero.CompletedQItemCount- QC}, {(IoZeroScheduler.Zero.CompletedQItemCount - QC) / (double)QS.ElapsedMsToSec():0.0} tps, {(IoZeroScheduler.Zero.CompletedAsyncCount - AC) / (double)AS.ElapsedMsToSec():0.0} async/s ({IoZeroScheduler.Zero.CompletedAsyncCount - AC})[{IoZeroScheduler.Zero.CompletedAsyncCount}]");
+                        Console.WriteLine($"ZERO SCHEDULER: load = {IoZeroScheduler.Zero.Load}({IoZeroScheduler.Zero.LoadFactor * 100:0.0}%), q time = {IoZeroScheduler.Zero.QLength / ((IoZeroScheduler.Zero.CompletedWorkItemCount - LC) / (double)LS.ElapsedMs()):0}ms, workers = {IoZeroScheduler.Zero.ThreadCount}, p = {IoZeroScheduler.Zero.QLength}, C = {IoZeroScheduler.Zero.CompletedWorkItemCount - LOrig}, {(IoZeroScheduler.Zero.CompletedWorkItemCount - LOrig) / (double)LSOrig.ElapsedMsToSec():0.0} ops, c = {IoZeroScheduler.Zero.CompletedWorkItemCount - LC}, {(IoZeroScheduler.Zero.CompletedWorkItemCount - LC) / (double)LS.ElapsedMsToSec():0.0} tps");
+                        Console.WriteLine($"[{IoZeroScheduler.Zero.Load}/{IoZeroScheduler.Zero.AsyncLoad}/{IoZeroScheduler.Zero.ForkLoad}/{IoZeroScheduler.Zero.Capacity}] load = {IoZeroScheduler.Zero.Load/ IoZeroScheduler.Zero.Capacity * 100:0.0}%, w time = {IoZeroScheduler.Zero.QTime:0.0}ms, aq time = {IoZeroScheduler.Zero.AQTime:0.0}ms, poll% = {((IoZeroScheduler.Zero.CompletedWorkItemCount - LOrig - LC) - (IoZeroScheduler.Zero.CompletedQItemCount - QC)) / (double)(IoZeroScheduler.Zero.CompletedWorkItemCount - LC) * 100.0:0.0}%, ({(IoZeroScheduler.Zero.CompletedWorkItemCount - LOrig - (IoZeroScheduler.Zero.CompletedQItemCount - QOrig)) / (double)(IoZeroScheduler.Zero.CompletedWorkItemCount - LOrig) * 100.0:0.00}%), p = {IoZeroScheduler.Zero.QLength},  r = {IoZeroScheduler.Zero.RLength}, F = {IoZeroScheduler.Zero.ForkLoad}, C = {IoZeroScheduler.Zero.CompletedQItemCount - QOrig}, {(IoZeroScheduler.Zero.CompletedWorkItemCount - QOrig) / (double)QSOrig.ElapsedMsToSec():0.0} ops, c = {IoZeroScheduler.Zero.CompletedQItemCount- QC}, {(IoZeroScheduler.Zero.CompletedQItemCount - QC) / (double)QS.ElapsedMsToSec():0.0} tps, {(IoZeroScheduler.Zero.CompletedAsyncCount - AC) / (double)AS.ElapsedMsToSec():0.0} async/s ({IoZeroScheduler.Zero.CompletedAsyncCount - AC})[{IoZeroScheduler.Zero.CompletedAsyncCount}]");
                         QS = Environment.TickCount;
                         AS = Environment.TickCount;
                         LS = Environment.TickCount;
@@ -913,10 +913,8 @@ namespace zero.sync
 
             //.NET RUNTIME REFERENCE MUTEX FOR TESTING
             //var mutex = new IoZeroRefMut(asyncTasks.Token);
-            //var mutex = new IoZeroSemaphoreSlim(asyncTasks, "zero slim", maxBlockers: capacity, initialCount: 1, zeroAsyncMode: false, enableAutoScale: false, enableFairQ: false, enableDeadlockDetection: true);
-            IIoZeroSemaphoreBase<int> mutex = new IoZeroCore<int>("zero core", capacity, new CancellationTokenSource(), 1, false);
-            mutex = mutex.ZeroRef(ref mutex, o => Environment.TickCount);
-                 
+            IIoZeroSemaphoreBase<int> mutex = new IoZeroSemaphoreSlim(asyncTasks, "zero slim", maxBlockers: capacity, initialCount: 1, zeroAsyncMode: false, enableAutoScale: false, enableFairQ: false, enableDeadlockDetection: true);
+
             var releaseCount = 2;
             var waiters = 3;
             var releasers = 4;
@@ -1167,7 +1165,7 @@ namespace zero.sync
                         try
                         {
                             var curCount = 0;
-
+                            Console.WriteLine($"releaser: [{i1}]");
                             while (releasers > 0)
                             {
                                 try
@@ -1175,18 +1173,18 @@ namespace zero.sync
                                     if (targetSleep > 0)
                                         await Task.Delay((int)targetSleep, asyncTasks.Token);
                                     
-                                    if (totalReleases > 0 && (curCount = mutex.Release(Environment.TickCount, releaseCount)) > 0)
+                                    if (Interlocked.Decrement(ref totalReleases) >= 0 && (curCount = mutex.Release(Environment.TickCount, releaseCount)) > 0)
                                     {
                                         //Interlocked.Add(ref semCount, curCount);
                                         Interlocked.Increment(ref semPollCount);
                                         Interlocked.Add(ref dq[i1], curCount);
-                                        if (Interlocked.Decrement(ref totalReleases) <= 0)
-                                            break;
                                     }
                                     else
                                     {
                                         //await Task.Yield();
                                         await Task.Delay(1, asyncTasks.Token);
+                                        if (Interlocked.Decrement(ref totalReleases) <= 0)
+                                            break;
                                     }
                                     //if(i1 != 0)
                                     //    Console.WriteLine($"exit! {i1}");

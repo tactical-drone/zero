@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
@@ -37,7 +36,7 @@ namespace zero.cocoon.models
             IoZero = (IoZero<CcProtocMessage<chroniton, CcDiscoveryBatch>>)context;
             
             var pf = 2;
-            var cc = 1;
+            var cc = 1; 
 
             if (!Source.Proxy && Adjunct.CcCollective.ZeroDrone)
             {

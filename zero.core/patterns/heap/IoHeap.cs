@@ -41,7 +41,13 @@ namespace zero.core.patterns.heap
             _description = description;
             Malloc = malloc;
             //_ioHeapBuf = new IoZeroQ<TItem>($"{nameof(_ioHeapBuf)}: {description}", capacity,autoScale);
-            _ioHeapBuf = Channel.CreateBounded<TItem>(capacity);
+            _ioHeapBuf = Channel.CreateBounded<TItem>(new BoundedChannelOptions(capacity * 2)
+            {
+                SingleWriter = false,
+                SingleReader = false,
+                AllowSynchronousContinuations = true,
+                FullMode = BoundedChannelFullMode.DropNewest
+            });
             Context = context;
             _capacity = capacity;
             _autoScale = autoScale;
@@ -269,7 +275,7 @@ namespace zero.core.patterns.heap
         where T2 : class
     {
         public IoHeap(string description, int capacity, Func<object, object, T2> malloc, bool autoScale = false,
-            object context = null) : base(description, capacity, malloc, autoScale, context)
+            object context = null) : base(description, capacity, malloc, false, context)
         {
         }
     }

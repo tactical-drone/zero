@@ -298,8 +298,7 @@ namespace zero.core.patterns.misc
                 cur = cur.ZeroedFrom;
             }
 
-            _logger.Trace(
-                $"[{GetType().Name}]{Description}: ZEROED from: {(!string.IsNullOrEmpty(builder.ToString()) ? builder.ToString() : "this")}");
+            _logger.Trace($"[{GetType().Name}]{Description}: ZEROED from: {(!string.IsNullOrEmpty(builder.ToString()) ? builder.ToString() : "this")}");
         }
 
         /// <summary>
@@ -575,10 +574,11 @@ namespace zero.core.patterns.misc
             try
             {
                 await ZeroRoot.WaitAsync().FastPath();
-#if DEBUG
-                Debug.Assert(Zeroed() || ZeroRoot.Zeroed() || ZeroRoot.ReadyCount == 0, $"{nameof(ZeroRoot)}: [FAILED], ReadyCount = {ZeroRoot.ReadyCount}");
-#endif
-                //Prevents strange things from happening
+//#if DEBUG
+//                Interlocked.MemoryBarrierProcessWide();
+//                Debug.Assert(Zeroed() || ZeroRoot.Zeroed() || ZeroRoot.ReadyCount == 0, $"{nameof(ZeroRoot)}: [FAILED], ReadyCount = {ZeroRoot.ReadyCount}");
+//#endif
+                //insane checks
                 if (_zeroed > 0 && !force)
                     return false;
 
@@ -606,6 +606,11 @@ namespace zero.core.patterns.misc
             }
             finally
             {
+#if DEBUG
+                //TODO: we moved it here, the one at the top works but needs Interlocked.MemoryBarrierProcessWide();
+                Interlocked.MemoryBarrier();
+                Debug.Assert(Zeroed() || ZeroRoot.Zeroed() || ZeroRoot.ReadyCount == 0, $"{nameof(ZeroRoot)}: [FAILED], ReadyCount = {ZeroRoot.ReadyCount}, wait = {ZeroRoot.WaitCount}");
+#endif
                 ZeroRoot.Release(Environment.TickCount, true);
             }
 
@@ -653,7 +658,7 @@ namespace zero.core.patterns.misc
                     {
                         _logger.Error(e, $"{Path.GetFileName(fileName)}:{methodName}() line {lineNumber} - [{@this.Description}]: {nameof(DisposeAsync)}");
                     }
-                }, ValueTuple.Create(this, continuation, state, filePath, methodName, lineNumber), asyncToken, options, scheduler??TaskScheduler.Current);
+                }, ValueTuple.Create(this, continuation, state, filePath, methodName, lineNumber), asyncToken, options, scheduler??IoZeroScheduler.ZeroDefault);
 
                 if (unwrap)
                     await zeroAsyncTask.Unwrap();
@@ -692,7 +697,9 @@ namespace zero.core.patterns.misc
             }
             catch (Exception e)
             {
-                _logger.Error(e,Description);
+#if DEBUG
+                _logger.Error(e, $"{filePath}:{methodName} {Description}");
+#endif
             }
 
             return default;

@@ -2,7 +2,6 @@ using System;
 using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
-using System.Security.Cryptography;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Threading.Tasks.Sources;
@@ -13,7 +12,6 @@ using zero.cocoon.events.services;
 using zero.cocoon.identity;
 using zero.cocoon.models.batches;
 using zero.core.feat.models.protobuffer;
-using zero.core.misc;
 using zero.core.patterns.bushings;
 using zero.core.patterns.bushings.contracts;
 using zero.core.patterns.heap;
@@ -27,10 +25,6 @@ namespace zero.cocoon.models
     {
         public CcWhispers(string sinkDesc, string jobDesc, IoSource<CcProtocMessage<CcWhisperMsg, CcGossipBatch>> source) : base(sinkDesc, jobDesc, source)
         {
-            //sentinel
-            if (Source == null)
-                return;
-
             _m = new CcWhisperMsg() { Data = UnsafeByteOperations.UnsafeWrap(new ReadOnlyMemory<byte>(_vb)) };
             _sendBuf = new IoHeap<byte[]>($"{nameof(_sendBuf)}: {Description}", 8, (_, _) => new byte[32], true);
         }
