@@ -125,7 +125,7 @@ namespace zero.core.feat.models.protobuffer
         /// </returns>
         public override async ValueTask<IoJobMeta.JobState> ProduceAsync<T>(IIoSource.IoZeroCongestion<T> barrier, T ioZero)
         {
-            if (!await Source.ProduceAsync(static async (_, backPressure, state, ioJob )=>
+            if (!await Source.ProduceAsync(static async (source, backPressure, state, ioJob )=>
                 {
                     var job = (CcProtocBatchJob<TModel, TBatch>)ioJob;
                 
@@ -134,14 +134,14 @@ namespace zero.core.feat.models.protobuffer
 
                     try
                     {
-                        job._batch = await ((CcProtocBatchSource<TModel, TBatch>)job.Source).DequeueAsync().FastPath();
+                        job._batch = await ((CcProtocBatchSource<TModel, TBatch>)source).DequeueAsync().FastPath();
                         job.GenerateJobId();
                     }
-                    catch when (job.Zeroed())
+                    catch when (source.Zeroed() || job.Zeroed())
                     {
                         return false;
                     }
-                    catch (Exception e) when(!job.Zeroed())
+                    catch (Exception e) when(!source.Zeroed() && !job.Zeroed())
                     {
                         _logger.Fatal(e,$"BatchQueue.TryDequeueAsync failed: {job.Description}"); 
                     }

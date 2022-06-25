@@ -7,6 +7,7 @@ using zero.core.patterns.bushings;
 using zero.core.patterns.bushings.contracts;
 using zero.core.patterns.misc;
 using zero.core.patterns.queue;
+using zero.core.patterns.semaphore.core;
 
 namespace zero.core.feat.models.protobuffer.sources
 {
@@ -31,7 +32,9 @@ namespace zero.core.feat.models.protobuffer.sources
             _logger = LogManager.GetCurrentClassLogger();
 
             UpstreamSource = ioSource;
-            BatchQueue = new IoQueue<TBatch>($"{nameof(CcProtocBatchSource<TModel, TBatch>)}: {ioSource.Description}", (prefetchSize + concurrencyLevel), prefetchSize + 1, IoQueue<TBatch>.Mode.Pressure | IoQueue<TBatch>.Mode.BackPressure);
+            //BatchQueue = new IoQueue<TBatch>($"{nameof(CcProtocBatchSource<TModel, TBatch>)}: {ioSource.Description}", (prefetchSize + concurrencyLevel), prefetchSize + 1, IoQueue<TBatch>.Mode.Pressure | IoQueue<TBatch>.Mode.BackPressure);
+            IIoZeroSemaphoreBase <TBatch> q = new IoZeroCore<TBatch>($"{nameof(CcProtocBatchSource<TModel, TBatch>)}: {ioSource.Description}", (prefetchSize + concurrencyLevel) * 2, AsyncTasks);
+            BatchQueue = q.ZeroRef(ref q, _ => default);
         }
 
         /// <summary>
@@ -42,7 +45,8 @@ namespace zero.core.feat.models.protobuffer.sources
         /// <summary>
         /// Used to load the next value to be produced
         /// </summary>
-        protected readonly IoQueue<TBatch> BatchQueue;
+        //protected readonly IoQueue<TBatch> BatchQueue;
+        protected readonly IIoZeroSemaphoreBase<TBatch> BatchQueue;
 
         /// <summary>
         /// Keys this instance.
@@ -80,18 +84,18 @@ namespace zero.core.feat.models.protobuffer.sources
         public override async ValueTask ZeroManagedAsync()
         {
             await base.ZeroManagedAsync().FastPath();
-
-            await BatchQueue.ZeroManagedAsync(static (msgBatch,_) =>
-            {
-                msgBatch.Value.Dispose();
-                return default;
-            },this, zero:true).FastPath();
+            BatchQueue.ZeroSem();
+            //await BatchQueue.ZeroManagedAsync(static (msgBatch,_) =>
+            //{
+            //    msgBatch.Value.Dispose();
+            //    return default;
+            //},this, zero:true).FastPath();
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public override bool Zeroed()
         {
-            return base.Zeroed() || BatchQueue.Zeroed || UpstreamSource.Zeroed();
+            return base.Zeroed() || BatchQueue.Zeroed() || UpstreamSource.Zeroed();
         }
 
         /// <summary>
@@ -99,17 +103,17 @@ namespace zero.core.feat.models.protobuffer.sources
         /// </summary>
         /// <param name="item">The messages</param>
         /// <returns>Async task</returns>
-        public async ValueTask<bool> EnqueueAsync(TBatch item)
+        public ValueTask<bool> EnqueueAsync(TBatch item)
         {
             try
             {
-                return await BatchQueue.EnqueueAsync(item).FastPath() != null;
+                return new ValueTask<bool>(BatchQueue.Release(item) == 1);
             }
             catch (Exception e)
             {
                 if (!Zeroed())
-                    _logger.Fatal(e, $"{nameof(EnqueueAsync)}: [FAILED], {BatchQueue.Count}");
-                return false;
+                    _logger.Fatal(e, $"{nameof(EnqueueAsync)}: [FAILED], {BatchQueue.WaitCount}");
+                return new ValueTask<bool>(false);
             }
         }
 
@@ -121,7 +125,8 @@ namespace zero.core.feat.models.protobuffer.sources
         {
             try
             {
-                return BatchQueue.DequeueAsync();
+                //return BatchQueue.DequeueAsync();
+                return BatchQueue.WaitAsync();
             }
             catch when (Zeroed()){}
             catch (Exception e)when (!Zeroed())
@@ -136,7 +141,7 @@ namespace zero.core.feat.models.protobuffer.sources
         /// Queue count
         /// </summary>
         /// <returns>returns number of items in the q</returns>
-        public uint Count => (uint)BatchQueue.Count;
+        public uint Count => (uint)BatchQueue.WaitCount;
 
     }
 }

@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Threading.Tasks;
 using System.Threading.Tasks.Sources;
 
 namespace zero.core.patterns.semaphore.core
@@ -11,21 +12,17 @@ namespace zero.core.patterns.semaphore.core
         int Version { get; }
         void Reset();
         void Reset(int version);
-        //void Prime(int version);
         bool IsBlocking(bool reset);
         bool Primed { get; }
         bool Blocking { get; }
+#if DEBUG
         bool Burned { get; }
+#endif
         int Relay { get; set; }
 
-        //bool Lock();
-        //IIoManualResetValueTaskSourceCore<TResult> Free();
-
-        //object BurnContext { get; set; }
-        //void SetResult<TContext>(TResult result, Action<bool, TContext> async = null, TContext context = default);
         void SetResult(TResult result);
-        //void SetResult(IIoManualResetValueTaskSourceCore<TResult> source);
         void SetException(Exception error);
         void Reset(Action<object> index, object context);
+        ValueTask<TResult> WaitAsync();
     }
 }

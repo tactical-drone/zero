@@ -40,23 +40,6 @@ namespace zero.core.patterns.semaphore.core
 
         /// <summary>The exception with which the operation failed, or null if it hasn't yet completed or completed successfully.</summary>
         private ExceptionDispatchInfo? _error;
-#pragma warning restore CS8632 // The annotation for nullable reference types should only be used in code within a '#nullable' annotations context.
-
-        /// <summary>Whether the current operation has completed.</summary>
-        private volatile bool _completed;
-        private volatile int _completeTime;
-        private volatile int _burnTime;
-        private volatile bool _runContinuationsAsync;
-        private volatile bool _runContinuationsAsyncAlways;
-        private volatile bool _autoReset;
-
-        /// <summary>The current version of this value, used to help prevent misuse.</summary>
-        private int _version;
-
-        /// <summary>
-        /// Whether this core has been burned?
-        /// </summary>
-        private int _burned;
 
         /// <summary>The result with which the operation succeeded, or the default value if it hasn't yet completed or failed.</summary>
         [AllowNull, MaybeNull] private TResult _result;
@@ -68,6 +51,23 @@ namespace zero.core.patterns.semaphore.core
 
         //public Action<bool, object>? _burnResult;
 
+#pragma warning restore CS8632 // The annotation for nullable reference types should only be used in code within a '#nullable' annotations context.
+
+        /// <summary>Whether the current operation has completed.</summary>
+        private int _version;
+        private volatile int _completeTime;
+        private volatile int _burnTime;
+        private volatile bool _completed;
+        
+        private bool _runContinuationsAsync;
+        private volatile bool _runContinuationsAsyncAlways;
+        private volatile bool _autoReset;
+#if DEBUG
+        /// <summary>
+        /// Whether this core has been burned?
+        /// </summary>
+        private int _burned;
+#endif
         /// <summary>
         /// Substitute for <see cref="RunContinuationsAsynchronously"/> used internally
         /// </summary>
@@ -103,15 +103,14 @@ namespace zero.core.patterns.semaphore.core
         /// <summary>
         /// Is this core Burned?
         /// </summary>
+#if DEBUG
         public bool Burned => _burned > 0;
+#endif
 
         /// <summary>
         /// Whether this core is busy relaying
         /// </summary>
         public int Relay { get; set; }
-
-        private int _heapItemLock;
-
 //#if ZERO_CHECK
 //        [MethodImpl(MethodImplOptions.AggressiveInlining)]
 //        public bool Lock() => Interlocked.CompareExchange(ref _heapItemLock, 1, 0) == 0;
@@ -159,13 +158,21 @@ namespace zero.core.patterns.semaphore.core
             _completed = false;
             _continuation = null;
 
+#if DEBUG
             if(_burned > 0)
                 _heapAction?.Invoke(_heapContext);
+#else
+            _heapAction?.Invoke(_heapContext);
+#endif
 
             Interlocked.MemoryBarrier();
-            _burned = 0;
+
+#if DEBUG
+            _burned = 0;   
+#endif
+
         }
-        
+
         public void Reset(int version)
         {
             Reset();
@@ -202,8 +209,13 @@ namespace zero.core.patterns.semaphore.core
         //public void SetResult<TContext>(TResult result, Action<bool, TContext> async = null, TContext context = default)
         public void SetResult(TResult result)
         {
+#if DEBUG
             if (_completed)
-                throw new InvalidOperationException($"[{Thread.CurrentThread.ManagedThreadId}]: set => v = [{_version}], primed = {Primed}, blocking = {Blocking}, burned = {Burned}, completed = {_completed}, {GetStatus((short)Version)}");
+                throw new InvalidOperationException($"[{Thread.CurrentThread.ManagedThreadId}]: set => v = [{_version}], primed = {Primed}, blocking = {Blocking}, burned = {Burned}, completed = {_completed}, {GetStatus((short)Version)}");   
+#else
+            if (_completed)
+                throw new InvalidOperationException($"[{Thread.CurrentThread.ManagedThreadId}]: set => v = [{_version}], primed = {Primed}, blocking = {Blocking}, completed = {_completed}, {GetStatus((short)Version)}");
+#endif
 
             _result = result;
             _completeTime = Environment.TickCount;
@@ -227,6 +239,8 @@ namespace zero.core.patterns.semaphore.core
             _heapContext = context;
         }
 
+        public ValueTask<TResult> WaitAsync() => new(this, (short)Version);
+        
 #if DEBUG 
         /// <summary>Gets the operation version.</summary>
         public int Version => _version;
@@ -256,9 +270,9 @@ namespace zero.core.patterns.semaphore.core
 #endif
         public TResult GetResult(short token)
         {
+#if DEBUG
             if (Interlocked.CompareExchange(ref _burned, 1, 0) != 0)
                 throw new InvalidOperationException($"[{Thread.CurrentThread.ManagedThreadId}] {nameof(GetResult)}: core #{_version} already burned {_completeTime.ElapsedMs()} ms, burned = {_burnTime.ElapsedMs()} ms");
-#if DEBUG
             ValidateToken(token);   
 #endif
             if (!_completed)
@@ -340,8 +354,14 @@ namespace zero.core.patterns.semaphore.core
             {
                 // Operation already completed, so we need to queue the supplied callback.
 #pragma warning disable CS0252 // Possible unintended reference comparison; left hand side needs cast
+#if DEBUG
                 if (oldContinuation != ManualResetValueTaskSourceCoreShared.SSentinel)
-                    throw new InvalidOperationException($"[{Thread.CurrentThread.ManagedThreadId}] // => had = {oldContinuation}, // => has = {continuation}, {state}, v = [{_version}], primed = {Primed}, blocking = {Blocking}, burned = {Burned}, completed = {_completed}, {GetStatus((short)Version)}");
+                    throw new InvalidOperationException($"[{Thread.CurrentThread.ManagedThreadId}] // => had = {oldContinuation}, // => has = {continuation}, {state}, v = [{_version}], primed = {Primed}, blocking = {Blocking}, burned = {Burned}, completed = {_completed}, {GetStatus((short)Version)}");       
+#else
+                if (oldContinuation != ManualResetValueTaskSourceCoreShared.SSentinel)
+                    throw new InvalidOperationException($"[{Thread.CurrentThread.ManagedThreadId}] // => had = {oldContinuation}, // => has = {continuation}, {state}, v = [{_version}], primed = {Primed}, blocking = {Blocking}, completed = {_completed}, {GetStatus((short)Version)}");       
+#endif
+
 #pragma warning restore CS0252 // Possible unintended reference comparison; left hand side needs cast
 
                 //try
@@ -406,21 +426,20 @@ namespace zero.core.patterns.semaphore.core
         //private void SignalCompletion() => SignalCompletion<object>();
 
         /// <summary>Signals that the operation has completed.  Invoked after the result or error has been set.</summary>
-        /// <param name="async">Signals callback completion asynchronously status back to the caller</param>
-        /// <param name="context">Caller context</param>
 #if RELEASE
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
 #endif
         //private void SignalCompletion<TContext>(Action<bool, TContext> async = null, TContext context = default)
         private void SignalCompletion()
         {
+#if DEBUG
             if (_completed)
                 throw new InvalidOperationException($"[{Thread.CurrentThread.ManagedThreadId}]: set => v = [{_version}], primed = {Primed}, blocking = {Blocking}, burned = {Burned}, completed = {_completed}, {GetStatus((short)Version)}");
-
+#else
+            if (_completed)
+                throw new InvalidOperationException($"[{Thread.CurrentThread.ManagedThreadId}]: set => v = [{_version}], primed = {Primed}, blocking = {Blocking}, completed = {_completed}, {GetStatus((short)Version)}");
+#endif
             _completed = true;
-
-            //if(source != null)
-            //    _result = source.GetResult((short)source.Version);
 
 #if DEBUG
             var ts = Environment.TickCount;

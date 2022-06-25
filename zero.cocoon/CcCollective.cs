@@ -18,13 +18,13 @@ using zero.cocoon.models.services;
 using zero.core.conf;
 using zero.core.core;
 using zero.core.feat.models.protobuffer;
+using zero.core.feat.patterns.time;
 using zero.core.misc;
 using zero.core.network.ip;
 using zero.core.patterns.heap;
 using zero.core.patterns.misc;
 using zero.core.patterns.queue;
 using zero.core.patterns.semaphore;
-using zero.core.runtime.scheduler;
 using Zero.Models.Protobuf;
 
 namespace zero.cocoon
@@ -169,8 +169,13 @@ namespace zero.cocoon
         /// <returns></returns>
         private static async ValueTask RoboAsync(CcCollective @this)
         {
+            var r = new IoTimer(TimeSpan.FromMilliseconds(@this._random.Next(@this.parm_mean_pat_delay_s * 1000) + @this.parm_mean_pat_delay_s * 1000 / 2));
             while (!@this.Zeroed())
             {
+                var d = await r.TickAsync().FastPath();
+                @this._logger.Trace($"Robo - {TimeSpan.FromMilliseconds(d.ElapsedMs())}, {@this.Description}");
+                //r.Reset();
+                _roboTimer = r;
                 try
                 {
                     var force = false;
@@ -179,13 +184,8 @@ namespace zero.cocoon
                         //restart useless hubs
                         if (@this.UpTime.ElapsedMsToSec() > @this.parm_mean_pat_delay_s)
                             await @this.StartHubAsync(@this.Hub.PreFetch, @this.Hub.ZeroConcurrencyLevel()).FastPath();
-                        
+
                         force = true;
-                        await Task.Delay(@this._random.Next(@this.parm_mean_pat_delay_s * 1000/2) + @this.parm_mean_pat_delay_s * 1000 / 4, @this.AsyncTasks.Token);
-                    }
-                    else
-                    {
-                        await Task.Delay(@this._random.Next(@this.parm_mean_pat_delay_s * 1000) + @this.parm_mean_pat_delay_s * 1000 / 2, @this.AsyncTasks.Token);
                     }
 
                     if (@this.TotalConnections < @this.MaxDrones) 
@@ -231,7 +231,7 @@ namespace zero.cocoon
 
             var autoPeeringDesc = _autoPeering.Description;
             await _autoPeering.DisposeAsync(this, $"{nameof(ZeroManagedAsync)}: teardown").FastPath();
-
+            await _roboTimer.DisposeAsync(this, "teardown");
 
 //#pragma warning disable VSTHRD103 // Call async methods when in an async method
 //            if (!_autoPeeringTask.Wait(TimeSpan.FromSeconds(parm_hub_teardown_timeout_s)))
@@ -296,6 +296,7 @@ namespace zero.cocoon
         
         private IoNodeAddress _gossipAddress;
         private IoNodeAddress _peerAddress;
+        private static IoTimer _roboTimer;
 
         Random _random = new((int)DateTime.Now.Ticks);
         public IoZeroSemaphoreSlim DupSyncRoot { get; protected set; }
@@ -307,6 +308,11 @@ namespace zero.cocoon
         public long EventCount => Interlocked.Read(ref _eventCounter);
 
         /// <summary>
+        /// The node id
+        /// </summary>
+        public CcDesignation CcId { get; protected set; }
+
+        /// <summary>
         /// Bootstrap
         /// </summary>
         private List<IoNodeAddress> BootstrapAddress { get; }
@@ -315,6 +321,34 @@ namespace zero.cocoon
         /// Reachable from NAT
         /// </summary>
         public IoNodeAddress ExtAddress { get; }
+
+        /// <summary>
+        /// Number of inbound neighbors
+        /// </summary>
+        public volatile int IngressCount;
+
+        /// <summary>
+        /// Number of outbound neighbors
+        /// </summary>
+        public volatile int EgressCount;
+
+        /// <summary>
+        /// The services this node supports
+        /// </summary>
+        public CcService Services { get; set; } = new CcService();
+
+        /// <summary>
+        /// The autopeering task handler
+        /// </summary>
+        private Task _autoPeeringTask;
+
+        private readonly Stopwatch _sw = Stopwatch.StartNew();
+        private readonly int _futileRequestSize;
+        private readonly int _futileResponseSize;
+        private readonly int _futileRejectSize;
+        private readonly int _fuseBufSize;
+        private ByteString _badSigResponse = ByteString.CopyFrom(new byte[] { 9 });
+        public long Testing;
 
         /// <summary>
         /// Experimental support for detection of tunneled UDP connections (WSL)
@@ -354,26 +388,7 @@ namespace zero.cocoon
 
         public List<CcDrone> WhisperingDrones => Neighbors?.Values.Where(kv => ((CcDrone)kv).Adjunct is { IsGossiping: true }).Cast<CcDrone>().ToList();
 
-        /// <summary>
-        /// Number of inbound neighbors
-        /// </summary>
-        public volatile int IngressCount;
-
-        /// <summary>
-        /// Number of outbound neighbors
-        /// </summary>
-        public volatile int EgressCount;
-
-        /// <summary>
-        /// The services this node supports
-        /// </summary>
-        public CcService Services { get; set; } = new CcService();
-
-        /// <summary>
-        /// The autopeering task handler
-        /// </summary>
-        private Task _autoPeeringTask;
-
+        
         /// <summary>
         /// Max inbound neighbors
         /// </summary>
@@ -450,11 +465,6 @@ namespace zero.cocoon
         /// Maximum number of allowed drones
         /// </summary>
         public int MaxAdjuncts => parm_max_adjunct;
-
-        /// <summary>
-        /// The node id
-        /// </summary>
-        public CcDesignation CcId { get; protected set; }
 
         /// <summary>
         /// Spawn the node listeners
@@ -573,15 +583,6 @@ namespace zero.cocoon
                 return 0;
             }
         }
-
-
-        private readonly Stopwatch _sw = Stopwatch.StartNew();
-        private readonly int _futileRequestSize;
-        private readonly int _futileResponseSize;
-        private readonly int _futileRejectSize;
-        private readonly int _fuseBufSize;
-        private ByteString _badSigResponse = ByteString.CopyFrom(new byte[] { 9 });
-        public long Testing;
 
         /// <summary>
         /// Futile request

@@ -7,6 +7,7 @@ using System.Runtime.InteropServices;
 using System.Threading.Tasks;
 using System.Threading.Tasks.Sources;
 using NLog;
+using zero.core.conf;
 using zero.core.misc;
 using zero.core.patterns.heap;
 using zero.core.patterns.misc;
@@ -75,6 +76,10 @@ namespace zero.core.network.ip
             Init(concurrencyLevel);
         }
 
+        [IoParameter]
+        // ReSharper disable once InconsistentNaming
+        public int parm_socket_poll_wait_ms = 250;
+
         /// <summary>
         /// Initializes the socket
         /// </summary>
@@ -103,7 +108,7 @@ namespace zero.core.network.ip
             if (recv)
             {
                 _recvArgs = new IoHeap<SocketAsyncEventArgs, IoUdpSocket>($"{nameof(_recvArgs)}: {Description}",
-                    concurrencyLevel, static (_, @this) =>
+                    concurrencyLevel << 1, static (_, @this) =>
                     {
                         //sentinel
                         if (@this == null)
@@ -386,6 +391,10 @@ namespace zero.core.network.ip
         public override async ValueTask<int> SendAsync(ReadOnlyMemory<byte> buffer, int offset, int length,
             EndPoint endPoint, int timeout = 0)
         {
+
+            if (!NativeSocket.Poll(parm_socket_poll_wait_ms, SelectMode.SelectWrite))
+                return 0;
+
             //#if DEBUG
             //                if (_sendSync.WaitCount >= _sendArgs.Capacity / 2)
             //                    _logger.Warn(

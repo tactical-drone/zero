@@ -352,8 +352,8 @@ namespace zero.core.network.ip
         {
             try
             {
-                //if (!NativeSocket.Poll(parm_socket_poll_wait_ms, SelectMode.SelectWrite))
-                //    return 0;
+                if (!NativeSocket.Poll(parm_socket_poll_wait_ms, SelectMode.SelectWrite))
+                    return 0;
 
                 return await NativeSocket.SendAsync(buffer.Slice(offset, length), SocketFlags.None, timeout >0? new CancellationTokenSource(timeout).Token: AsyncTasks.Token).FastPath();
             }

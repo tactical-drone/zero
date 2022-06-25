@@ -130,7 +130,7 @@ namespace zero.test.core.patterns.heap
             }, this);
 
             Assert.Equal(0, h.ReferenceCount);
-            Assert.Equal(1, h.Count);
+            Assert.Equal(0, h.Count);
         }
 
         public IoHeapIoTest()

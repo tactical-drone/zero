@@ -17,6 +17,7 @@ using zero.cocoon;
 using zero.cocoon.autopeer;
 using zero.cocoon.events.services;
 using zero.cocoon.identity;
+using zero.core.feat.patterns.time;
 using zero.core.misc;
 using zero.core.network.ip;
 using zero.core.patterns.misc;
@@ -64,10 +65,38 @@ namespace zero.sync
         static void Main(string[] args)
         {
             Console.WriteLine($"zero ({Environment.OSVersion}: {Environment.MachineName} - dotnet v{Environment.Version}, CPUs = {Environment.ProcessorCount})");
+
+            IoTimer.Make(make: static (delta,signal, token) =>
+            {
+#pragma warning disable VSTHRD101
+                var t = new Thread(static async state =>
+                {
+                    var (delta,signal,token) = (ValueTuple<TimeSpan, IIoManualResetValueTaskSourceCore<int>, CancellationToken>) state;
+
+                    var p = new PeriodicTimer(delta);
+                    while (!token.IsCancellationRequested)
+                    {
+                        try
+                        {
+                            if (await p.WaitForNextTickAsync(token).FastPath())
+                                signal.SetResult(Environment.TickCount);
+                            else
+                                signal.SetException(new OperationCanceledException());
+                        }
+                        catch 
+                        {
+                            signal.Reset();
+                        }
+                    }
+                });
+#pragma warning restore VSTHRD101
+                t.Start((delta, signal, token));
+            });
+
             //Task.Factory.StartNew(async () =>
             //{
-            //    //await SemTestAsync();
-            //    await QueueTestAsync();
+            //    await SemTestAsync();
+            //    //await QueueTestAsync();
             //}, CancellationToken.None, TaskCreationOptions.DenyChildAttach, IoZeroScheduler.ZeroDefault).Unwrap().GetAwaiter().GetResult();
 
             //Tune dotnet for large tests
@@ -86,7 +115,7 @@ namespace zero.sync
 
             var random = new Random((int)DateTime.Now.Ticks);
             //Tangle("tcp://192.168.1.2:15600");
-            var total = 702;
+            var total = 50;
             var maxDrones = 3;
             var maxAdjuncts = 16;
             var boot = false;
@@ -739,7 +768,7 @@ namespace zero.sync
         private static async Task QueueTestAsync() //TODO make unit tests
         {
             await Task.Delay(1000);
-            var concurrencyLevel = Environment.ProcessorCount;
+            var concurrencyLevel = Environment.ProcessorCount * 2;
             IoQueue<int> q = new("test", 16384, concurrencyLevel);
             var head = await q.PushBackAsync(2).FastPath();
             await q.PushBackAsync(1).FastPath();

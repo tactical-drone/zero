@@ -1,13 +1,12 @@
 ﻿using System;
 using System.IO;
-using System.Net.Http.Headers;
 using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices.ComTypes;
 using System.Threading;
 using System.Threading.Channels;
 using System.Threading.Tasks;
 using NLog;
 using zero.core.patterns.misc;
-using zero.core.patterns.queue;
 
 namespace zero.core.patterns.heap
 {
@@ -41,7 +40,7 @@ namespace zero.core.patterns.heap
             _description = description;
             Malloc = malloc;
             //_ioHeapBuf = new IoZeroQ<TItem>($"{nameof(_ioHeapBuf)}: {description}", capacity,autoScale);
-            _ioHeapBuf = Channel.CreateBounded<TItem>(new BoundedChannelOptions(capacity * 2)
+            _ioHeapBuf = Channel.CreateBounded<TItem>(new BoundedChannelOptions(capacity)
             {
                 SingleWriter = false,
                 SingleReader = false,
@@ -56,7 +55,7 @@ namespace zero.core.patterns.heap
         /// <summary>
         /// Logger
         /// </summary>
-        private static Logger _logger;
+        private static readonly Logger _logger;
 
         /// <summary>
         /// Description
@@ -68,21 +67,15 @@ namespace zero.core.patterns.heap
         /// </summary>
         public string Description => $"#{GetHashCode()}:{nameof(IoHeap<TItem,TContext>)}: {nameof(Count)} = {Count}, capacity = {Capacity}, refs = {_refCount}, desc = {_description}, bag ~> _ioHeapBuf.Description";
 
+        /// <summary>
+        /// The heap buffer space
+        /// </summary>
+        private Channel<TItem> _ioHeapBuf;
 
         /// <summary>
         /// Whether this object has been cleaned up
         /// </summary>
         private volatile int _zeroed;
-
-        /// <summary>
-        /// If we are in zero state
-        /// </summary>
-        public bool Zeroed => _zeroed > 0;
-
-        /// <summary>
-        /// The heap buffer space
-        /// </summary>
-        private Channel<TItem> _ioHeapBuf;
 
         /// <summary>
         /// The current WorkHeap size
@@ -100,6 +93,19 @@ namespace zero.core.patterns.heap
         /// </summary>
         private volatile int _refCount;
 
+        private long _hit;
+        private long _miss;
+
+        /// <summary>
+        /// Effectiveness of this cache
+        /// </summary>
+        public double CacheHitRatio => (double)_hit / (_hit + _miss);
+
+        /// <summary>
+        /// If we are in zero state
+        /// </summary>
+        public bool Zeroed => _zeroed > 0;
+
         /// <summary>
         /// The number of outstanding references
         /// </summary>
@@ -116,7 +122,6 @@ namespace zero.core.patterns.heap
         public void ZeroUnmanaged()
         {
 #if SAFE_RELEASE
-            _logger = null;
             _ioHeapBuf = default;
             Context = null;
             Malloc = null;
@@ -126,19 +131,29 @@ namespace zero.core.patterns.heap
         /// <summary>
         /// zero managed
         /// </summary>
-        public ValueTask ZeroManagedAsync<TC>(Func<TItem,TC,ValueTask> zeroAction = null, TC nanite = default)
+        public async ValueTask ZeroManagedAsync<TC>(Func<TItem,TC,ValueTask> zeroAction = null, TC context = default)
         {
             if (Interlocked.CompareExchange(ref _zeroed, 1, 0) != 0 )
-                return default;
+                return;
             
             _ioHeapBuf.Writer.Complete();
-            //if (zeroAction != null)
-            //    await _ioHeapBuf.ZeroManagedAsync(zeroAction, nanite, true).FastPath();
-            //else
-            //    await _ioHeapBuf.ZeroManagedAsync<object>(zero:true).FastPath();
+
+            if (zeroAction != null)
+            {
+                await foreach (var item in _ioHeapBuf.Reader.ReadAllAsync())
+                {
+                    try
+                    {
+                        await zeroAction(item, context).FastPath();
+                    }
+                    catch (Exception e)
+                    {
+                        _logger.Error(e,Description);
+                    }
+                }
+            }
 
             _refCount = 0;
-            return default;
         }
 
         /// <summary>
@@ -146,7 +161,9 @@ namespace zero.core.patterns.heap
         /// </summary>
         /// <exception cref="InternalBufferOverflowException">Thrown when the max heap size is breached</exception>
         /// <returns>True if the item required malloc, false if popped from the heap otherwise<see cref="TItem"/></returns>
+#if !DEBUG
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
+#endif
         public TItem Take(object userData = null, Action<TItem, object> customConstructor = null) => Make(userData, customConstructor).item;
         
 
@@ -155,7 +172,9 @@ namespace zero.core.patterns.heap
         /// </summary>
         /// <exception cref="InternalBufferOverflowException">Thrown when the max heap size is breached</exception>
         /// <returns>True if the item required malloc, false if popped from the heap otherwise<see cref="TItem"/></returns>
+#if !DEBUG
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
+#endif
         public (TItem item,bool malloc) Make(object userData = null, Action<TItem, object> customConstructor = null)
         {
             try
@@ -165,15 +184,16 @@ namespace zero.core.patterns.heap
                 if (!_ioHeapBuf.Reader.TryRead(out var heapItem))
                 {
                     if (_ioHeapBuf.Reader.Count > 0)
-                        goto retry;//TODO: hack
+                        goto retry; //TODO: hack
 
                     //TODO: Leak
-                    if (_refCount == Capacity && !IsAutoScaling)
+                    if (_refCount >= Capacity && !IsAutoScaling)
                     {
-                        _logger.Debug($"{nameof(_ioHeapBuf)}: LEAK DETECTED!!! Heap -> {Description}: Q -> _ioHeapBuf.Description");
+                        _logger.Debug(
+                            $"{nameof(_ioHeapBuf)}: LEAK DETECTED!!! Heap -> {Description}: Q -> _ioHeapBuf.Description");
                         //throw new OutOfMemoryException($"{nameof(_ioHeapBuf)}: Heap -> {Description}: Q -> _ioHeapBuf.Description");
                     }
-                    
+
                     heapItem = Malloc(userData, Context);
 
                     customConstructor?.Invoke(heapItem, userData);
@@ -181,20 +201,37 @@ namespace zero.core.patterns.heap
                     PopAction?.Invoke(heapItem, userData);
 
                     Interlocked.Increment(ref _refCount);
+                    Interlocked.Increment(ref _miss);
                     return (heapItem, true);
                 }
                 else //take the item from the heap
                 {
                     PopAction?.Invoke(heapItem, userData);
                     Interlocked.Increment(ref _refCount);
+                    Interlocked.Increment(ref _hit);
                     return (heapItem, false);
                 }
             }
-            catch when (_zeroed > 0) { }
-            catch (Exception) when (Zeroed) { }
-            catch (Exception e) when(!Zeroed)
+            catch (Exception) when (Zeroed)
+            {
+            }
+            catch (Exception e) when (!Zeroed)
             {
                 _logger.Error(e, $"{GetType().Name}: Failed to malloc {typeof(TItem)}");
+            }
+            finally
+            {
+#if DEBUG
+                var t = _hit + _miss;
+                if (t > Capacity << 1)
+                {
+                    var r = (double)_hit / (t);
+                    if (r is < 0.25 and > 0)
+                    {
+                        _logger.Warn($"{nameof(Make)}: Bad cache hit ratio of {r * 100:0.0}%, hit = {_hit}, miss = {_miss}, {Description}");
+                    }
+                }
+#endif
             }
             
             return default;

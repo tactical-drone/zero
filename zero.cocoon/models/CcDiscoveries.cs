@@ -35,8 +35,8 @@ namespace zero.cocoon.models
 
             IoZero = (IoZero<CcProtocMessage<chroniton, CcDiscoveryBatch>>)context;
             
-            var pf = 2;
-            var cc = 1; 
+            var pf = 4;
+            var cc = 3; 
 
             if (!Source.Proxy && Adjunct.CcCollective.ZeroDrone)
             {

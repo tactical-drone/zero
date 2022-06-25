@@ -690,21 +690,8 @@ namespace zero.core.patterns.misc
         /// <param name="lineNumber"></param>
         /// <returns>A ValueTask</returns>
         protected ValueTask ZeroAsync<T>(Func<T, ValueTask> continuation, T state, TaskCreationOptions options, TaskScheduler scheduler = null, bool unwrap = false, [CallerFilePath] string filePath = null, [CallerMemberName] string methodName = null, [CallerLineNumber] int lineNumber = default)
-        {
-            try
-            {
-                return ZeroAsync(continuation, state, AsyncTasks.Token, options, scheduler, unwrap, filePath, methodName, lineNumber);
-            }
-            catch (Exception e)
-            {
-#if DEBUG
-                _logger.Error(e, $"{filePath}:{methodName} {Description}");
-#endif
-            }
-
-            return default;
-        }
-
+            => ZeroAsync(continuation, state, AsyncTasks.Token, options, scheduler, unwrap, filePath, methodName, lineNumber);
+        
         /// <summary>
         /// Async execution options. <see cref="DisposeAsync"/> needs trust, but verify...
         /// </summary>

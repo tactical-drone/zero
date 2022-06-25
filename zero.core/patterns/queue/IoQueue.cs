@@ -168,8 +168,6 @@ namespace zero.core.patterns.queue
             }
             finally
             {
-                _syncRoot.Release(Environment.TickCount);
-
                 if (zero)
                 {
                     await ClearAsync().FastPath(); //TODO perf: can these two steps be combined?
@@ -189,6 +187,10 @@ namespace zero.core.patterns.queue
 
                     //unmanaged
                     _syncRoot.ZeroSem();
+                }
+                else
+                {
+                    _syncRoot.Release(Environment.TickCount);
                 }
             }
 
@@ -262,43 +264,44 @@ namespace zero.core.patterns.queue
             }
             finally
             {
-                var success = _tail != null && _tail == retVal;
-
-                try
+                if (!Zeroed)
                 {
-                    if (entered)
+                    try
                     {
-                        //additional atomic actions
-                        try
+                        if (_pressure != null && _tail != null)
+                            _pressure.Release(true, true);
+                        else
+                            _backPressure?.Release(true, true);
+
+                        if (entered)
                         {
-                            if (onAtomicAdd != null)
-                                await onAtomicAdd.Invoke(context).FastPath();
-                        }
-                        catch when (Zeroed)
-                        {
-                        }
-                        catch (Exception e) when (!Zeroed)
-                        {
-                            LogManager.GetCurrentClassLogger().Error(e, $"{nameof(EnqueueAsync)}");
-                        }
-                        finally
-                        {
+                            //additional atomic actions
+                            try
+                            {
+                                if (onAtomicAdd != null)
+                                    await onAtomicAdd.Invoke(context).FastPath();
+                            }
+                            catch when (Zeroed)
+                            {
+                            }
+                            catch (Exception e) when (!Zeroed)
+                            {
+                                LogManager.GetCurrentClassLogger().Error(e, $"{nameof(EnqueueAsync)}");
+                            }
+                            finally
+                            {
 #if DEBUG
-                            Interlocked.Decrement(ref _insaneExclusive);
+                                Interlocked.Decrement(ref _insaneExclusive);
 #endif
-                            _syncRoot.Release(Environment.TickCount, false);//FALSE
+                                _syncRoot.Release(Environment.TickCount, false);//FALSE
+                            }
                         }
                     }
-
-                    if (_pressure != null && success)
-                        _pressure.Release(true, false);
-                    else
-                        _backPressure?.Release(true);
-                }
-                catch when (Zeroed) { }
-                catch (Exception e) when (!Zeroed)
-                {
-                    LogManager.GetCurrentClassLogger().Error(e, $"{nameof(EnqueueAsync)}");
+                    catch when (Zeroed) { }
+                    catch (Exception e) when (!Zeroed)
+                    {
+                        LogManager.GetCurrentClassLogger().Error(e, $"{nameof(EnqueueAsync)}");
+                    }
                 }
             }
         }
@@ -357,18 +360,21 @@ namespace zero.core.patterns.queue
             }
             finally
             {
-                if (entered)
+                if (!Zeroed)
                 {
-#if DEBUG
-                    Interlocked.Decrement(ref _insaneExclusive);
-#endif
-                    _syncRoot.Release(Environment.TickCount, false);
-                }
+                    if (retVal != default)
+                        _pressure?.Release(true, true);
+                    else
+                        _backPressure?.Release(true, true);
 
-                if (retVal != default)
-                    _pressure?.Release(true, false);
-                else
-                    _backPressure?.Release(true);
+                    if (entered)
+                    {
+#if DEBUG
+                        Interlocked.Decrement(ref _insaneExclusive);
+#endif
+                        _syncRoot.Release(Environment.TickCount, false);
+                    }
+                }
             }
         }
 
@@ -389,6 +395,7 @@ namespace zero.core.patterns.queue
             }
 
             var entered = false;
+            T retVal = default;
             try
             {
                 if (_pressure != null && !await _pressure.WaitAsync().FastPath())
@@ -399,7 +406,7 @@ namespace zero.core.patterns.queue
 #if DEBUG
                 Debug.Assert(Interlocked.Increment(ref _insaneExclusive) == 1 || _syncRoot.Zeroed(), $"{nameof(_insaneExclusive)} = {_insaneExclusive} > 1, {nameof(_syncRoot.ReadyCount)} = {_syncRoot.ReadyCount}, wait =  {_syncRoot.WaitCount}");
                 Debug.Assert(_syncRoot.ReadyCount <= 0 || _syncRoot.Zeroed(), $"{nameof(_syncRoot.ReadyCount)} = {_syncRoot.ReadyCount} [INVALID], wait =  {_syncRoot.WaitCount}");
-                Debug.Assert(_insaneExclusive < 2 || _syncRoot.Zeroed() || Zeroed);
+                Debug.Assert(_insaneExclusive < 2 || _syncRoot.Zeroed() || Zeroed, $"{nameof(_insaneExclusive)}: {_insaneExclusive}");
 #endif
                 if (_count == 0)
                     return default;
@@ -420,39 +427,37 @@ namespace zero.core.patterns.queue
             catch when (_zeroed > 0) { }
             catch (Exception e) when (_zeroed == 0)
             {
-                Debug.Assert(false);
                 LogManager.GetCurrentClassLogger().Error(e, $"{_description}: DQ failed! {nameof(_count)} = {_count}, {nameof(_tail)} = {_tail}, {nameof(_head)} = {_head}, heap => {_nodeHeap.Description}");
             }
             finally
             {
-                if (entered)
+                try
+                {
+                    if (dq != null)
+                    {
+                        retVal = dq.Value;
+                        dq.Value = default;
+                        _nodeHeap.Return(dq);
+                        _backPressure?.Release(true, true);
+                    }
+                }
+                catch when (_zeroed > 0) { }
+                catch (Exception e) when (_zeroed == 0)
+                {
+                    LogManager.GetCurrentClassLogger().Error(e, $"{_description}: DQ failed!");
+                }
+
+                if (entered && !Zeroed)
                 {
 #if DEBUG
                     Interlocked.Decrement(ref _insaneExclusive);
-                    Debug.Assert(_syncRoot.ReadyCount == 0);
+                    Debug.Assert(_syncRoot.ReadyCount == 0, $"INVALID {nameof(_syncRoot.ReadyCount)} = {_syncRoot.ReadyCount}");
 #endif
                     _syncRoot.Release(Environment.TickCount, false);//FALSE!
                 }
             }
             
-            try
-            {
-                if (dq != null)
-                {
-                    var retVal = dq.Value;
-                    dq.Value = default;
-                    _nodeHeap.Return(dq);
-                    _backPressure?.Release(true, false);
-                    return retVal;
-                }
-            }
-            catch when(_zeroed > 0){}
-            catch (Exception e)when(_zeroed == 0)
-            {
-                LogManager.GetCurrentClassLogger().Error(e, $"{_description}: DQ failed!");
-            }
-
-            return default;
+            return retVal;
         }
 
         /// <summary>

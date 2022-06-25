@@ -56,7 +56,7 @@ namespace zero.core.feat.misc
         /// <summary>
         /// The heap
         /// </summary>
-        private IoHeap<IoChallenge> _valHeap;
+        private readonly IoHeap<IoChallenge> _valHeap;
 
         /// <summary>
         /// The challenges heap
@@ -74,7 +74,6 @@ namespace zero.core.feat.misc
 
 #if SAFE_RELEASE
             _lut = null;
-            _valHeap = null;
             _logger = null;
             _carHeap = null;
 #endif
@@ -131,7 +130,7 @@ namespace zero.core.feat.misc
                 IoChallenge challenge = null;
                 try
                 {
-                    if ((challenge = _valHeap.Take()) == null)
+                    if ((challenge = _valHeap.Take()) == null || _valHeap.ReferenceCount > _valHeap.Capacity)
                     {
                         try
                         {
@@ -143,7 +142,7 @@ namespace zero.core.feat.misc
                             // ignored
                         }
 
-                        challenge = _valHeap.Take();
+                        challenge ??= _valHeap.Take();
 
                         if (challenge == null)
                         {
@@ -195,6 +194,14 @@ namespace zero.core.feat.misc
                     if (challenge != null && response.Node == null && _valHeap != null)
                         _valHeap.Return(challenge);
                 }
+            }
+            catch when (Zeroed())
+            {
+            }
+            catch (Exception e) when (!Zeroed())
+            {
+                _logger.Fatal(e);
+                // ignored
             }
             finally
             {

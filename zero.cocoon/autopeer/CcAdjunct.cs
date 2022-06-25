@@ -1,5 +1,6 @@
 ﻿//#define LOSS
 using System;
+using System.Buffers;
 using System.Collections.Concurrent;
 using System.Linq;
 using System.Net;
@@ -23,6 +24,7 @@ using zero.core.conf;
 using zero.core.core;
 using zero.core.feat.misc;
 using zero.core.feat.models.protobuffer;
+using zero.core.feat.patterns.time;
 using zero.core.misc;
 using zero.core.network.ip;
 using zero.core.patterns.bushings;
@@ -68,11 +70,11 @@ namespace zero.cocoon.autopeer
             _logger = LogManager.GetCurrentClassLogger();
 
             //TODO tuning
-            var capMult = CcCollective.ZeroDrone ? 9 : 6;
+            var capMult = CcCollective.ZeroDrone ? 10 : 7;
             var capBase = 2;
-            _probeRequest = new IoZeroMatcher(nameof(_probeRequest), Source.PrefetchSize, parm_max_network_latency_ms << 1, (int)Math.Pow(capBase, capMult));
-            _fuseRequest = new IoZeroMatcher(nameof(_fuseRequest), Source.PrefetchSize, parm_max_network_latency_ms << 1, (int)Math.Pow(capBase, capMult));
-            _scanRequest = new IoZeroMatcher(nameof(_scanRequest), (int)(CcCollective.MaxAdjuncts * parm_max_swept_drones + 1), parm_max_network_latency_ms << 1, (int)Math.Pow(capBase, capMult));
+            _probeRequest = new IoZeroMatcher(nameof(_probeRequest), Source.PrefetchSize, parm_max_network_latency_ms << 1, (int)Math.Pow(capBase, capMult), true);
+            _fuseRequest = new IoZeroMatcher(nameof(_fuseRequest), Source.PrefetchSize, parm_max_network_latency_ms << 1, (int)Math.Pow(capBase, capMult), true);
+            _scanRequest = new IoZeroMatcher(nameof(_scanRequest), (int)(CcCollective.MaxAdjuncts * parm_max_swept_drones + 1), parm_max_network_latency_ms << 1, (int)Math.Pow(capBase, capMult), true);
 
             if (extraData != null)
             {
@@ -645,7 +647,12 @@ namespace zero.cocoon.autopeer
                     // ignored
                 }
 
-                await _chronitonHeap.ZeroManagedAsync<object>().FastPath();
+                await _chronitonHeap.ZeroManagedAsync(static (item,@this) =>
+                {
+                    ArrayPool<byte>.Shared.Return(item.Signature.Memory.AsArray());
+                    return default;
+                }, this);
+
                 await _sendBuf.ZeroManagedAsync<object>().FastPath();
 
                 var from = ZeroedFrom == this? "self" : ZeroedFrom?.Description??"null";
@@ -694,12 +701,17 @@ namespace zero.cocoon.autopeer
             {
                 //TODO: tuning, helps cluster test bootups not stalling on popdog spam
                 await Task.Delay(@this.CcCollective.parm_mean_pat_delay_s * 1000);
-
+                var targetDelay = (@this._random.Next(@this.CcCollective.parm_mean_pat_delay_s / 4) + @this.CcCollective.parm_mean_pat_delay_s / 4) * 1000;
+                var r = new IoTimer(TimeSpan.FromMilliseconds(targetDelay));
+                _roboTimer = r;
                 while (!@this.Zeroed())
                 {
+                    var d = await r.TickAsync().FastPath();
+                    @this._logger.Trace($"Robo - {TimeSpan.FromMilliseconds(d)}, {@this.Description}");
+                    //r.Reset();
                     try
                     {
-                        var targetDelay = (@this._random.Next(@this.CcCollective.parm_mean_pat_delay_s / 4) + @this.CcCollective.parm_mean_pat_delay_s / 4) * 1000;
+                        //var targetDelay = (@this._random.Next(@this.CcCollective.parm_mean_pat_delay_s / 4) + @this.CcCollective.parm_mean_pat_delay_s / 4) * 1000;
 
                         if (@this.CcCollective.TotalConnections == 0)
                             targetDelay /= 4;
@@ -1595,6 +1607,7 @@ namespace zero.cocoon.autopeer
 #pragma warning disable CA2211 // Non-constant fields should not be visible
         public static long ConnectionTime;
         public static long ConnectionCount;
+        private static IoTimer _roboTimer;
 #pragma warning restore CA2211 // Non-constant fields should not be visible
 
         /// <summary>
@@ -1636,7 +1649,10 @@ namespace zero.cocoon.autopeer
                     packet.Type = (int)type;
                     
                     var packetMsgRaw = packet.Data.Memory.AsArray();
-                    packet.Signature = UnsafeByteOperations.UnsafeWrap(CcCollective.CcId.Sign(packetMsgRaw, 0, packetMsgRaw.Length));
+                    if(packet.Signature == null || packet.Signature.Length == 0)
+                        packet.Signature = UnsafeByteOperations.UnsafeWrap(CcCollective.CcId.Sign(packetMsgRaw, 0, packetMsgRaw.Length));
+                    else
+                        CcCollective.CcId.Sign(packetMsgRaw, packet.Signature.Memory.AsArray(), 0, packet.Signature.Length);
 
                     Tuple<byte[],byte[]> buf = null;
                     try

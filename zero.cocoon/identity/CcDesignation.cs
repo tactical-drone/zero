@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Buffers;
 using System.Diagnostics;
 using System.Linq;
 using System.Runtime.CompilerServices;
@@ -82,7 +83,14 @@ namespace zero.cocoon.identity
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public byte[] Sign(byte[] buffer, int offset, int len)
         {
-            var sigBuf = new byte[Ed25519.SignatureSize];
+            var sigBuf = ArrayPool<byte>.Shared.Rent(Ed25519.SignatureSize);
+            //Ed25519.Sign(SecretKey, 0, buffer, offset, len, sigBuf, 0);
+            return sigBuf;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public byte[] Sign(byte[] buffer, byte[] sigBuf, int offset, int len)
+        {
             //Ed25519.Sign(SecretKey, 0, buffer, offset, len, sigBuf, 0);
             return sigBuf;
         }

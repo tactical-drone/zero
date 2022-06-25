@@ -123,8 +123,8 @@ namespace zero.core.patterns.semaphore.core
         private readonly string _description;
         private readonly int _capacity;
         private volatile int _zeroed;
-        private readonly bool _ensureCriticalRegion;
         private readonly int _ready;
+        private readonly bool _ensureCriticalRegion;
         #endregion
 
         #region Properties
@@ -137,7 +137,7 @@ namespace zero.core.patterns.semaphore.core
         //private IIoZeroSemaphoreBase<T> _zeroRef;
 #endregion
 
-#region State
+        #region State
 
         public string Description =>
             $"{nameof(IoZeroSemCore<T>)}: r = {ReadyCount}/{_capacity}, w = {WaitCount}/{_capacity}, z = {_zeroed > 0}, heap = {_heapCore.Reader.Count}, {_description}";
@@ -194,21 +194,22 @@ namespace zero.core.patterns.semaphore.core
 #if RELEASE
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
 #endif
-        private bool ZeroSetResult(T value, out int released, bool forceAsync = false)
+        private bool SetResult(T value, out int released, bool forceAsync = false)
         {
-            var banked = false;
+            bool banked;
             released = 0;
-            if (_results.Reader.Count < ModCapacity)
-            {
-                if (_results.Writer.TryWrite(value))
-                    banked = true;
-            }
+            
+            while ((banked = _results.Reader.Count < ModCapacity) && !_results.Writer.TryWrite(value)){}
 
             //drain the Q
             while (_waiters.Reader.Count > 0 && _results.Reader.TryRead(out var fastTracked))
             {
                 if (Unblock(fastTracked, forceAsync))
+                {
                     released++;
+                    if(_waiters.Reader.Count < Capacity)
+                        break;
+                }
                 else
                     _results.Writer.TryWrite(fastTracked);
             }
@@ -233,7 +234,7 @@ namespace zero.core.patterns.semaphore.core
 #else
         [MethodImpl(MethodImplOptions.NoInlining)]
 #endif
-        private bool ZeroBlock(out ValueTask<T> slowTaskCore)
+        private bool Block(out ValueTask<T> slowTaskCore)
         {
             Debug.Assert(Zeroed() || WaitCount <= ModCapacity);
 
@@ -284,7 +285,7 @@ namespace zero.core.patterns.semaphore.core
         }
 #endregion
 
-#region API
+        #region API
         public T GetResult(short token) => throw new NotImplementedException(nameof(GetResult));
 
         public ValueTaskSourceStatus GetStatus(short token) => throw new NotImplementedException(nameof(GetStatus));
@@ -312,7 +313,7 @@ namespace zero.core.patterns.semaphore.core
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public int Release(T value, bool forceAsync = false) => ZeroSetResult(value, out var release,forceAsync) ? release : 0;
+        public int Release(T value, bool forceAsync = false) => SetResult(value, out var release,forceAsync) ? release : 0;
         
 
         /// <summary>
@@ -323,7 +324,7 @@ namespace zero.core.patterns.semaphore.core
         public ValueTask<T> WaitAsync()
         {
             // => slow core
-            if (!Zeroed() && ZeroBlock(out var slowCore))
+            if (!Zeroed() && Block(out var slowCore))
                 return slowCore;
             
             // => API implementation error

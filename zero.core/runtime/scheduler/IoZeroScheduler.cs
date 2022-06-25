@@ -4,13 +4,11 @@ using System.Diagnostics;
 using System.IO;
 using System.Runtime.CompilerServices;
 using System.Threading;
-using System.Threading.Channels;
 using System.Threading.Tasks;
 using NLog;
 using zero.core.misc;
 using zero.core.patterns.heap;
 using zero.core.patterns.misc;
-using zero.core.patterns.queue;
 using zero.core.patterns.semaphore;
 
 namespace zero.core.runtime.scheduler
@@ -40,7 +38,7 @@ namespace zero.core.runtime.scheduler
             _asyncTasks = asyncTasks ?? new CancellationTokenSource();
             _workerCount = Math.Max(Environment.ProcessorCount * 2, 8);
             _asyncCount = _workerCount * 2;
-            _asyncTaskWithContextCount = _asyncCount * 4;
+            _asyncTaskWithContextCount = _asyncCount * 8;
             _syncCount = _forkCount = _asyncFallbackCount =_asyncCount;
             var capacity = MaxWorker + 1;
 
@@ -471,7 +469,7 @@ namespace zero.core.runtime.scheduler
                 {
                     var @this = (IoZeroScheduler)state;
                     int slot;
-                    if ((slot = Interlocked.Decrement(ref _workerSpawnBurstMax)) > 0 && slot % 3 == 0 || @this.LoadFactor > WorkerSpawnThreshold || @this.LoadFactor > 0.99)
+                    if ((slot = Interlocked.Decrement(ref _workerSpawnBurstMax)) > 0 || @this.LoadFactor > WorkerSpawnThreshold)
                     {
                         _ = Task.Factory.StartNew(static async state =>
                             {
@@ -488,7 +486,9 @@ namespace zero.core.runtime.scheduler
                             CancellationToken.None,
                             TaskCreationOptions.LongRunning, ZeroDefault);
 
-                        _workerSpawnBurstMax = WorkerSpawnBurstMax;
+                        if (_workerSpawnBurstMax == 0)
+                            Interlocked.Exchange(ref _workerSpawnBurstMax, WorkerSpawnBurstMax);
+
                         @this._lastWorkerSpawnedTime = Environment.TickCount;
                         Interlocked.MemoryBarrier();
                         Console.WriteLine(

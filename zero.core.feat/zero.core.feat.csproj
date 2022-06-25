@@ -26,13 +26,13 @@
 
 	<ItemGroup>
 		<PackageReference Include="Google.Protobuf" Version="3.21.1" />
-		<PackageReference Include="CassandraCSharpDriver" Version="3.17.1" />
+		<PackageReference Include="CassandraCSharpDriver" Version="3.18.0-alpha1" />
 		<PackageReference Include="Microsoft.AspNetCore.Mvc.Abstractions" Version="2.2.0" />
 		<PackageReference Include="Microsoft.Extensions.Caching.Redis" Version="2.2.0" />
 		<PackageReference Include="Microsoft.VisualStudio.Threading" Version="17.2.32" />
-		<PackageReference Include="System.Text.Json" Version="7.0.0-preview.6.22318.2" />
+		<PackageReference Include="System.Text.Json" Version="7.0.0-preview.6.22324.6" />
 		<PackageReference Include="NLog" Version="5.0.1" />
-		<PackageReference Include="Grpc.Tools" Version="2.46.3">
+		<PackageReference Include="Grpc.Tools" Version="2.47.0">
 			<PrivateAssets>all</PrivateAssets>
 			<IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
 		</PackageReference>
