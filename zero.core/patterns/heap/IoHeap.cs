@@ -1,12 +1,12 @@
 ﻿using System;
 using System.IO;
 using System.Runtime.CompilerServices;
-using System.Runtime.InteropServices.ComTypes;
 using System.Threading;
 using System.Threading.Channels;
 using System.Threading.Tasks;
 using NLog;
 using zero.core.patterns.misc;
+using zero.core.patterns.queue;
 
 namespace zero.core.patterns.heap
 {
@@ -80,8 +80,9 @@ namespace zero.core.patterns.heap
         /// <summary>
         /// The current WorkHeap size
         /// </summary>
+        //public int Count => _ioHeapBuf.Reader.Count;
         public int Count => _ioHeapBuf.Reader.Count;
-        
+
 
         /// <summary>
         /// The maximum heap size
@@ -135,7 +136,7 @@ namespace zero.core.patterns.heap
         {
             if (Interlocked.CompareExchange(ref _zeroed, 1, 0) != 0 )
                 return;
-            
+
             _ioHeapBuf.Writer.Complete();
 
             if (zeroAction != null)
@@ -148,10 +149,12 @@ namespace zero.core.patterns.heap
                     }
                     catch (Exception e)
                     {
-                        _logger.Error(e,Description);
+                        _logger.Error(e, Description);
                     }
                 }
             }
+
+            //await _ioHeapBuf.ZeroManagedAsync<object>(zero: true).FastPath();
 
             _refCount = 0;
         }

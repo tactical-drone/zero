@@ -445,13 +445,7 @@ namespace zero.core.runtime.scheduler
 #endif
             //queue the work for processing
             var ts = Environment.TickCount;
-            //if (!_taskQueue.Writer.TryWrite(task))
-            //{
-            //    //TODO: What is this bug on getting a task.id = 1? How does it get here? Debugging it heisenbugs... 
-            //    if (!_taskQueue.Writer.TryWrite(task) && !TryExecuteTaskInline(task, false))
-            //        throw new InternalBufferOverflowException($"{nameof(_taskQueue)}: count = {_taskQueue.Reader.Count}, capacity {Capacity}");
-            //}
-
+            
             if (_taskChannel.Release(task) < 0)
             {
                 //TODO: What is this bug on getting a task.id = 1? How does it get here? Debugging it heisenbugs... 
@@ -468,8 +462,7 @@ namespace zero.core.runtime.scheduler
                 FallbackContext(static state =>
                 {
                     var @this = (IoZeroScheduler)state;
-                    int slot;
-                    if ((slot = Interlocked.Decrement(ref _workerSpawnBurstMax)) > 0 || @this.LoadFactor > WorkerSpawnThreshold)
+                    if (Interlocked.Decrement(ref _workerSpawnBurstMax) > 0 || @this.LoadFactor > WorkerSpawnThreshold)
                     {
                         _ = Task.Factory.StartNew(static async state =>
                             {

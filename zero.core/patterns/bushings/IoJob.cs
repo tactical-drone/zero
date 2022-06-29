@@ -86,7 +86,8 @@ namespace zero.core.patterns.bushings
         /// A description of this kind of work
         /// </summary>
 #if DEBUG
-        public override string Description => $"{_jobDesc} -> {StateTransitionHistory?.Tail?.Value}";
+        //public override string Description => $"{_jobDesc} -> {StateTransitionHistory?.Tail?.Value}";
+        public override string Description => string.Empty;
 #else
         public override string Description => string.Empty;
 #endif
@@ -211,7 +212,6 @@ namespace zero.core.patterns.bushings
             Source = null;
             PreviousJob = null;
 #if DEBUG
-            _stateHeap = null;
             StateTransitionHistory = null;
 #endif
 #endif
@@ -334,7 +334,7 @@ namespace zero.core.patterns.bushings
         /// state heap
         /// </summary>
         //TODO
-        private volatile IoHeap<IoStateTransition<IoJobMeta.JobState>> _stateHeap;
+        private readonly IoHeap<IoStateTransition<IoJobMeta.JobState>> _stateHeap;
 #endif
         /// <summary>
         /// Final state
@@ -351,22 +351,22 @@ namespace zero.core.patterns.bushings
                 if (_stateMeta != null)
                 {
 #if DEBUG
-                    var s = _stateMeta.Value;
-                    if (value == IoJobMeta.JobState.Undefined && s == IoJobMeta.JobState.Consuming)
-                    {
-                        _stateMeta.Set((int)IoJobMeta.JobState.Race);
-                        //PrintStateHistory();
-                        throw new ApplicationException(
-                            $"{TraceDescription} Cannot transition from `{IoJobMeta.JobState.Halted}' to `{value}'");
-                    }
+                    //var s = _stateMeta.Value;
+                    //if (value == IoJobMeta.JobState.Undefined && s == IoJobMeta.JobState.Consuming)
+                    //{
+                    //    _stateMeta.Set((int)IoJobMeta.JobState.Race);
+                    //    //PrintStateHistory();
+                    //    throw new ApplicationException(
+                    //        $"{TraceDescription} Cannot transition from `{IoJobMeta.JobState.Halted}' to `{value}'");
+                    //}
 
-                    if (_stateMeta.Value == IoJobMeta.JobState.Halted && value != IoJobMeta.JobState.Undefined)
-                    {
-                        _stateMeta.Set((int)IoJobMeta.JobState.Race);
-                        //PrintStateHistory();
-                        throw new ApplicationException(
-                            $"{TraceDescription} Cannot transition from `{IoJobMeta.JobState.Halted}' to `{value}'");
-                    }
+                    //if (_stateMeta.Value == IoJobMeta.JobState.Halted && value != IoJobMeta.JobState.Undefined)
+                    //{
+                    //    _stateMeta.Set((int)IoJobMeta.JobState.Race);
+                    //    //PrintStateHistory();
+                    //    throw new ApplicationException(
+                    //        $"{TraceDescription} Cannot transition from `{IoJobMeta.JobState.Halted}' to `{value}'");
+                    //}
 #endif
 
                     if (_stateMeta.Value == value)
@@ -389,24 +389,17 @@ namespace zero.core.patterns.bushings
 
 #if DEBUG
                 //Allocate memory for a new current state
-                try
+                var newState = _stateHeap.Take((_stateMeta, (int)value));
+                if (newState == null)
                 {
-                    var newState = _stateHeap.Take((_stateMeta, (int)value));
-                    if (newState == null)
-                    {
-                        if (!Zeroed())
-                            throw new OutOfMemoryException($"{Description}");
+                    if (!Zeroed())
+                        throw new OutOfMemoryException($"{Description}");
 
-                        return value;
-                    }
+                    return value;
+                }
 
-                    _stateMeta = newState;
-                }
-                catch (Exception e)
-                {
-                    Console.WriteLine(e);
-                    throw;
-                }
+                _stateMeta = newState;
+
                 await StateTransitionHistory.EnqueueAsync(_stateMeta).FastPath();
 #else
                     _stateMeta.ExitTime = Environment.TickCount;

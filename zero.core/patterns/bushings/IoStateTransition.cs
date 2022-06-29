@@ -3,7 +3,6 @@ using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
-using zero.core.patterns.bushings.contracts;
 using zero.core.patterns.heap;
 using zero.core.patterns.queue;
 using zero.core.patterns.queue.variant;
@@ -192,6 +191,8 @@ namespace zero.core.patterns.bushings
 
         public ValueTask<IIoHeapItem> HeapPopAsync(object context)
         {
+            base.Next = null;
+            base.Prev = null;
             return new ValueTask<IIoHeapItem>(this);
         }
 

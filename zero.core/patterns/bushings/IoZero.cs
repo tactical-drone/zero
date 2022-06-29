@@ -383,6 +383,9 @@ namespace zero.core.patterns.bushings
                             }
                         }
 
+                        if (nextJob.Id < 0)
+                            nextJob.GenerateJobId();
+
                         //Enqueue the job for the consumer
                         await nextJob.SetStateAsync(IoJobMeta.JobState.Queued).FastPath();
 
@@ -629,7 +632,7 @@ namespace zero.core.patterns.bushings
                         await ZeroJobAsync(curJob, curJob.FinalState == IoJobMeta.JobState.Accept).FastPath();
 
                         //back pressure
-                        Source.BackPressure(zeroAsync: true);
+                        Source.BackPressure(zeroAsync: false);//FALSE
                     }
                     catch when (Zeroed())
                     {
