@@ -71,20 +71,20 @@ namespace zero.test.core.patterns.bushings
             
             _output.WriteLine($"{IoZeroScheduler.Zero?.Id}");
             var concurrencyLevel = 10;
-            var count = 500;
+            var count = 1000;
             
-            var s1 = new IoZeroSource("zero source 1", false, concurrencyLevel * 2, concurrencyLevel, false, disableZero:true);
+            var s1 = new IoZeroSource("zero source 1", false, concurrencyLevel << 1, concurrencyLevel);
             var c1 = new IoConduit<IoZeroProduct>("conduit smoke test 1", s1, static (ioZero, _) 
-                => new IoZeroProduct("test product 1", ((IoConduit<IoZeroProduct>)ioZero)?.Source, 100), concurrencyLevel);
+                => new IoZeroProduct("test product 1", ((IoConduit<IoZeroProduct>)ioZero)?.Source, 16*3), concurrencyLevel);
 
             var z1 = Task.Factory.StartNew(async () =>
             {
                 await c1.BlockOnReplicateAsync();
-            }, CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Default).Unwrap();
+            }, CancellationToken.None, TaskCreationOptions.DenyChildAttach, IoZeroScheduler.ZeroDefault).Unwrap();
 
             var ts = Environment.TickCount;
 
-            var targetTime = count * 100 / concurrencyLevel;
+            var targetTime = count * 16 * 3 / concurrencyLevel;
 
             while (!z1.IsCompleted)
             {
@@ -93,8 +93,8 @@ namespace zero.test.core.patterns.bushings
                     _output.WriteLine($"test done!!!!!!!!!!!");
                     await c1.DisposeAsync(null, "test done");
                 }
-                _output.WriteLine($"{c1.EventCount}/{count}");
-                await Task.Delay(1000).ConfigureAwait(true);
+                //_output.WriteLine($"{c1.EventCount}/{count}");
+                await Task.Delay(50).ConfigureAwait(true);
             }
             await z1.WaitAsync(TimeSpan.FromMilliseconds(targetTime * 400));
 
@@ -114,19 +114,19 @@ namespace zero.test.core.patterns.bushings
             var concurrencyLevel = 10;
 #else
             var count = 1000000;
-            var concurrencyLevel = 100;
+            var concurrencyLevel = Environment.ProcessorCount * 2;
 #endif
 
 
-            var s1 = new IoZeroSource("zero source 1", false, concurrencyLevel*2, concurrencyLevel, false, true);
+            var s1 = new IoZeroSource("zero source 1", false, concurrencyLevel*2, concurrencyLevel);
             var c1 = new IoConduit<IoZeroProduct>("conduit smoke test 1", s1, static (ioZero, _) 
                 => new IoZeroProduct("test product 1", ((IoConduit<IoZeroProduct>)ioZero).Source, 0), s1.ZeroConcurrencyLevel());
 
-            var z1 = Task.Factory.StartNew(async () => await c1.BlockOnReplicateAsync(), CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Default).Unwrap();
+            var z1 = Task.Factory.StartNew(async () => await c1.BlockOnReplicateAsync(), CancellationToken.None, TaskCreationOptions.DenyChildAttach, IoZeroScheduler.ZeroDefault).Unwrap();
 
             var ts = Environment.TickCount;
             
-            var targetTime = 6000;
+            var targetTime = count / concurrencyLevel;
             while (!z1.IsCompleted)
             {
                 if (c1.EventCount > count || ts.ElapsedMs() > targetTime * 3)

@@ -55,13 +55,13 @@ namespace zero.core.patterns.semaphore.core
 
         /// <summary>Whether the current operation has completed.</summary>
         private int _version;
-        private volatile int _completeTime;
-        private volatile int _burnTime;
-        private volatile bool _completed;
+        private int _completeTime;
+        private int _burnTime;
+        private bool _completed;
         
         private bool _runContinuationsAsync;
-        private volatile bool _runContinuationsAsyncAlways;
-        private volatile bool _autoReset;
+        private bool _runContinuationsAsyncAlways;
+        private bool _autoReset;
 #if DEBUG
         /// <summary>
         /// Whether this core has been burned?
@@ -376,11 +376,10 @@ namespace zero.core.patterns.semaphore.core
                 switch (_capturedContext)
                 {
                     case null:
-                        _ = Task.Factory.StartNew(continuation, state, CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Default);
-                        //if(RunContinuationsAsynchronously)
-                        //    _ = Task.Factory.StartNew(continuation, state, CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Default);
-                        //else
-                        //    continuation(state);
+                        if (RunContinuationsAsynchronously)
+                            _ = Task.Factory.StartNew(continuation, state, CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Default);
+                        else
+                            continuation(state);
                         break;
                     case SynchronizationContext sc:
 #pragma warning disable VSTHRD001 // Avoid legacy thread switching APIs
@@ -391,9 +390,9 @@ namespace zero.core.patterns.semaphore.core
                         }, (continuation, state));
 #pragma warning restore VSTHRD001 // Avoid legacy thread switching APIs
                         break;
-                    //case IoZeroScheduler tz when TaskScheduler.Current is IoZeroScheduler && !RunContinuationsAsynchronously:
-                    //    continuation(state);
-                    //    break;
+                    case IoZeroScheduler tz when TaskScheduler.Current is IoZeroScheduler && !RunContinuationsAsynchronously:
+                        continuation(state);
+                        break;
                     case TaskScheduler ts:
                         _ = Task.Factory.StartNew(continuation, state, CancellationToken.None, TaskCreationOptions.DenyChildAttach, ts);
                         break;
@@ -444,26 +443,19 @@ namespace zero.core.patterns.semaphore.core
 #if DEBUG
             var ts = Environment.TickCount;
 #endif
-            try
+            
+            if (_continuation == null &&
+                Interlocked.CompareExchange(ref _continuation, ManualResetValueTaskSourceCoreShared.SSentinel, null) == null)
             {
-                if (_continuation == null &&
-                    Interlocked.CompareExchange(ref _continuation, ManualResetValueTaskSourceCoreShared.SSentinel, null) ==
-                    null)
-                {
-                    //async?.Invoke(false, context);
-                    return;
-                }
+                //async?.Invoke(false, context);
+                return;
             }
-            finally
-            {
 #if DEBUG
-                if (ts.ElapsedMs() > 16)
-                {
-                    LogManager.GetCurrentClassLogger().Fatal($"{nameof(SignalCompletion)}: CAS took => {ts.ElapsedMs()} ms");
-                }
-#endif
+            if (ts.ElapsedMs() > 16)
+            {
+                LogManager.GetCurrentClassLogger().Fatal($"{nameof(SignalCompletion)}: CAS took => {ts.ElapsedMs()} ms");
             }
-
+#endif
             //async?.Invoke(true, context);
 
             if (_executionContext != null)

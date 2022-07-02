@@ -192,7 +192,7 @@ namespace zero.core.network.ip
                         _ = Task.Factory.StartNew(static s =>
                         {
                             var @this = (IoNetClient<TJob>)s;
-                            return @this.DisposeAsync(@this, $"Socket disconnected - {@this.IoNetSocket.Description}");
+                            return @this.DisposeAsync(@this, $"Socket disconnected - {@this.IoNetSocket?.Description}");
                         }, this, CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Default);
                         
                         //Do cleanup

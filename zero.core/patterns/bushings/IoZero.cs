@@ -2,6 +2,7 @@
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using System.Threading;
+using System.Threading.Channels;
 using System.Threading.Tasks;
 using NLog;
 using zero.core.conf;
@@ -10,7 +11,6 @@ using zero.core.patterns.bushings.contracts;
 using zero.core.patterns.heap;
 using zero.core.patterns.misc;
 using zero.core.patterns.queue;
-using zero.core.patterns.semaphore;
 using zero.core.patterns.semaphore.core;
 
 namespace zero.core.patterns.bushings
@@ -91,7 +91,14 @@ namespace zero.core.patterns.bushings
             {
                 //TODO tuning
                 //_queue = new IoZeroQ<IoSink<TJob>>($"zero Q: {_description}", capacity, asyncTasks:AsyncTasks, concurrencyLevel:ZeroConcurrencyLevel(),zeroAsyncMode:false);
-                _queue = new IoZeroSemaphoreChannel<IoSink<TJob>>($"zero Q: {_description}",capacity, zeroAsyncMode:true);//FALSE
+                //_queue = new IoZeroSemaphoreChannel<IoSink<TJob>>($"zero Q: {_description}",capacity, zeroAsyncMode:true);//FALSE
+                _queue = Channel.CreateBounded<IoSink<TJob>>(new BoundedChannelOptions(capacity * 2)
+                {
+                    SingleWriter = false,
+                    SingleReader = false,
+                    AllowSynchronousContinuations = false,
+                    FullMode = BoundedChannelFullMode.DropNewest
+                });
 
                 JobHeap = new IoHeapIo<IoSink<TJob>>($"{nameof(JobHeap)}: {_description}", capacity, jobMalloc) {
                     Constructor = (sink, zero) =>
@@ -140,7 +147,8 @@ namespace zero.core.patterns.bushings
         /// </summary>
         //private IoQueue<IoSink<TJob>> _queue;
         //private IoZeroQ<IoSink<TJob>> _queue;
-        private IoZeroSemaphoreChannel<IoSink<TJob>> _queue;
+        //private IoZeroSemaphoreChannel<IoSink<TJob>> _queue;
+        private Channel<IoSink<TJob>> _queue;
 
         /// <summary>
         /// The heap where new consumable meta data is allocated from
@@ -313,8 +321,6 @@ namespace zero.core.patterns.bushings
 #endif
         }
 
-        //private List<IoSink<TJob>> _backlog = new List<IoSink<TJob>>();
-
         /// <summary>
         /// Produce
         /// </summary>
@@ -326,13 +332,10 @@ namespace zero.core.patterns.bushings
             try
             {
                 //wait for prefetch pressure
-                if ((await Source.WaitForPrefetchPressureAsync().FastPath()).ElapsedMs() > 0x7ffffff)
-                    return false;
+                await Source.WaitForPrefetchPressureAsync().FastPath();
 
                 //Allocate a job from the heap
                 nextJob = await JobHeap.TakeAsync(null, this).FastPath();
-                //_backlog.Add(nextJob);
-
 #if DEBUG
                 if (ZeroRecoveryEnabled)
                     Debug.Assert(JobHeap.ReferenceCount - 1 <= Source.PrefetchSize + Source.ZeroConcurrencyLevel() << 1);
@@ -357,16 +360,21 @@ namespace zero.core.patterns.bushings
                     if (!Zeroed() && await nextJob.ProduceAsync(static async (job, @this) =>
                         {
                             //Block on producer back pressure
-                            if ((await job.Source.WaitForBackPressureAsync().FastPath()).ElapsedMs() > 0x7ffffff)
+                            try
+                            {
+                                await job.Source.WaitForBackPressureAsync().FastPath();
+                            }
+                            catch 
+                            {
                                 return false;
-
+                            }
                             return true;
                         }, this).FastPath() == IoJobMeta.JobState.Produced)
                     {
 #if DEBUG
                         //_logger.Debug($"{nameof(ProduceAsync)}: id = {nextJob.Id}, #{nextJob.Serial} - {Description}");
-                        if (_queue.WaitCount > 1 && _queue.WaitCount > _queue.Capacity * 2 / 3)
-                            _logger.Warn($"[[ENQUEUE]] backlog = {_queue.WaitCount}/{_queue.Capacity}, {nextJob.Description}, {Description}");
+                        if (_queue.Reader.Count > 1 && _queue.Reader.Count > JobHeap.Capacity * 2 / 3)
+                            _logger.Warn($"[[ENQUEUE]] backlog = {_queue.Reader.Count}/{JobHeap.Capacity}, {nextJob.Description}, {Description}");
 #endif
                         if (ZeroRecoveryEnabled)
                         {
@@ -389,7 +397,7 @@ namespace zero.core.patterns.bushings
                         //Enqueue the job for the consumer
                         await nextJob.SetStateAsync(IoJobMeta.JobState.Queued).FastPath();
 
-                        if(_queue.Release(nextJob) == 0)
+                        if(!_queue.Writer.TryWrite(nextJob))
                         {
                             ts = ts.ElapsedMs();
 
@@ -398,7 +406,7 @@ namespace zero.core.patterns.bushings
                             nextJob = null;
 
                             Source.BackPressure();
-                            Source.PrefetchPressure(zeroAsync: false);
+                            Source.PrefetchPressure(zeroAsync: true);
 
                             //IsArbitrating = false;
                             //Is the producer spinning? Slow it down
@@ -565,84 +573,83 @@ namespace zero.core.patterns.bushings
         /// <summary>
         /// Consume 
         /// </summary>
-        /// <param name="threadIndex"></param>
         /// <param name="inlineCallback">The inline callback.</param>
         /// <param name="nanite"></param>
         /// <returns>True if consumption happened</returns>
-        public async ValueTask<bool> ConsumeAsync<T>(int threadIndex, Func<IoSink<TJob>, T, ValueTask> inlineCallback = null, T nanite = default)
+        public async ValueTask<bool> ConsumeAsync<T>(Func<IoSink<TJob>, T, ValueTask> inlineCallback = null, T nanite = default)
         {
             try
             {
                 //A job was produced. Dequeue it and process
-                var curJob = await _queue.WaitAsync().FastPath();
-                
-                Debug.Assert(curJob != null);
-#if DEBUG
-                if (_queue.WaitCount > 1 && _queue.WaitCount > _queue.Capacity * 2 / 3)
-                    _logger.Warn($"[[DEQUEUE]] backlog = {_queue.WaitCount}, {curJob.Description}, {Description}");
-#endif
-                try
+                await foreach (var curJob in _queue.Reader.ReadAllAsync())
                 {
-                    await curJob.SetStateAsync(IoJobMeta.JobState.Consuming).FastPath();
-
-                    //Consume the job
-                    if (await curJob.ConsumeAsync().FastPath() == IoJobMeta.JobState.Consumed || curJob.State is IoJobMeta.JobState.ConInlined or IoJobMeta.JobState.FastDup)
-                    {
-                        if (curJob.State == IoJobMeta.JobState.ConInlined && inlineCallback != null)
-                        {
-                            //forward any jobs                                                                             
-                            await inlineCallback(curJob, nanite).FastPath();
-                        }
-
-                        //count the number of work done
-                        IncEventCounter();
-                    }
-                    else if (curJob.State != IoJobMeta.JobState.RSync &&
-                             curJob.State != IoJobMeta.JobState.ZeroRecovery && 
-                             curJob.State != IoJobMeta.JobState.Fragmented &&
-                             curJob.State != IoJobMeta.JobState.BadData && !Zeroed() && !curJob.Zeroed())
-                    {
-                        _logger?.Error($"{Description}: {curJob.TraceDescription} consuming job: {curJob.Description} was unsuccessful, state = {curJob.State}");
-                    }
-                }
-                catch (Exception) when (Zeroed() || curJob.Zeroed())
-                {
-                }
-                catch (Exception e) when (!Zeroed() && !curJob.Zeroed())
-                {
-                    _logger?.Error(e,
-                        $"{Description}: {curJob.TraceDescription} consuming job: {curJob.Description} returned with errors:");
-                }
-                finally
-                {
+                    Debug.Assert(curJob != null);
                     try
                     {
-                        //Consume success?
-                        await curJob.SetStateAsync(curJob.State is IoJobMeta.JobState.Consumed ? IoJobMeta.JobState.Accept : IoJobMeta.JobState.Reject).FastPath();
+                        await curJob.SetStateAsync(IoJobMeta.JobState.Consuming).FastPath();
 
-                        if (curJob.Id % parm_stats_mod_count == 0 && curJob.Id >= 9999)
+                        //Consume the job
+                        if (await curJob.ConsumeAsync().FastPath() == IoJobMeta.JobState.Consumed ||
+                            curJob.State is IoJobMeta.JobState.ConInlined or IoJobMeta.JobState.FastDup)
                         {
-                            await ZeroAtomicAsync(static (_, @this, _) =>
+                            if (curJob.State == IoJobMeta.JobState.ConInlined && inlineCallback != null)
                             {
-                                @this.DumpStats();
-                                return new ValueTask<bool>(true);
-                            }, this).FastPath();
+                                //forward any jobs                                                                             
+                                await inlineCallback(curJob, nanite).FastPath();
+                            }
+
+                            //count the number of work done
+                            IncEventCounter();
                         }
-
-                        await ZeroJobAsync(curJob, curJob.FinalState == IoJobMeta.JobState.Accept).FastPath();
-
-                        //back pressure
-                        Source.BackPressure(zeroAsync: false);//FALSE
+                        else if (curJob.State != IoJobMeta.JobState.RSync &&
+                                 curJob.State != IoJobMeta.JobState.ZeroRecovery &&
+                                 curJob.State != IoJobMeta.JobState.Fragmented &&
+                                 curJob.State != IoJobMeta.JobState.BadData && !Zeroed() && !curJob.Zeroed())
+                        {
+                            _logger?.Error(
+                                $"{Description}: {curJob.TraceDescription} consuming job: {curJob.Description} was unsuccessful, state = {curJob.State}");
+                        }
                     }
-                    catch when (Zeroed())
+                    catch (Exception) when (Zeroed() || curJob.Zeroed())
                     {
                     }
-                    catch (Exception e) when (!Zeroed())
+                    catch (Exception e) when (!Zeroed() && !curJob.Zeroed())
                     {
-                        _logger?.Fatal(e);
+                        _logger?.Error(e,
+                            $"{Description}: {curJob.TraceDescription} consuming job: {curJob.Description} returned with errors:");
+                    }
+                    finally
+                    {
+                        try
+                        {
+                            //Consume success?
+                            await curJob.SetStateAsync(curJob.State is IoJobMeta.JobState.Consumed
+                                ? IoJobMeta.JobState.Accept
+                                : IoJobMeta.JobState.Reject).FastPath();
+
+                            if (curJob.Id % parm_stats_mod_count == 0 && curJob.Id >= 9999)
+                            {
+                                await ZeroAtomicAsync(static (_, @this, _) =>
+                                {
+                                    @this.DumpStats();
+                                    return new ValueTask<bool>(true);
+                                }, this).FastPath();
+                            }
+
+                            await ZeroJobAsync(curJob, curJob.FinalState == IoJobMeta.JobState.Accept).FastPath();
+
+                            //back pressure
+                            Source.BackPressure(zeroAsync: false); //FALSE
+                        }
+                        catch when (Zeroed())
+                        {
+                        }
+                        catch (Exception e) when (!Zeroed())
+                        {
+                            _logger?.Fatal(e);
+                        }
                     }
                 }
-
                 return true;
             }
             catch (Exception) when (Zeroed())
@@ -718,6 +725,7 @@ namespace zero.core.patterns.bushings
 #endif
                 //Consumer
                 var width = Source.ZeroConcurrencyLevel();
+                //var width = 1;
                 for (var i = 0; i < width; i++)
                     await ZeroAsync(static async state =>
                     {
@@ -729,7 +737,7 @@ namespace zero.core.patterns.bushings
                             {
                                 try
                                 {
-                                    await @this.ConsumeAsync<object>(i).FastPath();
+                                    await @this.ConsumeAsync<object>().FastPath();
                                 }
                                 catch when (@this.Zeroed()) { }
                                 catch (Exception e) when (!@this.Zeroed())

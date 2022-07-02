@@ -1153,18 +1153,18 @@ namespace zero.cocoon.autopeer
                     return;
 
                 do{
-                    //The producer
+                    //The consumer
                     var width = _protocolConduit.Source.ZeroConcurrencyLevel();
+                    //var width = 1;
                     for (var i = 0; i < width; i++)
                         await ZeroAsync(static async state =>
                         {
                             var (@this, i) = state;
-                            //the consumer
                             try
                             {
                                 while (!@this.Zeroed())
                                 {
-                                    await @this._protocolConduit.ConsumeAsync(i,ProcessMessages(), @this).FastPath();
+                                    await @this._protocolConduit.ConsumeAsync(ProcessMessages(), @this).FastPath();
                                     
                                     [MethodImpl(MethodImplOptions.AggressiveInlining)]
                                     static Func<IoSink<CcProtocBatchJob<chroniton, CcDiscoveryBatch>>, CcAdjunct, ValueTask> ProcessMessages()
@@ -1295,32 +1295,17 @@ namespace zero.cocoon.autopeer
                         {
                             try
                             {
-                                var width = @this._protocolConduit.Source.PrefetchSize;
-                                //var preload = new ValueTask<bool>[width];
                                 while (!@this.Zeroed())
                                 {
-                                    //for (var i = 0; i < width && @this._protocolConduit.UpstreamSource.IsOperational(); i++)
+                                    try
                                     {
-                                        try
-                                        {
-                                            await @this._protocolConduit.ProduceAsync().FastPath();
-                                            //preload[i] = @this._protocolConduit.ProduceAsync();
-                                        }
-                                        catch (Exception e)
-                                        {
-                                            @this._logger.Error(e, $"Production failed for {@this.Description}");
-                                            break;
-                                        }
+                                        await @this._protocolConduit.ProduceAsync().FastPath();
                                     }
-
-                                    //var j = 0;
-                                    //while (await preload[j].FastPath() && ++j < width) { }
-
-                                    //if (j < width)
-                                    //    break;
-
-                                    //if(!await @this._zeroSync.WaitAsync().FastPath())
-                                    //    break;
+                                    catch (Exception e)
+                                    {
+                                        @this._logger.Error(e, $"Production failed for {@this.Description}");
+                                        break;
+                                    }
                                 }
                             }
                             catch when (@this.Zeroed() || @this.Source.Zeroed() || @this._protocolConduit?.UpstreamSource == null) { }
@@ -1331,10 +1316,7 @@ namespace zero.cocoon.autopeer
                         
                         },this, TaskCreationOptions.DenyChildAttach).FastPath();
 
-                   
-
                     await AsyncTasks.Token.BlockOnNotCanceledAsync().FastPath();
-                    //await Task.WhenAll(producer.AsTask(), consumer.AsTask());
                 }
                 while (!Zeroed());  
             }
@@ -2289,38 +2271,40 @@ namespace zero.cocoon.autopeer
         /// <param name="packet">The original packet</param>
         private async ValueTask ProcessAsync(CcProbeResponse response, IPEndPoint src, chroniton packet)
         {
-            var matchRequest = await _probeRequest.ResponseAsync(src.ToString(), response.ReqHash).FastPath();
+            try
+            {
+                var matchRequest = await _probeRequest.ResponseAsync(src.ToString(), response.ReqHash).FastPath();
             
-            //Try the router
-            if (!matchRequest && IsProxy && Hub != null)
-                matchRequest = await Hub.Router._probeRequest.ResponseAsync(src.ToString(), response.ReqHash).FastPath();
+                //Try the router
+                if (!matchRequest && IsProxy && Hub != null)
+                    matchRequest = await Hub.Router._probeRequest.ResponseAsync(src.ToString(), response.ReqHash).FastPath();
 
 //#if DEBUG
 //            //Try the DBG source info //TODO: is this fixed?
 //            if (!matchRequest && IsProxy)
 //                matchRequest = await _probeRequest.ResponseAsync(packet.Header.Ip.Src.GetEndpoint().ToString(), response.ReqHash).FastPath();
 //#endif
-            if (!matchRequest)
-            {
-#if DEBUG
-                if (IsProxy && _probeRequest.Count > 0)
+                if (!matchRequest)
                 {
-                    _logger.Error($"<\\- {nameof(CcProbeResponse)} {packet.Data.Memory.PayloadSig()}: SEC! age = {response.Timestamp.ElapsedUtcMs()}ms, matcher = ({_probeRequest.Count}, {Router._probeRequest.Count}) ,{response.ReqHash.Memory.HashSig()}, d = {_probeRequest.Count}, pats = {TotalPats},  " +
-                                  $"PK={Designation.IdString()} != {CcDesignation.MakeKey(packet.PublicKey)} (proxy = {IsProxy}),  ssp = {SecondsSincePat}, d = {(AttachTimestamp > 0 ? (AttachTimestamp - LastPat).ToString() : "N/A")}, v = {Verified}, s = {src}, nat = {NatAddress}, dmz = {packet.Header.Ip.Src.GetEndpoint()}");
-                    _probeRequest.DumpToLog();
-                }
-#endif
-                return;
-            }
-
-            Interlocked.Exchange(ref _zeroProbes, 0);
-
-            //Process SYN-ACK
-            if (!IsProxy)
-            {
-                var ccId = CcDesignation.FromPubKey(packet.PublicKey.Memory);
 #if DEBUG
-                var fromAddress = IoNodeAddress.CreateFromEndpoint("udp", packet.Header.Ip.Src.GetEndpoint());
+                    if (IsProxy && !Zeroed() && _probeRequest.Count > 0)
+                    {
+                        _logger.Error($"<\\- {nameof(CcProbeResponse)} {packet.Data.Memory.PayloadSig()}: SEC! age = {response.Timestamp.ElapsedUtcMs()}ms, matcher = ({_probeRequest.Count}, {Router._probeRequest.Count}) ,{response.ReqHash.Memory.HashSig()}, d = {_probeRequest.Count}, pats = {TotalPats},  " +
+                                      $"PK={Designation.IdString()} != {CcDesignation.MakeKey(packet.PublicKey)} (proxy = {IsProxy}),  ssp = {SecondsSincePat}, d = {(AttachTimestamp > 0 ? (AttachTimestamp - LastPat).ToString() : "N/A")}, v = {Verified}, s = {src}, nat = {NatAddress}, dmz = {packet.Header.Ip.Src.GetEndpoint()}");
+                        _probeRequest.DumpToLog();
+                    }
+#endif
+                    return;
+                }
+
+                Interlocked.Exchange(ref _zeroProbes, 0);
+
+                //Process SYN-ACK
+                if (!IsProxy)
+                {
+                    var ccId = CcDesignation.FromPubKey(packet.PublicKey.Memory);
+#if DEBUG
+                    var fromAddress = IoNodeAddress.CreateFromEndpoint("udp", packet.Header.Ip.Src.GetEndpoint());
 #else
                 //var fromAddress = IoNodeAddress.CreateFromEndpoint("udp", packet.Header.Ip.Src.GetEndpoint());
                 //TODO route issue
@@ -2328,84 +2312,90 @@ namespace zero.cocoon.autopeer
 #endif
 
 
-                //var remoteServices = new CcService();
-                //foreach (var key in pong.Services.Map.Keys.ToList())
-                //    remoteServices.CcRecord.Endpoints.TryAdd(Enum.Parse<CcService.Keys>(key),
-                //        IoNodeAddress.Create(
-                //            $"{pong.Services.Map[key].Network}://{((IPEndPoint) extraData).Address}:{pong.Services.Map[key].Port}"));
+                    //var remoteServices = new CcService();
+                    //foreach (var key in pong.Services.Map.Keys.ToList())
+                    //    remoteServices.CcRecord.Endpoints.TryAdd(Enum.Parse<CcService.Keys>(key),
+                    //        IoNodeAddress.Create(
+                    //            $"{pong.Services.Map[key].Network}://{((IPEndPoint) extraData).Address}:{pong.Services.Map[key].Port}"));
 
 
-                //Collect...
-                if (Hub.Neighbors.Count <= CcCollective.MaxAdjuncts)
-                {
-                    await ZeroAsync(static async state =>
+                    //Collect...
+                    if (Hub.Neighbors.Count <= CcCollective.MaxAdjuncts)
                     {
-                        var (@this, fromAddress, ccId) = state;
-                        if (!await @this.CollectAsync(fromAddress.IpEndPoint, ccId, true).FastPath())
+                        await ZeroAsync(static async state =>
                         {
+                            var (@this, fromAddress, ccId) = state;
+                            if (!await @this.CollectAsync(fromAddress.IpEndPoint, ccId, true).FastPath())
+                            {
 #if DEBUG
-                            @this._logger.Trace($"{@this.Description}: Collecting {fromAddress.IpEndPoint} failed!");
+                                @this._logger.Trace($"{@this.Description}: Collecting {fromAddress.IpEndPoint} failed!");
 #else
                             @this._logger.Trace($"{@this.Description}: Collecting {fromAddress.IpEndPoint} failed!");
 #endif
-                        }
-                    }, ValueTuple.Create(this, fromAddress, ccId), TaskCreationOptions.DenyChildAttach).FastPath();
+                            }
+                        }, ValueTuple.Create(this, fromAddress, ccId), TaskCreationOptions.DenyChildAttach).FastPath();
+                    }
                 }
-            }
-            else if (!Verified) //Process ACK
-            {
-                //PAT
-                LastPat = Environment.TickCount;
+                else if (!Verified) //Process ACK
+                {
+                    //PAT
+                    LastPat = Environment.TickCount;
 
 #if DEBUG
-                //TODO: vector?
-                //set ext address as seen by neighbor
-                DebugAddress = IoNodeAddress.CreateFromEndpoint("udp", packet.Header.Ip.Src.GetEndpoint());
-                NatAddress = DebugAddress;
+                    //TODO: vector?
+                    //set ext address as seen by neighbor
+                    DebugAddress = IoNodeAddress.CreateFromEndpoint("udp", packet.Header.Ip.Src.GetEndpoint());
+                    NatAddress = DebugAddress;
 #else
                 NatAddress = IoNodeAddress.CreateFromEndpoint("udp", src);
 #endif
-                Verified = true;
+                    Verified = true;
 
-                AdjunctState oldState;
-                if ((oldState = CompareAndEnterState(AdjunctState.Verified, AdjunctState.Unverified)) != AdjunctState.Unverified)
-                {
-                    _logger.Warn($"{nameof(CcProbeResponse)} - {Description}: Invalid state, {oldState}. Wanted {nameof(AdjunctState.Unverified)}");
-                    return;
-                }
+                    AdjunctState oldState;
+                    if ((oldState = CompareAndEnterState(AdjunctState.Verified, AdjunctState.Unverified)) != AdjunctState.Unverified)
+                    {
+                        _logger.Warn($"{nameof(CcProbeResponse)} - {Description}: Invalid state, {oldState}. Wanted {nameof(AdjunctState.Unverified)}");
+                        return;
+                    }
 
-                if(CcCollective.ZeroDrone)
-                    _logger.Warn($"Verified with queen `{src}'");
+                    if(CcCollective.ZeroDrone)
+                        _logger.Warn($"Verified with queen `{src}'");
 
 #if DEBUG
-                _logger.Trace($"<\\- {nameof(CcProbeResponse)}[{response.ToByteArray().PayloadSig()} ~ {response.ReqHash.Memory.HashSig()}]: Processed <<SYN-ACK>>: {Description}");
+                    _logger.Trace($"<\\- {nameof(CcProbeResponse)}[{response.ToByteArray().PayloadSig()} ~ {response.ReqHash.Memory.HashSig()}]: Processed <<SYN-ACK>>: {Description}");
 #endif
+                }
+                else 
+                {
+#if DEBUG
+                    _sibling = (CcAdjunct)GCHandle.FromIntPtr(new IntPtr(response.DbgPtr)).Target;
+#endif
+                    //PAT
+                    LastPat = Environment.TickCount;
+#if DEBUG
+                    if(NatAddress == null)
+                        NatAddress = IoNodeAddress.CreateFromEndpoint("udp", src);
+                    else if (!Equals(src, NatAddress.IpEndPoint))
+                    {
+                        _logger.Fatal($"Bad NAT address, switching {NatAddress} to {src}");
+                        NatAddress = IoNodeAddress.CreateFromEndpoint("udp", src);
+                    }
+#endif
+
+                    if (!CcCollective.ZeroDrone)
+                        await SeduceAsync("ACK-SYN-VCK", Heading.Both).FastPath();
+
+                    //Ask drones that we are not connected to, to drop us
+                    if (((DroneStatus)response.Status).HasFlag(DroneStatus.Drone) && !IsDroneAttached && UpTime.ElapsedMs() > parm_min_uptime_ms)
+                    {
+                        await DeFuseAsync().FastPath();
+                    }
+                }
             }
-            else 
+            catch when(Zeroed()){}
+            catch (Exception e) when (!Zeroed())
             {
-#if DEBUG
-                _sibling = (CcAdjunct)GCHandle.FromIntPtr(new IntPtr(response.DbgPtr)).Target;
-#endif
-                //PAT
-                LastPat = Environment.TickCount;
-#if DEBUG
-                if(NatAddress == null)
-                    NatAddress = IoNodeAddress.CreateFromEndpoint("udp", src);
-                else if (!Equals(src, NatAddress.IpEndPoint))
-                {
-                    _logger.Fatal($"Bad NAT address, switching {NatAddress} to {src}");
-                    NatAddress = IoNodeAddress.CreateFromEndpoint("udp", src);
-                }
-#endif
-
-                if (!CcCollective.ZeroDrone)
-                    await SeduceAsync("ACK-SYN-VCK", Heading.Both).FastPath();
-
-                //Ask drones that we are not connected to, to drop us
-                if (((DroneStatus)response.Status).HasFlag(DroneStatus.Drone) && !IsDroneAttached && UpTime.ElapsedMs() > parm_min_uptime_ms)
-                {
-                    await DeFuseAsync().FastPath();
-                }
+                _logger.Error(e, $"{nameof(ProcessAsync)}: FAILED! - {Description}");
             }
         }
 

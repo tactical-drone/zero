@@ -35,15 +35,15 @@ namespace zero.cocoon.models
 
             IoZero = (IoZero<CcProtocMessage<chroniton, CcDiscoveryBatch>>)context;
             
-            var pf = 4;
-            var cc = 3; 
+            var pf = 3;
+            var cc = 2; 
 
             if (!Source.Proxy && Adjunct.CcCollective.ZeroDrone)
             {
                 parm_max_msg_batch_size *= 2;
                 
-                pf = 4;
-                cc = 3;
+                pf = 3;
+                cc = 2;
             }
 
 #if DEBUG

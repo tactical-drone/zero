@@ -68,7 +68,7 @@ namespace zero.cocoon
 
             _m = new CcWhisperMsg() { Data = UnsafeByteOperations.UnsafeWrap(new ReadOnlyMemory<byte>(_vb)) };
 
-            _sendBuf = new IoHeap<byte[]>($"{nameof(_sendBuf)}: {Description}", 8, (_, _) => new byte[32],true);
+            _sendBuf = new IoHeap<byte[]>($"{nameof(_sendBuf)}: {Description}", 16, (_, _) => new byte[32],true);
         }
 
         /// <summary>

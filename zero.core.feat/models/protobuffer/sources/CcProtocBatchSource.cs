@@ -1,12 +1,12 @@
 ﻿using System;
 using System.Runtime.CompilerServices;
+using System.Threading.Channels;
 using System.Threading.Tasks;
 using Google.Protobuf;
 using NLog;
 using zero.core.patterns.bushings;
 using zero.core.patterns.bushings.contracts;
 using zero.core.patterns.misc;
-using zero.core.patterns.queue;
 using zero.core.patterns.semaphore.core;
 
 namespace zero.core.feat.models.protobuffer.sources
@@ -33,8 +33,16 @@ namespace zero.core.feat.models.protobuffer.sources
 
             UpstreamSource = ioSource;
             //BatchQueue = new IoQueue<TBatch>($"{nameof(CcProtocBatchSource<TModel, TBatch>)}: {ioSource.Description}", (prefetchSize + concurrencyLevel), prefetchSize + 1, IoQueue<TBatch>.Mode.Pressure | IoQueue<TBatch>.Mode.BackPressure);
-            IIoZeroSemaphoreBase <TBatch> q = new IoZeroCore<TBatch>($"{nameof(CcProtocBatchSource<TModel, TBatch>)}: {ioSource.Description}", (prefetchSize + concurrencyLevel) * 2, AsyncTasks);
-            BatchQueue = q.ZeroRef(ref q, _ => default);
+            //IIoZeroSemaphoreBase <TBatch> q = new IoZeroCore<TBatch>($"{nameof(CcProtocBatchSource<TModel, TBatch>)}: {ioSource.Description}", (prefetchSize + concurrencyLevel) * 2, AsyncTasks, zeroAsyncMode:true);
+            //BatchQueue = q.ZeroRef(ref q, _ => default);
+
+            BatchQueue = Channel.CreateBounded<TBatch>(new BoundedChannelOptions(prefetchSize + concurrencyLevel)
+            {
+                SingleWriter = false,
+                SingleReader = false,
+                AllowSynchronousContinuations = false,
+                FullMode = BoundedChannelFullMode.DropNewest
+            });
         }
 
         /// <summary>
@@ -46,7 +54,8 @@ namespace zero.core.feat.models.protobuffer.sources
         /// Used to load the next value to be produced
         /// </summary>
         //protected readonly IoQueue<TBatch> BatchQueue;
-        protected readonly IIoZeroSemaphoreBase<TBatch> BatchQueue;
+        //protected readonly IIoZeroSemaphoreBase<TBatch> BatchQueue;
+        protected readonly Channel<TBatch> BatchQueue;
 
         /// <summary>
         /// Keys this instance.
@@ -84,7 +93,7 @@ namespace zero.core.feat.models.protobuffer.sources
         public override async ValueTask ZeroManagedAsync()
         {
             await base.ZeroManagedAsync().FastPath();
-            BatchQueue.ZeroSem();
+            //BatchQueue.ZeroSem();
             //await BatchQueue.ZeroManagedAsync(static (msgBatch,_) =>
             //{
             //    msgBatch.Value.Dispose();
@@ -95,7 +104,7 @@ namespace zero.core.feat.models.protobuffer.sources
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public override bool Zeroed()
         {
-            return base.Zeroed() || BatchQueue.Zeroed() || UpstreamSource.Zeroed();
+            return base.Zeroed() || UpstreamSource.Zeroed();
         }
 
         /// <summary>
@@ -103,17 +112,18 @@ namespace zero.core.feat.models.protobuffer.sources
         /// </summary>
         /// <param name="item">The messages</param>
         /// <returns>Async task</returns>
-        public ValueTask<bool> EnqueueAsync(TBatch item)
+        public async ValueTask<bool> EnqueueAsync(TBatch item)
         {
             try
             {
-                return new ValueTask<bool>(BatchQueue.Release(item) == 1);
+                await BatchQueue.Writer.WriteAsync(item).FastPath();
+                return true;
             }
             catch (Exception e)
             {
                 if (!Zeroed())
-                    _logger.Fatal(e, $"{nameof(EnqueueAsync)}: [FAILED], {BatchQueue.WaitCount}");
-                return new ValueTask<bool>(false);
+                    _logger.Fatal(e, $"{nameof(EnqueueAsync)}: [FAILED], {BatchQueue.Reader.Count}");
+                return false;
             }
         }
 
@@ -126,7 +136,7 @@ namespace zero.core.feat.models.protobuffer.sources
             try
             {
                 //return BatchQueue.DequeueAsync();
-                return BatchQueue.WaitAsync();
+                return BatchQueue.Reader.ReadAsync();
             }
             catch when (Zeroed()){}
             catch (Exception e)when (!Zeroed())
@@ -141,7 +151,7 @@ namespace zero.core.feat.models.protobuffer.sources
         /// Queue count
         /// </summary>
         /// <returns>returns number of items in the q</returns>
-        public uint Count => (uint)BatchQueue.WaitCount;
+        public uint Count => (uint)BatchQueue.Reader.Count;
 
     }
 }

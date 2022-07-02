@@ -6,7 +6,6 @@ using System.Threading.Channels;
 using System.Threading.Tasks;
 using NLog;
 using zero.core.patterns.misc;
-using zero.core.patterns.queue;
 
 namespace zero.core.patterns.heap
 {
@@ -40,7 +39,7 @@ namespace zero.core.patterns.heap
             _description = description;
             Malloc = malloc;
             //_ioHeapBuf = new IoZeroQ<TItem>($"{nameof(_ioHeapBuf)}: {description}", capacity,autoScale);
-            _ioHeapBuf = Channel.CreateBounded<TItem>(new BoundedChannelOptions(capacity)
+            _ioHeapBuf = Channel.CreateBounded<TItem>(new BoundedChannelOptions(capacity * 2)
             {
                 SingleWriter = false,
                 SingleReader = false,

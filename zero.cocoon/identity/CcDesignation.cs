@@ -84,22 +84,22 @@ namespace zero.cocoon.identity
         public byte[] Sign(byte[] buffer, int offset, int len)
         {
             var sigBuf = ArrayPool<byte>.Shared.Rent(Ed25519.SignatureSize);
-            Ed25519.Sign(SecretKey, 0, buffer, offset, len, sigBuf, 0);
+            //Ed25519.Sign(SecretKey, 0, buffer, offset, len, sigBuf, 0);
             return sigBuf;
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public byte[] Sign(byte[] buffer, byte[] sigBuf, int offset, int len)
         {
-            Ed25519.Sign(SecretKey, 0, buffer, offset, len, sigBuf, 0);
+            //Ed25519.Sign(SecretKey, 0, buffer, offset, len, sigBuf, 0);
             return sigBuf;
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static bool Verify(byte[] msg, int offset, int len, byte[] pubKey, int keyOffset, byte[] signature, int sigOffset)
         {
-            return Ed25519.Verify(signature, sigOffset, pubKey, keyOffset, msg, offset, len);
-            //return true;
+            //return Ed25519.Verify(signature, sigOffset, pubKey, keyOffset, msg, offset, len);
+            return true;
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]

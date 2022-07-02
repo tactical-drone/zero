@@ -6,7 +6,6 @@ using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
 using NLog;
-using zero.core.misc;
 using zero.core.patterns.heap;
 using zero.core.patterns.misc;
 using zero.core.patterns.queue.enumerator;
@@ -438,7 +437,7 @@ namespace zero.core.patterns.queue
                         retVal = dq.Value;
                         dq.Value = default;
                         _nodeHeap.Return(dq);
-                        _backPressure?.Release(true, true);
+                        _backPressure?.Release(true, false);//FALSE
                     }
                 }
                 catch when (_zeroed > 0) { }

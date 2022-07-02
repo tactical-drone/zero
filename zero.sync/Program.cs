@@ -95,13 +95,14 @@ namespace zero.sync
 
             //Task.Factory.StartNew(async () =>
             //{
-            //    await SemTestAsync();
-            //    //await QueueTestAsync();
+            //    //await SemTestAsync();
+            //    await QueueTestAsync();
             //}, CancellationToken.None, TaskCreationOptions.DenyChildAttach, IoZeroScheduler.ZeroDefault).Unwrap().GetAwaiter().GetResult();
 
             //Tune dotnet for large tests
             ThreadPool.GetMinThreads(out var wt, out var cp);
             ThreadPool.SetMinThreads(wt * 3, cp * 2);
+            
 
             LogManager.LoadConfiguration("nlog.config");
             var portOffset = 7051;
