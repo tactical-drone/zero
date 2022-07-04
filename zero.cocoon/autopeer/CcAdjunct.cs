@@ -2601,7 +2601,10 @@ namespace zero.cocoon.autopeer
             {
                 if (!Assimilating || !Probed && !CcCollective.ZeroDrone)
                 {
-                    _logger.Trace($"{nameof(ScanAsync)}: [ABORTED], {Description}, s = {State}, a = {Assimilating}");
+                    if (!IsProxy && !Probed && UpTime.ElapsedMs() > parm_min_uptime_ms)
+                        await DisposeAsync(this, "Adjunct not responsive...");
+                    else
+                        _logger.Trace($"{nameof(ScanAsync)}: [ABORTED], {Description}, s = {State}, a = {Assimilating}");
                     return false;
                 }
 
