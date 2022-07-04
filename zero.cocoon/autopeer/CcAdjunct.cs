@@ -2599,33 +2599,37 @@ namespace zero.cocoon.autopeer
         {
             try
             {
-                if (IsProxy && (!Assimilating || !Probed && !CcCollective.ZeroDrone))
+                //insane checks for proxy scanning only
+                if (IsProxy)
                 {
-                    if (!Probed && UpTime.ElapsedMs() > parm_min_uptime_ms)
-                        await DisposeAsync(this, "Adjunct not responsive...");
-                    else
-                        _logger.Trace($"{nameof(ScanAsync)}: [ABORTED], {Description}, s = {State}, a = {Assimilating}");
-                    return false;
-                }
-
-                if (_scanCount > parm_zombie_max_connection_attempts)
-                {
-                    _logger.Trace($"{nameof(ScanAsync)}: [skipped], no replies {Description}, s = {State}, a = {Assimilating}");
-                    if (!IsDroneAttached)
+                    if (!Assimilating || !Probed && !CcCollective.ZeroDrone)
                     {
-                        await DisposeAsync(this, $"{nameof(ScanAsync)}: Unable to scan adjunct, count = {_scanCount} << {parm_zombie_max_connection_attempts}").FastPath();
+                        if (!Probed && UpTime.ElapsedMs() > parm_min_uptime_ms)
+                            await DisposeAsync(this, "Adjunct not responsive...");
+                        else
+                            _logger.Trace($"{nameof(ScanAsync)}: [ABORTED], {Description}, s = {State}, a = {Assimilating}");
                         return false;
                     }
-                        
-                    return true;
+
+                    if (_scanCount > parm_zombie_max_connection_attempts)
+                    {
+                        _logger.Trace($"{nameof(ScanAsync)}: [skipped], no replies {Description}, s = {State}, a = {Assimilating}");
+                        if (!IsDroneAttached)
+                        {
+                            await DisposeAsync(this, $"{nameof(ScanAsync)}: Unable to scan adjunct, count = {_scanCount} << {parm_zombie_max_connection_attempts}").FastPath();
+                            return false;
+                        }
+
+                        return true;
+                    }
+
+                    if (cooldown == -1)
+                        cooldown = CcCollective.parm_mean_pat_delay_s * 1000 / 5;
+
+                    //rate limit
+                    if (LastScan.ElapsedMs() < cooldown)
+                        return false;
                 }
-
-                if (cooldown == -1)
-                    cooldown = CcCollective.parm_mean_pat_delay_s * 1000 / 5;
-
-                //rate limit
-                if (IsProxy && LastScan.ElapsedMs() < cooldown)
-                    return false;
 
                 var sweepMessage = new CcScanRequest
                 {
