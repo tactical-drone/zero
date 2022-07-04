@@ -2599,9 +2599,9 @@ namespace zero.cocoon.autopeer
         {
             try
             {
-                if (!Assimilating || !Probed && !CcCollective.ZeroDrone)
+                if (IsProxy && (!Assimilating || !Probed && !CcCollective.ZeroDrone))
                 {
-                    if (IsProxy && !Probed && UpTime.ElapsedMs() > parm_min_uptime_ms)
+                    if (!Probed && UpTime.ElapsedMs() > parm_min_uptime_ms)
                         await DisposeAsync(this, "Adjunct not responsive...");
                     else
                         _logger.Trace($"{nameof(ScanAsync)}: [ABORTED], {Description}, s = {State}, a = {Assimilating}");
@@ -2624,7 +2624,7 @@ namespace zero.cocoon.autopeer
                     cooldown = CcCollective.parm_mean_pat_delay_s * 1000 / 5;
 
                 //rate limit
-                if (LastScan.ElapsedMs() < cooldown)
+                if (IsProxy && LastScan.ElapsedMs() < cooldown)
                     return false;
 
                 var sweepMessage = new CcScanRequest
