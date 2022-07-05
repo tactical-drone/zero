@@ -11,7 +11,7 @@
 	  <GCCpuGroup>0</GCCpuGroup>
 	  <GCNoAffinitize>false</GCNoAffinitize>
 	  <GCLOHThreshold>120000</GCLOHThreshold>
-	  <GCConserveMemory>0</GCConserveMemory>
+	  <GCConserveMemory>7</GCConserveMemory>
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">

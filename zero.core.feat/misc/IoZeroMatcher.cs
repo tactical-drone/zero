@@ -151,7 +151,7 @@ namespace zero.core.feat.misc
                             var aveCounter = 0;
                             while (c != null)
                             {
-                                ave += c.Value.TimestampMs.ElapsedMs();
+                                ave += c.Value.TimestampMs.ElapsedUtcMs();
                                 aveCounter++;
                                 c = c.Next;
                             }
@@ -173,7 +173,7 @@ namespace zero.core.feat.misc
                     if (bytesWritten > 0)
                     {
                         challenge.Key = response.Key;
-                        challenge.TimestampMs = Environment.TickCount;
+                        challenge.TimestampMs = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
                         response.Node = await _lut.EnqueueAsync(challenge).FastPath();
                         if (response.Node == null)
                         {
@@ -247,7 +247,7 @@ namespace zero.core.feat.misc
 
                 try
                 {
-                    if (cur.Value.TimestampMs.ElapsedMs() <= _ttlMs && cur.Value.Key == key &&
+                    if (cur.Value.TimestampMs.ElapsedUtcMs() <= _ttlMs && cur.Value.Key == key &&
                         cur.Value.Hash.ArrayEqual(reqHash.Span))
                     {
                         var tmp = Volatile.Read(ref cur.Value);
@@ -256,7 +256,7 @@ namespace zero.core.feat.misc
                         return true;
                     }
 
-                    if (cur.Value.TimestampMs.ElapsedMs() > _ttlMs)
+                    if (cur.Value.TimestampMs.ElapsedUtcMs() > _ttlMs)
                     {
                         var value = Volatile.Read(ref cur.Value);
                         await @this._lut.RemoveAsync(cur).FastPath();
@@ -299,7 +299,7 @@ namespace zero.core.feat.misc
                 while (n != null && c --> 0)
                 {
                     var t = n.Next;
-                    if (n.Value.TimestampMs.ElapsedMs() > _ttlMs)
+                    if (n.Value.TimestampMs.ElapsedUtcMs() > _ttlMs)
                     {
                         var value = n.Value;
                         await _lut.RemoveAsync(n).FastPath();
@@ -345,7 +345,7 @@ namespace zero.core.feat.misc
                 var cur = _lut.Head;
                 while (cur != null)
                 {
-                    _logger.Error($"{cur.Value.Hash.HashSig()}[{cur.Value.Key}], t = {cur.Value.TimestampMs.ElapsedMs()}ms");
+                    _logger.Error($"{cur.Value.Hash.HashSig()}[{cur.Value.Key}], t = {cur.Value.TimestampMs.ElapsedUtcMs()}ms");
                     cur = cur.Next;
                 }
             }
@@ -415,7 +415,7 @@ namespace zero.core.feat.misc
             /// <summary>
             /// When the payload was challenged
             /// </summary>
-            public volatile int TimestampMs;
+            public long TimestampMs;
 
             /// <summary>
             /// The hash
