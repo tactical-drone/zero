@@ -664,8 +664,12 @@ namespace zero.cocoon.autopeer
                 //swarm 
                 await ZeroAsync(static async @this =>
                 {
-                    await Task.Delay(@this._random.Next(@this.parm_max_network_latency_ms), @this.AsyncTasks.Token);
-                    await @this.Router.ProbeAsync("SYN-BRG", @this.RemoteAddress.Copy());
+                    if (@this.Router != null)
+                    {
+                        await Task.Delay(@this._random.Next(@this.parm_max_network_latency_ms), @this.AsyncTasks.Token);
+                        if (@this.Router != null)
+                            await @this.Router.ProbeAsync("SYN-BRG", @this.RemoteAddress.Copy());
+                    }
                 }, this, TaskCreationOptions.DenyChildAttach).FastPath();
 
                 if (!CcCollective.ZeroDrone && AutoPeeringEventService.Operational)
@@ -687,7 +691,6 @@ namespace zero.cocoon.autopeer
             await _probeRequest.DisposeAsync(this, $"{nameof(ZeroManagedAsync)}: teardown").FastPath();
             await _fuseRequest.DisposeAsync(this, $"{nameof(ZeroManagedAsync)}: teardown").FastPath();
             await _scanRequest.DisposeAsync(this, $"{nameof(ZeroManagedAsync)}: teardown").FastPath();
-
         }
 
         /// <summary>
@@ -1742,64 +1745,76 @@ namespace zero.cocoon.autopeer
         /// <param name="packet">The original packet</param>
         private async ValueTask ProcessAsync(CcAdjunctResponse response, IPEndPoint src, chroniton packet)
         {
-            Interlocked.Increment(ref _scanCount);
-
-            var matchRequest = await _scanRequest.ResponseAsync(src.ToString(), response.ReqHash).FastPath();
-            if(!matchRequest)
-                matchRequest = await Router._scanRequest.ResponseAsync(src.ToString(), response.ReqHash).FastPath();
-
-            if (!matchRequest || !Assimilating || response.Contacts.Count > parm_max_swept_drones)
+            try
             {
-                if (IsProxy && response.Contacts.Count <= parm_max_swept_drones)
-                    _logger.Debug($"{nameof(CcAdjunctResponse)}{response.ToByteArray().PayloadSig()}: Reject, rq = {response.ReqHash.Memory.HashSig()}, {response.Contacts.Count} > {parm_max_swept_drones}? from {CcDesignation.FromPubKey(packet.PublicKey.Memory).IdString()}, RemoteAddress = {RemoteAddress}, c = {_scanRequest.Count}, matched[{src}]");
-                return;
-            }
+                Interlocked.Increment(ref _scanCount);
 
-            //_logger.Debug($"<\\- {nameof(CcAdjunctResponse)}: Received {response.Contacts.Count} potentials from {Description}");
+                var matchRequest = await _scanRequest.ResponseAsync(src.ToString(), response.ReqHash).FastPath();
+                if (!matchRequest)
+                    matchRequest = await Router._scanRequest.ResponseAsync(src.ToString(), response.ReqHash).FastPath();
 
-            _lastScan = Environment.TickCount;
-
-            //PAT
-            LastPat = Environment.TickCount;
-            var processed = 0;
-            foreach (var sweptDrone in response.Contacts)
-            {
-                //Any services attached?
-                //if (responsePeer.Services?.Map == null || responsePeer.Services.Map.Count == 0)
-                //{
-                //    _logger.Trace(
-                //        $"<\\- {nameof(CcAdjunctResponse)}: Invalid services recieved!, map = {responsePeer.Services?.Map}, count = {responsePeer.Services?.Map?.Count ?? -1}");
-                //    continue;
-                //}
-
-                ////ignore strange services
-                //if (count > parm_max_services)
-                //    continue;
-
-                //Never add ourselves (by ID)
-                if (sweptDrone.PublicKey.Memory.ArrayEqual(CcCollective.CcId.PublicKey))
-                    continue;
-
-                //Don't add already known neighbors
-                var id = CcDesignation.MakeKey(sweptDrone.PublicKey);
-                
-                if (Hub.Neighbors.Values.Any(n => ((CcAdjunct) n).Designation.IdString() == id))
-                    continue;
-
-                var newRemoteEp = sweptDrone.Url.GetEndpoint();
-                
-                if (!newRemoteEp.Equals(Router.MessageService.IoNetSocket.NativeSocket.RemoteEndPoint) && 
-                    !await Router.ProbeAsync("DMZ-SYN-SCA", IoNodeAddress.CreateFromEndpoint("udp", newRemoteEp)).FastPath())
+                if (!matchRequest || !Assimilating || response.Contacts.Count > parm_max_swept_drones)
                 {
-#if DEBUG
-                    _logger.Trace($"{Description}: Probing swept {newRemoteEp.Address} failed!");
-#endif
+                    if (IsProxy && response.Contacts.Count <= parm_max_swept_drones)
+                        _logger.Debug(
+                            $"{nameof(CcAdjunctResponse)}{response.ToByteArray().PayloadSig()}: Reject, rq = {response.ReqHash.Memory.HashSig()}, {response.Contacts.Count} > {parm_max_swept_drones}? from {CcDesignation.FromPubKey(packet.PublicKey.Memory).IdString()}, RemoteAddress = {RemoteAddress}, c = {_scanRequest.Count}, matched[{src}]");
+                    return;
                 }
-                processed++;
-            }
 
-            if (processed > 0)
-                _logger.Debug($"<\\- {nameof(CcAdjunctResponse)}: Processed {processed}/{response.Contacts.Count} potential adjuncts from {Description}");
+                //_logger.Debug($"<\\- {nameof(CcAdjunctResponse)}: Received {response.Contacts.Count} potentials from {Description}");
+
+                _lastScan = Environment.TickCount;
+
+                //PAT
+                LastPat = Environment.TickCount;
+                var processed = 0;
+                foreach (var sweptDrone in response.Contacts)
+                {
+                    //Any services attached?
+                    //if (responsePeer.Services?.Map == null || responsePeer.Services.Map.Count == 0)
+                    //{
+                    //    _logger.Trace(
+                    //        $"<\\- {nameof(CcAdjunctResponse)}: Invalid services recieved!, map = {responsePeer.Services?.Map}, count = {responsePeer.Services?.Map?.Count ?? -1}");
+                    //    continue;
+                    //}
+
+                    ////ignore strange services
+                    //if (count > parm_max_services)
+                    //    continue;
+
+                    //Never add ourselves (by ID)
+                    if (sweptDrone.PublicKey.Memory.ArrayEqual(CcCollective.CcId.PublicKey))
+                        continue;
+
+                    //Don't add already known neighbors
+                    var id = CcDesignation.MakeKey(sweptDrone.PublicKey);
+
+                    if (Hub.Neighbors.Values.Any(n => ((CcAdjunct)n).Designation.IdString() == id))
+                        continue;
+
+                    var newRemoteEp = sweptDrone.Url.GetEndpoint();
+
+                    if (!newRemoteEp.Equals(Router.MessageService.IoNetSocket.NativeSocket.RemoteEndPoint) &&
+                        !await Router.ProbeAsync("DMZ-SYN-SCA", IoNodeAddress.CreateFromEndpoint("udp", newRemoteEp))
+                            .FastPath())
+                    {
+#if DEBUG
+                        _logger.Trace($"{Description}: Probing swept {newRemoteEp.Address} failed!");
+#endif
+                    }
+
+                    processed++;
+                }
+
+                if (processed > 0)
+                    _logger.Debug(
+                        $"<\\- {nameof(CcAdjunctResponse)}: Processed {processed}/{response.Contacts.Count} potential adjuncts from {Description}");
+            }
+            catch when (Zeroed()){ }
+            catch (Exception e) when (!Zeroed())
+            {
+                _logger.Error(e, $"{nameof(ProcessAsync)}: Failed to process adjunct response, {Description}");
+            }
         }
 
         /// <summary>
@@ -1873,6 +1888,8 @@ namespace zero.cocoon.autopeer
                         //Transfer?
                         if (@this.Hub.Neighbors.Count > @this.CcCollective.MaxAdjuncts || !@this.Hub.Neighbors.TryAdd(newAdjunct.Key, newAdjunct))
                         {
+                            //clear this ID so that when it removed it does not clash with the incoming connection... this seems like a hack
+                            //newAdjunct.Designation = CcDesignation.Generate();
                             await newAdjunct.DisposeAsync(@this,$"Adjunct already exists, dropping {newAdjunct.Description}").FastPath();
                             return false;    
                         }
@@ -2139,7 +2156,7 @@ namespace zero.cocoon.autopeer
 #if DEBUG
                             @this._logger.Trace($"{@this.Description}: Collecting {fromAddress.IpEndPoint} failed!");
 #else
-                    @this._logger.Trace($"{@this.Description}: Collecting {fromAddress.IpEndPoint} failed!");
+                            @this._logger.Trace($"{@this.Description}: Collecting {fromAddress.IpEndPoint} failed!");
 #endif
                         }
                     }, ValueTuple.Create(this, fromAddress, ccId), TaskCreationOptions.DenyChildAttach).FastPath();
@@ -2607,7 +2624,7 @@ namespace zero.cocoon.autopeer
                     {
                         if (!Probed && UpTime.ElapsedMs() > parm_min_uptime_ms)
                             await DisposeAsync(this, "Adjunct not responsive...");
-                        else
+                        else if(!Zeroed())
                             _logger.Trace($"{nameof(ScanAsync)}: [ABORTED], {Description}, s = {State}, a = {Assimilating}");
                         return false;
                     }
@@ -2934,9 +2951,9 @@ namespace zero.cocoon.autopeer
                     //load hot backup
                     await ZeroAsync(async @this =>
                     {
-                        await CcCollective.Adjuncts.Where(a => a.State == AdjunctState.Verified).ToList().ForEachAsync<CcAdjunct, IIoNanite>(static async (@this, _) =>
+                        await CcCollective.Adjuncts.Where(static a => a.State == AdjunctState.Verified).ToList().ForEachAsync<CcAdjunct, IIoNanite>(static async (@this, _) =>
                         {
-                            await @this.ProbeAsync("SYN-HOT");
+                            await @this.ProbeAsync("SYN-HOT").FastPath();
                         }).FastPath();
                     }, this, TaskCreationOptions.DenyChildAttach).FastPath();
                 }

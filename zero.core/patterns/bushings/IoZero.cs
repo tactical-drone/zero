@@ -527,7 +527,7 @@ namespace zero.core.patterns.bushings
                 if (purge && job.FinalState == 0)
                 {
 #if DEBUG
-                    _logger.Fatal($"sink purged -> {job.Description}, {Description}");
+                    _logger.Fatal($"sink purged -> {job.State}, {job.Description}, {Description}");
 #endif
                 }
                 else if (job.FinalState == 0)
@@ -606,8 +606,10 @@ namespace zero.core.patterns.bushings
                                  curJob.State != IoJobMeta.JobState.Fragmented &&
                                  curJob.State != IoJobMeta.JobState.BadData && !Zeroed() && !curJob.Zeroed())
                         {
-                            _logger?.Error(
-                                $"{Description}: {curJob.TraceDescription} consuming job: {curJob.Description} was unsuccessful, state = {curJob.State}");
+#if DEBUG
+                            _logger?.Error($"consuming job: {curJob.Description} was unsuccessful, state = {curJob.State}");
+                            curJob.PrintStateHistory();
+#endif
                         }
                     }
                     catch (Exception) when (Zeroed() || curJob.Zeroed())
@@ -623,7 +625,7 @@ namespace zero.core.patterns.bushings
                         try
                         {
                             //Consume success?
-                            await curJob.SetStateAsync(curJob.State is IoJobMeta.JobState.Consumed
+                            await curJob.SetStateAsync(curJob.State is IoJobMeta.JobState.Consumed or IoJobMeta.JobState.Fragmented or IoJobMeta.JobState.BadData
                                 ? IoJobMeta.JobState.Accept
                                 : IoJobMeta.JobState.Reject).FastPath();
 
@@ -636,7 +638,7 @@ namespace zero.core.patterns.bushings
                                 }, this).FastPath();
                             }
 
-                            await ZeroJobAsync(curJob, curJob.FinalState == IoJobMeta.JobState.Accept).FastPath();
+                            await ZeroJobAsync(curJob, curJob.FinalState != IoJobMeta.JobState.Accept).FastPath();
 
                             //back pressure
                             Source.BackPressure(zeroAsync: false); //FALSE

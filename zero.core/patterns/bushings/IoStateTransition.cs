@@ -160,8 +160,10 @@ namespace zero.core.patterns.bushings
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public IoStateTransition<TState> Exit(IoStateTransition<TState> nextState)
         {
+#if DEBUG
             if (Value.Equals(FinalState))
                 throw new ApplicationException($"Cannot transition from `{FinalState}' to `{nextState}'");
+#endif
 
             ExitTime = Environment.TickCount;
             base.Next = nextState;

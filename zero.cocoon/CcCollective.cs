@@ -178,9 +178,9 @@ namespace zero.cocoon
                     await rLow.TickAsync().FastPath();
                 else
                     await r.TickAsync().FastPath();
-
+                
                 @this._logger.Trace($"Robo - {TimeSpan.FromMilliseconds(ts.ElapsedMs())}, {@this.Description}");
-                //r.Reset();
+                
                 _roboTimer = r;
                 try
                 {
@@ -558,8 +558,7 @@ namespace zero.cocoon
 
         /// <summary>
         /// Sends a message to a peer
-        /// </summary>
-        /// <param name="drone">The destination</param>
+        /// </summary>/// <param name="drone">The destination</param>
         /// <param name="msg">The message</param>
         /// <param name="type"></param>
         /// <param name="timeout"></param>
@@ -583,11 +582,11 @@ namespace zero.cocoon
                 _logger.Trace($"~/> {type}({sent}): {drone.MessageService.IoNetSocket.LocalAddress} ~> {drone.MessageService.IoNetSocket.RemoteAddress} ({Enum.GetName(typeof(CcDiscoveries.MessageTypes), responsePacket.Type)})");
                 return msg.Length;
             }
-            else
-            {
+
+            if(!drone.Zeroed())
                 _logger.Error($"~/> {type}({sent}):  {drone.MessageService.IoNetSocket.LocalAddress} ~> {drone.MessageService.IoNetSocket.RemoteAddress}");
-                return 0;
-            }
+            
+            return 0;
         }
 
         /// <summary>
@@ -680,7 +679,7 @@ namespace zero.cocoon
 
                             //race for connection
                             won = await ConnectForTheWinAsync(CcAdjunct.Heading.Ingress, drone, packet, (IPEndPoint)ioNetSocket.NativeSocket.RemoteEndPoint).FastPath();
-                            _logger.Trace($"{nameof(CcFutileRequest)}: won = {won}, read = {bytesRead}, {drone.IoSource.Key}");
+                            _logger.Trace($"{nameof(CcFutileRequest)}: won = {won}, read = {bytesRead}, {drone.IoSource?.Key}");
 
                             //send response
                             var futileResponse = new CcFutileResponse

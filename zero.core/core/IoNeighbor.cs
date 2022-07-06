@@ -74,16 +74,19 @@ namespace zero.core.core
 
             try
             {
-                if (Node?.Neighbors?.TryRemove(Key, out var zeroNeighbor) ?? false)
+                if (Node.Neighbors.TryGetValue(Key, out var zeroedNeighbor) && zeroedNeighbor.Serial == Serial)
                 {
-                    _logger.Trace($"Removed {zeroNeighbor.Description}");
-                    await zeroNeighbor.DisposeAsync(this, $"{nameof(ZeroManagedAsync)}: teardown").FastPath();
-                }
-                else
-                {
+                    if (Node?.Neighbors?.TryRemove(Key, out var zeroNeighbor) ?? false)
+                    {
+                        _logger.Trace($"Removed {zeroNeighbor.Description}");
+                        await zeroNeighbor.DisposeAsync(this, $"{nameof(ZeroManagedAsync)}: teardown").FastPath();
+                    }
+                    else
+                    {
 #if DEBUG
-                    _logger.Trace($"Cannot remove neighbor {Key} not found! {Description}");
+                        _logger.Trace($"Cannot remove neighbor {Key} not found! {Description}");
 #endif
+                    }
                 }
             }
             catch when (Node != null && Node.Zeroed())

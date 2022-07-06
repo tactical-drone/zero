@@ -16,11 +16,11 @@ namespace zero.cocoon.identity
     public class CcDesignation
     {
 
-        static CcDesignation()
-        {
-            SecureRandom = SecureRandom.GetInstance("SHA512PRNG", false);
-            SecureRandom.SetSeed(SecureRandom.GenerateSeed(256));
-        }
+        //static CcDesignation()
+        //{
+        //    SecureRandom = SecureRandom.GetInstance("SHA512PRNG", false);
+        //    //SecureRandom.SetSeed(SecureRandom.GenerateSeed(256));
+        //}
 
         private const int PubKeySize = 256;
 
@@ -62,12 +62,14 @@ namespace zero.cocoon.identity
             };
         }
 
-        [ThreadStatic] private static volatile SecureRandom SecureRandom;
+        private static SecureRandom SecureRandom;
         public static CcDesignation Generate(bool devMode = false)
         {
             var skBuf = Encoding.ASCII.GetBytes(DevKey);
             var pkBuf = new byte[Ed25519.PublicKeySize];
             
+            SecureRandom ??= SecureRandom.GetInstance("SHA512PRNG", true);
+
             if (!devMode)
                 Ed25519.GeneratePrivateKey(SecureRandom, skBuf);
             

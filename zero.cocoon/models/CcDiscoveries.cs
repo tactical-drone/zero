@@ -358,16 +358,15 @@ namespace zero.cocoon.models
                         case false when !fastPath && State == IoJobMeta.JobState.Fragmented:
                             _logger.Debug($"[{Id}] FRAGGED = {DatumCount}, {BytesRead}/{BytesLeftToProcess }");
                             break;
-                        case false when !fastPath:
-                            _logger.Fatal($"[{Id}] FRAGGED = {DatumCount}, {BytesRead}/{BytesLeftToProcess }");
+                        case false when !fastPath && BytesLeftToProcess > 0:
+                            _logger.Fatal($"[{Id}] FRAGGED = {DatumCount}, {BytesRead}/{BytesLeftToProcess}");
                             break;
                     }
-#else
-                    else if (State == IoJobMeta.JobState.Fragmented && !IoZero.ZeroRecoveryEnabled)
+#endif
+                    if (State == IoJobMeta.JobState.Fragmented && !IoZero.ZeroRecoveryEnabled)
                     {
                         await SetStateAsync(IoJobMeta.JobState.BadData).FastPath();
                     }
-#endif
                 }
                 catch when(Zeroed()){ await SetStateAsync(IoJobMeta.JobState.ConsumeErr).FastPath(); }
                 catch (Exception e) when(!Zeroed())

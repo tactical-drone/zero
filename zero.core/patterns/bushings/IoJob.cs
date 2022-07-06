@@ -143,17 +143,12 @@ namespace zero.core.patterns.bushings
         /// Initializes this instance for reuse from the heap
         /// </summary>
         /// <returns>This instance</returns>
-#if DEBUG
         public virtual async ValueTask<IIoHeapItem> HeapPopAsync(object context)
-#else
-        public virtual async ValueTask<IIoHeapItem> HeapPopAsync(object context)
-#endif
         {
             try
             {
                 //_logger.Debug($"{nameof(HeapPopAsync)}: id = {Id}, #{Serial} - {Description}");
                 FinalState = await SetStateAsync(IoJobMeta.JobState.Undefined).FastPath();
-
 #if DEBUG
                 await StateTransitionHistory.ZeroManagedAsync(static (s, @this) =>
                 {
@@ -162,21 +157,17 @@ namespace zero.core.patterns.bushings
                 }, this).FastPath();
 
                 await StateTransitionHistory.ClearAsync().FastPath();
+                _stateHeap.Return(_stateMeta);
 #else
                 _stateMeta.Set((int)IoJobMeta.JobState.Undefined);
 #endif
-
                 Debug.Assert(PreviousJob == null);
                 PreviousJob = null;
                 Id = -1;
                 ZeroRecovery.Reset();
                 EnableRecoveryOneshot = false;
-                
-#if DEBUG
+
                 return this;
-#else
-                return this;
-#endif
             }
             catch when(Zeroed()){}
             catch (Exception e)when(!Zeroed())
@@ -291,26 +282,29 @@ namespace zero.core.patterns.bushings
             //    _logger.Fatal("Production:{0} `{1}',[{2} {3}], [{4} ||{5}||], [{6} ({7})]",
             //        DateTimeOffset.FromUnixTimeMilliseconds(stateMeta.EnterTime),
             //        Description,
-                    
+
             //        stateMeta.Prev == null ? stateMeta.DefaultPadded : stateMeta.Prev.PaddedStr(),
             //        (stateMeta.Lambda.ToString(CultureInfo.InvariantCulture) + " ms ").PadLeft(parm_id_pad_size),
-                    
+
             //        stateMeta.PaddedStr(),(stateMeta.Mu.ToString(CultureInfo.InvariantCulture) + " ms ").PadLeft(parm_id_pad_size),
-                    
+
             //        stateMeta.Next == null ? stateMeta.DefaultPadded : stateMeta.Next.PaddedStr(),
             //        (stateMeta.Delta.ToString(CultureInfo.InvariantCulture) + " ms ").PadLeft(parm_id_pad_size));
             //}
             //else
             //{
-            _logger.Error("Production:{0} `{1}',{2} ({3}) ~> {4} ({5}) ~> {6} ({7})",
-                DateTimeOffset.FromUnixTimeMilliseconds(stateMeta.EnterTime),
-                Description,
 
-                stateMeta.Prev == null ? stateMeta.DefaultPadded : stateMeta.Prev.PaddedStr(),
-                (stateMeta.Lambda.ToString(CultureInfo.InvariantCulture) + " ms ").PadLeft(parm_id_pad_size),
+            //_logger.Error("Production:{0} `{1}',{2} ({3}) ~> {4} ({5})",
+            //    DateTimeOffset.FromUnixTimeMilliseconds(stateMeta.EnterTime),
+            //    Description,
 
-                stateMeta.PaddedStr(),
-                (stateMeta.Mu.ToString(CultureInfo.InvariantCulture) + " ms ").PadLeft(parm_id_pad_size));
+            //    stateMeta.Prev == null ? stateMeta.DefaultPadded : stateMeta.Prev.PaddedStr(),
+            //    (stateMeta.Lambda.ToString(CultureInfo.InvariantCulture) + " ms ").PadLeft(parm_id_pad_size),
+
+            //    stateMeta.PaddedStr(),
+            //    (stateMeta.Mu.ToString(CultureInfo.InvariantCulture) + " ms ").PadLeft(parm_id_pad_size));
+            PrintStateHistory();
+            _logger.Warn($"{stateMeta.DefaultPadded}");
 
             //stateMeta.Next == null ? stateMeta.DefaultPadded : stateMeta.Next.PaddedStr(),
             //(stateMeta.Delta.ToString(CultureInfo.InvariantCulture) + " ms ").PadLeft(parm_id_pad_size));
@@ -350,24 +344,22 @@ namespace zero.core.patterns.bushings
                 //Update the previous state's exit time
                 if (_stateMeta != null)
                 {
-#if DEBUG
-                    //var s = _stateMeta.Value;
-                    //if (value == IoJobMeta.JobState.Undefined && s == IoJobMeta.JobState.Consuming)
-                    //{
-                    //    _stateMeta.Set((int)IoJobMeta.JobState.Race);
-                    //    //PrintStateHistory();
-                    //    throw new ApplicationException(
-                    //        $"{TraceDescription} Cannot transition from `{IoJobMeta.JobState.Halted}' to `{value}'");
-                    //}
+                    var s = _stateMeta.Value;
+                    if (value == IoJobMeta.JobState.Undefined && s == IoJobMeta.JobState.Consuming)
+                    {
+                        //_stateMeta.Set((int)IoJobMeta.JobState.Race);
+                        //PrintStateHistory();
+                        throw new ApplicationException(
+                            $"{TraceDescription} Cannot transition from `{IoJobMeta.JobState.Halted}' to `{value}'");
+                    }
 
-                    //if (_stateMeta.Value == IoJobMeta.JobState.Halted && value != IoJobMeta.JobState.Undefined)
-                    //{
-                    //    _stateMeta.Set((int)IoJobMeta.JobState.Race);
-                    //    //PrintStateHistory();
-                    //    throw new ApplicationException(
-                    //        $"{TraceDescription} Cannot transition from `{IoJobMeta.JobState.Halted}' to `{value}'");
-                    //}
-#endif
+                    if (_stateMeta.Value == IoJobMeta.JobState.Halted && value != IoJobMeta.JobState.Undefined)
+                    {
+                        //_stateMeta.Set((int)IoJobMeta.JobState.Race);
+                        //PrintStateHistory();
+                        throw new ApplicationException(
+                            $"{TraceDescription} Cannot transition from `{IoJobMeta.JobState.Halted}' to `{value}'");
+                    }
 
                     if (_stateMeta.Value == value)
                         return value;
@@ -376,18 +368,16 @@ namespace zero.core.patterns.bushings
                     Interlocked.Increment(ref Source.Counters[(int)_stateMeta.Value]);
                     Interlocked.Add(ref Source.ServiceTimes[(int)_stateMeta.Value], _stateMeta.Mu);
                 }
-                else
-                {
-                    if (value != IoJobMeta.JobState.Undefined && !Zeroed())
-                    {
-                        PrintStateHistory();
-                        throw new Exception(
-                            $"{TraceDescription} First state transition history's first transition should be `{IoJobMeta.JobState.Undefined}', but is `{value}'");
-                    }
-                }
-#endif
+                //else
+                //{
+                //    if (value != IoJobMeta.JobState.Produced && !Zeroed())
+                //    {
+                //        PrintStateHistory();
+                //        throw new Exception(
+                //            $"{TraceDescription} First state transition history's first transition should be `{IoJobMeta.JobState.Undefined}', but is `{value}'");
+                //    }
+                //}
 
-#if DEBUG
                 //Allocate memory for a new current state
                 var newState = _stateHeap.Take((_stateMeta, (int)value));
                 if (newState == null)
@@ -402,28 +392,17 @@ namespace zero.core.patterns.bushings
 
                 await StateTransitionHistory.EnqueueAsync(_stateMeta).FastPath();
 #else
-                    _stateMeta.ExitTime = Environment.TickCount;
-                    Interlocked.Increment(ref Source.Counters[(int)_stateMeta.Value]);
-                    Interlocked.Add(ref Source.ServiceTimes[(int)_stateMeta.Value], _stateMeta.Mu);
-                    _stateMeta.Set((int)value);
-                    _stateMeta.EnterTime = Environment.TickCount;
-
-                    if (value is IoJobMeta.JobState.Accept or IoJobMeta.JobState.Reject)
-                    {
-                        FinalState = value;
-                        await SetStateAsync(IoJobMeta.JobState.Halted).FastPath();
-                    }
-                        
+                _stateMeta.ExitTime = Environment.TickCount;
+                Interlocked.Increment(ref Source.Counters[(int)_stateMeta.Value]);
+                Interlocked.Add(ref Source.ServiceTimes[(int)_stateMeta.Value], _stateMeta.Mu);
+                _stateMeta.Set((int)value);
+                _stateMeta.EnterTime = Environment.TickCount;
 #endif
-#if DEBUG
-                //terminate
-                //if (value is IoJobMeta.JobState.Accept or IoJobMeta.JobState.Reject)
-                if (value == IoJobMeta.JobState.Accept || value == IoJobMeta.JobState.Reject)
+                if (value is IoJobMeta.JobState.Accept or IoJobMeta.JobState.Reject)
                 {
                     FinalState = value;
                     await SetStateAsync(IoJobMeta.JobState.Halted).FastPath();
                 }
-#endif
             }
             catch when (Zeroed()) { }
             catch (Exception e) when (!Zeroed())

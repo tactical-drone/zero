@@ -257,6 +257,8 @@ namespace zero.core.patterns.heap
             {
                 if (!zero)
                     _ioHeapBuf.Writer.TryWrite(item);
+                else
+                    Interlocked.Increment(ref _hit);
             }
             catch when(_zeroed > 0){ }
             catch (Exception e) when (!Zeroed)
