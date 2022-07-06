@@ -170,10 +170,16 @@ namespace zero.cocoon
         private static async ValueTask RoboAsync(CcCollective @this)
         {
             var r = new IoTimer(TimeSpan.FromMilliseconds(@this._random.Next(@this.parm_mean_pat_delay_s * 1000) + @this.parm_mean_pat_delay_s * 1000 / 2));
+            var rLow = new IoTimer(TimeSpan.FromMilliseconds(@this._random.Next(@this.parm_mean_pat_delay_s/3 * 1000) + @this.parm_mean_pat_delay_s/3 * 1000 / 2));
             while (!@this.Zeroed())
             {
-                var d = await r.TickAsync().FastPath();
-                @this._logger.Trace($"Robo - {TimeSpan.FromMilliseconds(d.ElapsedMs())}, {@this.Description}");
+                var ts = Environment.TickCount;
+                if(@this.TotalConnections < @this.parm_max_outbound)
+                    await rLow.TickAsync().FastPath();
+                else
+                    await r.TickAsync().FastPath();
+
+                @this._logger.Trace($"Robo - {TimeSpan.FromMilliseconds(ts.ElapsedMs())}, {@this.Description}");
                 //r.Reset();
                 _roboTimer = r;
                 try
@@ -397,14 +403,14 @@ namespace zero.cocoon
         public int parm_max_inbound = 5;
 
         /// <summary>
-        /// Max inbound neighbors
+        /// Max outbound neighbors
         /// </summary>
         [IoParameter]
         // ReSharper disable once InconsistentNaming
         public int parm_max_outbound = 3;
 
         /// <summary>
-        /// Max adjuncts
+        /// Max drones
         /// </summary>
         [IoParameter]
         // ReSharper disable once InconsistentNaming

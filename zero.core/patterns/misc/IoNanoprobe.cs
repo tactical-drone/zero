@@ -232,8 +232,8 @@ namespace zero.core.patterns.misc
             IoZeroScheduler.Zero.LoadAsyncContext(static async state =>
             {
                 var @this = (IoNanoprobe)state;
-                //prime garbage
 
+                //prime for garbage collection (threads stop spinning)
                 try
                 {
                     if(@this.Serial % 2 == 0 || IoZeroScheduler.Zero == null || !IoZeroScheduler.Zero.Fork(@this.ZeroPrime))
@@ -244,6 +244,7 @@ namespace zero.core.patterns.misc
                     _logger.Trace(e, $"{@this.Description}");
                 }
 
+                //collect memory
                 await @this.ZeroAsync(true).FastPath();
             }, this);
 #pragma warning restore CS4014
@@ -761,7 +762,7 @@ namespace zero.core.patterns.misc
         }
 
         /// <summary>
-        /// Returns the hive mind
+        /// Returns the hive
         /// </summary>
         /// <returns>The hive</returns>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
