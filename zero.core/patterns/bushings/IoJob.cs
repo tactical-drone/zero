@@ -64,7 +64,7 @@ namespace zero.core.patterns.bushings
             _jobDesc = string.Empty;
 #endif
 
-            ZeroRecovery = new IoManualResetValueTaskSource<bool>(true);
+            ZeroRecovery = new IoManualResetValueTaskSource<bool>(false);
         }
 
         /// <summary>
@@ -157,7 +157,7 @@ namespace zero.core.patterns.bushings
                 }, this).FastPath();
 
                 await StateTransitionHistory.ClearAsync().FastPath();
-                _stateHeap.Return(_stateMeta);
+                _stateMeta = null;
 #else
                 _stateMeta.Set((int)IoJobMeta.JobState.Undefined);
 #endif
@@ -303,7 +303,6 @@ namespace zero.core.patterns.bushings
 
             //    stateMeta.PaddedStr(),
             //    (stateMeta.Mu.ToString(CultureInfo.InvariantCulture) + " ms ").PadLeft(parm_id_pad_size));
-            PrintStateHistory();
             _logger.Warn($"{stateMeta.DefaultPadded}");
 
             //stateMeta.Next == null ? stateMeta.DefaultPadded : stateMeta.Next.PaddedStr(),
@@ -348,17 +347,17 @@ namespace zero.core.patterns.bushings
                     if (value == IoJobMeta.JobState.Undefined && s == IoJobMeta.JobState.Consuming)
                     {
                         //_stateMeta.Set((int)IoJobMeta.JobState.Race);
-                        //PrintStateHistory();
+                        PrintStateHistory();
                         throw new ApplicationException(
-                            $"{TraceDescription} Cannot transition from `{IoJobMeta.JobState.Halted}' to `{value}'");
+                            $"{TraceDescription} Cannot transition from `{IoJobMeta.JobState.Halted}' to `{value}', current = {s}");
                     }
 
                     if (_stateMeta.Value == IoJobMeta.JobState.Halted && value != IoJobMeta.JobState.Undefined)
                     {
                         //_stateMeta.Set((int)IoJobMeta.JobState.Race);
-                        //PrintStateHistory();
+                        PrintStateHistory();
                         throw new ApplicationException(
-                            $"{TraceDescription} Cannot transition from `{IoJobMeta.JobState.Halted}' to `{value}'");
+                            $"{TraceDescription} Cannot transition from `{IoJobMeta.JobState.Halted}' to `{value}', current = {s}");
                     }
 
                     if (_stateMeta.Value == value)
@@ -389,7 +388,6 @@ namespace zero.core.patterns.bushings
                 }
 
                 _stateMeta = newState;
-
                 await StateTransitionHistory.EnqueueAsync(_stateMeta).FastPath();
 #else
                 _stateMeta.ExitTime = Environment.TickCount;
@@ -398,6 +396,7 @@ namespace zero.core.patterns.bushings
                 _stateMeta.Set((int)value);
                 _stateMeta.EnterTime = Environment.TickCount;
 #endif
+
                 if (value is IoJobMeta.JobState.Accept or IoJobMeta.JobState.Reject)
                 {
                     FinalState = value;

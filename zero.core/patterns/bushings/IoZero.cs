@@ -47,7 +47,7 @@ namespace zero.core.patterns.bushings
 
             //TODO tuning
             if (ZeroRecoveryEnabled)
-                _previousJobFragment = new IoQueue<IoSink<TJob>>($"{description}", (Source.PrefetchSize + Source.ZeroConcurrencyLevel()) * 2, Source.PrefetchSize);
+                _previousJobFragment = new IoQueue<IoSink<TJob>>($"{description}", (Source.PrefetchSize + Source.ZeroConcurrencyLevel()) * 3, Source.PrefetchSize);
 
             _zeroSync = new IoManualResetValueTaskSource<bool>();
 
@@ -338,7 +338,7 @@ namespace zero.core.patterns.bushings
                 nextJob = await JobHeap.TakeAsync(null, this).FastPath();
 #if DEBUG
                 if (ZeroRecoveryEnabled)
-                    Debug.Assert(JobHeap.ReferenceCount - 1 <= Source.PrefetchSize + Source.ZeroConcurrencyLevel() << 1);
+                    Debug.Assert(JobHeap.ReferenceCount - 1 <= (Source.PrefetchSize + Source.ZeroConcurrencyLevel()) * 3);
                 else
                     Debug.Assert(JobHeap.ReferenceCount <= Source.PrefetchSize + Source.ZeroConcurrencyLevel());
 #endif
@@ -381,8 +381,7 @@ namespace zero.core.patterns.bushings
                             if ((nextJob.FragmentIdx = await _previousJobFragment.EnqueueAsync(nextJob).FastPath()) == null &&
                                 _previousJobFragment.Count == _previousJobFragment.Capacity)
                             {
-                                _logger.Warn(
-                                    $"Flushing previous job cash {_previousJobFragment.Count} items, {Description}");
+                                _logger.Warn($"Flushing previous job cash {_previousJobFragment.Count} items, {Description}");
                                 await _previousJobFragment.ClearAsync().FastPath();
                             }
                             else if(nextJob.FragmentIdx == null)
@@ -426,10 +425,10 @@ namespace zero.core.patterns.bushings
                         //    IsArbitrating = true;
 
                         //TODO:Is this still a good idea?
-                        if (ZeroRecoveryEnabled && _previousJobFragment.Count > Source.PrefetchSize + Source.ZeroConcurrencyLevel() * 2)
+                        if (ZeroRecoveryEnabled && _previousJobFragment.Count > (Source.PrefetchSize + Source.ZeroConcurrencyLevel()) * 2)
                         {
                             var drop = await _previousJobFragment.DequeueAsync().FastPath();
-                            JobHeap.Return(drop, drop.EnableRecoveryOneshot || drop.FinalState != 0, true);
+                            JobHeap.Return(drop, true);
                         }
 
                         //Fetch more work

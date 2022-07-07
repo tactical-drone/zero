@@ -5,13 +5,13 @@
     <TargetFramework>net7.0</TargetFramework>
     <LangVersion>preview</LangVersion>
     <Configurations>Debug;Release;Trace</Configurations>
-	  <ServerGarbageCollection>true</ServerGarbageCollection>
+	  <!--<ServerGarbageCollection>true</ServerGarbageCollection>
 	  <ConcurrentGarbageCollection>true</ConcurrentGarbageCollection>
 	  <GCHeapCount>16</GCHeapCount>
 	  <GCCpuGroup>0</GCCpuGroup>
 	  <GCNoAffinitize>false</GCNoAffinitize>
 	  <GCLOHThreshold>120000</GCLOHThreshold>
-	  <GCConserveMemory>7</GCConserveMemory>
+	  <GCConserveMemory>7</GCConserveMemory>-->
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">

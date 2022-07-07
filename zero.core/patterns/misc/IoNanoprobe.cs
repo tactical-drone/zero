@@ -257,8 +257,6 @@ namespace zero.core.patterns.misc
             return default;
         }
 
-        //private void ZeroPrimed(object _) => ZeroPrimeAsync();
-
         /// <summary>
         /// Prime for zero
         /// </summary>
@@ -470,7 +468,6 @@ namespace zero.core.patterns.misc
                 if (!(AsyncTasks?.IsCancellationRequested ?? true) && AsyncTasks.Token.CanBeCanceled)
                     AsyncTasks.Cancel(false);
                 AsyncTasks?.Dispose();
-
             }
 #if DEBUG
             catch (Exception e) when (!Zeroed())
@@ -507,6 +504,7 @@ namespace zero.core.patterns.misc
             _logger.Trace($"#{Serial} ~> {desc}: From: {ZeroedFrom?.Description}, Reason: `{reason}'");
 #endif
             ZeroedFrom = null;
+            ZeroRoot.ZeroSem();
         }
 
         /// <summary>
