@@ -40,7 +40,7 @@ namespace zero.test.core.patterns.queue{
         [Fact]
         void RemoveHead()
         {
-            context.Q.RemoveAsync(context.Head).FastPath().GetAwaiter();
+            context.Q.RemoveAsync(context.Head, context.Head.Qid).FastPath().GetAwaiter();
 
             var sb = new StringBuilder();
             foreach (var ioZNode in context.Q)
@@ -64,7 +64,7 @@ namespace zero.test.core.patterns.queue{
         [Fact]
         void RemoveTail()
         {
-            context.Q.RemoveAsync(context.Tail).FastPath().GetAwaiter();
+            context.Q.RemoveAsync(context.Tail, context.Tail.Qid).FastPath().GetAwaiter();
 
             var sb = new StringBuilder();
             foreach (var ioZNode in context.Q)
@@ -88,7 +88,7 @@ namespace zero.test.core.patterns.queue{
         [Fact]
         void RemoveMid()
         {
-            context.Q.RemoveAsync(context.Middle).FastPath().GetAwaiter();
+            context.Q.RemoveAsync(context.Middle, context.Middle.Qid).FastPath().GetAwaiter();
 
             var sb = new StringBuilder();
             foreach (var ioZNode in context.Q)
@@ -113,11 +113,11 @@ namespace zero.test.core.patterns.queue{
         void DequeueSecondLastPrime()
         {
             context.Q.DequeueAsync().FastPath().GetAwaiter();
-            context.Q.RemoveAsync(context.Q.Head).FastPath().GetAwaiter();
-            context.Q.RemoveAsync(context.Q.Head).FastPath().GetAwaiter();
+            context.Q.RemoveAsync(context.Q.Head, context.Q.Head.Qid).FastPath().GetAwaiter();
+            context.Q.RemoveAsync(context.Q.Head, context.Q.Head.Qid).FastPath().GetAwaiter();
             context.Q.DequeueAsync().FastPath().GetAwaiter();
 
-            context.Q.RemoveAsync(context.Q.Tail).FastPath().GetAwaiter();
+            context.Q.RemoveAsync(context.Q.Tail, context.Q.Tail.Qid).FastPath().GetAwaiter();
             context.Q.DequeueAsync().FastPath().GetAwaiter();
             
 
@@ -144,15 +144,15 @@ namespace zero.test.core.patterns.queue{
         public void DequeueSecondLast()
         {
             context.Q.DequeueAsync().FastPath().GetAwaiter();
-            context.Q.RemoveAsync(context.Q.Head).FastPath().GetAwaiter();
-            context.Q.RemoveAsync(context.Q.Head).FastPath().GetAwaiter();
+            context.Q.RemoveAsync(context.Q.Head, context.Q.Head.Qid).FastPath().GetAwaiter();
+            context.Q.RemoveAsync(context.Q.Head, context.Q.Head.Qid).FastPath().GetAwaiter();
             context.Q.DequeueAsync().FastPath().GetAwaiter();
 
-            context.Q.RemoveAsync(context.Q.Tail).FastPath().GetAwaiter();
+            context.Q.RemoveAsync(context.Q.Tail, context.Q.Tail.Qid).FastPath().GetAwaiter();
             context.Q.DequeueAsync().FastPath().GetAwaiter();
-            context.Q.RemoveAsync(context.Q.Tail).FastPath().GetAwaiter();
+            context.Q.RemoveAsync(context.Q.Tail, context.Q.Tail.Qid).FastPath().GetAwaiter();
             context.Q.DequeueAsync().FastPath().GetAwaiter();
-            context.Q.RemoveAsync(context.Q.Head).FastPath().GetAwaiter();
+            context.Q.RemoveAsync(context.Q.Head, context.Q.Tail.Qid).FastPath().GetAwaiter();
 
             var sb = new StringBuilder();
             foreach (var ioZNode in context.Q)

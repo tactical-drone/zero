@@ -251,6 +251,8 @@ namespace zero.core.patterns.heap
             if (item == null)
                  return;
 
+            PushAction?.Invoke(item);
+
             Interlocked.Decrement(ref _refCount);
 
             try
@@ -286,6 +288,11 @@ namespace zero.core.patterns.heap
         /// Prepares an item from the stack
         /// </summary>
         public Action<TItem, object> PopAction;
+
+        /// <summary>
+        /// Prepares an item from the stack
+        /// </summary>
+        public Action<TItem> PushAction;
 
         private readonly int _capacity;
         private readonly bool _autoScale;

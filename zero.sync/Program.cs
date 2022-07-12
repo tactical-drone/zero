@@ -116,7 +116,7 @@ namespace zero.sync
 
             var random = new Random((int)DateTime.Now.Ticks);
             //Tangle("tcp://192.168.1.2:15600");
-            var total = 702;
+            var total = 200;
             var maxDrones = 3;
             var maxAdjuncts = 16;
             var boot = false;
@@ -787,7 +787,7 @@ namespace zero.sync
                 Console.Write(ioZNode.Value);
             }
             Console.WriteLine("\nDQ mid");
-            q.RemoveAsync(five).FastPath().GetAwaiter();
+            q.RemoveAsync(five, five.Qid).FastPath().GetAwaiter();
             foreach (var ioZNode in q)
             {
                 Console.Write(ioZNode.Value);
@@ -802,7 +802,7 @@ namespace zero.sync
             }
             
             Console.WriteLine("\nDQ head");
-            q.RemoveAsync(q.Head).FastPath().GetAwaiter();
+            q.RemoveAsync(q.Head, q.Head.Qid).FastPath().GetAwaiter();
             foreach (var ioZNode in q)
             {
                 Console.Write(ioZNode.Value);
@@ -817,7 +817,7 @@ namespace zero.sync
             }
             
             Console.WriteLine("\nDQ tail");
-            q.RemoveAsync(q.Tail).FastPath().GetAwaiter();
+            q.RemoveAsync(q.Tail, q.Tail.Qid).FastPath().GetAwaiter();
             foreach (var ioZNode in q)
             {
                 Console.Write(ioZNode.Value);
@@ -834,8 +834,8 @@ namespace zero.sync
 
             Console.WriteLine("\nDQ second last prime");
             q.DequeueAsync().FastPath().GetAwaiter();
-            q.RemoveAsync(q.Head).FastPath().GetAwaiter();
-            q.RemoveAsync(q.Head).FastPath().GetAwaiter();
+            q.RemoveAsync(q.Head, q.Head.Qid).FastPath().GetAwaiter();
+            q.RemoveAsync(q.Head, q.Head.Qid).FastPath().GetAwaiter();
             q.DequeueAsync().FastPath().GetAwaiter();
 
             foreach (var ioZNode in q)
@@ -855,8 +855,8 @@ namespace zero.sync
 
             if (true)
             {
-                q.RemoveAsync(q.Head).FastPath().GetAwaiter();
-                q.RemoveAsync(q.Head).FastPath().GetAwaiter();    
+                q.RemoveAsync(q.Head, q.Head.Qid).FastPath().GetAwaiter();
+                q.RemoveAsync(q.Head, q.Head.Qid).FastPath().GetAwaiter();    
             }
 
             foreach (var ioZNode in q)

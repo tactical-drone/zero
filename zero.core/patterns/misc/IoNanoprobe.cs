@@ -347,7 +347,7 @@ namespace zero.core.patterns.misc
         /// <param name="sub">The original subscription</param>
         public ValueTask<bool> UnsubscribeAsync(IoQueue<IoZeroSub>.IoZNode sub)
         {
-            return Zeroed() ? default : _zeroHive.RemoveAsync(sub);
+            return Zeroed() ? default : _zeroHive.RemoveAsync(sub, sub.Qid);
         }
 
         /// <summary>
@@ -379,10 +379,11 @@ namespace zero.core.patterns.misc
                     await ZeroSubAsync(static async (_, state) =>
                     {
                         var (_, target, sub) = state;
+                        var qId = sub.Qid;
                         try
                         {
                             if(!target.Zeroed())
-                                await target.ZeroHiveMind().RemoveAsync(sub).FastPath();
+                                await target.ZeroHiveMind().RemoveAsync(sub, qId).FastPath();
                         }
                         catch
                         {

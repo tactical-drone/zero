@@ -5,6 +5,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Google.Protobuf;
 using NLog;
+using NLog.Filters;
 using zero.core.misc;
 using zero.core.patterns.heap;
 using zero.core.patterns.misc;
@@ -17,7 +18,7 @@ namespace zero.core.feat.misc
     /// </summary>
     public class IoZeroMatcher : IoNanoprobe
     {
-        public IoZeroMatcher(string description, int concurrencyLevel, long ttlMs = 2000, int capacity = 32, bool autoscale = true) : base($"{nameof(IoZeroMatcher)}", concurrencyLevel * 2)
+        public IoZeroMatcher(string description, int concurrencyLevel, long ttlMs = 2000, int capacity = 64, bool autoscale = true) : base($"{nameof(IoZeroMatcher)}", concurrencyLevel * 2)
         {
             _capacity = capacity;
             _description = description??$"{GetType()}";
@@ -136,7 +137,8 @@ namespace zero.core.feat.misc
                         {
                             await PurgeAsync().FastPath();
                         }
-                        catch (Exception e)
+                        catch when(Zeroed()){}
+                        catch (Exception e) when(Zeroed())
                         {
                             _logger.Error(e, $" Purge failed: {Description}");
                             // ignored
@@ -247,11 +249,12 @@ namespace zero.core.feat.misc
 
                 try
                 {
+                    var qid = cur.Qid;
                     if (cur.Value.TimestampMs.ElapsedUtcMs() <= _ttlMs && cur.Value.Key == key &&
                         cur.Value.Hash.ArrayEqual(reqHash.Span))
                     {
                         var tmp = Volatile.Read(ref cur.Value);
-                        await @this._lut.RemoveAsync(cur).FastPath();
+                        await @this._lut.RemoveAsync(cur, qid).FastPath();
                         @this._valHeap.Return(tmp);
                         return true;
                     }
@@ -259,7 +262,7 @@ namespace zero.core.feat.misc
                     if (cur.Value.TimestampMs.ElapsedUtcMs() > _ttlMs)
                     {
                         var value = Volatile.Read(ref cur.Value);
-                        await @this._lut.RemoveAsync(cur).FastPath();
+                        await @this._lut.RemoveAsync(cur, qid).FastPath();
                         cur = @this._lut.Head;
                         @this._lut.Modified = false;
                         @this._valHeap.Return(value);
@@ -299,11 +302,20 @@ namespace zero.core.feat.misc
                 while (n != null && c --> 0)
                 {
                     var t = n.Next;
-                    if (n.Value.TimestampMs.ElapsedUtcMs() > _ttlMs)
+                    try
                     {
-                        var value = n.Value;
-                        await _lut.RemoveAsync(n).FastPath();
-                        _valHeap.Return(value);
+                        var qId = n.Qid;
+                        if (n.Value.TimestampMs.ElapsedUtcMs() > _ttlMs)
+                        {
+                            var value = n.Value;
+                            await _lut.RemoveAsync(n, qId).FastPath();
+                            _valHeap.Return(value);
+                        }
+                    }
+                    catch when (Zeroed()){}
+                    catch (Exception e) when(!Zeroed())
+                    {
+                        _logger.Trace(e,$"{Description}");
                     }
                     n = t;
                 }
@@ -367,7 +379,7 @@ namespace zero.core.feat.misc
                 return false;
 
             var value = node.Value;
-            await _lut.RemoveAsync(node).FastPath();
+            await _lut.RemoveAsync(node, node.Qid).FastPath();
             _valHeap.Return(value);
 
             return true;

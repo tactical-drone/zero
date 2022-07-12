@@ -386,8 +386,9 @@ namespace zero.core.core
                     await node.Value.ContinueWith(static async (_, state) =>
                     {
                         var (@this, node) = (ValueTuple<IoNode<TJob>, IoQueue<Task>.IoZNode>)state;
+                        var qid = node.Qid;
                         if(@this.NeighborTasks != null)
-                            await @this.NeighborTasks.RemoveAsync(node).FastPath();
+                            await @this.NeighborTasks.RemoveAsync(node, qid).FastPath();
                     }, (this, node), CancellationToken.None, TaskContinuationOptions.DenyChildAttach, TaskScheduler.Default);
                 }
             }

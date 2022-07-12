@@ -552,8 +552,9 @@ namespace zero.core.patterns.bushings
                     if (purge)
                     {
                         var latch = job.FragmentIdx;
+                        var qid = job.FragmentIdx?.Qid ?? 0;
                         if (latch != null && Interlocked.CompareExchange(ref job.FragmentIdx, null, latch) == latch)
-                            await _previousJobFragment.RemoveAsync(latch).FastPath();
+                            await _previousJobFragment.RemoveAsync(latch, qid).FastPath();
 
                         //_logger.Error($"{nameof(ZeroJobAsync)}: id = {job.Id}, #{job.Serial}");
                         JobHeap.Return(job, true);
@@ -689,10 +690,11 @@ namespace zero.core.patterns.bushings
 
                     try
                     {
+                        var qid = cur.Qid;
                         if (cur.Value.Id == curJob.Id - 1)
                         {
                             curJob.PreviousJob = cur.Value;
-                            await _previousJobFragment.RemoveAsync(cur).FastPath();
+                            await _previousJobFragment.RemoveAsync(cur, qid).FastPath();
                             return cur.Value.EnableRecoveryOneshot = true;
                         }
                         cur = cur.Next;

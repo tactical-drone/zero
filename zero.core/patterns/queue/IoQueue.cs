@@ -24,9 +24,10 @@ namespace zero.core.patterns.queue
         /// </summary>
         public class IoZNode
         {
-            public T Value;
             public volatile IoZNode Next;
             public volatile IoZNode Prev;
+            public T Value;
+            public int Qid;
         }
 
         /// <summary>
@@ -55,12 +56,15 @@ namespace zero.core.patterns.queue
             capacity = configuration.HasFlag(Mode.DynamicSize) ? short.MaxValue : capacity * 2;
 
             _nodeHeap = new IoHeap<IoZNode>(desc, capacity, static (_,_) => new IoZNode(), configuration.HasFlag(Mode.DynamicSize)) {
-                PopAction =
-                (node, _) =>
+                PushAction = 
+                node =>
                 {
+                    Interlocked.Increment(ref node.Qid);
                     node.Next = null;
                     node.Prev = null;
-                }
+                    node.Value = default;
+                },
+                PopAction = (node, _) => Interlocked.Increment(ref node.Qid)
             };
 
             //_syncRoot = new IoZeroSemaphore<bool>(desc, maxBlockers: concurrencyLevel, initialCount: 1, cancellationTokenSource: _asyncTasks, runContinuationsAsynchronously: true);
@@ -238,15 +242,16 @@ namespace zero.core.patterns.queue
                     throw new OutOfMemoryException($"{_description} - ({_nodeHeap.Count} + {_nodeHeap.ReferenceCount})/{_nodeHeap.Capacity}, count = {_count}, \n {Environment.StackTrace}");
 
                 node.Value = item;
+
                 await _syncRoot.WaitAsync().FastPath();
                 entered = true;
 #if DEBUG
-                //Debug.Assert(Interlocked.Increment(ref _insaneExclusive) == 1 || _syncRoot.Zeroed(), $"{nameof(_insaneExclusive)} = {_insaneExclusive} > 1");
-                //Debug.Assert(_syncRoot.ReadyCount <= 0 || _syncRoot.Zeroed(), $"{nameof(_syncRoot.ReadyCount)} = {_syncRoot.ReadyCount} [INVALID], wait = {_syncRoot.WaitCount}");
-                //Debug.Assert(_insaneExclusive < 2, $"{nameof(_insaneExclusive)} = {_insaneExclusive} > 1");
-                Debug.Assert(Interlocked.Increment(ref _insaneExclusive) == 1 || _syncRoot.Zeroed());
-                Debug.Assert(_syncRoot.ReadyCount <= 0 || _syncRoot.Zeroed());
-                Debug.Assert(_insaneExclusive < 2);
+                Debug.Assert(Interlocked.Increment(ref _insaneExclusive) == 1 || _syncRoot.Zeroed(), $"{nameof(_insaneExclusive)} = {_insaneExclusive} > 1");
+                Debug.Assert(_syncRoot.ReadyCount <= 0 || _syncRoot.Zeroed(), $"{nameof(_syncRoot.ReadyCount)} = {_syncRoot.ReadyCount} [INVALID], wait = {_syncRoot.WaitCount}");
+                Debug.Assert(_insaneExclusive < 2, $"{nameof(_insaneExclusive)} = {_insaneExclusive} > 1");
+                //Debug.Assert(Interlocked.Increment(ref _insaneExclusive) == 1 || _syncRoot.Zeroed());
+                //Debug.Assert(_syncRoot.ReadyCount <= 0 || _syncRoot.Zeroed());
+                //Debug.Assert(_insaneExclusive < 2);
 #endif
                 if (_tail == null)
                 {
@@ -337,6 +342,7 @@ namespace zero.core.patterns.queue
                     throw new OutOfMemoryException($"{_description} - ({_nodeHeap.Count} + {_nodeHeap.ReferenceCount})/{_nodeHeap.Capacity}, count = {_count}");
                 
                 node.Value = item;
+
                 await _syncRoot.WaitAsync().FastPath();
                 entered = true;
 #if DEBUG
@@ -440,7 +446,7 @@ namespace zero.core.patterns.queue
                     if (dq != null)
                     {
                         retVal = dq.Value;
-                        dq.Value = default;
+                        //dq.lastOp = "DQ";
                         _nodeHeap.Return(dq);
                         _backPressure?.Release(true, false);//FALSE
                     }
@@ -465,11 +471,18 @@ namespace zero.core.patterns.queue
         }
 
         /// <summary>
-        /// Removes a node from the queue
+        /// [Experimental] Removes a node from inside the queue. This function is the purpose of rolling our own Q.
+        ///
+        /// Since nodes are cached in the heap, reentrancy support is needed for each use case iif <see cref="RemoveAsync"/> is used at all in combination with <see cref="DequeueAsync"/>
+        /// Ideally, the id needs to be locked in long before this branch executes. This is not
+        /// a silver bullet reentrancy support. Every use case needs to be carefully inspected.
+        ///
+        /// Bug can still happen if not implemented correctly!
         /// </summary>
         /// <param name="node">The node to remove</param>
+        /// <param name="qId">Id used for sane reentrancy </param>
         /// <returns>True if the item was removed</returns>
-        public async ValueTask<bool> RemoveAsync(IoZNode node)
+        public async ValueTask<bool> RemoveAsync(IoZNode node, int qId)
         {
             Debug.Assert(_backPressure == null);
             Debug.Assert(node != null);
@@ -480,7 +493,6 @@ namespace zero.core.patterns.queue
             var deDup = true;
             try
             {
-
                 await _syncRoot.WaitAsync().FastPath();
 #if DEBUG
                 Debug.Assert(_insaneExclusive == 0 || _syncRoot.Zeroed(), $"{nameof(_insaneExclusive)} = {_insaneExclusive} > 0");
@@ -488,32 +500,39 @@ namespace zero.core.patterns.queue
                 Debug.Assert(_insaneExclusive < 2 || _syncRoot.Zeroed());
                 Debug.Assert(_syncRoot.ReadyCount <= 0 || _syncRoot.Zeroed(), $"{nameof(_syncRoot.ReadyCount)} = {_syncRoot.ReadyCount} [INVALID], wait = {_syncRoot.WaitCount}, exclusive ?= {_insaneExclusive}");
 #endif
-                if (node.Value == null)
-                    return true;
+                if (qId != node.Qid /*|| node.Value == null*/) //sane reentrancy
+                {
+                    LogManager.GetCurrentClassLogger().Trace($"qid = {node.Qid}, wanted = {qId}, node.Value = {node.Value}, n = {node.Next}, p = {node.Prev}");
+                    return true; //true because another Remove or Dequeue has successfully raced
+                }
                 
                 deDup = false;
 
                 if (node.Prev != null)
                 {
-                    var next = node.Next;
-                    node.Prev.Next = next;
-
-                    if (next != null)
-                        next.Prev = node.Prev;
+                    node.Prev.Next = node.Next;
+                    if (node.Next != null)
+                        node.Next.Prev = node.Prev;
                     else
                     {
+                        Debug.Assert(node == _tail);
                         _tail = node.Prev;
-                        _tail.Next = null;
+
+                        if(_tail != null)
+                            _tail.Next = null;
+                        else
+                            _tail = null;
                     }
                 }
                 else
                 {
-                    if( _head != node)
-                    {
-                        node.Prev = null;
-                        return false;
-                    }
-                        
+                    Debug.Assert(_head == node);
+                    //while (_head != node)
+                    //{
+                    //    await Task.Delay(1000);
+                    //    LogManager.GetCurrentClassLogger().Error($"-> qid = {node.Qid}, wanted = {qId}, last = {node.lastOp}, node.Value = {node.Value}, n = {node.Next}, p = {node.Prev}");
+                    //}
+
                     _head = _head.Next;
                     node.Next = null;
                     if (_head != null)
@@ -530,11 +549,11 @@ namespace zero.core.patterns.queue
             finally
             {
 #if DEBUG
-                Interlocked.Decrement(ref _insaneExclusive);       
+                Interlocked.Decrement(ref _insaneExclusive);
 #endif
-                _syncRoot.Release(Environment.TickCount, false);//FALSE
-                node.Value = default;
+                //node.lastOp = "RM";
                 _nodeHeap?.Return(node, deDup);
+                _syncRoot.Release(Environment.TickCount, false);//FALSE
             }
         }
 
@@ -572,9 +591,6 @@ namespace zero.core.patterns.queue
                 while (cur != null && insane --> 0)
                 {
                     var tmp = cur.Next;
-                    cur.Prev = null;
-                    cur.Value = default;
-                    cur.Next = null;
                     _nodeHeap.Return(cur);
                     cur = tmp;
                 }
