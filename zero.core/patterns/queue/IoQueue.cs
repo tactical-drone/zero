@@ -28,6 +28,7 @@ namespace zero.core.patterns.queue
             public volatile IoZNode Prev;
             public T Value;
             public int Qid;
+            //public int lastOp;
         }
 
         /// <summary>
@@ -64,7 +65,11 @@ namespace zero.core.patterns.queue
                     node.Prev = null;
                     node.Value = default;
                 },
-                PopAction = (node, _) => Interlocked.Increment(ref node.Qid)
+                PopAction = (node, _) =>
+                {
+                    //node.lastOp = -1;
+                    Interlocked.Increment(ref node.Qid);
+                }
             };
 
             //_syncRoot = new IoZeroSemaphore<bool>(desc, maxBlockers: concurrencyLevel, initialCount: 1, cancellationTokenSource: _asyncTasks, runContinuationsAsynchronously: true);
@@ -446,7 +451,7 @@ namespace zero.core.patterns.queue
                     if (dq != null)
                     {
                         retVal = dq.Value;
-                        //dq.lastOp = "DQ";
+                        //dq.lastOp = 1;
                         _nodeHeap.Return(dq);
                         _backPressure?.Release(true, false);//FALSE
                     }
@@ -500,7 +505,7 @@ namespace zero.core.patterns.queue
                 Debug.Assert(_insaneExclusive < 2 || _syncRoot.Zeroed());
                 Debug.Assert(_syncRoot.ReadyCount <= 0 || _syncRoot.Zeroed(), $"{nameof(_syncRoot.ReadyCount)} = {_syncRoot.ReadyCount} [INVALID], wait = {_syncRoot.WaitCount}, exclusive ?= {_insaneExclusive}");
 #endif
-                if (qId != node.Qid /*|| node.Value == null*/) //sane reentrancy
+                if (qId != node.Qid || node.Value == null) //TODO: BUG, something is broken here *
                 {
                     LogManager.GetCurrentClassLogger().Trace($"qid = {node.Qid}, wanted = {qId}, node.Value = {node.Value}, n = {node.Next}, p = {node.Prev}");
                     return true; //true because another Remove or Dequeue has successfully raced
@@ -526,11 +531,12 @@ namespace zero.core.patterns.queue
                 }
                 else
                 {
-                    Debug.Assert(_head == node);
-                    //while (_head != node)
+                    Debug.Assert(_head == node || Zeroed);//TODO: BUG, something is broken here *
+                    //while (!(_head == node || Zeroed))
                     //{
-                    //    await Task.Delay(1000);
-                    //    LogManager.GetCurrentClassLogger().Error($"-> qid = {node.Qid}, wanted = {qId}, last = {node.lastOp}, node.Value = {node.Value}, n = {node.Next}, p = {node.Prev}");
+                    //    Interlocked.MemoryBarrierProcessWide();
+                    //    LogManager.GetCurrentClassLogger().Error($"{Zeroed}-> qid = {node.Qid}, wanted = {qId}, last = {node.lastOp}, _insaneExclusive = {_insaneExclusive} node.Value = {node.Value}, n = {node.Next}, p = {node.Prev}, {Description}");
+                    //    //Debug.Assert(false);
                     //}
 
                     _head = _head.Next;
@@ -551,7 +557,7 @@ namespace zero.core.patterns.queue
 #if DEBUG
                 Interlocked.Decrement(ref _insaneExclusive);
 #endif
-                //node.lastOp = "RM";
+                //node.lastOp = 2;
                 _nodeHeap?.Return(node, deDup);
                 _syncRoot.Release(Environment.TickCount, false);//FALSE
             }
