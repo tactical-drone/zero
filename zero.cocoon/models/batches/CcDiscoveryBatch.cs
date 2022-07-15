@@ -29,7 +29,7 @@ namespace zero.cocoon.models.batches
                 GroupBy = new Dictionary<byte[], Tuple<byte[], List<CcDiscoveryMessage>>>(new IoByteArrayComparer());
         }
 
-        volatile IoHeap<CcDiscoveryBatch, CcDiscoveries> _heapRef;
+        readonly IoHeap<CcDiscoveryBatch, CcDiscoveries> _heapRef;
         private CcDiscoveryMessage[] _messages;
         private Dictionary<string, ReadOnlyMemory<CcDiscoveryMessage>> _messagesDictionary = new();
         private volatile int _disposed;
@@ -78,7 +78,6 @@ namespace zero.cocoon.models.batches
             }
 
             _messages = null;
-            _heapRef = null;
             _messagesDictionary.Clear();
             _messagesDictionary = null;
         }

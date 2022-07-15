@@ -19,7 +19,7 @@ namespace zero.core.patterns.queue
     /// A lighter concurrent round robin Q
     /// </summary>
     public class IoZeroQ<T> : IEnumerable<T>
-    where T : class
+        //where T : class
     {
         /// <summary>
         /// Constructor
@@ -52,6 +52,8 @@ namespace zero.core.patterns.queue
                 _hwm = _capacity = 1;
                 _storage = new T[32][];
                 _storage[0] = _fastStorage = new T[_capacity];
+                _bloom = new int[32][];
+                _bloom[0] = _fastBloom = new int[_capacity];
 
                 var v = Math.Log10(capacity - 1)/Math.Log10(2);
                 var scaled = false;
@@ -68,6 +70,8 @@ namespace zero.core.patterns.queue
                 _hwm = _capacity = capacity;
                 _storage = new T[1][];
                 _storage[0] = _fastStorage = new T[_capacity];
+                _bloom = new int[1][];
+                _bloom[0] = _fastBloom = new int[_capacity];
             }
 
             if (_blockingCollection)
@@ -92,6 +96,8 @@ namespace zero.core.patterns.queue
 
         private readonly T[][] _storage;
         private readonly T[] _fastStorage;
+        private int[][]  _bloom;
+        private int[]    _fastBloom;
 
         private readonly object _syncRoot = new();
         
@@ -117,8 +123,12 @@ namespace zero.core.patterns.queue
 
         #endregion
 
-        public long Tail => _tail;
-        public long Head => _head;
+        private const int _zero = 0;
+        private const int _one = 1;
+        private const int _set = 2;
+
+        public long Tail => Volatile.Read(ref _tail);
+        public long Head => Volatile.Read(ref _head);
 
         /// <summary>
         /// ZeroAsync status
@@ -206,6 +216,7 @@ namespace zero.core.patterns.queue
                 {
                     var hwm = 1 << (_virility + 1);
                     _storage[_virility + 1] = new T[hwm];
+                    _bloom[_virility + 1] = new int[hwm];
                     Interlocked.Add(ref _hwm, hwm);
                     Interlocked.Increment(ref _virility);
                     Interlocked.Exchange(ref _primedForScale, 0);
@@ -221,28 +232,138 @@ namespace zero.core.patterns.queue
         /// </summary>
         /// <param name="idx">index to work with</param>
         /// <param name="value">The new value</param>
-        /// <param name="compare">The compare value</param>
-        /// <returns>The previous value</returns>
+        /// <returns>False on race, true otherwise</returns>
+#if !DEBUG
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private T CompareExchange(long idx, T value, T compare)
+#endif
+        private (bool success,T value) AtomicAdd(long idx, T value)
+        {
+#if DEBUG
+            var ts = Environment.TickCount;
+#endif
+            
+                try
+                {
+                    var modIdx = idx % Capacity;
+
+                    if (!IsAutoScaling)
+                    {
+                        if (Interlocked.CompareExchange(ref _fastBloom[modIdx], _one, _zero) == _zero)
+                        {
+                            if (_tail != idx)
+                            {
+                                Interlocked.Exchange(ref _fastBloom[modIdx], _zero);
+                                return (false, default);
+                            }
+
+                            _fastStorage[modIdx] = value;
+                            Interlocked.Increment(ref _count);
+                            Interlocked.Increment(ref _tail);
+                            return (true, default);
+                        }
+
+                        return (false, default);
+                    }
+
+                    var i = (int)(Math.Log10(modIdx + 1) / Math.Log10(2));
+                    var i2 = modIdx - ((1 << i) - 1);
+                    if (Interlocked.CompareExchange(ref _bloom[i][i2], _one, _zero) == _zero)
+                    {
+                        if (_tail != idx)
+                        {
+                            Interlocked.Exchange(ref _bloom[i][i2], _zero);
+                            return (false, default);
+                        }
+
+                        _storage[i][i2] = value;
+                        Interlocked.Increment(ref _count);
+                        Interlocked.Increment(ref _tail);
+                        return (true, default);
+                    }
+
+                    return (false, default);
+                }
+                finally
+                {
+#if DEBUG
+                    if (ts.ElapsedMs() > 16)
+                    {
+                        LogManager.GetCurrentClassLogger().Fatal($"{nameof(AtomicAdd)}: Q, CAS took => {ts.ElapsedMs()} ms");
+                    }
+#endif
+                }
+        }
+
+        /// <summary>
+        /// Wraps Interlocked.CompareExchange that copes with horizontal scaling
+        /// </summary>
+        /// <param name="idx">index to work with</param>
+        /// <param name="value">The new value</param>
+        /// <returns>False on race, true otherwise</returns>
+#if !DEBUG
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+#endif
+        private bool AtomicRemove(long idx, out T value)
         {
 #if DEBUG
             var ts = Environment.TickCount;
 #endif
             try
             {
-                if (!IsAutoScaling) return Interlocked.CompareExchange(ref _fastStorage[idx % _capacity], value, compare);
+                var modIdx = idx % Capacity;
 
-                idx %= Capacity;
-                var i = (int)(Math.Log10(idx + 1) / Math.Log10(2));
-                return Interlocked.CompareExchange(ref _storage[i][idx - ((1 << i) - 1)], value, compare);
+                if (!IsAutoScaling)
+                {
+                    
+                    if (Interlocked.CompareExchange(ref _fastBloom[modIdx], 2, 1) == 1)
+                    {
+                        if (_head != idx)
+                        {
+                            Interlocked.Exchange(ref _fastBloom[modIdx], 1);
+                            value = default;
+                            return false;
+                        }
+
+                        value = _fastStorage[modIdx];
+                        _fastStorage[modIdx] = default;
+                        Interlocked.Decrement(ref _count);
+                        Interlocked.Increment(ref _head);
+                        Interlocked.Exchange(ref _fastBloom[modIdx], 0);
+                        return true;
+                    }
+
+                    value = default;
+                    return false;
+                }
+
+                var i = (int)(Math.Log10(modIdx + 1) / Math.Log10(2));
+                var i2 = modIdx - ((1 << i) - 1);
+                if (Interlocked.CompareExchange(ref _bloom[i][i2], _set, _one) == _one)
+                {
+                    if (_head != idx)
+                    {
+                        Interlocked.Exchange(ref _bloom[i][i2], _one);
+                        value = default;
+                        return false;
+                    }
+
+                    value = _storage[i][i2];
+                    _storage[i][i2] = default;
+                    Interlocked.Decrement(ref _count);
+                    Interlocked.Increment(ref _head);
+                    Interlocked.Exchange(ref _bloom[i][i2], _zero);
+                    return true;
+                }
+
+                value = default;
+                return false;
             }
             finally
             {
 #if DEBUG
                 if (ts.ElapsedMs() > 16)
                 {
-                    LogManager.GetCurrentClassLogger().Fatal($"{nameof(CompareExchange)}: Q, CAS took => {ts.ElapsedMs()} ms");
+                    LogManager.GetCurrentClassLogger().Fatal($"{nameof(AtomicAdd)}: Q, CAS took => {ts.ElapsedMs()} ms");
                 }
 #endif
             }
@@ -256,7 +377,9 @@ namespace zero.core.patterns.queue
         /// <param name="onAtomicAdd">Action to execute on add success</param>
         /// <param name="context">Action context</param>
         /// <exception cref="OutOfMemoryException">Thrown if we are internally OOM</exception>
+#if !DEBUG
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
+#endif
         public long TryEnqueue<TC>(T item, bool deDup = false, Action<TC> onAtomicAdd = null, TC context = default)
         {
             Debug.Assert(Zeroed || item != null);
@@ -326,35 +449,17 @@ namespace zero.core.patterns.queue
                     }
                 }
 
-                long tail;
                 long cap;
-                var race = false;
-
-                while ((tail = Tail) >= Head + (cap = Capacity) || _count >= cap || this[tail] != null || tail != Tail ||
-                       CompareExchange(tail, item, null) != null || (race = tail != Tail))
+                long tail;
+                while ((tail = Tail) >= Head + (cap = Capacity) || _count >= cap || !AtomicAdd(tail, item).success)
                 {
-                    if (race)
-                    {
-                        if (CompareExchange(tail, null, item) != item && !Zeroed)
-                        {
-                            LogManager.GetCurrentClassLogger().Fatal($"{nameof(TryEnqueue)}: Unable to restore lock at tail = {tail} != {Tail}, slot = `{null}', cur = `{this[tail]}', {Description}");
-                        }
-
-                        race = false;
-                    }
-
-                    if (Zeroed || !_autoScale && _count >= cap)
+                    if (Zeroed || _count >= cap)
                         return -1;
                 }
-#if DEBUG
-                Debug.Assert(Zeroed || tail == Tail);
-#endif
+
                 //execute atomic action on success
                 onAtomicAdd?.Invoke(context);
-                    
-                Interlocked.Increment(ref _count);
-                Interlocked.Increment(ref _tail);
-
+                
                 //service async blockers
                 if (_blockingCollection && _sharingConsumers > 0)
                 {
@@ -394,7 +499,9 @@ namespace zero.core.patterns.queue
 
             return -1;
         }
+#if !DEBUG
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
+#endif
         public long TryEnqueue(T item, bool deDup = false) => TryEnqueue<object>(item, deDup);
 
         /// <summary>
@@ -409,50 +516,25 @@ namespace zero.core.patterns.queue
 #endif
         public bool TryDequeue([MaybeNullWhen(false)] out T slot)
         {
-            slot = null;
+            slot = default;
             try
             {
-                retry:
                 if (_count == 0)
                 {
-                    slot = null;
+                    slot = default;
                     return false;
                 }
 
                 long head;
-                //T latch;
-                var race = false;
-                while ((head = Head) >= Tail || (slot = this[head]) == null || head != Head ||
-                       CompareExchange(head, null, slot) != slot || (race = head != Head)) //TODO: hack
+                while ((head = Head) >= Tail || !AtomicRemove(head, out slot)) 
                 {
-                    if (race && slot != null && !Zeroed)
-                    {
-                        LogManager.GetCurrentClassLogger().Error($"!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! slot = {slot}, {Description}");
-
-                        T latch;
-                        if ((latch = CompareExchange(head, slot, null)) != null)
-                        {
-                            LogManager.GetCurrentClassLogger().Fatal($"{nameof(TryEnqueue)}: Unable to restore lock at head = {head} != {Head}, slot = `{slot}', latch = `{latch}', cur = `{this[head]}', {Description}");
-                        }
-
-                        goto retry;
-                        //return true;
-                    }
-
                     if (_count == 0 || Zeroed)
                     {
-                        slot = null;
+                        slot = default;
                         return false;
                     }
                 }
-#if DEBUG
-                Debug.Assert(Zeroed || head == Head);
-                Debug.Assert(Zeroed || _count > 0);
-                //Debug.Assert(Zeroed || head != Tail);
-#endif
-                Interlocked.Decrement(ref _count);
-                Interlocked.Increment(ref _head);
-                
+               
                 return true;
             }
             catch (Exception e)
@@ -460,7 +542,7 @@ namespace zero.core.patterns.queue
                 LogManager.LogFactory.GetCurrentClassLogger().Error(e, $"{nameof(TryDequeue)} failed!");
             }
             
-            slot = null;
+            slot = default;
             return false;
         }
 
@@ -496,7 +578,7 @@ namespace zero.core.patterns.queue
                     var item = this[i];
                     try
                     {
-                        if (item == default)
+                        if (item is null)
                             continue;
 
                         if (op != null)
@@ -569,7 +651,7 @@ namespace zero.core.patterns.queue
         protected async IAsyncEnumerable<T> BlockOnConsumeAsync()
         {
             if (!_blockingCollection)
-                yield return null;
+                yield return default;
 
             try
             {
@@ -600,7 +682,7 @@ namespace zero.core.patterns.queue
         protected async IAsyncEnumerable<T> BalanceOnConsumeAsync()
         {
             if (!_blockingCollection)
-                yield return null;
+                yield return default;
 
             try
             {
@@ -636,7 +718,7 @@ namespace zero.core.patterns.queue
         protected async IAsyncEnumerable<T> PumpOnConsumeAsync()
         {
             if (!_blockingCollection)
-                yield return null;
+                yield return default;
 
             try
             {
@@ -645,7 +727,7 @@ namespace zero.core.patterns.queue
                 //follow the tail
                 while (!_zeroSync.Zeroed())
                 {
-                    T next = null;
+                    T next = default;
                     try
                     {
                         if (_count == 0 || !TryDequeue(out next))

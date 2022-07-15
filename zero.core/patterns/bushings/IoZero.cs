@@ -11,6 +11,7 @@ using zero.core.patterns.bushings.contracts;
 using zero.core.patterns.heap;
 using zero.core.patterns.misc;
 using zero.core.patterns.queue;
+using zero.core.patterns.semaphore;
 using zero.core.patterns.semaphore.core;
 
 namespace zero.core.patterns.bushings
@@ -91,14 +92,14 @@ namespace zero.core.patterns.bushings
             {
                 //TODO tuning
                 //_queue = new IoZeroQ<IoSink<TJob>>($"zero Q: {_description}", capacity, asyncTasks:AsyncTasks, concurrencyLevel:ZeroConcurrencyLevel(),zeroAsyncMode:false);
-                //_queue = new IoZeroSemaphoreChannel<IoSink<TJob>>($"zero Q: {_description}",capacity, zeroAsyncMode:true);//FALSE
-                _queue = Channel.CreateBounded<IoSink<TJob>>(new BoundedChannelOptions(capacity * 2)
-                {
-                    SingleWriter = false,
-                    SingleReader = false,
-                    AllowSynchronousContinuations = false,
-                    FullMode = BoundedChannelFullMode.DropNewest
-                });
+                _queue = new IoZeroSemaphoreChannel<IoSink<TJob>>($"zero Q: {_description}",capacity, zeroAsyncMode:false);//FALSE
+                //_queue = Channel.CreateBounded<IoSink<TJob>>(new BoundedChannelOptions(capacity * 2)
+                //{
+                //    SingleWriter = false,
+                //    SingleReader = false,
+                //    AllowSynchronousContinuations = false,
+                //    FullMode = BoundedChannelFullMode.DropNewest
+                //});
 
                 JobHeap = new IoHeapIo<IoSink<TJob>>($"{nameof(JobHeap)}: {_description}", capacity, jobMalloc) {
                     Constructor = (sink, zero) =>
@@ -147,8 +148,8 @@ namespace zero.core.patterns.bushings
         /// </summary>
         //private IoQueue<IoSink<TJob>> _queue;
         //private IoZeroQ<IoSink<TJob>> _queue;
-        //private IoZeroSemaphoreChannel<IoSink<TJob>> _queue;
-        private Channel<IoSink<TJob>> _queue;
+        private IoZeroSemaphoreChannel<IoSink<TJob>> _queue;
+        //private Channel<IoSink<TJob>> _queue;
 
         /// <summary>
         /// The heap where new consumable meta data is allocated from
@@ -373,8 +374,8 @@ namespace zero.core.patterns.bushings
                     {
 #if DEBUG
                         //_logger.Debug($"{nameof(ProduceAsync)}: id = {nextJob.Id}, #{nextJob.Serial} - {Description}");
-                        if (_queue.Reader.Count > 1 && _queue.Reader.Count > JobHeap.Capacity * 2 / 3)
-                            _logger.Warn($"[[ENQUEUE]] backlog = {_queue.Reader.Count}/{JobHeap.Capacity}, {nextJob.Description}, {Description}");
+                        //if (_queue.Reader.Count > 1 && _queue.Reader.Count > JobHeap.Capacity * 2 / 3)
+                        //    _logger.Warn($"[[ENQUEUE]] backlog = {_queue.Reader.Count}/{JobHeap.Capacity}, {nextJob.Description}, {Description}");
 #endif
                         if (ZeroRecoveryEnabled)
                         {
@@ -396,7 +397,7 @@ namespace zero.core.patterns.bushings
                         //Enqueue the job for the consumer
                         await nextJob.SetStateAsync(IoJobMeta.JobState.Queued).FastPath();
 
-                        if(!_queue.Writer.TryWrite(nextJob))
+                        if(_queue.Release(nextJob) < 0)
                         {
                             ts = ts.ElapsedMs();
 
@@ -581,7 +582,8 @@ namespace zero.core.patterns.bushings
             try
             {
                 //A job was produced. Dequeue it and process
-                await foreach (var curJob in _queue.Reader.ReadAllAsync())
+                //await foreach (var curJob in _queue.PumpOnConsumeAsync(threadIdx))
+                var curJob = await _queue.WaitAsync().FastPath();
                 {
                     Debug.Assert(curJob != null);
                     try

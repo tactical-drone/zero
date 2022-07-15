@@ -30,10 +30,10 @@ namespace zero.core.network.ip
     /// <see cref="IIoZero.BlockOnReplicateAsync"/> -> <see cref="IoZero{TJob}.ProduceAsync"/> -> <see cref="IIoSource.ProduceAsync{T}"/> -> <see cref="IIoJob.ProduceAsync"/>
     ///
     /// Consumption that waits on producer pressure:
-    /// <see cref="IIoZero.BlockOnReplicateAsync"/> -> <see cref="IoZero{TJob}.ConsumeAsync"/> -> <see cref="IoSink{TJob}.ConsumeAsync"/>
+    /// <see cref="IIoZero.BlockOnReplicateAsync"/> -> <see cref="IoZero{TJob}.ConsumeAsync{T}"/> -> <see cref="IoSink{TJob}.ConsumeAsync"/>
     ///
     /// A Networked Node producer/consumer implementation's base blueprint:
-    /// <see cref="IoNode{TJob}.ConnectAsync"/> -> <see cref="IoNeighbor{TJob}.ConsumeAsync"/> -> <see cref="IoMessage{TJob}.ConsumeAsync"/>
+    /// <see cref="IoNode{TJob}.ConnectAsync"/> -> <see cref="IoZero{TJob}.ConsumeAsync{T}"/> -> <see cref="IoMessage{TJob}.ConsumeAsync"/>
     /// 
     /// </summary>
     public abstract class IoNetClient<TJob> : IoSource<TJob>

@@ -4,7 +4,8 @@ using System.Threading;
 
 namespace zero.core.patterns.queue.enumerator
 {
-    public class IoQEnumerator<T>: IoEnumBase<T> where T : class
+    public class IoQEnumerator<T>: IoEnumBase<T> 
+        //where T : class
     {
         private IoZeroQ<T> ZeroQ => (IoZeroQ<T>)Collection;
         private long _cur = -1;
