@@ -226,7 +226,7 @@ namespace zero.core.patterns.misc
 #else
             ZeroReason = $"{methodName}:{lineNumber} - reason = {reason ?? "N/A"}";
 #endif
-
+            //Console.WriteLine(ZeroReason);
 
 #pragma warning disable CS4014
             IoZeroScheduler.Zero.LoadAsyncContext(static async state =>
@@ -609,7 +609,8 @@ namespace zero.core.patterns.misc
 #if DEBUG
                 //TODO: we moved it here, the one at the top works but needs Interlocked.MemoryBarrierProcessWide();
                 Interlocked.MemoryBarrier();
-                Debug.Assert(Zeroed() || ZeroRoot.Zeroed() || ZeroRoot.ReadyCount == 0, $"{nameof(ZeroRoot)}: [FAILED], ReadyCount = {ZeroRoot.ReadyCount}, wait = {ZeroRoot.WaitCount}");
+                //Debug.Assert(Zeroed() || ZeroRoot.Zeroed() || ZeroRoot.ReadyCount == 0, $"{nameof(ZeroRoot)}: [FAILED], ReadyCount = {ZeroRoot.ReadyCount}, wait = {ZeroRoot.WaitCount}");
+                Debug.Assert(Zeroed() || ZeroRoot.Zeroed() || ZeroRoot.ReadyCount == 0);
 #endif
                 ZeroRoot.Release(Environment.TickCount, true);
             }

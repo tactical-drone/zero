@@ -413,7 +413,9 @@ namespace zero.core.network.ip
                     throw new OutOfMemoryException(nameof(_sendArgs));
 
                 var buf = Unsafe.As<ReadOnlyMemory<byte>, Memory<byte>>(ref buffer).Slice(offset, length);
-                var sent = new ValueTask<bool>((IValueTaskSource<bool>)args.UserToken, 0);
+                var core = (IIoManualResetValueTaskSourceCore<bool>)args.UserToken;
+                core.Reset();
+                var sent = new ValueTask<bool>(core, 0);
                 args.SetBuffer(buf);
                 args.RemoteEndPoint = endPoint;
 
@@ -508,8 +510,9 @@ namespace zero.core.network.ip
                         if (args == null)
                             throw new OutOfMemoryException(nameof(_recvArgs));
 
-                        var receive = new ValueTask<bool>((IValueTaskSource<bool>)args.UserToken, 0);
-                        
+                        var core = (IIoManualResetValueTaskSourceCore<bool>)args.UserToken;
+                        core.Reset();
+                        var receive = new ValueTask<bool>(core, 0);
                         args.SetBuffer(buffer.Slice(offset, length));
 
                         try
@@ -533,7 +536,7 @@ namespace zero.core.network.ip
                             }
                         }
 
-                        args.RemoteEndPoint.AsBytes(remoteEp);
+                        args.RemoteEndPoint.AsBytes(remoteEp);  
                         return args.SocketError == SocketError.Success ? args.BytesTransferred : 0;
                     }
                     catch when (Zeroed())

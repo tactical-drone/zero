@@ -38,7 +38,6 @@ namespace zero.core.network.ip
     /// </summary>
     public abstract class IoNetClient<TJob> : IoSource<TJob>
     where TJob : IIoJob
-
     {
         /// <summary>
         /// Constructor for incoming connections used by the listener

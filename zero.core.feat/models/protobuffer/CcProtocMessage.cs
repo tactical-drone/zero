@@ -147,9 +147,9 @@ namespace zero.core.feat.models.protobuffer
                             else
                             {
 #if DEBUG
-                                _logger.Trace($"ReadAsync [FAILED]: ZERO READS!!! {ioJob.Description}");
+                                //_logger.Trace($"ReadAsync [FAILED]: ZERO READS!!! {ioJob.Description}");
 #endif
-                                await job.SetStateAsync(IoJobMeta.JobState.ProdSkipped).FastPath();
+                                await job.SetStateAsync(IoJobMeta.JobState.ProdConnReset).FastPath();
                             }
                             return false;
                         }

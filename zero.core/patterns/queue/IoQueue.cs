@@ -280,7 +280,7 @@ namespace zero.core.patterns.queue
                     try
                     {
                         if (_pressure != null && _tail != null)
-                            _pressure.Release(true, true);
+                            _pressure.Release(true, false);
                         else
                             _backPressure?.Release(true, true);
 
@@ -351,8 +351,11 @@ namespace zero.core.patterns.queue
                 await _syncRoot.WaitAsync().FastPath();
                 entered = true;
 #if DEBUG
-                Debug.Assert(Interlocked.Increment(ref _insaneExclusive) == 1 || _syncRoot.Zeroed(), $"{nameof(_insaneExclusive)} = {_insaneExclusive} > 1");
-                Debug.Assert(_syncRoot.ReadyCount <= 0 || _syncRoot.Zeroed(), $"{nameof(_syncRoot.ReadyCount)} = {_syncRoot.ReadyCount} [INVALID]");
+                //Debug.Assert(Interlocked.Increment(ref _insaneExclusive) == 1 || _syncRoot.Zeroed(), $"{nameof(_insaneExclusive)} = {_insaneExclusive} > 1");
+                //Debug.Assert(_syncRoot.ReadyCount <= 0 || _syncRoot.Zeroed(), $"{nameof(_syncRoot.ReadyCount)} = {_syncRoot.ReadyCount} [INVALID]");
+                //Debug.Assert(_insaneExclusive < 2 || _syncRoot.Zeroed());
+                Debug.Assert(Interlocked.Increment(ref _insaneExclusive) == 1 || _syncRoot.Zeroed());
+                Debug.Assert(_syncRoot.ReadyCount <= 0 || _syncRoot.Zeroed());
                 Debug.Assert(_insaneExclusive < 2 || _syncRoot.Zeroed());
 #endif
                 if (_head == null)
@@ -466,7 +469,8 @@ namespace zero.core.patterns.queue
                 {
 #if DEBUG
                     Interlocked.Decrement(ref _insaneExclusive);
-                    Debug.Assert(_syncRoot.ReadyCount == 0, $"INVALID {nameof(_syncRoot.ReadyCount)} = {_syncRoot.ReadyCount}");
+                    //Debug.Assert(_syncRoot.ReadyCount == 0, $"INVALID {nameof(_syncRoot.ReadyCount)} = {_syncRoot.ReadyCount}");
+                    Debug.Assert(_syncRoot.ReadyCount == 0);
 #endif
                     _syncRoot.Release(Environment.TickCount, false);//FALSE!
                 }
@@ -500,10 +504,14 @@ namespace zero.core.patterns.queue
             {
                 await _syncRoot.WaitAsync().FastPath();
 #if DEBUG
-                Debug.Assert(_insaneExclusive == 0 || _syncRoot.Zeroed(), $"{nameof(_insaneExclusive)} = {_insaneExclusive} > 0");
+                //Debug.Assert(_insaneExclusive == 0 || _syncRoot.Zeroed(), $"{nameof(_insaneExclusive)} = {_insaneExclusive} > 0");
+                //Interlocked.Increment(ref _insaneExclusive);
+                //Debug.Assert(_insaneExclusive < 2 || _syncRoot.Zeroed());
+                //Debug.Assert(_syncRoot.ReadyCount <= 0 || _syncRoot.Zeroed(), $"{nameof(_syncRoot.ReadyCount)} = {_syncRoot.ReadyCount} [INVALID], wait = {_syncRoot.WaitCount}, exclusive ?= {_insaneExclusive}");
+                Debug.Assert(_insaneExclusive == 0 || _syncRoot.Zeroed());
                 Interlocked.Increment(ref _insaneExclusive);
                 Debug.Assert(_insaneExclusive < 2 || _syncRoot.Zeroed());
-                Debug.Assert(_syncRoot.ReadyCount <= 0 || _syncRoot.Zeroed(), $"{nameof(_syncRoot.ReadyCount)} = {_syncRoot.ReadyCount} [INVALID], wait = {_syncRoot.WaitCount}, exclusive ?= {_insaneExclusive}");
+                Debug.Assert(_syncRoot.ReadyCount <= 0 || _syncRoot.Zeroed());
 #endif
                 if (qId != node.Qid || node.Value == null) //TODO: BUG, something is broken here *
                 {

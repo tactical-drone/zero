@@ -7,8 +7,9 @@ namespace zero.cocoon.models.batches
 {
     public class CcDiscoveryMessage
     {
-        public volatile IMessage EmbeddedMsg;
-        public volatile chroniton Chroniton;
+        public IMessage EmbeddedMsg;
+        public chroniton Chroniton;
+        public int SourceState;
         public byte[] EndPoint { get; } = new IPEndPoint(IPAddress.Any, 0).AsBytes();
     }
 }

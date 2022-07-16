@@ -53,7 +53,8 @@ namespace zero.cocoon.models.batches
         public IoHeap<CcDiscoveryBatch, CcDiscoveries> HeapRef => _heapRef;
 
         public int Capacity => _messages.Length;
-        public volatile int Count;
+        public int Count;
+        
         private readonly bool _groupByEpEnabled;
         public bool GroupByEpEnabled => _groupByEpEnabled;
 
@@ -63,10 +64,8 @@ namespace zero.cocoon.models.batches
             if (Interlocked.CompareExchange(ref _disposed, 1, 0) != 0)
                 return;
 
-            if (disposing)
+            //if (disposing)
             {
-                ReturnToHeap();
-
                 try
                 {
                     ArrayPool<CcDiscoveryMessage>.Shared.Return(_messages, true);
@@ -85,8 +84,8 @@ namespace zero.cocoon.models.batches
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Dispose()
         {
-            Dispose(true);
             GC.SuppressFinalize(this);
+            Dispose(true);
         }
 
         ~CcDiscoveryBatch()

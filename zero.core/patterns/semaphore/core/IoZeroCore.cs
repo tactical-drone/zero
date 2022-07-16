@@ -37,7 +37,7 @@ namespace zero.core.patterns.semaphore.core
             _zeroed = 0;
             _description = description;
             _capacity = capacity;
-            capacity *= 4;
+            capacity *= 2;
             ZeroAsyncMode = zeroAsyncMode;
 
             _waiters = new IoZeroQ<IIoManualResetValueTaskSourceCore<T>>(string.Empty, capacity, false, asyncTasks:null, capacity, false);
@@ -153,8 +153,8 @@ namespace zero.core.patterns.semaphore.core
         //public int WaitCount => _waiters.Reader.Count;
         //public int ReadyCount => _results.Reader.Count;
         public string Description => $"{nameof(IoZeroSemCore<T>)}: r = {ReadyCount}/{_capacity}, w = {WaitCount}/{_capacity}, z = {_zeroed > 0}, heap = {_heapCore.Reader.Count}, {_description}";
-        public int WaitCount => _waiters.Count;
-        public int ReadyCount => _results.Count;
+        public int WaitCount => (int)_waiters.Count;
+        public int ReadyCount => (int)_results.Count;
 
         public int Capacity => _capacity;
         public bool ZeroAsyncMode { get; }
@@ -214,7 +214,7 @@ namespace zero.core.patterns.semaphore.core
             released = 0;
 
             //while ((banked = _results.Reader.Count < ModCapacity) && !_results.Writer.TryWrite(value)){}
-            while ((banked = _results.Count < ModCapacity) && _results.TryEnqueue(value) < 0) { }
+            while ((banked = _results.Count < Capacity) && _results.TryEnqueue(value) < 0) { }
 
             //drain the Q
             //while (_waiters.Reader.Count > 0 && _results.Reader.TryRead(out var fastTracked))
@@ -283,7 +283,7 @@ namespace zero.core.patterns.semaphore.core
             if (_waiters.Count == 0 && _results.TryDequeue(out var jitCore))
             {
                 slowTaskCore = new ValueTask<T>(jitCore);
-                //_heapCore.TryEnqueue(waiter);
+                _heapCore.Writer.TryWrite(waiter);
                 return true;
             }
 

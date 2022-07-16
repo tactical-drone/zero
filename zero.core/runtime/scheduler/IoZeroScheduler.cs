@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Runtime.CompilerServices;
+using System.Security.Cryptography;
 using System.Threading;
 using System.Threading.Channels;
 using System.Threading.Tasks;
@@ -10,6 +11,8 @@ using NLog;
 using zero.core.misc;
 using zero.core.patterns.heap;
 using zero.core.patterns.misc;
+using zero.core.patterns.queue;
+using zero.core.patterns.semaphore;
 
 namespace zero.core.runtime.scheduler
 {
@@ -41,66 +44,78 @@ namespace zero.core.runtime.scheduler
             _asyncTaskWithContextCount = _asyncCount * 8;
             _syncCount = _forkCount = _asyncFallbackCount = _asyncCount;
             //_workerCount = _asyncCount = _asyncTaskWithContextCount = _syncCount = _forkCount = _asyncFallbackCount = _asyncCount = 1;
-            var capacity = short.MaxValue;
 
-            //TODO: F
-            var asyncContinue = false;
-            //_taskChannel = new IoZeroSemaphoreChannel<Task>(string.Empty, short.MaxValue /3, 0, true); //TRUE
-            _taskChannel = Channel.CreateBounded<Task>(new BoundedChannelOptions(capacity)
-            {
-                SingleWriter = false,
-                SingleReader = false,
-                AllowSynchronousContinuations = false,
-                FullMode = BoundedChannelFullMode.DropNewest
-            });
+            //_taskChannel = new IoZeroQ<Task>(string.Empty, short.MaxValue / 3, false, _asyncTasks, short.MaxValue / 3, true); //TRUE
+            //_asyncForkQueue = new IoZeroQ<Func<ValueTask>>(string.Empty, short.MaxValue / 3, false, _asyncTasks, short.MaxValue / 3, true); //FALSE
+            //_asyncCallbackQueue = new IoZeroQ<ZeroContinuation>(string.Empty, short.MaxValue / 3, false, _asyncTasks, short.MaxValue / 3, true); //TRUE
+            //_asyncFallbackQueue = new IoZeroQ<ZeroContinuation>(string.Empty, short.MaxValue / 3, false, _asyncTasks, short.MaxValue / 3, true); //TRUE
+            //_asyncValueTaskQueue = new IoZeroQ<ZeroValueContinuation>(string.Empty, short.MaxValue / 3, false, _asyncTasks, short.MaxValue / 3, true); //TRUE
+            //_asyncValueTaskWithContextQueue = new IoZeroQ<ZeroValueContinuation>(string.Empty, short.MaxValue / 3, false, _asyncTasks, short.MaxValue / 3, true); //TRUE
+            //_forkQueue = new IoZeroQ<Action>(string.Empty, short.MaxValue / 3, false, _asyncTasks, short.MaxValue / 3, true); //TRUE
 
-            _asyncForkQueue = Channel.CreateBounded<Func<ValueTask>>(new BoundedChannelOptions(capacity)
-            {
-                SingleWriter = false,
-                SingleReader = false,
-                AllowSynchronousContinuations = false,
-                FullMode = BoundedChannelFullMode.DropNewest
-            });
+            _taskChannel = new IoZeroSemaphoreChannel<Task>(string.Empty, short.MaxValue / 3, 0, false); //TRUE
+            _asyncForkQueue = new IoZeroSemaphoreChannel<Func<ValueTask>>(string.Empty, short.MaxValue / 3, 0, false); //TRUE
+            _asyncCallbackQueue = new IoZeroSemaphoreChannel<ZeroContinuation>(string.Empty, short.MaxValue / 3, 0, false); //TRUE
+            _asyncFallbackQueue = new IoZeroSemaphoreChannel<ZeroContinuation>(string.Empty, short.MaxValue / 3, 0, false); //TRUE
+            _asyncValueTaskQueue = new IoZeroSemaphoreChannel<ZeroValueContinuation>(string.Empty, short.MaxValue / 3, 0, false); //TRUE
+            _asyncValueTaskWithContextQueue = new IoZeroSemaphoreChannel<ZeroValueContinuation>(string.Empty, short.MaxValue / 3, 0, false); //TRUE
+            _forkQueue = new IoZeroSemaphoreChannel<Action>(string.Empty, short.MaxValue / 3, 0, false); //TRUE
 
-            _asyncCallbackQueue = Channel.CreateBounded<ZeroContinuation>(new BoundedChannelOptions(capacity)
-            {
-                SingleWriter = false,
-                SingleReader = false,
-                AllowSynchronousContinuations = false,
-                FullMode = BoundedChannelFullMode.DropNewest
-            });
+            //_taskChannel = Channel.CreateBounded<Task>(new BoundedChannelOptions(capacity)
+            //{
+            //    SingleWriter = false,
+            //    SingleReader = false,
+            //    AllowSynchronousContinuations = false,
+            //    FullMode = BoundedChannelFullMode.DropNewest
+            //});
 
-            _asyncFallbackQueue = Channel.CreateBounded<ZeroContinuation>(new BoundedChannelOptions(capacity)
-            {
-                SingleWriter = false,
-                SingleReader = false,
-                AllowSynchronousContinuations = false,
-                FullMode = BoundedChannelFullMode.DropNewest
-            });
+            //_asyncForkQueue = Channel.CreateBounded<Func<ValueTask>>(new BoundedChannelOptions(capacity)
+            //{
+            //    SingleWriter = false,
+            //    SingleReader = false,
+            //    AllowSynchronousContinuations = false,
+            //    FullMode = BoundedChannelFullMode.DropNewest
+            //});
 
-            _asyncValueTaskQueue = Channel.CreateBounded<ZeroValueContinuation>(new BoundedChannelOptions(capacity)
-            {
-                SingleWriter = false,
-                SingleReader = false,
-                AllowSynchronousContinuations = false,
-                FullMode = BoundedChannelFullMode.DropNewest
-            });
+            //_asyncCallbackQueue = Channel.CreateBounded<ZeroContinuation>(new BoundedChannelOptions(capacity)
+            //{
+            //    SingleWriter = false,
+            //    SingleReader = false,
+            //    AllowSynchronousContinuations = false,
+            //    FullMode = BoundedChannelFullMode.DropNewest
+            //});
 
-            _asyncValueTaskWithContextQueue = Channel.CreateBounded<ZeroValueContinuation>(new BoundedChannelOptions(capacity)
-            {
-                SingleWriter = false,
-                SingleReader = false,
-                AllowSynchronousContinuations = false,
-                FullMode = BoundedChannelFullMode.DropNewest
-            });
+            //_asyncFallbackQueue = Channel.CreateBounded<ZeroContinuation>(new BoundedChannelOptions(capacity)
+            //{
+            //    SingleWriter = false,
+            //    SingleReader = false,
+            //    AllowSynchronousContinuations = false,
+            //    FullMode = BoundedChannelFullMode.DropNewest
+            //});
 
-            _forkQueue = Channel.CreateBounded<Action>(new BoundedChannelOptions(capacity)
-            {
-                SingleWriter = false,
-                SingleReader = false,
-                AllowSynchronousContinuations = false,
-                FullMode = BoundedChannelFullMode.DropNewest
-            });
+            //_asyncValueTaskQueue = Channel.CreateBounded<ZeroValueContinuation>(new BoundedChannelOptions(capacity)
+            //{
+            //    SingleWriter = false,
+            //    SingleReader = false,
+            //    AllowSynchronousContinuations = false,
+            //    FullMode = BoundedChannelFullMode.DropNewest
+            //});
+
+            //_asyncValueTaskWithContextQueue = Channel.CreateBounded<ZeroValueContinuation>(new BoundedChannelOptions(capacity)
+            //{
+            //    SingleWriter = false,
+            //    SingleReader = false,
+            //    AllowSynchronousContinuations = false,
+            //    FullMode = BoundedChannelFullMode.DropNewest
+            //});
+
+            //_forkQueue = Channel.CreateBounded<Action>(new BoundedChannelOptions(capacity)
+            //{
+            //    SingleWriter = false,
+            //    SingleReader = false,
+            //    AllowSynchronousContinuations = false,
+            //    FullMode = BoundedChannelFullMode.DropNewest
+            //});
 
             _callbackHeap = new IoHeap<ZeroContinuation>(string.Empty, short.MaxValue << 1, (_, _) => new ZeroContinuation())
             {
@@ -140,7 +155,7 @@ namespace zero.core.runtime.scheduler
                 _ = Task.Factory.StartNew(static async state =>
                 {
                     var (@this, i) = (ValueTuple<IoZeroScheduler, int>)state;
-                    await @this.HandleAsyncSchedulerTask(i).FastPath().ConfigureAwait(false);
+                    await @this.HandleAsyncSchedulerTask(i).ConfigureAwait(false);
                 }, (this, i), CancellationToken.None, TaskCreationOptions.LongRunning | TaskCreationOptions.HideScheduler, Default);
             }
 
@@ -180,7 +195,7 @@ namespace zero.core.runtime.scheduler
                 _ = Task.Factory.StartNew(static async state =>
                 {
                     var (@this, i) = (ValueTuple<IoZeroScheduler, int>)state;
-                    await @this.ForkAsyncCallbacks(i).FastPath();
+                    await @this.ForkAsyncCallbacks(i).ConfigureAwait(false);
                 }, (this, i), CancellationToken.None, TaskCreationOptions.LongRunning, ZeroDefault);
             }
 
@@ -200,7 +215,7 @@ namespace zero.core.runtime.scheduler
                 _ = Task.Factory.StartNew(static async state =>
                 {
                     var (@this, i) = (ValueTuple<IoZeroScheduler, int>)state;
-                    await @this.AsyncFallbacks(i).FastPath().ConfigureAwait(false);
+                    await @this.AsyncFallbacks(i).ConfigureAwait(false);
                 }, (this, i), CancellationToken.None, TaskCreationOptions.LongRunning, Default);
             }
         }
@@ -246,14 +261,32 @@ namespace zero.core.runtime.scheduler
         public static readonly IoZeroScheduler Zero;
         private readonly CancellationTokenSource _asyncTasks;
         //private readonly IoZeroSemaphoreChannel<Task> _taskChannel;
-        private readonly Channel<Task> _taskChannel;
 
-        private readonly Channel<Func<ValueTask>> _asyncForkQueue;
-        private readonly Channel<ZeroContinuation> _asyncCallbackQueue;
-        private readonly Channel<ZeroContinuation> _asyncFallbackQueue;
-        private readonly Channel<ZeroValueContinuation> _asyncValueTaskQueue;
-        private readonly Channel<ZeroValueContinuation> _asyncValueTaskWithContextQueue;
-        private readonly Channel<Action> _forkQueue;
+        //private readonly Channel<Task> _taskChannel;
+        //private readonly Channel<Func<ValueTask>> _asyncForkQueue;
+        //private readonly Channel<ZeroContinuation> _asyncCallbackQueue;
+        //private readonly Channel<ZeroContinuation> _asyncFallbackQueue;
+        //private readonly Channel<ZeroValueContinuation> _asyncValueTaskQueue;
+        //private readonly Channel<ZeroValueContinuation> _asyncValueTaskWithContextQueue;
+        //private readonly Channel<Action> _forkQueue;
+
+        //private readonly IoZeroSemaphoreChannel<Task> _taskChannel;
+        //private readonly IoZeroQ<Task> _taskChannel;
+        //private readonly IoZeroQ<Func<ValueTask>> _asyncForkQueue;
+        //private readonly IoZeroQ<ZeroContinuation> _asyncCallbackQueue;
+        //private readonly IoZeroQ<ZeroContinuation> _asyncFallbackQueue;
+        //private readonly IoZeroQ<ZeroValueContinuation> _asyncValueTaskQueue;
+        //private readonly IoZeroQ<ZeroValueContinuation> _asyncValueTaskWithContextQueue;
+        //private readonly IoZeroQ<Action> _forkQueue;
+
+        private readonly IoZeroSemaphoreChannel<Task> _taskChannel;
+        private readonly IoZeroSemaphoreChannel<Func<ValueTask>> _asyncForkQueue;
+        private readonly IoZeroSemaphoreChannel<ZeroContinuation> _asyncCallbackQueue;
+        private readonly IoZeroSemaphoreChannel<ZeroContinuation> _asyncFallbackQueue;
+        private readonly IoZeroSemaphoreChannel<ZeroValueContinuation> _asyncValueTaskQueue;
+        private readonly IoZeroSemaphoreChannel<ZeroValueContinuation> _asyncValueTaskWithContextQueue;
+        private readonly IoZeroSemaphoreChannel<Action> _forkQueue;
+
         private readonly IoHeap<ZeroContinuation> _callbackHeap;
         private readonly IoHeap<ZeroValueContinuation> _contextHeap;
         private readonly IoHeap<List<int>> _diagnosticsHeap;
@@ -285,9 +318,9 @@ namespace zero.core.runtime.scheduler
         private readonly TaskScheduler _fallbackScheduler;
         private bool _native;
 
-        public int RLength => _taskChannel.Reader.Count;
+        public int RLength => _taskChannel.ReadyCount;
 
-        public int QLength => _taskChannel.Reader.Count;
+        public int QLength => _taskChannel.WaitCount;
         public int ThreadCount => _workerCount;
         public long CompletedWorkItemCount => _completedWorkItemCount;
         public long CompletedQItemCount => _completedWorkItemCount;
@@ -296,12 +329,20 @@ namespace zero.core.runtime.scheduler
         public long Capacity => _workerCount;
         private async ValueTask ForkAsyncCallbacks(int threadIndex)
         {
-            await foreach (var job in _asyncForkQueue.Reader.ReadAllAsync().ConfigureAwait(false))
+            //await foreach (var job in _asyncForkQueue.BalanceOnConsumeAsync(threadIndex).ConfigureAwait(false))
+            while(true)
             {
+                var job = await _asyncForkQueue.WaitAsync().FastPath().ConfigureAwait(false);
                 try
                 {
                     await job().FastPath();
                     Interlocked.Increment(ref _completedForkAsyncCount);
+
+                    //while (_asyncForkQueue.TryDequeue(out var drain))
+                    //{
+                    //    await job().FastPath();
+                    //    Interlocked.Increment(ref _completedForkAsyncCount);
+                    //}
                 }
                 catch (Exception e)
                 {
@@ -312,13 +353,21 @@ namespace zero.core.runtime.scheduler
 
         private async ValueTask ForkCallbacks(int threadIndex)
         {
-            await foreach (var job in _forkQueue.Reader.ReadAllAsync())
+            //await foreach (var job in _forkQueue.BalanceOnConsumeAsync(threadIndex))
+            while(true)
             {
+                var job = await _forkQueue.WaitAsync().FastPath();
                 try
                 {
                     Interlocked.Increment(ref _forkLoad);
                     job();
                     Interlocked.Increment(ref _completedForkCount);
+
+                    //while (_forkQueue.TryDequeue(out var drain))
+                    //{
+                    //    drain();
+                    //    Interlocked.Increment(ref _completedForkCount);
+                    //}
                 }
                 catch (Exception e)
                 {
@@ -333,12 +382,20 @@ namespace zero.core.runtime.scheduler
 
         private async ValueTask AsyncFallbacks(int threadIndex)
         {
-            await foreach (var job in _asyncFallbackQueue.Reader.ReadAllAsync().ConfigureAwait(false))
+            //await foreach (var job in _asyncFallbackQueue.BalanceOnConsumeAsync(threadIndex).ConfigureAwait(false))
+            while(true)
             {
+                var job = await _asyncFallbackQueue.WaitAsync().FastPath().ConfigureAwait(false);
                 try
                 {
                     job.Callback(job.State);
                     Interlocked.Increment(ref _completedForkCount);
+
+                    //while (_asyncFallbackQueue.TryDequeue(out var drain))
+                    //{
+                    //    drain.Callback(drain.State);
+                    //    Interlocked.Increment(ref _completedForkCount);
+                    //}
                 }
                 catch (Exception e)
                 {
@@ -353,44 +410,73 @@ namespace zero.core.runtime.scheduler
 
         private async ValueTask HandleAsyncSchedulerTask(int threadIndex)
         {
-            await foreach (var job in _taskChannel.Reader.ReadAllAsync().ConfigureAwait(false))
+            //await foreach (var job in _taskChannel.BalanceOnConsumeAsync(threadIndex).ConfigureAwait(false))
+            while(true)
             {
-                try
+                var job = await _taskChannel.WaitAsync().FastPath().ConfigureAwait(false);
+                //if (_taskChannel.TryDequeue(out var job))
                 {
-                    if (job.Status <= TaskStatus.WaitingToRun)
+                    try
                     {
-                        Interlocked.Increment(ref _workerLoad);
-                        try
+                        if (job.Status <= TaskStatus.WaitingToRun)
                         {
-                            if (!TryExecuteTask(job)) //&& job.Status <= TaskStatus.Running)
-                                LogManager.GetCurrentClassLogger().Fatal(
-                                    $"{nameof(HandleAsyncSchedulerTask)}: Unable to execute task, id = {job.Id}, state = {job.Status}, async-state = {job.AsyncState}, success = {job.IsCompletedSuccessfully}");
-                            else
-                                Interlocked.Increment(ref _completedWorkItemCount);
-                        }
-                        finally
-                        {
-                            Interlocked.Decrement(ref _workerLoad);
+                            Interlocked.Increment(ref _workerLoad);
+                            try
+                            {
+                                if (!TryExecuteTask(job)) //&& job.Status <= TaskStatus.Running)
+                                    LogManager.GetCurrentClassLogger().Fatal(
+                                        $"{nameof(HandleAsyncSchedulerTask)}: Unable to execute task, id = {job.Id}, state = {job.Status}, async-state = {job.AsyncState}, success = {job.IsCompletedSuccessfully}");
+                                else
+                                    Interlocked.Increment(ref _completedWorkItemCount);
+
+                                //while (_taskChannel.TryDequeue(out var drain) && drain.Status <= TaskStatus.WaitingToRun)
+                                //{
+                                //    if (!TryExecuteTask(drain)) //&& job.Status <= TaskStatus.Running)
+                                //        LogManager.GetCurrentClassLogger().Fatal(
+                                //            $"{nameof(HandleAsyncSchedulerTask)}: Unable to execute task, id = {job.Id}, state = {job.Status}, async-state = {job.AsyncState}, success = {job.IsCompletedSuccessfully}");
+                                //    else
+                                //        Interlocked.Increment(ref _completedWorkItemCount);
+                                //}
+                            }
+                            finally
+                            {
+                                Interlocked.Decrement(ref _workerLoad);
+                            }
                         }
                     }
+                    catch (Exception e)
+                    {
+                        LogManager.GetCurrentClassLogger().Trace(e);
+                    }
                 }
-                catch (Exception e)
+                //else
                 {
-                    LogManager.GetCurrentClassLogger().Trace(e);
+                    //Thread.Sleep(_workerCount - _workerLoad);
+                    //Thread.Sleep(RandomNumberGenerator.GetInt32(1, 20000));
+                    //Console.Write(".");
                 }
+                    
             }
         }
 
         private async ValueTask HandleAsyncCallback(int threadIndex)
         {
-            await foreach (var job in _asyncCallbackQueue.Reader.ReadAllAsync().ConfigureAwait(_native))
+            //await foreach (var job in _asyncCallbackQueue.BalanceOnConsumeAsync(threadIndex).ConfigureAwait(_native))
+            while(true)
             {
+                var job = await _asyncCallbackQueue.WaitAsync().FastPath().ConfigureAwait(_native);
                 try
                 {
                     job.Callback(job.State);
                     Interlocked.Increment(ref _completedAsyncCount);
                     Interlocked.Add(ref _asyncQTime, job.Timestamp.ElapsedMs());
 
+                    //while (_asyncCallbackQueue.TryDequeue(out var drain))
+                    //{
+                    //    drain.Callback(drain.State);
+                    //    Interlocked.Increment(ref _completedAsyncCount);
+                    //    Interlocked.Add(ref _asyncQTime, drain.Timestamp.ElapsedMs());
+                    //}
                 }
                 catch (Exception e)
                 {
@@ -404,8 +490,10 @@ namespace zero.core.runtime.scheduler
         }
         private async ValueTask HandleAsyncValueTask(int threadIndex)
         {
-            await foreach (var job in _asyncValueTaskQueue.Reader.ReadAllAsync().ConfigureAwait(_native))
+            //await foreach (var job in _asyncValueTaskQueue.BalanceOnConsumeAsync(threadIndex).ConfigureAwait(_native))
+            while(true)
             {
+                var job = await _asyncValueTaskQueue.WaitAsync().FastPath().ConfigureAwait(_native);
                 try
                 {
                     Debug.Assert(TaskScheduler.Current.Id == IoZeroScheduler.Zero.Id);
@@ -413,6 +501,12 @@ namespace zero.core.runtime.scheduler
                     Interlocked.Increment(ref _completedAsyncCount);
                     Interlocked.Add(ref _asyncQTime, job.Timestamp.ElapsedMs());
 
+                    //while (_asyncValueTaskQueue.TryDequeue(out var drain))
+                    //{
+                    //    await job.ValueTask.FastPath();
+                    //    Interlocked.Increment(ref _completedAsyncCount);
+                    //    Interlocked.Add(ref _asyncQTime, drain.Timestamp.ElapsedMs());
+                    //}
                 }
                 catch (Exception e)
                 {
@@ -427,8 +521,10 @@ namespace zero.core.runtime.scheduler
 
         private async ValueTask HandleAsyncValueTaskWithContext(int threadIndex)
         {
-            await foreach (var job in _asyncValueTaskWithContextQueue.Reader.ReadAllAsync().ConfigureAwait(_native))
+            //await foreach (var job in _asyncValueTaskWithContextQueue.BalanceOnConsumeAsync(threadIndex).ConfigureAwait(_native))
+            while(true)
             {
+                var job = await _asyncValueTaskWithContextQueue.WaitAsync().FastPath().ConfigureAwait(_native);
                 try
                 {
                     Interlocked.Increment(ref _asyncLoad);
@@ -436,6 +532,13 @@ namespace zero.core.runtime.scheduler
                     await job.ValueFunc(job.Context).FastPath();
                     Interlocked.Increment(ref _completedAsyncCount);
                     Interlocked.Add(ref _asyncQTime, job.Timestamp.ElapsedMs());
+
+                    //while (_asyncValueTaskWithContextQueue.TryDequeue(out var drain))
+                    //{
+                    //    await job.ValueFunc(job.Context).FastPath();
+                    //    Interlocked.Increment(ref _completedAsyncCount);
+                    //    Interlocked.Add(ref _asyncQTime, drain.Timestamp.ElapsedMs());
+                    //}
                 }
                 catch (Exception e)
                 {
@@ -476,9 +579,9 @@ namespace zero.core.runtime.scheduler
             //queue the work for processing
             var ts = Environment.TickCount;
             
-            if (!_taskChannel.Writer.TryWrite(task))
+            if (_taskChannel.Release(task, true) < 0)
             {
-                throw new InternalBufferOverflowException($"{nameof(_taskChannel)}: count = {_taskChannel.Reader.Count}, capacity {Capacity}");
+                throw new InternalBufferOverflowException($"{nameof(_taskChannel)}: {_taskChannel.Description}");
             }
 
             Interlocked.Add(ref _taskQTime, ts.ElapsedMs());
@@ -495,7 +598,7 @@ namespace zero.core.runtime.scheduler
                         _ = Task.Factory.StartNew(static async state =>
                             {
                                 var (@this, i) = (ValueTuple<IoZeroScheduler, int>)state;
-                                await @this.HandleAsyncSchedulerTask(i).FastPath().ConfigureAwait(false);
+                                await @this.HandleAsyncSchedulerTask(i).ConfigureAwait(false);
                             }, (@this, Interlocked.Increment(ref @this._workerCount) - 1), CancellationToken.None,
                             TaskCreationOptions.LongRunning, Default);
 
@@ -582,7 +685,7 @@ namespace zero.core.runtime.scheduler
 
                 handler.Callback = callback;
                 handler.State = state;
-                return _asyncCallbackQueue.Writer.TryWrite(handler);
+                return _asyncCallbackQueue.Release(handler, true) >= 0;
             }
             finally
             {
@@ -598,7 +701,7 @@ namespace zero.core.runtime.scheduler
             if (c == null) throw new OutOfMemoryException(nameof(LoadAsyncContext));
             c.ValueFunc = valueTask;
             c.Context = context;
-            return _asyncValueTaskWithContextQueue.Writer.TryWrite(c);
+            return _asyncValueTaskWithContextQueue.Release(c, true) >= 0;
         }
 
         //API
@@ -611,17 +714,17 @@ namespace zero.core.runtime.scheduler
             var c = _contextHeap.Take();
             if (c == null) throw new OutOfMemoryException(nameof(LoadAsyncCallback));
             c.ValueTask = task;
-            return _asyncValueTaskQueue.Writer.TryWrite(c);
+            return _asyncValueTaskQueue.Release(c, true) >= 0;
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public bool LoadAsyncCallback(Func<ValueTask> callback) => _asyncForkQueue.Writer.TryWrite(callback);
+        public bool LoadAsyncCallback(Func<ValueTask> callback) => _asyncForkQueue.Release(callback, true) >= 0;
 
         //[MethodImpl(MethodImplOptions.AggressiveInlining)]
         //public bool LoadExclusiveZone(Func<object,ValueTask> callback, object state = null) => _exclusiveQueue.TryEnqueue(callback) > 0;
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public bool Fork(Action callback) => _forkQueue.Writer.TryWrite(callback);
+        public bool Fork(Action callback) => _forkQueue.Release(callback, true) >= 0;
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public bool FallbackContext(Action<object> callback, object context = null)
@@ -630,7 +733,7 @@ namespace zero.core.runtime.scheduler
             if (qItem == null) throw new OutOfMemoryException(nameof(FallbackContext));
             qItem.Callback = callback;
             qItem.State = context;
-            return _asyncFallbackQueue.Writer.TryWrite(qItem);
+            return _asyncFallbackQueue.Release(qItem, true) >= 0;
         }
     }
 }

@@ -38,8 +38,17 @@ namespace zero.core.patterns.heap
         {
             _description = description;
             Malloc = malloc;
+
+            if (_ioHeapBuf is Channel<TItem>)//TODO: tuning
+            {
+                if (autoScale)
+                    capacity = ushort.MaxValue;
+                else
+                    capacity *= 2;
+            }
+
             //_ioHeapBuf = new IoZeroQ<TItem>($"{nameof(_ioHeapBuf)}: {description}", capacity,autoScale);
-            _ioHeapBuf = Channel.CreateBounded<TItem>(new BoundedChannelOptions(capacity * 2)
+            _ioHeapBuf = Channel.CreateBounded<TItem>(new BoundedChannelOptions(capacity)
             {
                 SingleWriter = false,
                 SingleReader = false,
@@ -64,7 +73,7 @@ namespace zero.core.patterns.heap
         /// <summary>
         /// 
         /// </summary>
-        public string Description => $"#{GetHashCode()}:{nameof(IoHeap<TItem,TContext>)}: {nameof(Count)} = {Count}, capacity = {Capacity}, refs = {_refCount}, desc = {_description}, bag ~> _ioHeapBuf.Description";
+        public string Description => $"#{GetHashCode()}:{nameof(IoHeap<TItem,TContext>)}: [ratio = {CacheHitRatio * 100:0.0}%] {nameof(Count)} = {Count}, capacity = {Capacity}, refs = {_refCount}, desc = {_description}, bag ~> _ioHeapBuf.Description";
 
         /// <summary>
         /// The heap buffer space
@@ -189,11 +198,21 @@ namespace zero.core.patterns.heap
                         goto retry; //TODO: hack
 
                     //TODO: Leak
-                    if (_refCount >= Capacity && !IsAutoScaling)
+                    if (_refCount >= Capacity)
                     {
-                        _logger.Debug(
-                            $"{nameof(_ioHeapBuf)}: LEAK DETECTED!!! Heap -> {Description}: Q -> _ioHeapBuf.Description");
-                        //throw new OutOfMemoryException($"{nameof(_ioHeapBuf)}: Heap -> {Description}: Q -> _ioHeapBuf.Description");
+                        if (!IsAutoScaling)
+                        {
+#if DEBUG
+                            _logger.Error($"{nameof(_ioHeapBuf)}: LEAK DETECTED!!! Heap -> {Description}: Q -> _ioHeapBuf.Description");
+#endif
+                            Thread.Yield();
+                            if (_refCount >= Capacity && !IsAutoScaling) //TODO: what is going on here? The same check insta fails with huge state differences;
+                                throw new OutOfMemoryException($"{nameof(_ioHeapBuf)}: Heap -> {Description}: Q -> _ioHeapBuf.Description");
+                        }
+                        else if (_ioHeapBuf is Channel<TItem>)
+                        {
+                            Volatile.Write(ref _capacity, _refCount);
+                        }
                     }
 
                     heapItem = Malloc(userData, Context);
@@ -251,9 +270,9 @@ namespace zero.core.patterns.heap
             if (item == null)
                  return;
 
-            PushAction?.Invoke(item);
-
             Interlocked.Decrement(ref _refCount);
+
+            PushAction?.Invoke(item);
 
             try
             {
@@ -262,7 +281,9 @@ namespace zero.core.patterns.heap
                 else
                     Interlocked.Increment(ref _hit);
             }
-            catch when(_zeroed > 0){ }
+            catch when (_zeroed > 0)
+            {
+            }
             catch (Exception e) when (!Zeroed)
             {
                 _logger.Error(e, $"{GetType().Name}: Failed malloc {typeof(TItem)}");
@@ -294,7 +315,7 @@ namespace zero.core.patterns.heap
         /// </summary>
         public Action<TItem> PushAction;
 
-        private readonly int _capacity;
+        private int _capacity;
         private readonly bool _autoScale;
 
         /// <summary>

@@ -36,6 +36,7 @@
             ProdCancel,
             ConsumeTo,
             ProdSkipped,
+            ProdConnReset,
             Cancelled,
             Timeout,
             Oom,

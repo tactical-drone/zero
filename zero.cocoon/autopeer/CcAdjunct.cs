@@ -53,12 +53,14 @@ namespace zero.cocoon.autopeer
                     $"{((CcAdjunct)ioZero)?.Source.Key}",
                     // ReSharper disable once PossibleInvalidCastException
                     ((CcAdjunct)ioZero)?.Source, groupByEp: false),
-                true, concurrencyLevel:ioNetClient.ZeroConcurrencyLevel()
+                extraData == null, concurrencyLevel:ioNetClient.ZeroConcurrencyLevel()
             )
         {
             //sentinel
             if (Source == null)
                 return;
+
+            parm_io_batch_size = CcCollective.parm_max_adjunct * 2;
 
             if (Source.Zeroed())
             {
@@ -705,35 +707,24 @@ namespace zero.cocoon.autopeer
                 //TODO: tuning, helps cluster test bootups not stalling on popdog spam
                 await Task.Delay(@this.CcCollective.parm_mean_pat_delay_s * 1000);
                 var targetDelay = (@this._random.Next(@this.CcCollective.parm_mean_pat_delay_s / 4) + @this.CcCollective.parm_mean_pat_delay_s / 4) * 1000;
-                var r = new IoTimer(TimeSpan.FromMilliseconds(targetDelay));
-                _roboTimer = r;
+                var ioTimer = new IoTimer(TimeSpan.FromMilliseconds(targetDelay));
                 while (!@this.Zeroed())
                 {
-                    var d = await r.TickAsync().FastPath();
+                    var ts = Environment.TickCount;
+                    var d = await ioTimer.TickAsync().FastPath();
                     @this._logger.Trace($"Robo - {TimeSpan.FromMilliseconds(d)}, {@this.Description}");
-                    //r.Reset();
-                    try
-                    {
-                        //var targetDelay = (@this._random.Next(@this.CcCollective.parm_mean_pat_delay_s / 4) + @this.CcCollective.parm_mean_pat_delay_s / 4) * 1000;
-
-                        if (@this.CcCollective.TotalConnections == 0)
-                            targetDelay /= 4;
-
-                        var ts = Environment.TickCount;
-                        await Task.Delay(targetDelay, @this.AsyncTasks.Token);
-
-                        if (@this.Zeroed())
-                            break;
-
+                    try {
+#if DEBUG
                         if (ts.ElapsedMs() > targetDelay * 1.25 && ts.ElapsedMs() > 0)
                         {
                             @this._logger.Warn($"{@this.Description}: Popdog is slow!!!, {(ts.ElapsedMs() - targetDelay) / 1000.0:0.0}s");
                         }
 
-                        if (ts.ElapsedMs() < targetDelay && !@this.Zeroed())
+                        if (ts.ElapsedMs() < targetDelay - @this.parm_error_timeout && !@this.Zeroed())
                         {
                             @this._logger.Warn($"{@this.Description}: Popdog is FAST!!!, {(ts.ElapsedMs() - targetDelay):0.0}ms / {targetDelay}");
                         }
+#endif
 
                         foreach (var ioNeighbor in @this.Hub.Neighbors.Values.Where(n=> ((CcAdjunct)n).IsProxy))
                         {
@@ -933,10 +924,9 @@ namespace zero.cocoon.autopeer
             CcDiscoveryBatch msgBatch = default;
             try
             {
-                
                 var job = (CcProtocBatchJob<chroniton, CcDiscoveryBatch>)batchJob;
                 msgBatch = job.Get();
-                
+
                 //Grouped by ingress endpoint batches (this needs to make sense or disable)
                 if (msgBatch.GroupByEpEnabled)
                 {
@@ -955,6 +945,18 @@ namespace zero.cocoon.autopeer
                             {
                                 foreach (var message in msgGroup.Item2)
                                 {
+                                    if (message.SourceState > 0)
+                                    {
+                                        var routed = Router._routingTable.TryGetValue(message.EndPoint.GetEndpoint().ToString(), out var zombie);
+                                        if (routed)
+                                        {
+                                            await zombie.DisposeAsync(this, "Connection RESET!!!");
+                                            break;
+                                        }
+                                        continue;
+                                    }
+
+
                                     if (Zeroed())
                                         break;
                                     try
@@ -993,7 +995,20 @@ namespace zero.cocoon.autopeer
                             //TODO, is this caching a good idea? 
                             if (!_enableBatchEpCache  || proxy is not { IsProxy: true } || cachedEp == null || !cachedEp.ArrayEqual(message.EndPoint) && cachedPk == null || !cachedPk.Memory.Span.ArrayEqual(message.Chroniton.PublicKey.Span))
                             {
+
                                 cachedEp = message.EndPoint;
+
+                                if (message.SourceState > 0)
+                                {
+                                    var routed = Router._routingTable.TryGetValue(cachedEp.GetEndpoint().ToString(), out var zombie);
+                                    if (routed)
+                                    {
+                                        await zombie.DisposeAsync(this, "Connection RESET!!!");
+                                        break;
+                                    }
+                                    continue;
+                                }
+
                                 cachedPk = message.Chroniton.PublicKey;
 #if DEBUG
                                 proxy = await RouteAsync(cachedEp.GetEndpoint(), cachedPk, message.Chroniton.Header.Ip.Src.GetEndpoint()).FastPath();
@@ -1004,9 +1019,18 @@ namespace zero.cocoon.autopeer
                                 proxy = await RouteAsync(cachedEp.GetEndpoint(), cachedPk).FastPath();
 #endif
 
+                                if (message.SourceState > 0)
+                                {
+                                    await proxy.DisposeAsync(this, "Connection has been reset!!!").FastPath();
+                                    break;
+                                }
                             }
+
                             if (proxy != null && Equals(message.Chroniton.Header.Ip.Dst.GetEndpoint(), Router.MessageService.IoNetSocket.NativeSocket.LocalEndPoint))
+                            {
                                 await processCallback(message, msgBatch, channel, nanite, proxy, message.EndPoint.GetEndpoint()).FastPath();
+                            }
+                                
                             message.Chroniton = null;
                             message.EmbeddedMsg = null;
                         }
@@ -1167,7 +1191,7 @@ namespace zero.cocoon.autopeer
                             {
                                 while (!@this.Zeroed())
                                 {
-                                    await @this._protocolConduit.ConsumeAsync(ProcessMessages(), @this).FastPath();
+                                    await @this._protocolConduit.ConsumeAsync(i, ProcessMessages(), @this).FastPath();
                                     
                                     [MethodImpl(MethodImplOptions.AggressiveInlining)]
                                     static Func<IoSink<CcProtocBatchJob<chroniton, CcDiscoveryBatch>>, CcAdjunct, ValueTask> ProcessMessages()
@@ -1186,6 +1210,13 @@ namespace zero.cocoon.autopeer
                                                         batchItem.EmbeddedMsg = null;
                                                         packet = batchItem.Chroniton;
                                                         batchItem.Chroniton = null;
+
+                                                        if (batchItem.SourceState > 0)
+                                                        {
+                                                            batchItem.SourceState = 0;
+                                                            await currentRoute.DisposeAsync(@this, "Connection has been reset!!!").FastPath();
+                                                            return;
+                                                        }
 
                                                         if (packet.Data.Length == 0)
                                                         {
@@ -1593,7 +1624,6 @@ namespace zero.cocoon.autopeer
 #pragma warning disable CA2211 // Non-constant fields should not be visible
         public static long ConnectionTime;
         public static long ConnectionCount;
-        private static IoTimer _roboTimer;
 #pragma warning restore CA2211 // Non-constant fields should not be visible
 
         /// <summary>

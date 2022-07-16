@@ -85,23 +85,30 @@ namespace zero.core.patterns.queue
                 _zeroSyncs = Enumerable.Repeat<AsyncDelegate>(PumpOnConsumeAsync, concurrencyLevel).ToArray();
             }
             
-            _curEnumerator = new IoQEnumerator<T>(this);
+            //_curEnumerator = new IoQEnumerator<T>(this);
         }
 
         #region packed
         private long _head;
+        private long _tail;
+        private int _zeroed;
+        private int _count;
         private long _hwm;
 
         private readonly string _description;
 
-        private readonly T[][] _storage;
-        private readonly T[] _fastStorage;
-        private int[][]  _bloom;
-        private int[]    _fastBloom;
+        private readonly T[][]   _storage;
+        private readonly T[]     _fastStorage;
+        private readonly int[][] _bloom;
+        private readonly int[]   _fastBloom;
 
-        private readonly object _syncRoot = new();
+        private readonly object _syncRoot = new object();
+
+        //private readonly ReaderWriterLockSlim _rwLock = new(LockRecursionPolicy.NoRecursion);
+        //private const int _readTo = 100;
+        //private const int _writeTo = 50;
         
-        private volatile IoQEnumerator<T> _curEnumerator;
+        //private volatile IoQEnumerator<T> _curEnumerator;
         private readonly IoZeroSemaphoreSlim _fanSync;
         private readonly IoZeroSemaphoreChannel<T> _zeroSync;
         private readonly IoZeroSemaphoreSlim _balanceSync;
@@ -109,26 +116,28 @@ namespace zero.core.patterns.queue
         private readonly AsyncDelegate[] _balanceSyncs;
         private readonly AsyncDelegate[] _zeroSyncs;
         private delegate IAsyncEnumerable<T> AsyncDelegate();
-        private long _tail;
-        private volatile int _zeroed;
-        private volatile int _capacity;
-        private volatile int _virility;
-        private volatile int _blockingConsumers;
-        private volatile int _sharingConsumers;
-        private volatile int _pumpingConsumers;
-        private volatile int _primedForScale;
+        
+        private readonly int _capacity;
+        private int _virility;
+        private int _blockingConsumers;
+        private int _sharingConsumers;
+        private int _pumpingConsumers;
+        private int _primedForScale;
         private readonly bool _autoScale;
         private readonly bool _blockingCollection;
-        private volatile int _count;
 
         #endregion
 
         private const int _zero = 0;
         private const int _one = 1;
         private const int _set = 2;
+        private const int _reset = 3;
+        private const int YieldRetryCount = 4;
 
-        public long Tail => Volatile.Read(ref _tail);
-        public long Head => Volatile.Read(ref _head);
+        //public long Tail => Interlocked.Read(ref _tail);
+        //public long Head => Interlocked.Read(ref _head);
+        public long Tail => _tail;
+        public long Head => _head;
 
         /// <summary>
         /// ZeroAsync status
@@ -143,6 +152,7 @@ namespace zero.core.patterns.queue
         /// <summary>
         /// Current number of items in the bag
         /// </summary>
+        //public long Count => Interlocked.Read(ref _count);
         public int Count => _count;
 
         /// <summary>
@@ -167,7 +177,7 @@ namespace zero.core.patterns.queue
             {
                 Debug.Assert(idx >= 0);
 
-                //if (!IsAutoScaling) return Volatile.Read(ref _fastStorage[idx % _capacity]);
+                //if (!IsAutoScaling) return Volatile.Read(ref _fastStorage[index % _capacity]);
                 if (!IsAutoScaling) return _fastStorage[idx % _capacity];
 
                 idx %= Capacity;
@@ -207,12 +217,12 @@ namespace zero.core.patterns.queue
 
                 if (_primedForScale == 0)
                 {
-                    if (_count >= cap2)
+                    if (Count >= cap2)
                         Interlocked.CompareExchange(ref _primedForScale, 1, 0);
                 }
 
                 //Only allow scaling to happen only when the Q dips under 50% capacity & some other factors, otherwise the indexes will corrupt.
-                if (_primedForScale == 1 && Head <= cap2 && Tail <= cap2 && (Tail > Head || Tail == Head && _count < cap2) && Interlocked.CompareExchange(ref _primedForScale, 2, 1) == 1 || force)
+                if (_primedForScale == 1 && Head <= cap2 && Tail <= cap2 && (Tail > Head || Tail == Head && Count < cap2) && Interlocked.CompareExchange(ref _primedForScale, 2, 1) == 1 || force)
                 {
                     var hwm = 1 << (_virility + 1);
                     _storage[_virility + 1] = new T[hwm];
@@ -230,128 +240,222 @@ namespace zero.core.patterns.queue
         /// <summary>
         /// Wraps Interlocked.CompareExchange that copes with horizontal scaling
         /// </summary>
-        /// <param name="idx">index to work with</param>
+        /// <param name="index">index to work with</param>
         /// <param name="value">The new value</param>
         /// <returns>False on race, true otherwise</returns>
 #if !DEBUG
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
 #endif
-        private (bool success,T value) AtomicAdd(long idx, T value)
-        {
-#if DEBUG
-            var ts = Environment.TickCount;
-#endif
-            
-                try
-                {
-                    var modIdx = idx % Capacity;
-
-                    if (!IsAutoScaling)
-                    {
-                        if (Interlocked.CompareExchange(ref _fastBloom[modIdx], _one, _zero) == _zero)
-                        {
-                            if (_tail != idx)
-                            {
-                                Interlocked.Exchange(ref _fastBloom[modIdx], _zero);
-                                return (false, default);
-                            }
-
-                            _fastStorage[modIdx] = value;
-                            Interlocked.Increment(ref _count);
-                            Interlocked.Increment(ref _tail);
-                            return (true, default);
-                        }
-
-                        return (false, default);
-                    }
-
-                    var i = (int)(Math.Log10(modIdx + 1) / Math.Log10(2));
-                    var i2 = modIdx - ((1 << i) - 1);
-                    if (Interlocked.CompareExchange(ref _bloom[i][i2], _one, _zero) == _zero)
-                    {
-                        if (_tail != idx)
-                        {
-                            Interlocked.Exchange(ref _bloom[i][i2], _zero);
-                            return (false, default);
-                        }
-
-                        _storage[i][i2] = value;
-                        Interlocked.Increment(ref _count);
-                        Interlocked.Increment(ref _tail);
-                        return (true, default);
-                    }
-
-                    return (false, default);
-                }
-                finally
-                {
-#if DEBUG
-                    if (ts.ElapsedMs() > 16)
-                    {
-                        LogManager.GetCurrentClassLogger().Fatal($"{nameof(AtomicAdd)}: Q, CAS took => {ts.ElapsedMs()} ms");
-                    }
-#endif
-                }
-        }
-
-        /// <summary>
-        /// Wraps Interlocked.CompareExchange that copes with horizontal scaling
-        /// </summary>
-        /// <param name="idx">index to work with</param>
-        /// <param name="value">The new value</param>
-        /// <returns>False on race, true otherwise</returns>
-#if !DEBUG
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-#endif
-        private bool AtomicRemove(long idx, out T value)
+        private (bool success,T value) AtomicAdd(long index, T value)
         {
 #if DEBUG
             var ts = Environment.TickCount;
 #endif
             try
             {
-                var modIdx = idx % Capacity;
+                var modIdx = index % Capacity;
 
                 if (!IsAutoScaling)
                 {
-                    
-                    if (Interlocked.CompareExchange(ref _fastBloom[modIdx], 2, 1) == 1)
-                    {
-                        if (_head != idx)
-                        {
-                            Interlocked.Exchange(ref _fastBloom[modIdx], 1);
-                            value = default;
-                            return false;
-                        }
+                    //TODO: rw lock is slow
+                    //bool readLock = false;
+                    //bool writeLock = false;
+                    //try
+                    //{
+                    //    readLock = _rwLock.TryEnterUpgradeableReadLock(_readTo);
+                    //    if (readLock && Tail == index)
+                    //    {
+                    //        try
+                    //        {
+                    //            writeLock = _rwLock.TryEnterWriteLock(_writeTo);
+                    //            if (writeLock && Tail == index)
+                    //            {
+                    //                _fastStorage[modIdx] = value;
+                    //                Interlocked.Increment(ref _count);
+                    //                Interlocked.Increment(ref _tail);
+                    //                return (true, default);
+                    //            }
+                    //        }
+                    //        finally
+                    //        {
+                    //            if (writeLock)
+                    //            {
+                    //                _rwLock.ExitWriteLock();
+                    //            }
+                    //        }
+                    //    }
+                    //}
+                    //finally
+                    //{
+                    //    if (readLock)
+                    //        _rwLock.ExitUpgradeableReadLock();
+                    //}
 
-                        value = _fastStorage[modIdx];
-                        _fastStorage[modIdx] = default;
-                        Interlocked.Decrement(ref _count);
-                        Interlocked.Increment(ref _head);
-                        Interlocked.Exchange(ref _fastBloom[modIdx], 0);
-                        return true;
+                    //return (false, default);
+
+                    //lock (_syncRoot) //TODO: locking is slow
+                    {
+                        //if (Tail == index)
+                        //{
+                        //    _fastStorage[modIdx] = value;
+                        //    Interlocked.Increment(ref _count);
+                        //    Interlocked.Increment(ref _tail);
+                        //    return (true, default);
+                        //}
+                        //return (false, default);
+
+                        //TODO: CAS contraptions are super fast!
+                        ref var fastBloomPtr = ref _fastBloom[modIdx];
+                        if (Tail == index && Volatile.Read(ref fastBloomPtr) == _zero && Interlocked.CompareExchange(ref fastBloomPtr, _one, _zero) == _zero)
+                        {
+                            if (Tail != index) //Covers choking throughput causing wrap around issues. CAS passes but at distant past tail and needs to be undone...
+                            {
+                                //TAIL is racing towards this _one... set it back to _zero and hope for the best. So far it checks out. 
+                                Interlocked.CompareExchange(ref fastBloomPtr, _zero, _one);
+                                return (false, default);
+                            }
+
+                            if (Interlocked.CompareExchange(ref fastBloomPtr, _set, _one) != _one)
+                                return (false, default);
+
+                            _fastStorage[modIdx] = value;
+                            Interlocked.Increment(ref _count);
+                            Interlocked.Increment(ref _tail);
+                            return (true, default);
+                        }
+                    }
+                    return (false, default);
+                }
+
+                var i = (int)(Math.Log10(modIdx + 1) / Math.Log10(2));
+                var i2 = modIdx - ((1 << i) - 1);
+                ref var bloomPtr = ref _bloom[i][i2];
+                if (Tail == index && Volatile.Read(ref bloomPtr) == _zero && Interlocked.CompareExchange(ref bloomPtr, _one, _zero) == _zero)
+                {
+                    if (Tail != index) 
+                    {
+                        Interlocked.CompareExchange(ref bloomPtr, _zero, _one);
+                        return (false, default);
                     }
 
+                    if (Interlocked.CompareExchange(ref bloomPtr, _set, _one) != _one)
+                        return (false, default);
+
+                    _storage[i][i2] = value;
+                    Interlocked.Increment(ref _count);
+                    Interlocked.Increment(ref _tail);
+                    return (true, default);
+                }
+
+                return (false, default);
+            }
+            finally
+            {
+#if DEBUG
+                if (ts.ElapsedMs() > 128)
+                {
+                    LogManager.GetCurrentClassLogger().Fatal($"{nameof(AtomicAdd)}: CAS took => {ts.ElapsedMs()} ms");
+                }
+#endif
+            }
+        }
+
+        /// <summary>
+        /// Wraps Interlocked.CompareExchange that copes with horizontal scaling
+        /// </summary>
+        /// <param name="index">index to work with</param>
+        /// <param name="value">The new value</param>
+        /// <returns>False on race, true otherwise</returns>
+#if !DEBUG
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+#endif
+        private bool AtomicRemove(long index, out T value)
+        {
+#if DEBUG
+            var ts = Environment.TickCount;
+#endif
+            try
+            {
+                var modIdx = index % Capacity;
+
+                if (!IsAutoScaling)
+                {
+                    //bool readLock = false;
+                    //bool writeLock = false;
+                    //try
+                    //{
+                    //    readLock = _rwLock.TryEnterUpgradeableReadLock(_readTo);
+                    //    if (readLock && Head == index)
+                    //    {
+                    //        try
+                    //        {
+                    //            writeLock = _rwLock.TryEnterWriteLock(_writeTo);
+                    //            if (writeLock && Head == index)
+                    //            {
+                    //                value = _fastStorage[modIdx];
+                    //                _fastStorage[modIdx] = default;
+                    //                Interlocked.Decrement(ref _count);
+                    //                Interlocked.Increment(ref _head);
+                    //                Interlocked.Exchange(ref _fastBloom[modIdx], _zero);
+                    //                return true;
+                    //            }
+                    //        }
+                    //        finally
+                    //        {
+                    //            if(writeLock)
+                    //                _rwLock.ExitWriteLock();
+                    //        }
+                    //    }
+                    //}
+                    //finally
+                    //{
+                    //    if(readLock)
+                    //        _rwLock.ExitUpgradeableReadLock();
+                    //}
+
+                    //value = default;
+                    //return false;
+
+                    //lock (_syncRoot)
+                    {
+                        //if (Head == index)
+                        //{
+                        //    value = _fastStorage[modIdx];
+                        //    _fastStorage[modIdx] = default;
+                        //    Interlocked.Decrement(ref _count);
+                        //    Interlocked.Increment(ref _head);
+                        //    Interlocked.Exchange(ref _fastBloom[modIdx], _zero);
+                        //    return true;
+                        //}
+
+                        //value = default;
+                        //return false;
+
+                        ref var fastBloomPtr = ref _fastBloom[modIdx];
+                        if (Head == index && Interlocked.CompareExchange(ref fastBloomPtr, _reset, _set) == _set)
+                        {
+                            value = _fastStorage[modIdx];
+                            _fastStorage[modIdx] = default;
+                            Interlocked.Decrement(ref _count);
+                            Interlocked.Increment(ref _head);
+                            Interlocked.Exchange(ref fastBloomPtr, _zero);
+                            return true;
+                        }
+                    }
                     value = default;
                     return false;
                 }
 
                 var i = (int)(Math.Log10(modIdx + 1) / Math.Log10(2));
                 var i2 = modIdx - ((1 << i) - 1);
-                if (Interlocked.CompareExchange(ref _bloom[i][i2], _set, _one) == _one)
+                ref var bloomPtr = ref _bloom[i][i2];
+                if (Interlocked.CompareExchange(ref bloomPtr, _reset, _set) == _set)
                 {
-                    if (_head != idx)
-                    {
-                        Interlocked.Exchange(ref _bloom[i][i2], _one);
-                        value = default;
-                        return false;
-                    }
-
                     value = _storage[i][i2];
                     _storage[i][i2] = default;
                     Interlocked.Decrement(ref _count);
                     Interlocked.Increment(ref _head);
-                    Interlocked.Exchange(ref _bloom[i][i2], _zero);
+                    Interlocked.Exchange(ref bloomPtr, _zero);
                     return true;
                 }
 
@@ -361,9 +465,9 @@ namespace zero.core.patterns.queue
             finally
             {
 #if DEBUG
-                if (ts.ElapsedMs() > 16)
+                if (ts.ElapsedMs() > 128)
                 {
-                    LogManager.GetCurrentClassLogger().Fatal($"{nameof(AtomicAdd)}: Q, CAS took => {ts.ElapsedMs()} ms");
+                    LogManager.GetCurrentClassLogger().Fatal($"{nameof(AtomicRemove)}: CAS took => {ts.ElapsedMs()} ms");
                 }
 #endif
             }
@@ -384,9 +488,9 @@ namespace zero.core.patterns.queue
         {
             Debug.Assert(Zeroed || item != null);
 
-            if (_autoScale && (_primedForScale == 1 || _count >= Capacity >> 1))
+            if (_autoScale && (_primedForScale == 1 || Count >= Capacity >> 1))
             {
-                if (!Scale() && _count >= Capacity)
+                if (!Scale() && Count >= Capacity)
                 {
                     if (_blockingCollection && _sharingConsumers > 0)
                     {
@@ -451,11 +555,17 @@ namespace zero.core.patterns.queue
 
                 long cap;
                 long tail;
+                var yieldCount = YieldRetryCount;
                 while ((tail = Tail) >= Head + (cap = Capacity) || _count >= cap || !AtomicAdd(tail, item).success)
                 {
-                    if (Zeroed || _count >= cap)
+                    if (Zeroed)
                         return -1;
+
+                    if(yieldCount --< 0)
+                        Thread.Yield();
                 }
+
+                
 
                 //execute atomic action on success
                 onAtomicAdd?.Invoke(context);
@@ -519,20 +629,24 @@ namespace zero.core.patterns.queue
             slot = default;
             try
             {
-                if (_count == 0)
+                if (Count == 0)
                 {
                     slot = default;
                     return false;
                 }
 
                 long head;
+                var yieldCount = YieldRetryCount;
                 while ((head = Head) >= Tail || !AtomicRemove(head, out slot)) 
                 {
-                    if (_count == 0 || Zeroed)
+                    if (Count == 0 || Zeroed)
                     {
                         slot = default;
                         return false;
                     }
+
+                    if(yieldCount --< 0)
+                        Thread.Yield();
                 }
                
                 return true;
@@ -641,7 +755,8 @@ namespace zero.core.patterns.queue
         {
             //_curEnumerator = (IoQEnumerator<T>)_curEnumerator.Reuse(this, b => new IoQEnumerator<T>((IoZeroQ<T>)b));
             //return _curEnumerator;
-            return _curEnumerator = new IoQEnumerator<T>(this);
+            //return _curEnumerator = new IoQEnumerator<T>(this);
+            return new IoQEnumerator<T>(this);
         }
 
         /// <summary>
@@ -693,7 +808,7 @@ namespace zero.core.patterns.queue
                 {
                     try
                     {
-                        if (_count == 0 && (await _balanceSync.WaitAsync().FastPath()).ElapsedMs() > 0x7ffffff)
+                        if (Count == 0 && (await _balanceSync.WaitAsync().FastPath()).ElapsedMs() > 0x7ffffff)
                             break;
                     }
                     catch (Exception e)
@@ -730,7 +845,7 @@ namespace zero.core.patterns.queue
                     T next = default;
                     try
                     {
-                        if (_count == 0 || !TryDequeue(out next))
+                        if (Count == 0 || !TryDequeue(out next))
                         {
                             if((next = await _zeroSync.WaitAsync().FastPath()) == null)
                                 break;

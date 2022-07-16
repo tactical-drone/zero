@@ -56,10 +56,12 @@ namespace zero.cocoon.models
             ProtocolConduit = await MessageService.CreateConduitOnceAsync<CcProtocBatchJob<chroniton, CcDiscoveryBatch>>(conduitId).FastPath();
 
             //Set the heap
-            _batchHeap = new IoHeap<CcDiscoveryBatch, CcDiscoveries>(bashDesc, pf*2, static (_, @this) => new CcDiscoveryBatch(@this._batchHeap, @this.parm_max_msg_batch_size, @this._groupByEp))
-            {
-                Context = this
-            };
+            //TODO: tuning
+            _batchHeap = new IoHeap<CcDiscoveryBatch, CcDiscoveries>(bashDesc, IoZero.parm_io_batch_size, static (_, @this) => 
+                new CcDiscoveryBatch(@this._batchHeap, @this.parm_max_msg_batch_size, @this._groupByEp), autoScale:true)
+                {
+                    Context = this
+                };
 
             // ReSharper disable once NonAtomicCompoundOperator
             _currentBatch ??= _batchHeap.Take();
@@ -165,7 +167,8 @@ namespace zero.cocoon.models
         /// </summary>
         [IoParameter]
         // ReSharper disable once InconsistentNaming
-        public int parm_max_msg_batch_size = 32;//TODO tuning 4 x MaxAdjuncts
+        public int parm_max_msg_batch_size = 2;
+        //TODO: tuning. The showcase implementation never goes beyond 1 because of how UDP delivers packets from the same endpoint... batching is pointless here.
 
         /// <summary>
         /// Whether grouping by endpoint is supported
@@ -180,9 +183,18 @@ namespace zero.cocoon.models
         {
             //are we in recovery mode?
             var zeroRecovery = State == IoJobMeta.JobState.ZeroRecovery;
-            var pos = BufferOffset;
+
+            var connReset = State == IoJobMeta.JobState.ProdConnReset;
+            await SetStateAsync(IoJobMeta.JobState.Consuming).FastPath();
 
             bool fastPath = false;
+
+            if (connReset)
+            {
+                await ZeroBatchRequestAsync(null, chroniton.Parser).FastPath();
+                await SetStateAsync(IoJobMeta.JobState.Consumed);
+            }
+
             try
             {
                 //fail fast
@@ -398,6 +410,33 @@ namespace zero.cocoon.models
         private async ValueTask ZeroBatchRequestAsync<T>(chroniton packet, MessageParser<T> messageParser)
             where T : IMessage<T>, IMessage, new()
         {
+            if (packet == null)
+            {
+                if (!_groupByEp)
+                {
+                    var batchMsg = _currentBatch[Interlocked.Increment(ref _currentBatch.Count) - 1];
+                    batchMsg.EmbeddedMsg = null;
+                    batchMsg.Chroniton = null;
+                    batchMsg.SourceState = 1;
+                    RemoteEndPoint.CopyTo(batchMsg.EndPoint, 0);
+                }
+                else
+                {
+                    var batchMsg = _currentBatch[Interlocked.Increment(ref _currentBatch.Count) - 1];
+
+                    batchMsg.EmbeddedMsg = null;
+                    batchMsg.Chroniton = null;
+                    batchMsg.SourceState = 1;
+
+                    var remoteEp = (byte[])RemoteEndPoint.Clone();
+                    if (!_currentBatch.GroupBy.TryAdd(remoteEp, Tuple.Create(remoteEp, new List<CcDiscoveryMessage>(_currentBatch.Messages))))
+                    {
+                        _currentBatch.GroupBy[remoteEp].Item2.Add(batchMsg);
+                    }
+                }
+                return;
+            }
+
             try
             {
                 //TODO opt:
@@ -410,6 +449,7 @@ namespace zero.cocoon.models
                         var batchMsg = _currentBatch[Interlocked.Increment(ref _currentBatch.Count) - 1];
                         batchMsg.EmbeddedMsg = request;
                         batchMsg.Chroniton = packet;
+                        batchMsg.SourceState = 0;
                         RemoteEndPoint.CopyTo(batchMsg.EndPoint,0);
                     }
                     else
@@ -418,7 +458,7 @@ namespace zero.cocoon.models
 
                         batchMsg.EmbeddedMsg = request;
                         batchMsg.Chroniton = packet;
-
+                        batchMsg.SourceState = 0;
                         var remoteEp = (byte[])RemoteEndPoint.Clone();
                         if (!_currentBatch.GroupBy.TryAdd(remoteEp, Tuple.Create(remoteEp, new List<CcDiscoveryMessage>(_currentBatch.Messages))))
                         {

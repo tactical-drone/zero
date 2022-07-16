@@ -196,7 +196,7 @@ namespace zero.test.core.patterns.queue
                             success++;
                         }
                         
-                        maxIdx = Math.Max(maxIdx, bag.Count);
+                        maxIdx = (int)Math.Max(maxIdx, bag.Count);
                     }
 
                     Interlocked.Increment(ref @this.SpamTestAsyncThreadsDone);
