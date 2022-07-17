@@ -687,7 +687,7 @@ namespace zero.cocoon.autopeer
             }
             else
             {
-                _logger.Info($"ZERO HUB PROXY: from: {ZeroedFrom?.Description}, reason: {ZeroReason}, {Description}");
+                //_logger.Info($"ZERO HUB PROXY: from: {ZeroedFrom?.Description}, reason: {ZeroReason}, {Description}");
             }
 
             await _probeRequest.DisposeAsync(this, $"{nameof(ZeroManagedAsync)}: teardown").FastPath();
@@ -707,7 +707,7 @@ namespace zero.cocoon.autopeer
                 //TODO: tuning, helps cluster test bootups not stalling on popdog spam
                 await Task.Delay(@this.CcCollective.parm_mean_pat_delay_s * 1000);
                 var targetDelay = (@this._random.Next(@this.CcCollective.parm_mean_pat_delay_s / 4) + @this.CcCollective.parm_mean_pat_delay_s / 4) * 1000;
-                var ioTimer = new IoTimer(TimeSpan.FromMilliseconds(targetDelay));
+                var ioTimer = new IoTimer(TimeSpan.FromMilliseconds(targetDelay), @this.AsyncTasks.Token);
                 while (!@this.Zeroed())
                 {
                     var ts = Environment.TickCount;

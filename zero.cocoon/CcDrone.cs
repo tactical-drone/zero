@@ -204,7 +204,7 @@ namespace zero.cocoon
 
             try
             {
-                if ((Adjunct?.Assimilated??false) && UpTime.ElapsedMs() > parm_min_uptime_ms)
+                if ((Adjunct?.WasAttached??false) && UpTime.ElapsedMs() > parm_min_uptime_ms)
                     _logger.Info($"- {Description}, from: {ZeroedFrom?.Description}");
 
                 await _sendBuf.ZeroManagedAsync<object>().FastPath();

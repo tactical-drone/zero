@@ -49,20 +49,16 @@ namespace zero.core.feat.patterns.time
         public IIoTimer Shared;
         private static Action<TimeSpan, IIoManualResetValueTaskSourceCore<int>, CancellationToken> _make;
         private readonly IIoManualResetValueTaskSourceCore<int> _signal;
-        private readonly CancellationTokenSource _asyncTasks;
 
-        public IoTimer(TimeSpan timeout)
+        public IoTimer(TimeSpan timeout, CancellationToken token = default)
         {
-            
             _signal = new IoZeroResetValueTaskSource<int>();
-            _asyncTasks = new CancellationTokenSource();
-            IoTimer._make(timeout, _signal, _asyncTasks.Token);
+            IoTimer._make(timeout, _signal, token);
         }
 
         public override async ValueTask ZeroManagedAsync()
         {
             await base.ZeroManagedAsync();
-            _asyncTasks.Cancel();
         }
 
         public ValueTask<int> TickAsync() => _signal.WaitAsync();

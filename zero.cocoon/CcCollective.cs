@@ -169,8 +169,8 @@ namespace zero.cocoon
         /// <returns></returns>
         private static async ValueTask RoboAsync(CcCollective @this)
         {
-            var r = new IoTimer(TimeSpan.FromMilliseconds(@this._random.Next(@this.parm_mean_pat_delay_s * 1000) + @this.parm_mean_pat_delay_s * 1000 / 2));
-            var rLow = new IoTimer(TimeSpan.FromMilliseconds(@this._random.Next(@this.parm_mean_pat_delay_s/3 * 1000) + @this.parm_mean_pat_delay_s/3 * 1000 / 2));
+            var r = new IoTimer(TimeSpan.FromMilliseconds(@this._random.Next(@this.parm_mean_pat_delay_s * 1000) + @this.parm_mean_pat_delay_s * 1000 / 2), @this.AsyncTasks.Token);
+            var rLow = new IoTimer(TimeSpan.FromMilliseconds(@this._random.Next(@this.parm_mean_pat_delay_s/3 * 1000) + @this.parm_mean_pat_delay_s/3 * 1000 / 2), @this.AsyncTasks.Token);
             while (!@this.Zeroed())
             {
                 var ts = Environment.TickCount;

@@ -294,9 +294,9 @@ namespace zero.core.feat.misc
                         var qId = n.Qid;
                         if (n.Value.TimestampMs.ElapsedUtcMs() > _ttlMs)
                         {
-                            var value = n.Value;
+                            var challenge = n.Value;
                             await _lut.RemoveAsync(n, qId).FastPath();
-                            _valHeap.Return(value);
+                            _valHeap.Return(challenge);
                         }
                     }
                     catch when (Zeroed()){}
