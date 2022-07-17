@@ -306,48 +306,45 @@ namespace zero.core.patterns.queue
 
                         //TODO: CAS contraptions are super fast!
                         ref var fastBloomPtr = ref _fastBloom[modIdx];
-                        if (Tail == index && Volatile.Read(ref fastBloomPtr) == _zero && Interlocked.CompareExchange(ref fastBloomPtr, _one, _zero) == _zero)
+                        if (Tail != index || fastBloomPtr != _zero || Interlocked.CompareExchange(ref fastBloomPtr, _one, _zero) != _zero)
+                            return (false, default);
+
+                        if (Tail != index) //Covers choking throughput causing wrap around issues. CAS passes but at distant past tail and needs to be undone...
                         {
-                            if (Tail != index) //Covers choking throughput causing wrap around issues. CAS passes but at distant past tail and needs to be undone...
-                            {
-                                //TAIL is racing towards this _one... set it back to _zero and hope for the best. So far it checks out. 
-                                Interlocked.CompareExchange(ref fastBloomPtr, _zero, _one);
-                                return (false, default);
-                            }
-
-                            if (Interlocked.CompareExchange(ref fastBloomPtr, _set, _one) != _one)
-                                return (false, default);
-
-                            _fastStorage[modIdx] = value;
-                            Interlocked.Increment(ref _count);
-                            Interlocked.Increment(ref _tail);
-                            return (true, default);
+                            //TAIL is racing towards this _one... set it back to _zero and hope for the best. So far it checks out. 
+                            Interlocked.CompareExchange(ref fastBloomPtr, _zero, _one);
+                            return (false, default);
                         }
+
+                        if (Interlocked.CompareExchange(ref fastBloomPtr, _set, _one) != _one)
+                            return (false, default);
+
+                        _fastStorage[modIdx] = value;
+                        Interlocked.Increment(ref _count);
+                        Interlocked.Increment(ref _tail);
+                        return (true, default);
                     }
-                    return (false, default);
                 }
 
                 var i = (int)(Math.Log10(modIdx + 1) / Math.Log10(2));
                 var i2 = modIdx - ((1 << i) - 1);
                 ref var bloomPtr = ref _bloom[i][i2];
-                if (Tail == index && Volatile.Read(ref bloomPtr) == _zero && Interlocked.CompareExchange(ref bloomPtr, _one, _zero) == _zero)
+                if (Tail != index || bloomPtr != _zero || Interlocked.CompareExchange(ref bloomPtr, _one, _zero) != _zero) 
+                    return (false, default);
+
+                if (Tail != index) 
                 {
-                    if (Tail != index) 
-                    {
-                        Interlocked.CompareExchange(ref bloomPtr, _zero, _one);
-                        return (false, default);
-                    }
-
-                    if (Interlocked.CompareExchange(ref bloomPtr, _set, _one) != _one)
-                        return (false, default);
-
-                    _storage[i][i2] = value;
-                    Interlocked.Increment(ref _count);
-                    Interlocked.Increment(ref _tail);
-                    return (true, default);
+                    Interlocked.CompareExchange(ref bloomPtr, _zero, _one);
+                    return (false, default);
                 }
 
-                return (false, default);
+                if (Interlocked.CompareExchange(ref bloomPtr, _set, _one) != _one)
+                    return (false, default);
+
+                _storage[i][i2] = value;
+                Interlocked.Increment(ref _count);
+                Interlocked.Increment(ref _tail);
+                return (true, default);
             }
             finally
             {
@@ -449,6 +446,7 @@ namespace zero.core.patterns.queue
                 var i = (int)(Math.Log10(modIdx + 1) / Math.Log10(2));
                 var i2 = modIdx - ((1 << i) - 1);
                 ref var bloomPtr = ref _bloom[i][i2];
+                
                 if (Interlocked.CompareExchange(ref bloomPtr, _reset, _set) == _set)
                 {
                     value = _storage[i][i2];

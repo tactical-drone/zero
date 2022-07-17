@@ -96,7 +96,7 @@ namespace zero.sync
             //Task.Factory.StartNew(async () =>
             //{
             //    await SemTestAsync();
-            //    //await QueueTestAsync();
+            //    await QueueTestAsync();
             //}, CancellationToken.None, TaskCreationOptions.DenyChildAttach, IoZeroScheduler.ZeroDefault).Unwrap().GetAwaiter().GetResult();
 
             //Tune dotnet for large tests
@@ -116,7 +116,7 @@ namespace zero.sync
 
             var random = new Random((int)DateTime.Now.Ticks);
             //Tangle("tcp://192.168.1.2:15600");
-            var total = 702;
+            var total = 50;
             var maxDrones = 3;
             var maxAdjuncts = 16;
             var boot = false;

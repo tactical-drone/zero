@@ -235,11 +235,11 @@ namespace zero.core.network.ip
         {
 
             //TODO sec
-            //NativeSocket.IOControl(
-            //    (IOControlCode)SIO_UDP_CONNRESET,
-            //    new byte[] { 0, 0, 0, 0 },
-            //    null
-            //);
+            NativeSocket.IOControl(
+                (IOControlCode)SIO_UDP_CONNRESET,
+                new byte[] { 0, 0, 0, 0 },
+                null
+            );
 
             //configure the socket
             ConfigureSocket();

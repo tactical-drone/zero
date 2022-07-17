@@ -122,9 +122,11 @@ namespace zero.core.patterns.bushings
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public void GenerateJobId()
+        public long GenerateJobId()
         {
-            Id = Source.NextJobIdSeed();
+            if (Id < 0)
+                return Id = Source.NextJobIdSeed();
+            return Id;
         }
     }
 }

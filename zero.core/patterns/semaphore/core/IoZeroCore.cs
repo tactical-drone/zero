@@ -36,14 +36,14 @@ namespace zero.core.patterns.semaphore.core
 
             _zeroed = 0;
             _description = description;
-            _capacity = capacity;
-            capacity *= 2;
+            _capacity = capacity++;
+            //capacity *= 2;
             ZeroAsyncMode = zeroAsyncMode;
 
             _waiters = new IoZeroQ<IIoManualResetValueTaskSourceCore<T>>(string.Empty, capacity, false, asyncTasks:null, capacity, false);
 
             _results = new IoZeroQ<T>(string.Empty, capacity, false, asyncTasks: null, capacity, false);
-            //_heapCore = new IoZeroQ<IIoManualResetValueTaskSourceCore<T>>(string.Empty, capacity, false, asyncTasks: null, capacity, false);
+            _heapCore = new IoZeroQ<IIoManualResetValueTaskSourceCore<T>>(string.Empty, capacity, false, asyncTasks: null, capacity, false);
             //_waiters = Channel.CreateBounded<IIoManualResetValueTaskSourceCore<T>>(new BoundedChannelOptions(capacity)
             //{
             //    SingleWriter = false,
@@ -60,13 +60,13 @@ namespace zero.core.patterns.semaphore.core
             //    FullMode = BoundedChannelFullMode.DropWrite
             //});
 
-            _heapCore = Channel.CreateBounded<IIoManualResetValueTaskSourceCore<T>>(new BoundedChannelOptions(capacity)
-            {
-                SingleWriter = false,
-                SingleReader = false,
-                AllowSynchronousContinuations = true,
-                FullMode = BoundedChannelFullMode.DropWrite
-            });
+            //_heapCore = Channel.CreateBounded<IIoManualResetValueTaskSourceCore<T>>(new BoundedChannelOptions(capacity)
+            //{
+            //    SingleWriter = false,
+            //    SingleReader = false,
+            //    AllowSynchronousContinuations = true,
+            //    FullMode = BoundedChannelFullMode.DropWrite
+            //});
 
             _primeReady = _ => default;
             _primeContext = null;
@@ -123,10 +123,10 @@ namespace zero.core.patterns.semaphore.core
         #region Aligned
         //private readonly Channel<IIoManualResetValueTaskSourceCore<T>> _waiters;
         //private readonly Channel<T> _results;
-        private readonly Channel<IIoManualResetValueTaskSourceCore<T>> _heapCore;
+        //private readonly Channel<IIoManualResetValueTaskSourceCore<T>> _heapCore;
         private readonly IoZeroQ<IIoManualResetValueTaskSourceCore<T>> _waiters;
         private readonly IoZeroQ<T> _results;
-        //private readonly IoZeroQ<IIoManualResetValueTaskSourceCore<T>> _heapCore;
+        private readonly IoZeroQ<IIoManualResetValueTaskSourceCore<T>> _heapCore;
         private readonly CancellationTokenSource _asyncTasks;
         private Func<object, T> _primeReady;
         private object _primeContext;
@@ -152,7 +152,7 @@ namespace zero.core.patterns.semaphore.core
         //public string Description => $"{nameof(IoZeroSemCore<T>)}: r = {ReadyCount}/{_capacity}, w = {WaitCount}/{_capacity}, z = {_zeroed > 0}, heap = {_heapCore.Reader.Count}, {_description}";
         //public int WaitCount => _waiters.Reader.Count;
         //public int ReadyCount => _results.Reader.Count;
-        public string Description => $"{nameof(IoZeroSemCore<T>)}: r = {ReadyCount}/{_capacity}, w = {WaitCount}/{_capacity}, z = {_zeroed > 0}, heap = {_heapCore.Reader.Count}, {_description}";
+        public string Description => $"{nameof(IoZeroSemCore<T>)}: r = {ReadyCount}/{_capacity}, w = {WaitCount}/{_capacity}, z = {_zeroed > 0}, heap = {_heapCore.Count}, {_description}";
         public int WaitCount => (int)_waiters.Count;
         public int ReadyCount => (int)_results.Count;
 
@@ -269,13 +269,13 @@ namespace zero.core.patterns.semaphore.core
             }
 
             //heap
-            if (!_heapCore.Reader.TryRead(out var waiter))
+            if (!_heapCore.TryDequeue(out var waiter))
             {
                 waiter = new IoManualResetValueTaskSourceCore<T> { AutoReset = false };
                 waiter.Reset(static state =>
                 {
                     var (@this, waiter) = (ValueTuple<IoZeroCore<T>, IIoManualResetValueTaskSourceCore<T>>)state;
-                    @this._heapCore.Writer.TryWrite(waiter);
+                    @this._heapCore.TryEnqueue(waiter);
                 }, (this, waiter));
             }
 
@@ -283,7 +283,7 @@ namespace zero.core.patterns.semaphore.core
             if (_waiters.Count == 0 && _results.TryDequeue(out var jitCore))
             {
                 slowTaskCore = new ValueTask<T>(jitCore);
-                _heapCore.Writer.TryWrite(waiter);
+                //_heapCore.TryEnqueue(waiter); //TODO: Maybe free some memory every now and again?
                 return true;
             }
 

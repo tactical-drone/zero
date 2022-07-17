@@ -280,7 +280,7 @@ namespace zero.core.patterns.queue
                     try
                     {
                         if (_pressure != null && _tail != null)
-                            _pressure.Release(true, false);
+                            _pressure.Release(true, true);
                         else
                             _backPressure?.Release(true, true);
 

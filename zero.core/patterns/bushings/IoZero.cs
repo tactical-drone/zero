@@ -91,8 +91,8 @@ namespace zero.core.patterns.bushings
             try
             {
                 //TODO tuning
-                _queue = new IoZeroQ<IoSink<TJob>>($"zero Q: {_description}", capacity, asyncTasks:AsyncTasks, concurrencyLevel: capacity, zeroAsyncMode:false);
-                //_queue = new IoZeroSemaphoreChannel<IoSink<TJob>>($"zero Q: {_description}",capacity, zeroAsyncMode:false);//FALSE
+                //_queue = new IoZeroQ<IoSink<TJob>>($"zero Q: {_description}", capacity, asyncTasks:AsyncTasks, concurrencyLevel: capacity, zeroAsyncMode:false);
+                _queue = new IoZeroSemaphoreChannel<IoSink<TJob>>($"zero Q: {_description}",capacity, zeroAsyncMode:false);//FALSE
                 //_queue = Channel.CreateBounded<IoSink<TJob>>(new BoundedChannelOptions(capacity * 2)
                 //{
                 //    SingleWriter = false,
@@ -147,8 +147,8 @@ namespace zero.core.patterns.bushings
         /// The job queue
         /// </summary>
         //private IoQueue<IoSink<TJob>> _queue;
-        private IoZeroQ<IoSink<TJob>> _queue;
-        //private IoZeroSemaphoreChannel<IoSink<TJob>> _queue;
+        //private IoZeroQ<IoSink<TJob>> _queue;
+        private IoZeroSemaphoreChannel<IoSink<TJob>> _queue;
         //private Channel<IoSink<TJob>> _queue;
 
         /// <summary>
@@ -255,7 +255,7 @@ namespace zero.core.patterns.bushings
         /// </summary>
         [IoParameter]
         // ReSharper disable once InconsistentNaming
-        public int parm_min_failed_production_time = 2500;
+        public int parm_min_failed_production_time = 16 * 3;
 
         /// <summary>
         /// The time a source will wait for a consumer to release it before aborting in ms
@@ -404,14 +404,13 @@ namespace zero.core.patterns.bushings
                             }
                         }
 
-                        if (nextJob.Id < 0)
-                            nextJob.GenerateJobId();
+                        nextJob.GenerateJobId();
 
                         //Enqueue the job for the consumer
                         if(nextJob.State != IoJobMeta.JobState.ProdConnReset)
                             await nextJob.SetStateAsync(IoJobMeta.JobState.Queued).FastPath();
 
-                        if(_queue.TryEnqueue(nextJob) < 0)
+                        if(_queue.Release(nextJob) < 0)
                         {
                             ts = ts.ElapsedMs();
 
@@ -440,8 +439,7 @@ namespace zero.core.patterns.bushings
                         //    IsArbitrating = true;
 
                         //Fetch more work
-                        Source.PrefetchPressure(zeroAsync:false);
-
+                        Source.PrefetchPressure(zeroAsync: true);
                         return true;
                     }
                     else //produce job returned with errors or nothing...
@@ -450,7 +448,7 @@ namespace zero.core.patterns.bushings
                         ts = ts.ElapsedMs();
                         IsArbitrating = false;
 
-                        if(nextJob.State == IoJobMeta.JobState.ProdSkipped)
+                        if (nextJob.State == IoJobMeta.JobState.ProdSkipped)
                             await nextJob.SetStateAsync(IoJobMeta.JobState.Accept).FastPath();
 
                         await ZeroJobAsync(nextJob, nextJob.FinalState != IoJobMeta.JobState.Accept).FastPath();
@@ -465,14 +463,14 @@ namespace zero.core.patterns.bushings
                         //signal back pressure
                         Source.BackPressure(zeroAsync:true);
 
-                        // prefetch pressure
-                        Source.PrefetchPressure(zeroAsync:false);
+                        ////Is the producer spinning? Slow it down
+                        //int throttleTime;
+                        //if((throttleTime = parm_min_failed_production_time - ts) > 0)
+                        //    await Task.Delay(throttleTime, AsyncTasks.Token);
 
-                        //Is the producer spinning? Slow it down
-                        int throttleTime;
-                        if((throttleTime = parm_min_failed_production_time - ts) > 0)
-                            await Task.Delay(throttleTime, AsyncTasks.Token);
-                        
+                        // prefetch pressure
+                        Source.PrefetchPressure(zeroAsync: false);
+
                         return false;
                     }
                 }
@@ -605,9 +603,9 @@ namespace zero.core.patterns.bushings
             try
             {
                 //A job was produced. Dequeue it and process
-                await foreach (var curJob in _queue.PumpOnConsumeAsync(threadIdx))
                 //await foreach (var curJob in _queue.BalanceOnConsumeAsync(threadIdx))
-                //var curJob = await _queue.WaitAsync().FastPath();
+                //await foreach (var curJob in _queue.BalanceOnConsumeAsync(threadIdx))
+                var curJob = await _queue.WaitAsync().FastPath();
                 {
                     Debug.Assert(curJob != null);
                     try
@@ -668,7 +666,7 @@ namespace zero.core.patterns.bushings
                             await ZeroJobAsync(curJob, curJob.FinalState != IoJobMeta.JobState.Accept).FastPath();
 
                             //back pressure
-                            Source.BackPressure(zeroAsync:true); //FALSE
+                            Source.BackPressure(zeroAsync: true);
                         }
                         catch when (Zeroed())
                         {

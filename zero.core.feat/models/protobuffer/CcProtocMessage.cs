@@ -3,6 +3,7 @@ using System.Buffers;
 using System.Diagnostics;
 using System.IO;
 using System.Net;
+using System.Net.Http.Headers;
 using System.Threading;
 using System.Threading.Tasks;
 using Google.Protobuf;
@@ -139,17 +140,18 @@ namespace zero.core.feat.models.protobuffer
                         //Drop zero reads
                         if (read == 0)
                         {
-                            if (!job.MessageService.IsOperational())
+                            if (!job.MessageService.IsOperational() || ((IoNetClient<CcProtocMessage<TModel, TBatch>>)ioSocket).IoNetSocket.IsTcpSocket)
                             {
-                                await job.MessageService.DisposeAsync(ioJob, "ZERO READS!!!").FastPath();
+                                await job.MessageService.DisposeAsync(ioJob, "ZERO TCP READS!!!").FastPath();
                                 await job.SetStateAsync(IoJobMeta.JobState.Error).FastPath();
                             }
                             else
                             {
 #if DEBUG
-                                //_logger.Trace($"ReadAsync [FAILED]: ZERO READS!!! {ioJob.Description}");
+                                _logger.Error($"ReadAsync [FAILED]: ZERO UDP READS!!! {ioJob.Description}, {ioZero}");
 #endif
                                 await job.SetStateAsync(IoJobMeta.JobState.ProdConnReset).FastPath();
+                                //await job.SetStateAsync(IoJobMeta.JobState.ProdSkipped).FastPath();
                             }
                             return false;
                         }
