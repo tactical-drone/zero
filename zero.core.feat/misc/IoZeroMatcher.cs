@@ -131,7 +131,7 @@ namespace zero.core.feat.misc
                 IoChallenge challenge = null;
                 try
                 {
-                    if ((challenge = _valHeap.Take()) == null || _valHeap.ReferenceCount > _valHeap.Capacity)
+                    if ((challenge = _valHeap.Take()) == null || _valHeap.ReferenceCount >= _valHeap.Capacity)
                     {
                         try
                         {
@@ -226,24 +226,19 @@ namespace zero.core.feat.misc
         /// <summary>
         /// Matches a challenge with a response
         /// </summary>
-        /// <param name="ioNanite"></param>
-        /// <param name="state"></param>
-        /// <param name="_"></param>
         /// <returns>True if matched, false otherwise</returns>
-        private async ValueTask<bool> MatchAsync(IIoNanite ioNanite, (IoZeroMatcher, string key, ByteString reqHash) state, bool _)
+        public async ValueTask<bool> ResponseAsync(string key, ByteString reqHash)
         {
-            var (@this, key, reqHash) = state;
-
-            @this._lut.Modified = false;
-            var cur = @this._lut.Head;
+            _lut.Modified = false;
+            var cur = _lut.Head;
             
             while (cur != null)
             {
                 //restart on collisions
-                if (@this._lut.Modified)
+                if (_lut.Modified)
                 {
-                    @this._lut.Modified = false;
-                    cur = @this._lut.Head;
+                    _lut.Modified = false;
+                    cur = _lut.Head;
                     continue;
                 }
 
@@ -254,18 +249,18 @@ namespace zero.core.feat.misc
                         cur.Value.Hash.ArrayEqual(reqHash.Span))
                     {
                         var tmp = Volatile.Read(ref cur.Value);
-                        await @this._lut.RemoveAsync(cur, qid).FastPath();
-                        @this._valHeap.Return(tmp);
+                        await _lut.RemoveAsync(cur, qid).FastPath();
+                        _valHeap.Return(tmp);
                         return true;
                     }
 
                     if (cur.Value.TimestampMs.ElapsedUtcMs() > _ttlMs)
                     {
                         var value = Volatile.Read(ref cur.Value);
-                        await @this._lut.RemoveAsync(cur, qid).FastPath();
-                        cur = @this._lut.Head;
-                        @this._lut.Modified = false;
-                        @this._valHeap.Return(value);
+                        await _lut.RemoveAsync(cur, qid).FastPath();
+                        cur = _lut.Head;
+                        _lut.Modified = false;
+                        _valHeap.Return(value);
                         continue;
                     }
 
@@ -273,22 +268,14 @@ namespace zero.core.feat.misc
                 }
                 catch
                 {
-                    @this._lut.Modified = false;
-                    cur = @this._lut.Head;
+                    _lut.Modified = false;
+                    cur = _lut.Head;
                 }
             }
 
             return false;
         }
 
-        /// <summary>
-        /// Present a response
-        /// </summary>
-        /// <param name="key">The response key</param>
-        /// <param name="reqHash"></param>
-        /// <returns>The response payload</returns>
-        public ValueTask<bool> ResponseAsync(string key, ByteString reqHash) => ZeroAtomicAsync(MatchAsync, (this, key, reqHash));
-        
         /// <summary>
         /// Purge the lut from old challenges
         /// </summary>

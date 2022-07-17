@@ -536,7 +536,11 @@ namespace zero.core.network.ip
                             }
                         }
 
-                        args.RemoteEndPoint.AsBytes(remoteEp);  
+                        args.RemoteEndPoint.AsBytes(remoteEp);
+#if !DEBUG
+                        if(args.SocketError != SocketError.Success)
+                            _logger.Error($"socket error = {args.SocketError}");
+#endif
                         return args.SocketError == SocketError.Success ? args.BytesTransferred : 0;
                     }
                     catch when (Zeroed())
