@@ -553,14 +553,13 @@ namespace zero.core.patterns.queue
 
                 long cap;
                 long tail;
-                var yieldCount = YieldRetryCount;
+                SpinWait yield = new();
                 while ((tail = Tail) >= Head + (cap = Capacity) || _count >= cap || !AtomicAdd(tail, item).success)
                 {
                     if (Zeroed)
                         return -1;
 
-                    if(yieldCount --< 0)
-                        Thread.Yield();
+                    yield.SpinOnce();
                 }
 
                 
@@ -634,7 +633,7 @@ namespace zero.core.patterns.queue
                 }
 
                 long head;
-                var yieldCount = YieldRetryCount;
+                SpinWait yield = new();
                 while ((head = Head) >= Tail || !AtomicRemove(head, out slot)) 
                 {
                     if (Count == 0 || Zeroed)
@@ -643,8 +642,7 @@ namespace zero.core.patterns.queue
                         return false;
                     }
 
-                    if(yieldCount --< 0)
-                        Thread.Yield();
+                    yield.SpinOnce();
                 }
                
                 return true;

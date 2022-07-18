@@ -715,12 +715,12 @@ namespace zero.cocoon.autopeer
                     @this._logger.Trace($"Robo - {TimeSpan.FromMilliseconds(d)}, {@this.Description}");
                     try {
 #if DEBUG
-                        if (ts.ElapsedMs() > targetDelay * 1.25 && ts.ElapsedMs() > 0)
+                        if (ts.ElapsedMs() > targetDelay + @this.parm_error_popdog && ts.ElapsedMs() > 0)
                         {
                             @this._logger.Warn($"{@this.Description}: Popdog is slow!!!, {(ts.ElapsedMs() - targetDelay) / 1000.0:0.0}s");
                         }
 
-                        if (ts.ElapsedMs() < targetDelay - @this.parm_error_timeout && !@this.Zeroed())
+                        if (ts.ElapsedMs() < targetDelay - @this.parm_error_popdog && !@this.Zeroed())
                         {
                             @this._logger.Warn($"{@this.Description}: Popdog is FAST!!!, {(ts.ElapsedMs() - targetDelay):0.0}ms / {targetDelay}");
                         }

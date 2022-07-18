@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
 using System.Threading;
+using System.Threading.Channels;
 using System.Threading.Tasks;
 using System.Threading.Tasks.Sources;
 using Microsoft.AspNetCore.Hosting;
@@ -64,7 +65,7 @@ namespace zero.sync
         /// <param name="args"></param>
         static void Main(string[] args)
         {
-            Random Bootstrap(out ConcurrentBag<Task<CcCollective>> concurrentBag, int total, int portOffset = 7051)
+            void Bootstrap(out ConcurrentBag<Task<CcCollective>> concurrentBag, int total, int portOffset = 7051)
             {
                 var random1 = new Random((int)DateTime.Now.Ticks);
                 //Tangle("tcp://192.168.1.2:15600");
@@ -416,7 +417,6 @@ namespace zero.sync
                         Thread.Sleep(30000);
                     }
                 }, CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Default);
-                return random1;
             }
 
             Console.WriteLine($"zero ({Environment.OSVersion}: {Environment.MachineName} - dotnet v{Environment.Version}, CPUs = {Environment.ProcessorCount})");
@@ -428,6 +428,7 @@ namespace zero.sync
                 {
                     var (delta,signal,token) = (ValueTuple<TimeSpan, IIoManualResetValueTaskSourceCore<int>, CancellationToken>) state;
 
+                    signal.RunContinuationsAsynchronouslyAlways = true;
                     var p = new PeriodicTimer(delta);
                     while (!token.IsCancellationRequested)
                     {
@@ -458,9 +459,8 @@ namespace zero.sync
             ThreadPool.GetMinThreads(out var wt, out var cp);
             ThreadPool.SetMinThreads(wt * 3, cp * 2);
             
-
             LogManager.LoadConfiguration("nlog.config");
-            var total = 50;
+            var total = 200;
             
             IHost host = null;
             var grpc = Task.Factory.StartNew(() =>
@@ -511,11 +511,10 @@ namespace zero.sync
                     if (line.Contains("boot"))
                     {
                         var tokens = line.Split(' ');
-                        var n = total;
                         if (tokens.Length > 1)
-                            n = int.Parse(tokens[1]);
+                            total = int.Parse(tokens[1]);
 
-                        Bootstrap(out tasks, n);
+                        Bootstrap(out tasks, total);
                     }
                     if (line == "gc")
                     {

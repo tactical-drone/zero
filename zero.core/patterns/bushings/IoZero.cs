@@ -2,7 +2,6 @@
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using System.Threading;
-using System.Threading.Channels;
 using System.Threading.Tasks;
 using NLog;
 using zero.core.conf;
@@ -230,7 +229,7 @@ namespace zero.core.patterns.bushings
         /// </summary>
         [IoParameter]
         // ReSharper disable once InconsistentNaming
-        public int parm_error_timeout = 1000;
+        public int parm_error_popdog = 10000;
         
         /// <summary>
         /// The amount of time to wait between retries when the source cannot allocate job management structures

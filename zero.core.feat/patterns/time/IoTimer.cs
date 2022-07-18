@@ -21,7 +21,7 @@ namespace zero.core.feat.patterns.time
                 var t = new Thread(static async state =>
                 {
                     var (delta, signal, token) = (ValueTuple<TimeSpan, IIoManualResetValueTaskSourceCore<int>, CancellationToken>)state;
-
+                    signal.RunContinuationsAsynchronouslyAlways = true;
                     while (!token.IsCancellationRequested)
                     {
                         try

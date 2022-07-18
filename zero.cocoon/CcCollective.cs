@@ -25,6 +25,7 @@ using zero.core.patterns.heap;
 using zero.core.patterns.misc;
 using zero.core.patterns.queue;
 using zero.core.patterns.semaphore;
+using zero.core.runtime.scheduler;
 using Zero.Models.Protobuf;
 
 namespace zero.cocoon
@@ -524,17 +525,21 @@ namespace zero.cocoon
 
                         ccDrone.Adjunct.WasAttached = true;
 
-                        if (!@this.ZeroDrone && AutoPeeringEventService.Operational)
-                            AutoPeeringEventService.AddEvent(new AutoPeerEvent
-                            {
-                                EventType = AutoPeerEventType.AddDrone,
-                                Drone = new Drone
+                        IoZeroScheduler.Zero.LoadAsyncContext(state =>
+                        {
+                            if (!@this.ZeroDrone && AutoPeeringEventService.Operational)
+                                AutoPeeringEventService.AddEvent(new AutoPeerEvent
                                 {
-                                    CollectiveId = @this.Hub.Designation.IdString(),
-                                    Adjunct = ccDrone.Adjunct.Designation.IdString(),
-                                    Direction = ccDrone.Adjunct.Direction.ToString()
-                                }
-                            });
+                                    EventType = AutoPeerEventType.AddDrone,
+                                    Drone = new Drone
+                                    {
+                                        CollectiveId = @this.Hub.Designation.IdString(),
+                                        Adjunct = ccDrone.Adjunct.Designation.IdString(),
+                                        Direction = ccDrone.Adjunct.Direction.ToString()
+                                    }
+                                });
+                            return default;
+                        },@this);
 
                         //ACCEPT
                         @this._logger.Info($"+ {drone.Description}");
@@ -980,17 +985,21 @@ namespace zero.cocoon
                             {
                                 ccDrone.Adjunct.WasAttached = true;
 
-                                if (!@this.ZeroDrone && AutoPeeringEventService.Operational)
-                                    AutoPeeringEventService.AddEvent(new AutoPeerEvent
-                                    {
-                                        EventType = AutoPeerEventType.AddDrone,
-                                        Drone = new Drone
+                                IoZeroScheduler.Zero.LoadAsyncContext(state =>
+                                {
+                                    if (!@this.ZeroDrone && AutoPeeringEventService.Operational)
+                                        AutoPeeringEventService.AddEvent(new AutoPeerEvent
                                         {
-                                            CollectiveId = @this.Hub.Designation.IdString(),
-                                            Adjunct = ccDrone.Adjunct.Designation.IdString(),
-                                            Direction = ccDrone.Adjunct.Direction.ToString()
-                                        }
-                                    });
+                                            EventType = AutoPeerEventType.AddDrone,
+                                            Drone = new Drone
+                                            {
+                                                CollectiveId = @this.Hub.Designation.IdString(),
+                                                Adjunct = ccDrone.Adjunct.Designation.IdString(),
+                                                Direction = ccDrone.Adjunct.Direction.ToString()
+                                            }
+                                        });
+                                    return default;
+                                }, @this);
 
                                 @this._logger.Info($"+ {drone.Description}");
                                 await @this.BlockOnAssimilateAsync(drone).FastPath();

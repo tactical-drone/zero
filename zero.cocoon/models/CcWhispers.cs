@@ -2,6 +2,7 @@ using System;
 using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
+using System.Security.Cryptography;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Threading.Tasks.Sources;
@@ -12,6 +13,7 @@ using zero.cocoon.events.services;
 using zero.cocoon.identity;
 using zero.cocoon.models.batches;
 using zero.core.feat.models.protobuffer;
+using zero.core.misc;
 using zero.core.patterns.bushings;
 using zero.core.patterns.bushings.contracts;
 using zero.core.patterns.heap;
@@ -470,8 +472,8 @@ namespace zero.cocoon.models
                     if (Interlocked.CompareExchange(ref CcCollective.MaxReq, req, CcCollective.MaxReq) != l)
                         continue;
 
-                    //if (req > 2 && Source.Rate.ElapsedMs() < 3000)// && req - _maxReq < 10)
-                    //    continue;
+                    if (req > 2 && Source.Rate.ElapsedMs() < 3000)// && req - _maxReq < 10)
+                        continue;
 
                     //await Task.Delay(RandomNumberGenerator.GetInt32(5, 350));
                     //await Task.Delay(RandomNumberGenerator.GetInt32(16, 90));
@@ -479,7 +481,7 @@ namespace zero.cocoon.models
                     //var latch = Source.Rate;
                     //if( Source.SetRate(Environment.TickCount, latch) != latch)
                     //    continue;
-                    
+
                     IoZero.IncEventCounter();
                     CcCollective.IncEventCounter();
 
@@ -488,7 +490,7 @@ namespace zero.cocoon.models
                         var (@this, req) = (ValueTuple<CcWhispers,long>)state;
 
 
-                        //await Task.Delay(RandomNumberGenerator.GetInt32(500, 1500));
+                        await Task.Delay(RandomNumberGenerator.GetInt32(500, 1500));
 
                         byte[] socketBuf = null;
                         try
