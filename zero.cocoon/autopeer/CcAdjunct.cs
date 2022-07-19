@@ -2119,7 +2119,7 @@ namespace zero.cocoon.autopeer
                 return;
 
             //Drop if we are saturated
-            if(!IsProxy && !CcCollective.ZeroDrone && Hub.Neighbors.Count >= CcCollective.MaxAdjuncts)
+            if(!IsProxy && !CcCollective.ZeroDrone && Hub.Neighbors.Count >= CcCollective.MaxAdjuncts && _random.Next(0,9) < 6)
                 return;
 
             var response = new CcProbeResponse
@@ -2972,7 +2972,7 @@ namespace zero.cocoon.autopeer
                         Drone = new Drone
                         {
                             CollectiveId = CcCollective.Hub.Router.Designation.IdString(),
-                            Adjunct = Designation.IdString()
+                            Id = Designation.IdString()
                         }
                     });
 

@@ -460,7 +460,7 @@ namespace zero.sync
             ThreadPool.SetMinThreads(wt * 3, cp * 2);
             
             LogManager.LoadConfiguration("nlog.config");
-            var total = 200;
+            var total = 300;
             
             IHost host = null;
             var grpc = Task.Factory.StartNew(() =>

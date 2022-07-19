@@ -525,8 +525,9 @@ namespace zero.cocoon
 
                         ccDrone.Adjunct.WasAttached = true;
 
-                        IoZeroScheduler.Zero.LoadAsyncContext(state =>
-                        {
+                        //IoZeroScheduler.Zero.LoadAsyncContext(async state =>
+                        //{
+                            //await Task.Delay(2000);
                             if (!@this.ZeroDrone && AutoPeeringEventService.Operational)
                                 AutoPeeringEventService.AddEvent(new AutoPeerEvent
                                 {
@@ -534,12 +535,11 @@ namespace zero.cocoon
                                     Drone = new Drone
                                     {
                                         CollectiveId = @this.Hub.Designation.IdString(),
-                                        Adjunct = ccDrone.Adjunct.Designation.IdString(),
+                                        Id = ccDrone.Adjunct.Designation.IdString(),
                                         Direction = ccDrone.Adjunct.Direction.ToString()
                                     }
                                 });
-                            return default;
-                        },@this);
+                        //},@this);
 
                         //ACCEPT
                         @this._logger.Info($"+ {drone.Description}");
@@ -985,8 +985,9 @@ namespace zero.cocoon
                             {
                                 ccDrone.Adjunct.WasAttached = true;
 
-                                IoZeroScheduler.Zero.LoadAsyncContext(state =>
-                                {
+                                //IoZeroScheduler.Zero.LoadAsyncContext(async state =>
+                                //{
+                                    //await Task.Delay(2000);
                                     if (!@this.ZeroDrone && AutoPeeringEventService.Operational)
                                         AutoPeeringEventService.AddEvent(new AutoPeerEvent
                                         {
@@ -994,12 +995,11 @@ namespace zero.cocoon
                                             Drone = new Drone
                                             {
                                                 CollectiveId = @this.Hub.Designation.IdString(),
-                                                Adjunct = ccDrone.Adjunct.Designation.IdString(),
+                                                Id = ccDrone.Adjunct.Designation.IdString(),
                                                 Direction = ccDrone.Adjunct.Direction.ToString()
                                             }
                                         });
-                                    return default;
-                                }, @this);
+                                //}, @this);
 
                                 @this._logger.Info($"+ {drone.Description}");
                                 await @this.BlockOnAssimilateAsync(drone).FastPath();

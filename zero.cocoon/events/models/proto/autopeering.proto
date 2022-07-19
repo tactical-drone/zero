@@ -22,12 +22,11 @@ message AutoPeerEvent{
 	AutoPeerEventType eventType = 1;	
 	int64 seq = 2;
 	int64 timestamp = 3;	
-	int32 re = 4;	
 	oneof event {
-		Collective collective = 5;
-		Adjunct adjunct = 6;
-		Drone drone = 7;
-		ProtoMsg msg = 8;
+		Collective collective = 4;
+		Adjunct adjunct = 5;
+		Drone drone = 6;
+		ProtoMsg msg = 7;
 	};
 }
 
@@ -53,6 +52,6 @@ message ProtoMsg {
 
 message Drone {		
 	string collectiveId = 1;
-	string adjunct = 2;
+	string id = 2;
 	string direction = 3;			
 }
