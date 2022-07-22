@@ -74,7 +74,7 @@ namespace zero.core.core
 
             try
             {
-                if (Node.Neighbors.TryGetValue(Key, out var zeroedNeighbor) && zeroedNeighbor.Serial == Serial)
+                if (!Node.Zeroed() && Node.Neighbors.TryGetValue(Key, out var zeroedNeighbor) && zeroedNeighbor.Serial == Serial)
                 {
                     if (Node?.Neighbors?.TryRemove(Key, out var zeroNeighbor) ?? false)
                     {

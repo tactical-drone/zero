@@ -179,10 +179,12 @@ namespace zero.cocoon
                     await rLow.TickAsync().FastPath();
                 else
                     await r.TickAsync().FastPath();
-                
+
+                if (@this.Zeroed())
+                    break;
+
                 @this._logger.Trace($"Robo - {TimeSpan.FromMilliseconds(ts.ElapsedMs())}, {@this.Description}");
                 
-                _roboTimer = r;
                 try
                 {
                     var force = false;
@@ -238,7 +240,6 @@ namespace zero.cocoon
 
             var autoPeeringDesc = _autoPeering.Description;
             await _autoPeering.DisposeAsync(this, $"{nameof(ZeroManagedAsync)}: teardown").FastPath();
-            await _roboTimer.DisposeAsync(this, "teardown");
 
 //#pragma warning disable VSTHRD103 // Call async methods when in an async method
 //            if (!_autoPeeringTask.Wait(TimeSpan.FromSeconds(parm_hub_teardown_timeout_s)))
@@ -303,7 +304,6 @@ namespace zero.cocoon
         
         private IoNodeAddress _gossipAddress;
         private IoNodeAddress _peerAddress;
-        private static IoTimer _roboTimer;
 
         Random _random = new((int)DateTime.Now.Ticks);
         public IoZeroSemaphoreSlim DupSyncRoot { get; protected set; }

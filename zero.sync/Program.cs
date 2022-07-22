@@ -65,6 +65,9 @@ namespace zero.sync
         /// <param name="args"></param>
         static void Main(string[] args)
         {
+
+            var total = 100;
+
             void Bootstrap(out ConcurrentBag<Task<CcCollective>> concurrentBag, int total, int portOffset = 7051)
             {
                 var random1 = new Random((int)DateTime.Now.Ticks);
@@ -437,11 +440,22 @@ namespace zero.sync
                             if (await p.WaitForNextTickAsync(token).FastPath())
                                 signal.SetResult(Environment.TickCount);
                             else
+                            {
+                                Console.WriteLine("!!!!!!!!!!!!!!!!!");
                                 signal.SetException(new OperationCanceledException());
+                            }
+                                
                         }
                         catch 
                         {
-                            signal.Reset();
+                            try
+                            {
+                                signal.SetException(new OperationCanceledException());
+                            }
+                            catch (Exception e)
+                            {
+                                Console.WriteLine(e);
+                            }
                         }
                     }
                 });
@@ -460,8 +474,7 @@ namespace zero.sync
             ThreadPool.SetMinThreads(wt * 3, cp * 2);
             
             LogManager.LoadConfiguration("nlog.config");
-            var total = 300;
-            
+
             IHost host = null;
             var grpc = Task.Factory.StartNew(() =>
             {
@@ -1296,7 +1309,6 @@ namespace zero.sync
         private static async ValueTask ZeroAsync(int total)
         {
             _running = false;
-            await AutoPeeringEventService.ClearAsync().FastPath();
             Console.WriteLine("#");
             SemaphoreSlim s = new (10);
             int zeroed = 0;
@@ -1330,6 +1342,7 @@ namespace zero.sync
 
             GC.Collect(GC.MaxGeneration);
             Console.WriteLine($"z = {_nodes?.Count(n => n.Zeroed())}/{total}");
+            //await AutoPeeringEventService.ClearAsync().FastPath();
         }
 
 //        private static void Tangle(string listenerAddress)

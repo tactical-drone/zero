@@ -1,17 +1,13 @@
 ﻿using System;
 using System.Threading;
 using System.Threading.Tasks;
-using System.Threading.Tasks.Sources;
-using zero.core.misc;
-using zero.core.patterns.misc;
 using zero.core.patterns.semaphore;
 using zero.core.patterns.semaphore.core;
-using zero.core.runtime.scheduler;
 
 namespace zero.core.feat.patterns.time
 {
 
-    public class IoTimer : IoNanoprobe, IIoTimer
+    public class IoTimer : IIoTimer
     {
         static IoTimer()
         {
@@ -54,11 +50,6 @@ namespace zero.core.feat.patterns.time
         {
             _signal = new IoZeroResetValueTaskSource<int>();
             IoTimer._make(timeout, _signal, token);
-        }
-
-        public override async ValueTask ZeroManagedAsync()
-        {
-            await base.ZeroManagedAsync();
         }
 
         public ValueTask<int> TickAsync() => _signal.WaitAsync();

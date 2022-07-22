@@ -229,7 +229,7 @@ namespace zero.core.patterns.semaphore.core
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void SetException(Exception error)
         {
-            _error = ExceptionDispatchInfo.Capture(error);
+            Volatile.Write(ref _error, ExceptionDispatchInfo.Capture(error));
             SignalCompletion();
         }
 
@@ -431,9 +431,16 @@ namespace zero.core.patterns.semaphore.core
         //private void SignalCompletion<TContext>(Action<bool, TContext> async = null, TContext context = default)
         private void SignalCompletion()
         {
+            if (_error != null)
+                return;
 #if DEBUG
             if (_completed)
-                throw new InvalidOperationException($"[{Thread.CurrentThread.ManagedThreadId}]: set => v = [{_version}], primed = {Primed}, blocking = {Blocking}, burned = {Burned}, completed = {_completed}, {GetStatus((short)Version)}");
+            {
+                if (_error == null)
+                    throw new InvalidOperationException($"[{Thread.CurrentThread.ManagedThreadId}]: set => v = [{_version}], primed = {Primed}, blocking = {Blocking}, completed = {_completed}, {GetStatus((short)Version)}");
+                Reset();
+                return;
+            }
 #else
             if (_completed)
                 throw new InvalidOperationException($"[{Thread.CurrentThread.ManagedThreadId}]: set => v = [{_version}], primed = {Primed}, blocking = {Blocking}, completed = {_completed}, {GetStatus((short)Version)}");

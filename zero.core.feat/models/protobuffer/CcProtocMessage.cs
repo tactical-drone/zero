@@ -126,7 +126,7 @@ namespace zero.core.feat.models.protobuffer
                         // amount of steps. Instead of say just filling up memory buffers.
                         // This allows us some kind of (anti DOS?) congestion control
                         //----------------------------------------------------------------------------
-                        if (!await backPressure(ioJob, ioZero).FastPath())
+                        if (!await backPressure(ioJob, ioZero).FastPath() || ioJob.Source.Zeroed())
                         {
                             _logger.Trace($"{nameof(backPressure)} [FAILED]: {ioJob.Description}");
                             await job.SetStateAsync(IoJobMeta.JobState.ProdCancel).FastPath();

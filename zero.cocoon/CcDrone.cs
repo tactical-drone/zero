@@ -93,12 +93,12 @@ namespace zero.cocoon
                 try
                 {
                     if(!Zeroed())
-                        return _description = $"`drone({(!Zeroed()? "Active":"Zombie")} {(_assimulated? "Participant" : "Bystander")} [{Adjunct?.Hub.Designation.IdString()}, {Adjunct?.Designation.IdString()}], {Adjunct?.Direction},{MessageService.IoNetSocket.LocalAddress} ~> {MessageService.IoNetSocket.RemoteAddress}, up = {TimeSpan.FromMilliseconds(UpTime.ElapsedMs())}'";
-                    return _description = $"`drone({(!Zeroed()? "Active" : "Zombie")} {(_assimulated ? "Participant" : "Bystander")}, [{Adjunct?.Hub?.Designation?.IdString()}, {Adjunct?.Designation?.IdString()}], {MessageService?.IoNetSocket?.LocalAddress} ~> {MessageService?.IoNetSocket?.RemoteAddress}, up = {TimeSpan.FromMilliseconds(UpTime.ElapsedMs())}'";
+                        return _description = $"`drone({(!Zeroed()? "Active":"Zombie")} {(_assimilated? "Participant" : "Bystander")} [{Adjunct?.Hub.Designation.IdString()}, {Adjunct?.Designation.IdString()}], {Adjunct?.Direction},{MessageService.IoNetSocket.LocalAddress} ~> {MessageService.IoNetSocket.RemoteAddress}, up = {TimeSpan.FromMilliseconds(UpTime.ElapsedMs())}'";
+                    return _description = $"`drone({(!Zeroed()? "Active" : "Zombie")} {(_assimilated ? "Participant" : "Bystander")}, [{Adjunct?.Hub?.Designation?.IdString()}, {Adjunct?.Designation?.IdString()}], {MessageService?.IoNetSocket?.LocalAddress} ~> {MessageService?.IoNetSocket?.RemoteAddress}, up = {TimeSpan.FromMilliseconds(UpTime.ElapsedMs())}'";
                 }
                 catch
                 {
-                    return _description = $"`drone({(!Zeroed()? "Active":"Zombie")} {(_assimulated ? "Participant" : "Bystander")}, [{Adjunct?.Hub?.Designation?.IdString()}, {Adjunct?.Designation?.IdString()}], {MessageService?.IoNetSocket?.LocalAddress} ~> {MessageService?.IoNetSocket?.RemoteAddress}, up = {TimeSpan.FromMilliseconds(UpTime.ElapsedMs())}'";
+                    return _description = $"`drone({(!Zeroed()? "Active":"Zombie")} {(_assimilated ? "Participant" : "Bystander")}, [{Adjunct?.Hub?.Designation?.IdString()}, {Adjunct?.Designation?.IdString()}], {MessageService?.IoNetSocket?.LocalAddress} ~> {MessageService?.IoNetSocket?.RemoteAddress}, up = {TimeSpan.FromMilliseconds(UpTime.ElapsedMs())}'";
                 }
             }
         }
@@ -156,7 +156,7 @@ namespace zero.cocoon
         /// <summary>
         /// Whether this drone ever formed part of a collective
         /// </summary>
-        private bool _assimulated;
+        private bool _assimilated;
 
 #if DEBUG
         /// <summary>
@@ -245,7 +245,7 @@ namespace zero.cocoon
                 if (attached)
                 {
                     _logger?.Trace($"{nameof(AttachViaAdjunctAsync)}: {direction} attach to adjunct {Adjunct.Description}");
-                    _assimulated = true;
+                    _assimilated = true;
                 }
                 else
                 {
