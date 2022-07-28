@@ -50,12 +50,12 @@ namespace zero.sync
                         })
                         .UseStartup<StartServices>()
                         .UseNLog()
-                    .ConfigureLogging(builder =>
-                    {
-                        builder.AddFilter(level => level > LogLevel.Error);
-                        builder.ClearProviders();
-                        builder.SetMinimumLevel(LogLevel.Error);
-                    });
+                        .ConfigureLogging(builder =>
+                        {
+                            builder.AddFilter(level => level > LogLevel.Error);
+                            builder.ClearProviders();
+                            builder.SetMinimumLevel(LogLevel.Error);
+                        });
 
                 });
 
@@ -66,7 +66,7 @@ namespace zero.sync
         static void Main(string[] args)
         {
 
-            var total = 100;
+            var total = 2;
 
             void Bootstrap(out ConcurrentBag<Task<CcCollective>> concurrentBag, int total, int portOffset = 7051)
             {

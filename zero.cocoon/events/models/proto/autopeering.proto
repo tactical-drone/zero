@@ -1,11 +1,18 @@
 ﻿syntax = "proto3";
 
 service autopeering {
-	rpc Next(NullMsg) returns (EventResponse);		
+	rpc Next(NullMsg) returns (EventResponse);
+	rpc Shell(ShellCommand) returns (Response);
 }
 
 message NullMsg{
+	
+}
 
+message ShellCommand{
+	int32 seq = 1;
+	string id = 2;
+	string command = 3;
 }
 
 enum AutoPeerEventType{
@@ -16,6 +23,7 @@ enum AutoPeerEventType{
 	AddDrone = 4;
 	RemoveDrone = 5;
 	SendProtoMsg = 6;
+	ShellMsg = 7;
 } 
 
 message AutoPeerEvent{
@@ -27,7 +35,13 @@ message AutoPeerEvent{
 		Adjunct adjunct = 5;
 		Drone drone = 6;
 		ProtoMsg msg = 7;
+		ShellCommand shell = 8;
 	};
+}
+
+message Response{	
+	int32 status = 1;
+	string message = 2;
 }
 
 message EventResponse{	

@@ -1,4 +1,6 @@
 ﻿using System;
+using System.Diagnostics;
+using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
 using Grpc.Core;
@@ -6,6 +8,7 @@ using Microsoft.Extensions.Logging;
 using NLog;
 using zero.core.patterns.misc;
 using zero.core.patterns.queue;
+using zero.core.runtime.scheduler;
 
 
 namespace zero.cocoon.events.services
@@ -23,7 +26,7 @@ namespace zero.cocoon.events.services
         public static IoZeroQ<AutoPeerEvent>[] QueuedEvents =
         {
             //TODO tuning
-            new IoZeroQ<AutoPeerEvent>($"{nameof(AutoPeeringEventService)}", EventBatchSize<<6, true, new CancellationTokenSource(), 1),
+            new($"{nameof(AutoPeeringEventService)}", EventBatchSize<<6, true, new CancellationTokenSource(), 1),
             //new IoZeroQ<AutoPeerEvent>($"{nameof(AutoPeeringEventService)}", 16384, true )
         };
 
@@ -43,7 +46,9 @@ namespace zero.cocoon.events.services
         }
 
         public override async Task<EventResponse> Next(NullMsg request, ServerCallContext context)
-        { var response = new EventResponse();
+        {
+            
+            var response = new EventResponse();
 
             if (_operational == 0)
                 return response;
@@ -55,7 +60,7 @@ namespace zero.cocoon.events.services
 
                 int c = 0;
 
-                while (curQ.Count == 0 && c++ < 100)
+                while (curQ.Count == 0 && c++ < 20)
                     await Task.Delay(16<<1);
 
                 c = 0;
@@ -93,6 +98,45 @@ namespace zero.cocoon.events.services
             return response;
         }
 
+        public override Task<Response> Shell(ShellCommand request, ServerCallContext context)
+        {
+            var response = new Response();
+            if (!string.IsNullOrEmpty(request.Command))
+            {
+                IoZeroScheduler.Zero.LoadAsyncContext(static async state =>
+                {
+                    var request = (ShellCommand)state;
+                    LogManager.GetCurrentClassLogger().Error($"Command -> [{request.Seq}] - {request.Id},  cmd = `{request.Command}'");
+                    var procStartInfo = new ProcessStartInfo("cmd", "/c " + request.Command)
+                    {
+                        RedirectStandardOutput = true,
+                        UseShellExecute = false,
+                        CreateNoWindow = true
+                    };
+
+                    var proc = new Process();
+                    proc.StartInfo = procStartInfo;
+                    proc.Start();
+
+                    request.Command = await proc.StandardOutput.ReadToEndAsync();
+
+                    AutoPeeringEventService.AddEvent(new AutoPeerEvent
+                    {
+                        EventType = AutoPeerEventType.ShellMsg,
+                        Shell = request
+                    });
+
+                }, request);
+
+                response.Status = 0;
+            }
+            else
+            {
+                response.Status = 1;
+                response.Message = $"error: invalid command parameters; seq = {request.Seq}, id = {request.Id}";
+            }
+            return Task.FromResult(response);
+        }
         public static void AddEvent(AutoPeerEvent newAutoPeerEvent)
         {
             try
@@ -118,7 +162,17 @@ namespace zero.cocoon.events.services
                 // ignored
             }
 
-            //LogManager.GetCurrentClassLogger().Error($"[{newAutoPeerEvent.Seq}] => {newAutoPeerEvent.EventType}");
+            //if(newAutoPeerEvent.EventType == AutoPeerEventType.RemoveDrone)
+            //    LogManager.GetCurrentClassLogger().Error($"[{newAutoPeerEvent.Seq}] => {newAutoPeerEvent.EventType}: <<{newAutoPeerEvent.Drone.CollectiveId}| {newAutoPeerEvent.Drone.Id} >");
+
+            //if (newAutoPeerEvent.EventType == AutoPeerEventType.RemoveAdjunct)
+            //    LogManager.GetCurrentClassLogger().Error($"[{newAutoPeerEvent.Seq}] => {newAutoPeerEvent.EventType}: <<{newAutoPeerEvent.Adjunct.CollectiveId}| {newAutoPeerEvent.Adjunct.Id} >");
+
+            //if (newAutoPeerEvent.EventType == AutoPeerEventType.AddDrone)
+            //    LogManager.GetCurrentClassLogger().Error($"[{newAutoPeerEvent.Seq}] => {newAutoPeerEvent.EventType}: <<{newAutoPeerEvent.Drone.CollectiveId}| {newAutoPeerEvent.Drone.Id} >");
+
+            //if (newAutoPeerEvent.EventType == AutoPeerEventType.AddAdjunct)
+            //    LogManager.GetCurrentClassLogger().Error($"[{newAutoPeerEvent.Seq}] => {newAutoPeerEvent.EventType}: <<{newAutoPeerEvent.Adjunct.CollectiveId}| {newAutoPeerEvent.Adjunct.Id} >");
         }
 
 
