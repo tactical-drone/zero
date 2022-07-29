@@ -197,7 +197,7 @@ namespace zero.cocoon
                         force = true;
                     }
 
-                    if (@this.TotalConnections < @this.MaxDrones) 
+                    if (@this.EgressCount < @this.parm_max_outbound || @this.IngressCount == 0) 
                         await @this.DeepScanAsync(force).FastPath();
                 }
                 catch when(@this.Zeroed()){}
@@ -880,7 +880,7 @@ namespace zero.cocoon
                 var stateIsValid = adjunct.CompareAndEnterState(CcAdjunct.AdjunctState.Connecting, CcAdjunct.AdjunctState.Fusing) == CcAdjunct.AdjunctState.Fusing;
                 if (!stateIsValid)
                 {
-                    stateIsValid = adjunct.CompareAndEnterState(CcAdjunct.AdjunctState.Connecting, CcAdjunct.AdjunctState.Rusing) == CcAdjunct.AdjunctState.Rusing;
+                    stateIsValid = adjunct.CompareAndEnterState(CcAdjunct.AdjunctState.Connecting, CcAdjunct.AdjunctState.Verified) == CcAdjunct.AdjunctState.Verified;
                     if (!stateIsValid)
                     {
                         if (adjunct.CurrentState.Value != CcAdjunct.AdjunctState.Connected)
@@ -1132,7 +1132,7 @@ namespace zero.cocoon
                         else
                         {
                             if (!Zeroed())
-                                _logger.Trace($"{nameof(adjunct.ScanAsync)}: Unable to probe adjuncts, state = {adjunct.State}, z = {adjunct.Zeroed()}, zr = {adjunct.ZeroReason} {Description}");
+                                _logger.Trace($"{nameof(adjunct.ScanAsync)}: Unable to probe adjuncts; state = {adjunct.State}, in = {adjunct.FuseCount}, out = {adjunct.FuseRequestCount}, age = {adjunct.ScanAge.ElapsedMs()}ms, tries = {adjunct.ScanCount}, Seduced = {adjunct.LastSeduced}ms,  {Description}");
                         }
                     }
                     else
@@ -1154,7 +1154,7 @@ namespace zero.cocoon
                     {
                         if (!ioNodeAddress.Equals(_peerAddress))
                         {
-                            if (Hub.Neighbors.Values.Any(a => a.Key.Contains(ioNodeAddress.Key)))
+                            if (Hub.Neighbors.Values.Any(a => a.IoSource.Key.Contains(ioNodeAddress.Key)))
                                 continue;
 
                             try

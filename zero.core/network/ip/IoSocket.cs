@@ -48,7 +48,7 @@ namespace zero.core.network.ip
                 RemoteNodeAddress = IoNodeAddress.CreateFromEndpoint(NativeSocket.ProtocolType.ToString().ToLower(),
                     (IPEndPoint)(NativeSocket.RemoteEndPoint ?? remoteEndPoint));
 
-                Key = NativeSocket.RemoteEndPoint != null ? RemoteNodeAddress.Key : LocalNodeAddress.Key;
+                Key = NativeSocket.RemoteEndPoint != null ? RemoteNodeAddress.Key : $"{NativeSocket.ProtocolType.ToString().ToLower()}{remoteEndPoint}";
             }
             catch (ObjectDisposedException)
             {
