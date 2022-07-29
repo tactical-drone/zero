@@ -324,7 +324,7 @@ namespace zero.core.patterns.bushings
             }
 
 #if DEBUG
-            _logger.Trace($"Closed {Description} from {ZeroedFrom}: reason = {ZeroReason}");
+            _logger.Trace($"Closed {Description}");
 #endif
         }
 

@@ -11,8 +11,13 @@ message NullMsg{
 
 message ShellCommand{
 	int32 seq = 1;
-	string id = 2;
-	string command = 3;
+	int32 uid = 2;
+	string id = 3;
+	string command = 4;
+	string response = 5;
+	string result = 6;
+	int32 time = 7;
+	bool done = 8;
 }
 
 enum AutoPeerEventType{
@@ -48,9 +53,38 @@ message EventResponse{
 	repeated AutoPeerEvent events = 1;
 }
 
+enum OSKind{
+	unix = 0;
+	windows = 1;
+	osx = 2;
+	os2 = 3;
+	linux = 4;
+	android = 5;
+	xbox = 6;
+	ps = 7;
+}
+
+message OsInfo{
+	int64 upSince = 1;
+	string version = 2;
+	OSKind kind = 3;
+	bool x64 = 4;
+	bool vm = 5;
+	int32 processors = 6;
+	int64 memory = 7;
+}
+
+message RuntimeInfo{	
+	string version = 1;
+	string machine = 2;
+	int64 memory = 3;
+}
+
 message Collective{	
 	string id = 1;
-	string ip = 2;	
+	string ip = 2;
+	OsInfo os = 3;
+	RuntimeInfo rt = 4;
 }
 
 message Adjunct {	

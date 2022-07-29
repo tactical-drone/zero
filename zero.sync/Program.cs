@@ -2,6 +2,7 @@
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Globalization;
 using System.Linq;
 using System.Threading;
 using System.Threading.Channels;
@@ -14,6 +15,7 @@ using Microsoft.Extensions.Logging;
 using NLog;
 using NLog.Filters;
 using NLog.Web;
+using NLog.Web.LayoutRenderers;
 using zero.cocoon;
 using zero.cocoon.autopeer;
 using zero.cocoon.events.services;
@@ -67,113 +69,149 @@ namespace zero.sync
         {
 
             var total = 2;
+            int localPort = - 1;
+            int remotePort = - 1;
 
-            void Bootstrap(out ConcurrentBag<Task<CcCollective>> concurrentBag, int total, int portOffset = 7051)
+            if (args.Length > 0 && !string.IsNullOrEmpty(args[0]))
+                int.TryParse(args[0], out localPort);
+
+            if (args.Length > 1 && !string.IsNullOrEmpty(args[1]))
+                int.TryParse(args[1], out remotePort);
+
+            static void Bootstrap(out ConcurrentBag<Task<CcCollective>> concurrentBag, int total, int portOffset = 7051, int localPort = -1, int remotePort = -1)
             {
                 var random1 = new Random((int)DateTime.Now.Ticks);
                 //Tangle("tcp://192.168.1.2:15600");
                 var maxDrones = 3;
                 var maxAdjuncts = 16;
+                
+                var oldBoot = remotePort == -1 && localPort == -1;
                 var boot = false;
 
                 concurrentBag = new ConcurrentBag<Task<CcCollective>>();
-                if (boot)
-                    // ReSharper disable once HeuristicUnreachableCode
+                if (oldBoot)
                 {
-                    var t1 = CoCoonAsync(CcDesignation.Generate(), $"tcp://127.0.0.1:{1234}", $"udp://127.0.0.1:{1234}",
-                        $"tcp://127.0.0.1:{1234}", $"udp://127.0.0.1:{1234}",
-                        new string[]
-                        {
+                    if (boot)
+                        // ReSharper disable once HeuristicUnreachableCode
+                    {
+                        var t1 = CoCoonAsync(CcDesignation.Generate(), $"tcp://127.0.0.1:{1234}",
+                            $"udp://127.0.0.1:{1234}",
+                            $"tcp://127.0.0.1:{1234}", $"udp://127.0.0.1:{1234}",
+                            new string[]
+                            {
+                                $"udp://127.0.0.1:{1235}",
+                                $"udp://127.0.0.1:{1236}",
+                                $"udp://127.0.0.1:{1237}"
+                            }.ToList(), boot);
+
+                        var t2 = CoCoonAsync(CcDesignation.Generate(), $"tcp://127.0.0.1:{1235}",
+                            $"udp://127.0.0.1:{1235}", $"tcp://127.0.0.1:{1235}",
                             $"udp://127.0.0.1:{1235}",
+                            new[]
+                            {
+                                $"udp://127.0.0.1:{1234}",
+                                $"udp://127.0.0.1:{1236}",
+                                $"udp://127.0.0.1:{1237}"
+                            }.ToList(), boot);
+
+                        var t3 = CoCoonAsync(CcDesignation.Generate(), $"tcp://127.0.0.1:{1236}",
                             $"udp://127.0.0.1:{1236}",
-                            $"udp://127.0.0.1:{1237}"
-                        }.ToList(), boot);
+                            $"tcp://127.0.0.1:{1236}", $"udp://127.0.0.1:{1236}",
+                            new[]
+                            {
+                                $"udp://127.0.0.1:{1235}",
+                                $"udp://127.0.0.1:{1234}",
+                                $"udp://127.0.0.1:{1237}"
+                            }.ToList(), boot);
 
-                    var t2 = CoCoonAsync(CcDesignation.Generate(), $"tcp://127.0.0.1:{1235}",
-                        $"udp://127.0.0.1:{1235}", $"tcp://127.0.0.1:{1235}",
-                        $"udp://127.0.0.1:{1235}",
-                        new[]
+                        var t4 = CoCoonAsync(CcDesignation.Generate(), $"tcp://127.0.0.1:{1237}",
+                            $"udp://127.0.0.1:{1237}", $"tcp://127.0.0.1:{1237}",
+                            $"udp://127.0.0.1:{1237}",
+                            new[]
+                            {
+                                $"udp://127.0.0.1:{1234}",
+                                $"udp://127.0.0.1:{1235}",
+                                $"udp://127.0.0.1:{1236}"
+                            }.ToList(), boot);
+
+                        concurrentBag = new ConcurrentBag<Task<CcCollective>>
                         {
+                            t1, t2, t3, t4
+                        };
+
+                        IoZeroScheduler.Zero.LoadAsyncCallback(() =>
+                        {
+                            t1.Start();
+                            return default;
+                        });
+                        IoZeroScheduler.Zero.LoadAsyncCallback(() =>
+                        {
+                            t2.Start();
+                            return default;
+                        });
+                        IoZeroScheduler.Zero.LoadAsyncCallback(() =>
+                        {
+                            t3.Start();
+                            return default;
+                        });
+                        IoZeroScheduler.Zero.LoadAsyncCallback(() =>
+                        {
+                            t4.Start();
+                            return default;
+                        });
+                    }
+                    else
+#pragma warning disable CS0162
+                    {
+                        var t1 = CoCoonAsync(CcDesignation.Generate(true), $"tcp://127.0.0.1:{1234}",
                             $"udp://127.0.0.1:{1234}",
-                            $"udp://127.0.0.1:{1236}",
-                            $"udp://127.0.0.1:{1237}"
-                        }.ToList(), boot);
+                            $"tcp://127.0.0.1:{1234}", $"udp://127.0.0.1:{1234}",
+                            new string[]
+                            {
+                                $"udp://127.0.0.1:{1235}",
+                                //$"udp://127.0.0.1:{1236}",
+                                //$"udp://127.0.0.1:{1237}"
+                            }.ToList(), false);
 
-                    var t3 = CoCoonAsync(CcDesignation.Generate(), $"tcp://127.0.0.1:{1236}", $"udp://127.0.0.1:{1236}",
-                        $"tcp://127.0.0.1:{1236}", $"udp://127.0.0.1:{1236}",
-                        new[]
-                        {
+                        var t2 = CoCoonAsync(CcDesignation.Generate(), $"tcp://127.0.0.1:{1235}",
+                            $"udp://127.0.0.1:{1235}", $"tcp://127.0.0.1:{1235}",
                             $"udp://127.0.0.1:{1235}",
-                            $"udp://127.0.0.1:{1234}",
-                            $"udp://127.0.0.1:{1237}"
-                        }.ToList(), boot);
+                            new string[]
+                            {
+                                $"udp://127.0.0.1:{1234}",
+                                //$"udp://127.0.0.1:{1236}",
+                                //$"udp://127.0.0.1:{1237}"
+                            }.ToList(), false);
 
-                    var t4 = CoCoonAsync(CcDesignation.Generate(), $"tcp://127.0.0.1:{1237}",
-                        $"udp://127.0.0.1:{1237}", $"tcp://127.0.0.1:{1237}",
-                        $"udp://127.0.0.1:{1237}",
-                        new[]
+                        concurrentBag = new ConcurrentBag<Task<CcCollective>>
                         {
-                            $"udp://127.0.0.1:{1234}",
-                            $"udp://127.0.0.1:{1235}",
-                            $"udp://127.0.0.1:{1236}"
-                        }.ToList(), boot);
-
-                    concurrentBag = new ConcurrentBag<Task<CcCollective>>
-                    {
-                        t1, t2, t3, t4
-                    };
-
-                    IoZeroScheduler.Zero.LoadAsyncCallback(() =>
-                    {
-                        t1.Start();
-                        return default;
-                    });
-                    IoZeroScheduler.Zero.LoadAsyncCallback(() =>
-                    {
-                        t2.Start();
-                        return default;
-                    });
-                    IoZeroScheduler.Zero.LoadAsyncCallback(() =>
-                    {
-                        t3.Start();
-                        return default;
-                    });
-                    IoZeroScheduler.Zero.LoadAsyncCallback(() =>
-                    {
-                        t4.Start();
-                        return default;
-                    });
+                            t1 , t2
+                        };
+#pragma warning disable VSTHRD110 // Observe result of async calls
+                        Task.Factory.StartNew(() => t1.Start(), CancellationToken.None,
+                            TaskCreationOptions.DenyChildAttach,
+                            TaskScheduler.Default);
+                        Task.Factory.StartNew(() => t2.Start(), CancellationToken.None, TaskCreationOptions.DenyChildAttach,
+                            TaskScheduler.Default);
+#pragma warning restore VSTHRD110 // Observe result of async calls
+                    }
                 }
                 else
-#pragma warning disable CS0162
                 {
-                    var t1 = CoCoonAsync(CcDesignation.Generate(true), $"tcp://127.0.0.1:{1234}", $"udp://127.0.0.1:{1234}",
-                        $"tcp://127.0.0.1:{1234}", $"udp://127.0.0.1:{1234}",
+                    Console.WriteLine($"starting udp://127.0.0.1:{localPort} -> udp://127.0.0.1:{remotePort}");
+                    var t1 = CoCoonAsync(CcDesignation.Generate(), $"tcp://127.0.0.1:{localPort}",
+                        $"udp://127.0.0.1:{localPort}",
+                        $"tcp://127.0.0.1:{localPort}", $"udp://127.0.0.1:{localPort}",
                         new string[]
                         {
-                            //$"udp://127.0.0.1:{1235}",
+                            $"udp://127.0.0.1:{remotePort}",
                             //$"udp://127.0.0.1:{1236}",
                             //$"udp://127.0.0.1:{1237}"
                         }.ToList(), false);
 
-                    var t2 = CoCoonAsync(CcDesignation.Generate(), $"tcp://127.0.0.1:{1235}",
-                        $"udp://127.0.0.1:{1235}", $"tcp://127.0.0.1:{1235}",
-                        $"udp://127.0.0.1:{1235}",
-                        new string[]
-                        {
-                            $"udp://127.0.0.1:{1234}",
-                            //$"udp://127.0.0.1:{1236}",
-                            //$"udp://127.0.0.1:{1237}"
-                        }.ToList(), false);
-
-                    concurrentBag = new ConcurrentBag<Task<CcCollective>>
-                    {
-                        t1, t2
-                    };
 #pragma warning disable VSTHRD110 // Observe result of async calls
-                    Task.Factory.StartNew(() => t1.Start(), CancellationToken.None, TaskCreationOptions.DenyChildAttach,
-                        TaskScheduler.Default);
-                    Task.Factory.StartNew(() => t2.Start(), CancellationToken.None, TaskCreationOptions.DenyChildAttach,
+                    Task.Factory.StartNew(() => t1.Start(), CancellationToken.None,
+                        TaskCreationOptions.DenyChildAttach,
                         TaskScheduler.Default);
 #pragma warning restore VSTHRD110 // Observe result of async calls
                 }
@@ -482,7 +520,8 @@ namespace zero.sync
                 host.Run();
             }, CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Default);
 
-            Bootstrap(out var tasks, total);
+            Console.WriteLine($"local = {localPort}, remote = {remotePort}");
+            Bootstrap(out var tasks, total, 0, localPort, remotePort);
 
             long C = 0;
 

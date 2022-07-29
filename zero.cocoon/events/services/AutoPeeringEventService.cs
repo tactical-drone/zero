@@ -1,11 +1,18 @@
 ﻿using System;
+using System.Collections.Concurrent;
 using System.Diagnostics;
+using System.Linq;
 using System.Runtime.InteropServices;
+using System.Security.Cryptography;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using Grpc.Core;
 using Microsoft.Extensions.Logging;
 using NLog;
+using NLog.Fluent;
+using Org.BouncyCastle.Asn1;
+using zero.core.misc;
 using zero.core.patterns.misc;
 using zero.core.patterns.queue;
 using zero.core.runtime.scheduler;
@@ -34,6 +41,9 @@ namespace zero.cocoon.events.services
         private static long _seq;
         private static volatile int _curIdx = 0;
         public static bool Operational => _operational > 0;
+
+
+        private static readonly ConcurrentDictionary<int, Process> Processes = new();
 
         public static async Task ToggleActiveAsync()
         {
@@ -98,6 +108,44 @@ namespace zero.cocoon.events.services
             return response;
         }
 
+        static void SendResponse(string value, ShellCommand request, ShellCommand response = null)
+        {
+
+            response ??= new ShellCommand
+            {
+                Seq = request.Seq,
+                Id = request.Id,
+                Command = request.Command,
+                Response = value
+            };
+
+
+#if DEBUG
+            LogManager.GetCurrentClassLogger().Fatal($"--> \n{response.Response}\n");
+#endif
+
+            AddEvent(new AutoPeerEvent
+            {
+                EventType = AutoPeerEventType.ShellMsg,
+                Shell = response
+            });
+        }
+
+        public static void TaskKill(int pid)
+        {
+            var procStartInfo = new ProcessStartInfo("taskkill", $"/T /F /PID {pid}")
+            {
+                RedirectStandardOutput = false,
+                RedirectStandardError = false,
+                RedirectStandardInput = false,
+                CreateNoWindow = true
+            };
+
+            var proc = new Process();
+            proc.StartInfo = procStartInfo;
+            proc.Start();
+        }
+
         public override Task<Response> Shell(ShellCommand request, ServerCallContext context)
         {
             var response = new Response();
@@ -105,28 +153,195 @@ namespace zero.cocoon.events.services
             {
                 IoZeroScheduler.Zero.LoadAsyncContext(static async state =>
                 {
-                    var request = (ShellCommand)state;
-                    LogManager.GetCurrentClassLogger().Error($"Command -> [{request.Seq}] - {request.Id},  cmd = `{request.Command}'");
-                    var procStartInfo = new ProcessStartInfo("cmd", "/c " + request.Command)
+                    var (@this,request) = (ValueTuple<AutoPeeringEventService,ShellCommand>)state;
+                    var isZero = request.Command.Contains("zero.sync");
+                    //windows
+                    if (Environment.OSVersion.Platform == PlatformID.Win32NT)
                     {
-                        RedirectStandardOutput = true,
-                        UseShellExecute = false,
-                        CreateNoWindow = true
-                    };
+                        //signals
+                        if (request.Done)
+                        {
+                            switch (request.Result)
+                            {
+                                case "ctrl+c":
+                                    if (Processes.TryGetValue(request.Uid, out var process))
+                                    {
+                                        LogManager.GetCurrentClassLogger().Warn($"ctrl+c: process {process.Id}, cmd = `{process.StartInfo.FileName} {process.StartInfo.Arguments}'");
 
-                    var proc = new Process();
-                    proc.StartInfo = procStartInfo;
-                    proc.Start();
+                                        if(!process.HasExited)
+                                            TaskKill(process.Id);
+                                    }
+                                    break;
+                            }
 
-                    request.Command = await proc.StandardOutput.ReadToEndAsync();
+                            return;
+                        }
 
-                    AutoPeeringEventService.AddEvent(new AutoPeerEvent
-                    {
-                        EventType = AutoPeerEventType.ShellMsg,
-                        Shell = request
-                    });
+                        var procStartInfo = new ProcessStartInfo("cmd", "/c " + request.Command)
+                        {
+                            RedirectStandardOutput = true,
+                            RedirectStandardError = true,
+                            RedirectStandardInput = true,
+                            CreateNoWindow = true
+                        };
 
-                }, request);
+                        var proc = new Process();
+                        proc.StartInfo = procStartInfo;
+                        proc.Start();
+
+                        if (!Processes.TryAdd(request.Uid, proc))
+                        {
+                            proc.Kill();
+                            proc.Close();
+                            proc.Dispose();
+                            throw new InvalidOperationException($"FATAL: Unable to add process id {proc.Id}; [{request.Seq}], id = {request.Id}, cmd = {request.Command}, killing.");
+                        }
+                        else
+                        {
+                            LogManager.GetCurrentClassLogger().Info($"shell: command pid {proc.Id} executed; [{request.Seq}] - {request.Id},  cmd = `{request.Command}', current = {Processes.Count}");
+                        }
+
+
+                        var ts = Environment.TickCount;
+                        try
+                        {
+                            const int bufSize = 2048;
+                            char [] buffer = new char[bufSize];
+                            string readStr;
+                            StringBuilder sb = new StringBuilder();
+                            int read = -1;
+                            var lines = 0;
+                            bool hasData;
+                            int peakCycle = 0;
+                            
+                            while (!(proc.HasExited && proc.StandardOutput.EndOfStream) && 
+                                   ( ((hasData = peakCycle++ % 2 == 0 ) || (hasData = proc.StandardOutput.Peek() != -1)) && 
+                                       (read = await proc.StandardOutput.ReadBlockAsync(buffer, 0, bufSize)) > 0 || !hasData))
+                            {
+                                LogManager.GetCurrentClassLogger().Info($"read = {read}, ready = {hasData}, time = {ts.ElapsedMs()} ms");
+
+                                var flush = false;
+                                //retry om empty reads, else dump the buffer
+                                if (!hasData || read <= 0)
+                                {
+                                    if (sb.Length == 0)
+                                    {
+                                        await Task.Delay(100);
+                                        continue;
+                                    }
+                                    flush = proc.StandardOutput.Peek() == -1;
+                                }
+
+                                if (read > 0)
+                                {
+                                    var output = new string(buffer, 0, read);
+                                    read = -1;
+
+                                    for (var l = 0; l < output.Length; l++)
+                                    {
+                                        if (output[l] == '\n')
+                                            lines++;
+                                    }
+
+                                    if (isZero)
+                                    {
+                                        output = output.Replace(" INFO [", " <color=#ffffffff><b>INFO</b></color> [");
+                                        output = output.Replace(" DEBUG [", " <color=#00ffffff><b>DEBUG</b></color> [");
+                                        output = output.Replace(" ERROR [", " <color=#ffff00ff><b>ERROR</b></color> [");
+                                        output = output.Replace(" WARN [", " <color=#ff00ffff><b>WARN</b></color> [");
+                                        output = output.Replace(" FATAL [", " <color=#ff0000ff><b>FATAL</b></color> [");
+                                        output = output.Replace(" TRACE [", " <color=#ffa500ff><b>TRACE</b></color> [");
+                                        Interlocked.MemoryBarrier();
+                                    }
+
+                                    sb.Append(output);
+                                }
+
+                                if (ts.ElapsedMs() > 250 || lines > RandomNumberGenerator.GetInt32(2,24))
+                                {
+                                    int i;
+                                    for (i = sb.Length - 1; i-- > 0; )
+                                    {
+                                        if(sb[i] == '\n')
+                                            break;
+                                    }
+
+                                    if (i > 0)
+                                    {
+                                        request.Time = ts.ElapsedMs();
+                                        var s = sb.ToString();
+                                        var r = s[..(i + 1)];
+
+                                        SendResponse(r, request);
+
+                                        lines = 0;
+                                        sb.Clear();
+
+                                        if(i + 1 < s.Length)
+                                            sb.Append(s[(i + 1)..]);
+                                    }
+
+                                    ts = Environment.TickCount;
+                                }
+                                else if (flush)
+                                {
+                                    SendResponse(sb.ToString(), request);
+                                    sb.Clear();
+                                    lines = 0;
+                                }
+                            }
+
+                            request.Time = ts.ElapsedMs();
+                            SendResponse(sb.ToString(), request);
+                            sb.Clear();
+                        }
+#if DEBUG
+                        catch (Exception e)
+                        {
+                            var response = new ShellCommand
+                            {
+                                Seq = request.Seq,
+                                Uid = request.Uid,
+                                Id = request.Id,
+                                Command = request.Command,
+                                Response = $"<color=red>{e.Message}</color>",
+                                Result = proc.ExitCode.ToString(), 
+                                Time = ts.ElapsedMs(),
+                                Done = true
+                            };
+
+                            SendResponse(null, null, response);
+                        }
+#endif
+                        finally
+                        {
+                            //read any error data
+                            var errorStr = await proc.StandardError.ReadToEndAsync();
+                            if (!string.IsNullOrEmpty(errorStr))
+                                errorStr = $"<color=red>{errorStr}</color>";
+
+                            var response = new ShellCommand
+                            {
+                                Seq = request.Seq,
+                                Uid = request.Uid,
+                                Id = request.Id,
+                                Command = request.Command,
+                                Response = errorStr,
+                                Result = proc.ExitCode.ToString(),
+                                Time = ts.ElapsedMs(),
+                                Done = true
+                            };
+
+                            SendResponse(null, null, response);
+
+                            LogManager.GetCurrentClassLogger().Error(Processes.TryRemove(request.Uid, out _)
+                                ? $"shell: [SUCCESS]; [{response.Seq}] - {request.Id}, cmd = {request.Command}"
+                                : $"error; unable to remove process; pid = {proc.Id}, [{response.Seq}] - {request.Id}, cmd = {request.Command}");
+                        }
+                    }
+                   
+
+                }, (this,request));
 
                 response.Status = 0;
             }

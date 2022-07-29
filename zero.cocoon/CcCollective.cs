@@ -1203,8 +1203,32 @@ namespace zero.cocoon
                     Collective = new Collective
                     {
                         Id = CcId.IdString(),
-                        Ip = ExtAddress.Url
-                    }
+                        Ip = ExtAddress.Url,
+                        Os = new OsInfo
+                        {
+                            Kind = Environment.OSVersion.Platform switch
+                            {
+                                PlatformID.Win32NT => OSKind.Windows,
+                                PlatformID.MacOSX => OSKind.Osx,
+                                PlatformID.Unix => OSKind.Unix,
+                                PlatformID.Win32Windows => OSKind.Windows,
+                                PlatformID.WinCE => OSKind.Windows, 
+                                PlatformID.Xbox => OSKind.Xbox,
+                                _ => throw new ArgumentOutOfRangeException($"{Environment.OSVersion.Platform}")
+                            },
+                            UpSince = Environment.TickCount,
+                            Version = Environment.OSVersion.ToString(),
+                            Processors = Environment.ProcessorCount,
+                            Memory = Environment.SystemPageSize,
+                            X64 = Environment.Is64BitOperatingSystem,
+                        },
+                        Rt = new RuntimeInfo
+                        {
+                            Machine = Environment.MachineName,
+                            Version = Environment.Version.ToString(),
+                            Memory = GC.GetTotalMemory(false)
+                        }
+                    },
                 });
         }
 

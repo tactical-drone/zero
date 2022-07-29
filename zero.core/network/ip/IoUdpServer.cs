@@ -74,17 +74,22 @@ namespace zero.core.network.ip
                         }
                     },ValueTuple.Create(this,context, connectionReceivedAction), bootFunc, bootData).FastPath();
 
-                    if(!Zeroed())
+                    if (!Zeroed())
+                    {
                         _logger.Warn($"Listener stopped, restarting: {Description}");
-
+                        await Task.Delay(parm_connection_timeout);
+                    }
+                    
                     if(IoListenSocket != null)
                         await IoListenSocket.DisposeAsync(this, $"{nameof(ZeroManagedAsync)}: teardown").FastPath();
                 }
                 catch when (Zeroed()){}
                 catch (Exception e) when (!Zeroed())
                 {
-                    _logger?.Error(e,$"{nameof(ListenAsync)}: ");
+                    _logger.Error(e,$"{nameof(ListenAsync)}: ");
                 }
+
+                await Task.Delay(parm_connection_timeout);
             }
         }
 

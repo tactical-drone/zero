@@ -502,7 +502,7 @@ namespace zero.core.patterns.misc
 
             GC.SuppressFinalize(this);
 #if DEBUG
-            _logger.Trace($"#{Serial} ~> {desc}: From: {ZeroedFrom?.Description}, Reason: `{reason}'");
+            _logger.Trace($"z:{Serial}> {desc}; from = {ZeroedFrom?.Description}, reason = `{reason}'");
 #endif
             ZeroedFrom = null;
             ZeroRoot.ZeroSem();

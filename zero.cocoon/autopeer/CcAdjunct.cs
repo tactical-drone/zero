@@ -675,7 +675,7 @@ namespace zero.cocoon.autopeer
 
                 var from = ZeroedFrom == this? "self" : ZeroedFrom?.Description??"null";
                 if (!CcCollective.ZeroDrone && Assimilated && WasAttached && UpTime.ElapsedMs() > parm_min_uptime_ms && EventCount > 10)
-                    _logger.Info($"- `{(Assimilated ? "apex" : "sub")} {Direction}: {Description}, {from}: r ={ZeroReason}");
+                    _logger.Info($"- {(Assimilated ? "apex" : "sub")} {Direction} {Description}; {from}: r = {ZeroReason}");
 
                 await DetachDroneAsync().FastPath();
                 
@@ -1879,7 +1879,7 @@ namespace zero.cocoon.autopeer
         {
             if (Zeroed() || Hub.Zeroed() || newRemoteEp != null && newRemoteEp.Equals(RemoteAddress?.IpEndPoint) || CcCollective.Hub.Neighbors.ContainsKey(designation.IdString()))
             {
-                _logger.Trace($"<x {designation.IdString()}");
+                _logger.Trace($"Z -> {designation.IdString()}");
                 return false;
             }
 
@@ -1941,7 +1941,7 @@ namespace zero.cocoon.autopeer
                         {
                             //clear this ID so that when it removed it does not clash with the incoming connection... this seems like a hack
                             //newAdjunct.Designation = CcDesignation.Generate();
-                            await newAdjunct.DisposeAsync(@this,$"Adjunct already exists, dropping {newAdjunct.Description}").FastPath();
+                            await newAdjunct.DisposeAsync(@this,$"[EXISTS]").FastPath();
                             return false;    
                         }
                         return true;
@@ -2438,9 +2438,9 @@ namespace zero.cocoon.autopeer
                 }
                 else 
                 {
-#if DEBUG
-                    _sibling = (CcAdjunct)GCHandle.FromIntPtr(new IntPtr(response.DbgPtr)).Target;
-#endif
+//#if DEBUG
+//                    _sibling = (CcAdjunct)GCHandle.FromIntPtr(new IntPtr(response.DbgPtr)).Target;
+//#endif
                     //PAT
                     LastPat = Environment.TickCount;
 #if DEBUG
