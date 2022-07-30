@@ -998,15 +998,22 @@ namespace zero.cocoon.autopeer
                                         break;
                                     try
                                     {
-                                        if(Equals(message.Chroniton.Header.Ip.Dst.GetEndpoint(), Router.MessageService.IoNetSocket.NativeSocket.LocalEndPoint)) 
-                                            await processCallback(message, msgBatch, channel, nanite, proxy, srcEndPoint).FastPath();
-                                        message.Chroniton = null;
-                                        message.EmbeddedMsg = null;
+                                        if (Equals(message.Chroniton.Header.Ip.Dst.GetEndpoint(),
+                                                Router.MessageService.IoNetSocket.NativeSocket.LocalEndPoint))
+                                            await processCallback(message, msgBatch, channel, nanite, proxy,
+                                                srcEndPoint).FastPath();
                                     }
-                                    catch (Exception) when (!Zeroed()) { }
+                                    catch (Exception) when (!Zeroed())
+                                    {
+                                    }
                                     catch (Exception e) when (Zeroed())
                                     {
                                         _logger.Debug(e, $"Processing protocol failed for {Description}: ");
+                                    }
+                                    finally
+                                    {
+                                        message.Chroniton = null;
+                                        message.EmbeddedMsg = null;
                                     }
                                 }
                             }
@@ -1030,31 +1037,38 @@ namespace zero.cocoon.autopeer
                         try
                         {
                             //TODO, is this caching a good idea? 
-                            if (!_enableBatchEpCache  || proxy is not { IsProxy: true } || cachedEp == null || !cachedEp.ArrayEqual(message.EndPoint) && cachedPk == null || !cachedPk.Memory.Span.ArrayEqual(message.Chroniton.PublicKey.Span))
+                            if (!_enableBatchEpCache || proxy is not { IsProxy: true } || cachedEp == null ||
+                                !cachedEp.ArrayEqual(message.EndPoint) && cachedPk == null ||
+                                !cachedPk.Memory.Span.ArrayEqual(message.Chroniton.PublicKey.Span))
                             {
 
                                 cachedEp = message.EndPoint;
 
                                 if (message.SourceState > 0)
                                 {
-                                    var routed = Router._routingTable.TryGetValue(cachedEp.GetEndpoint().ToString(), out var zombie);
+                                    var routed = Router._routingTable.TryGetValue(cachedEp.GetEndpoint().ToString(),
+                                        out var zombie);
                                     if (routed)
                                     {
                                         await zombie.DisposeAsync(this, "Connection RESET!!!");
                                         break;
                                     }
+
                                     continue;
                                 }
 
                                 cachedPk = message.Chroniton.PublicKey;
 #if DEBUG
-                                proxy = await RouteAsync(cachedEp.GetEndpoint(), cachedPk, message.Chroniton.Header.Ip.Src.GetEndpoint()).FastPath();
+                                proxy = await RouteAsync(cachedEp.GetEndpoint(), cachedPk,
+                                    message.Chroniton.Header.Ip.Src.GetEndpoint()).FastPath();
 #else
                                 //proxy = RouteAsync(message.Chroniton.Header.Ip.Src.GetEndpoint(), cachedPk);
                                 //proxy = RouteAsync(cachedEp.GetEndpoint(), cachedPk, message.Chroniton.Header.Ip.Src.GetEndpoint());
                                 //TODO route issue
                                 proxy = await RouteAsync(cachedEp.GetEndpoint(), cachedPk).FastPath();
 #endif
+                                if (proxy == null)
+                                    continue;
 
                                 if (message.SourceState > 0)
                                 {
@@ -1063,18 +1077,24 @@ namespace zero.cocoon.autopeer
                                 }
                             }
 
-                            if (proxy != null && Equals(message.Chroniton.Header.Ip.Dst.GetEndpoint(), Router.MessageService.IoNetSocket.NativeSocket.LocalEndPoint))
+                            if (Equals(message.Chroniton.Header.Ip.Dst.GetEndpoint(),
+                                    Router.MessageService.IoNetSocket.NativeSocket.LocalEndPoint))
                             {
-                                await processCallback(message, msgBatch, channel, nanite, proxy, message.EndPoint.GetEndpoint()).FastPath();
+                                await processCallback(message, msgBatch, channel, nanite, proxy,
+                                    message.EndPoint.GetEndpoint()).FastPath();
                             }
-                                
-                            message.Chroniton = null;
-                            message.EmbeddedMsg = null;
                         }
-                        catch (Exception) when (!Zeroed()) { }
+                        catch (Exception) when (!Zeroed())
+                        {
+                        }
                         catch (Exception e) when (Zeroed())
                         {
                             _logger.Debug(e, $"Processing protocol failed for {Description}: ");
+                        }
+                        finally
+                        {
+                            message.Chroniton = null;
+                            message.EmbeddedMsg = null;
                         }
                     }
                 }
@@ -1131,24 +1151,27 @@ namespace zero.cocoon.autopeer
                         else
                         {
 #if DEBUG
-                            _logger?.Trace($"Adjunct [ROUTED]: {MessageService.IoNetSocket.LocalAddress} ~> {srcEndPoint}");
+                            _logger.Trace($"Adjunct [ROUTED]: {MessageService.IoNetSocket.LocalAddress} ~> {srcEndPoint}");
 #endif
                         }
                     }
                 }
 
                 //verify pk
-                if (proxy is { IsProxy: true } && !proxy.Designation.PublicKey.ArrayEqual(publicKey.Memory) && proxy.State < AdjunctState.Verified)//TODO: why do we need this last check?
+                if (proxy is { IsProxy: true } &&
+                    !proxy.Designation.PublicKey.ArrayEqual(publicKey.Memory))
                 {
-                    var pk1 = proxy.Designation.IdString();
+                    var pk1 = proxy?.Designation.IdString();
                     var pk2 = CcDesignation.MakeKey(publicKey);
 
-                    var msg = $"{nameof(Router)}: Dropped route {proxy.RemoteAddress}/{pk1}, key = {key}/{pk2}: state = {proxy.State} | {proxy.Description}, up = {proxy.UpTime.ElapsedMs()}ms, events = {proxy.EventCount}";
+                    var msg = $"{nameof(Router)}: [BAD SIGNATURE or PROXY]; {proxy.RemoteAddress}/{pk1}, key = {key}/{pk2}: state = {proxy.State}, up = {proxy.UpTime.ElapsedMs()}ms, events = {proxy.EventCount}, | {proxy.Description}";
 #if DEBUG
-                    _logger?.Warn(msg);           
+                    _logger.Warn(msg);
 #endif
-                    await proxy.DisposeAsync(this, msg).FastPath();
-                    proxy = null;
+                    if(proxy is { State: < AdjunctState.Verified })
+                        await proxy.DisposeAsync(this, msg).FastPath();
+
+                    return null;
                 }
             }
             catch when (Zeroed() || (proxy?.Zeroed() ?? false)) { }
@@ -1165,7 +1188,7 @@ namespace zero.cocoon.autopeer
                 {
                     if (alternate != null)
                     {
-                        var badProxy = proxy;
+                        //var badProxy = proxy;
                         proxy = await RouteAsync(alternate, publicKey).FastPath();
                         if (proxy.IsProxy && proxy.Designation.IdString() != CcDesignation.MakeKey(publicKey))
                         {

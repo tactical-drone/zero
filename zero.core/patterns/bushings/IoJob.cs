@@ -86,8 +86,7 @@ namespace zero.core.patterns.bushings
         /// A description of this kind of work
         /// </summary>
 #if DEBUG
-        //public override string Description => $"{_jobDesc} -> {StateTransitionHistory?.Tail?.Value}";
-        public override string Description => string.Empty;
+        public override string Description => $"{_jobDesc} -> {StateTransitionHistory?.Tail?.Value}";
 #else
         public override string Description => string.Empty;
 #endif
@@ -96,7 +95,11 @@ namespace zero.core.patterns.bushings
         /// <summary>
         /// A description of the job and work
         /// </summary>
+#if DEBUG
         public virtual string TraceDescription => $"{Description}|#{Id} -";
+#else
+        public virtual string TraceDescription => string.Empty;
+#endif
 
         /// <summary>
         /// The ultimate source of workload
