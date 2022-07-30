@@ -1,8 +1,6 @@
 ﻿using System;
 using System.Collections.Concurrent;
 using System.Diagnostics;
-using System.Linq;
-using System.Runtime.InteropServices;
 using System.Security.Cryptography;
 using System.Text;
 using System.Threading;
@@ -10,8 +8,6 @@ using System.Threading.Tasks;
 using Grpc.Core;
 using Microsoft.Extensions.Logging;
 using NLog;
-using NLog.Fluent;
-using Org.BouncyCastle.Asn1;
 using zero.core.misc;
 using zero.core.patterns.misc;
 using zero.core.patterns.queue;
@@ -34,10 +30,9 @@ namespace zero.cocoon.events.services
         {
             //TODO tuning
             new($"{nameof(AutoPeeringEventService)}", EventBatchSize<<6, true, new CancellationTokenSource(), 1),
-            //new IoZeroQ<AutoPeerEvent>($"{nameof(AutoPeeringEventService)}", 16384, true )
         };
 
-        private static volatile int _operational = 1;
+        private static volatile int _operational = 0;
         private static long _seq;
         private static volatile int _curIdx = 0;
         public static bool Operational => _operational > 0;

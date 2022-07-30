@@ -177,14 +177,7 @@ namespace zero.core.network.ip
                             $"There was an error handling a new connection from {newSocket.RemoteNodeAddress} to `{newSocket.LocalNodeAddress}'");
                     }
                 }
-                catch (ObjectDisposedException e) when (!Zeroed())
-                {
-                    _logger.Trace(e, description);
-                }
-                catch (OperationCanceledException e) when (!Zeroed())
-                {
-                    _logger.Trace(e, description);
-                }
+                catch (ObjectDisposedException) { }
                 catch when (Zeroed())
                 {
                 }

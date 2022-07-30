@@ -14,7 +14,7 @@ using zero.core.runtime.scheduler;
 namespace zero.core.patterns.misc
 {
     /// <summary>
-    /// ZeroAsync teardown
+    /// ZeroDisposeAsync teardown
     /// </summary>
     public class IoNanoprobe : IIoNanite, IDisposable
     {
@@ -75,7 +75,7 @@ namespace zero.core.patterns.misc
 #pragma warning disable 4014
             try
             {
-                ZeroAsync(false).AsTask().GetAwaiter();
+                ZeroDisposeAsync(false).AsTask().GetAwaiter();
             }
             catch (Exception e)
             {
@@ -188,7 +188,7 @@ namespace zero.core.patterns.misc
         }
 
         /// <summary>
-        /// ZeroAsync pattern
+        /// ZeroDisposeAsync pattern
         /// </summary>
         public void Dispose()
         {
@@ -196,8 +196,7 @@ namespace zero.core.patterns.misc
             _ = Task.Factory.StartNew(static async state =>
             {
                 var @this = (IoNanoprobe)state;
-
-                await @this.DisposeAsync(@this, $"{nameof(IDisposable)}").FastPath();
+                await @this.ZeroDisposeAsync(false).FastPath();
             },this, CancellationToken.None,TaskCreationOptions.DenyChildAttach, TaskScheduler.Default);
         }
 
@@ -212,7 +211,7 @@ namespace zero.core.patterns.misc
         private static readonly IIoZeroSemaphoreBase<int> ZeroRoot;
 
         /// <summary>
-        /// ZeroAsync
+        /// ZeroDisposeAsync
         /// </summary>
         public ValueTask DisposeAsync(IIoNanite @from, string reason, [CallerFilePath] string filePath = null, [CallerMemberName] string methodName = null, [CallerLineNumber] int lineNumber = default)
         {
@@ -245,7 +244,7 @@ namespace zero.core.patterns.misc
                 }
 
                 //collect memory
-                await @this.ZeroAsync(true).FastPath();
+                await @this.ZeroDisposeAsync(true).FastPath();
             }, this);
 #pragma warning restore CS4014
 
@@ -401,7 +400,7 @@ namespace zero.core.patterns.misc
         /// <summary>
         /// Our dispose implementation
         /// </summary>
-        private async ValueTask ZeroAsync(bool disposing)
+        private async ValueTask ZeroDisposeAsync(bool disposing)
         {
             // Only once
             if (_zeroedSec > 0 || Interlocked.CompareExchange(ref _zeroedSec, 1, 0) != 0)
@@ -451,8 +450,6 @@ namespace zero.core.patterns.misc
 #endif
             }
 
-
-
             //Dispose unmanaged
             try
             {
@@ -473,7 +470,7 @@ namespace zero.core.patterns.misc
 #if DEBUG
             catch (Exception e) when (!Zeroed())
             {
-                _logger.Error(e, $"ZeroAsync [Un]managed errors: {Description}");
+                _logger.Error(e, $"ZeroDisposeAsync [Un]managed errors: {Description}");
             }
 #else
             catch

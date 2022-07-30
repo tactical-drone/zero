@@ -849,6 +849,7 @@ namespace zero.sync
             LogManager.Shutdown();
 
             Console.WriteLine("## - done");
+            IoZeroScheduler.Zero.Dispose();
             
             GC.Collect(GC.MaxGeneration);
 

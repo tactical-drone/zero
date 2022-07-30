@@ -19,7 +19,7 @@ namespace zero.core.runtime.scheduler
     /// <summary>
     /// Experimental task scheduler based on zero tech
     /// </summary>
-    public class IoZeroScheduler : TaskScheduler
+    public class IoZeroScheduler : TaskScheduler, IDisposable
     {
         public static bool Enabled = true;
         static IoZeroScheduler()
@@ -307,6 +307,8 @@ namespace zero.core.runtime.scheduler
         private volatile int _syncCount;
         private volatile int _forkCount;
         private volatile int _asyncFallbackCount;
+        private int _disposed;
+        public bool Zeroed => _disposed > 0;
         private long _completedWorkItemCount;
         private long _completedQItemCount;
         private long _completedForkAsyncCount;
@@ -330,11 +332,11 @@ namespace zero.core.runtime.scheduler
         private async ValueTask ForkAsyncCallbacks(int threadIndex)
         {
             //await foreach (var job in _asyncForkQueue.BalanceOnConsumeAsync(threadIndex).ConfigureAwait(false))
-            while(true)
+            while(!_asyncTasks.IsCancellationRequested)
             {
-                var job = await _asyncForkQueue.WaitAsync().FastPath().ConfigureAwait(false);
                 try
                 {
+                    var job = await _asyncForkQueue.WaitAsync().FastPath().ConfigureAwait(false);
                     await job().FastPath();
                     Interlocked.Increment(ref _completedForkAsyncCount);
 
@@ -344,7 +346,8 @@ namespace zero.core.runtime.scheduler
                     //    Interlocked.Increment(ref _completedForkAsyncCount);
                     //}
                 }
-                catch (Exception e)
+                catch when (Zeroed) { }
+                catch (Exception e) when (!Zeroed)
                 {
                     LogManager.GetCurrentClassLogger().Trace(e);
                 }
@@ -354,7 +357,7 @@ namespace zero.core.runtime.scheduler
         private async ValueTask ForkCallbacks(int threadIndex)
         {
             //await foreach (var job in _forkQueue.BalanceOnConsumeAsync(threadIndex))
-            while(true)
+            while(!_asyncTasks.IsCancellationRequested)
             {
                 var job = await _forkQueue.WaitAsync().FastPath();
                 try
@@ -362,14 +365,9 @@ namespace zero.core.runtime.scheduler
                     Interlocked.Increment(ref _forkLoad);
                     job();
                     Interlocked.Increment(ref _completedForkCount);
-
-                    //while (_forkQueue.TryDequeue(out var drain))
-                    //{
-                    //    drain();
-                    //    Interlocked.Increment(ref _completedForkCount);
-                    //}
                 }
-                catch (Exception e)
+                catch when (Zeroed) { }
+                catch (Exception e) when (!Zeroed)
                 {
                     LogManager.GetCurrentClassLogger().Trace(e);
                 }
@@ -383,7 +381,7 @@ namespace zero.core.runtime.scheduler
         private async ValueTask AsyncFallbacks(int threadIndex)
         {
             //await foreach (var job in _asyncFallbackQueue.BalanceOnConsumeAsync(threadIndex).ConfigureAwait(false))
-            while(true)
+            while(!_asyncTasks.IsCancellationRequested)
             {
                 var job = await _asyncFallbackQueue.WaitAsync().FastPath().ConfigureAwait(false);
                 try
@@ -397,13 +395,15 @@ namespace zero.core.runtime.scheduler
                     //    Interlocked.Increment(ref _completedForkCount);
                     //}
                 }
-                catch (Exception e)
+                catch when (Zeroed) { }
+                catch (Exception e) when (!Zeroed)
                 {
                     LogManager.GetCurrentClassLogger().Trace(e);
                 }
                 finally
                 {
-                    _callbackHeap.Return(job);
+                    if(!Zeroed)
+                        _callbackHeap.Return(job);
                 }
             }
         }
@@ -411,7 +411,7 @@ namespace zero.core.runtime.scheduler
         private async ValueTask HandleAsyncSchedulerTask(int threadIndex)
         {
             //await foreach (var job in _taskChannel.BalanceOnConsumeAsync(threadIndex).ConfigureAwait(false))
-            while(true)
+            while(!_asyncTasks.IsCancellationRequested)
             {
                 var job = await _taskChannel.WaitAsync().FastPath().ConfigureAwait(false);
                 //if (_taskChannel.TryDequeue(out var job))
@@ -444,7 +444,8 @@ namespace zero.core.runtime.scheduler
                             }
                         }
                     }
-                    catch (Exception e)
+                    catch when(Zeroed){}
+                    catch (Exception e) when(!Zeroed)
                     {
                         LogManager.GetCurrentClassLogger().Trace(e);
                     }
@@ -462,7 +463,7 @@ namespace zero.core.runtime.scheduler
         private async ValueTask HandleAsyncCallback(int threadIndex)
         {
             //await foreach (var job in _asyncCallbackQueue.BalanceOnConsumeAsync(threadIndex).ConfigureAwait(_native))
-            while(true)
+            while(!_asyncTasks.IsCancellationRequested)
             {
                 var job = await _asyncCallbackQueue.WaitAsync().FastPath().ConfigureAwait(_native);
                 try
@@ -478,20 +479,22 @@ namespace zero.core.runtime.scheduler
                     //    Interlocked.Add(ref _asyncQTime, drain.Timestamp.ElapsedMs());
                     //}
                 }
-                catch (Exception e)
+                catch when (Zeroed) { }
+                catch (Exception e) when (!Zeroed)
                 {
                     LogManager.GetCurrentClassLogger().Trace(e);
                 }
                 finally
                 {
-                    _callbackHeap.Return(job);
+                    if(!Zeroed)
+                        _callbackHeap.Return(job);
                 }
             }
         }
         private async ValueTask HandleAsyncValueTask(int threadIndex)
         {
             //await foreach (var job in _asyncValueTaskQueue.BalanceOnConsumeAsync(threadIndex).ConfigureAwait(_native))
-            while(true)
+            while(!_asyncTasks.IsCancellationRequested)
             {
                 var job = await _asyncValueTaskQueue.WaitAsync().FastPath().ConfigureAwait(_native);
                 try
@@ -508,13 +511,15 @@ namespace zero.core.runtime.scheduler
                     //    Interlocked.Add(ref _asyncQTime, drain.Timestamp.ElapsedMs());
                     //}
                 }
-                catch (Exception e)
+                catch when (Zeroed) { }
+                catch (Exception e) when (!Zeroed)
                 {
                     LogManager.GetCurrentClassLogger().Trace(e);
                 }
                 finally
                 {
-                    _contextHeap.Return(job);
+                    if(!Zeroed)
+                        _contextHeap.Return(job);
                 }
             }
         }
@@ -522,7 +527,7 @@ namespace zero.core.runtime.scheduler
         private async ValueTask HandleAsyncValueTaskWithContext(int threadIndex)
         {
             //await foreach (var job in _asyncValueTaskWithContextQueue.BalanceOnConsumeAsync(threadIndex).ConfigureAwait(_native))
-            while(true)
+            while(!_asyncTasks.IsCancellationRequested)
             {
                 var job = await _asyncValueTaskWithContextQueue.WaitAsync().FastPath().ConfigureAwait(_native);
                 try
@@ -540,14 +545,16 @@ namespace zero.core.runtime.scheduler
                     //    Interlocked.Add(ref _asyncQTime, drain.Timestamp.ElapsedMs());
                     //}
                 }
-                catch (Exception e)
+                catch when (Zeroed) { }
+                catch (Exception e) when (!Zeroed)
                 {
                     LogManager.GetCurrentClassLogger().Trace(e);
                 }
                 finally
                 {
                     Interlocked.Decrement(ref _asyncLoad);
-                    _contextHeap.Return(job);
+                    if(!Zeroed)
+                        _contextHeap.Return(job);
                 }
             }
         }
@@ -573,16 +580,13 @@ namespace zero.core.runtime.scheduler
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         protected override void QueueTask(Task task)
         {
-#if _TRACE_
-            Console.WriteLine($"<--- Queueing task id = {task.Id}, {task.Status}");
-#endif
+            if(Zeroed)
+                return;
+
             //queue the work for processing
             var ts = Environment.TickCount;
-            
             if (_taskChannel.Release(task, true) < 0)
-            {
                 throw new InternalBufferOverflowException($"{nameof(_taskChannel)}: {_taskChannel.Description}");
-            }
 
             Interlocked.Add(ref _taskQTime, ts.ElapsedMs());
             Interlocked.Increment(ref _completedQItemCount);
@@ -629,6 +633,9 @@ namespace zero.core.runtime.scheduler
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         protected override bool TryExecuteTaskInline(Task task, bool taskWasPreviouslyQueued)
         {
+            if (Zeroed)
+                return false;
+
             return (!taskWasPreviouslyQueued) ?
                 TryExecuteTask(task) :
                 TryExecuteTaskInlineOnTargetScheduler(task, _fallbackScheduler);
@@ -671,12 +678,15 @@ namespace zero.core.runtime.scheduler
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Return(List<int> value)
         {
-            _diagnosticsHeap.Return(value);
+            if(!Zeroed) 
+                _diagnosticsHeap.Return(value);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public bool QueueCallback(Action<object> callback, object state)
         {
+            if (Zeroed)
+                return false;
             ZeroContinuation handler = null;
             try
             {
@@ -697,6 +707,9 @@ namespace zero.core.runtime.scheduler
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public bool LoadAsyncContext(Func<object,ValueTask> valueTask, object context)
         {
+            if (Zeroed)
+                return false;
+
             var c = _contextHeap.Take();
             if (c == null) throw new OutOfMemoryException(nameof(LoadAsyncContext));
             c.ValueFunc = valueTask;
@@ -711,6 +724,9 @@ namespace zero.core.runtime.scheduler
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public bool LoadAsyncCallback(ValueTask task)
         {
+            if (Zeroed)
+                return false;
+
             var c = _contextHeap.Take();
             if (c == null) throw new OutOfMemoryException(nameof(LoadAsyncCallback));
             c.ValueTask = task;
@@ -724,16 +740,54 @@ namespace zero.core.runtime.scheduler
         //public bool LoadExclusiveZone(Func<object,ValueTask> callback, object state = null) => _exclusiveQueue.TryEnqueue(callback) > 0;
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public bool Fork(Action callback) => _forkQueue.Release(callback, true) >= 0;
+        public bool Fork(Action callback)
+        {
+            if (Zeroed)
+                return false;
+            return _forkQueue.Release(callback, true) >= 0;
+        }
+        
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public bool FallbackContext(Action<object> callback, object context = null)
         {
+            if (Zeroed)
+                return false;
+
             var qItem = _callbackHeap.Take();
             if (qItem == null) throw new OutOfMemoryException(nameof(FallbackContext));
             qItem.Callback = callback;
             qItem.State = context;
             return _asyncFallbackQueue.Release(qItem, true) >= 0;
+        }
+
+        ~IoZeroScheduler()
+        {
+            Dispose(false);
+        }
+
+        private void Dispose(bool disposed)
+        {
+            if(Interlocked.CompareExchange(ref _disposed, 1, 0) == 1)
+                return;
+
+            if (disposed)
+            {
+                _asyncTasks.Cancel();
+                _asyncCallbackQueue.ZeroSem();
+                _asyncFallbackQueue.ZeroSem();
+                _asyncForkQueue.ZeroSem();
+                _asyncValueTaskQueue.ZeroSem();
+                _asyncValueTaskWithContextQueue.ZeroSem();
+                _callbackHeap.ZeroManagedAsync<object>().AsTask().GetAwaiter().GetResult();
+                _contextHeap.ZeroManagedAsync<object>().AsTask().GetAwaiter().GetResult();
+                _diagnosticsHeap.ZeroManagedAsync<object>().AsTask().GetAwaiter().GetResult();
+            }
+        }
+        public void Dispose()
+        {
+            Dispose(true);
+            GC.SuppressFinalize(this);
         }
     }
 }

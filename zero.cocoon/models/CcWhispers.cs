@@ -445,12 +445,13 @@ namespace zero.cocoon.models
 
                     if (req < 0)
                         continue;
-
+#if THROTTLE
                     if (CcCollective.MaxReq > 1000 && req < 10)
                     {
                         Console.WriteLine($"RESET[{req}] {CcCollective.MaxReq} -> {IoZero.Description}");
                         CcCollective.MaxReq = -1;
                     }
+#endif
 
                     if (req > 0 && req % 100000 == 0)
                     {
@@ -489,8 +490,9 @@ namespace zero.cocoon.models
                     {
                         var (@this, req) = (ValueTuple<CcWhispers,long>)state;
 
-
+#if THROTTLE
                         await Task.Delay(RandomNumberGenerator.GetInt32(500, 1500));
+#endif
 
                         byte[] socketBuf = null;
                         try
