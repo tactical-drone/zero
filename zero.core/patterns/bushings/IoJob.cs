@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Diagnostics;
-using System.Globalization;
 using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
@@ -39,7 +38,7 @@ namespace zero.core.patterns.bushings
         /// <summary>
         /// Constructor
         /// </summary>
-        protected IoJob(string desc, IoSource<TJob> source, int concurrencyLevel = 1) : base($"{nameof(IoJob<TJob>)}: {desc}", concurrencyLevel)
+        protected IoJob(string desc, IIoSource source, int concurrencyLevel = 1) : base($"{nameof(IoJob<TJob>)}: {desc}", concurrencyLevel)
         {
             Source = source;
 
@@ -70,6 +69,8 @@ namespace zero.core.patterns.bushings
         /// <summary>
         /// logger
         /// </summary>
+        // ReSharper disable once InconsistentNaming
+        // ReSharper disable once StaticMemberInGenericType
         protected static readonly Logger _logger;
 
         /// <summary>
@@ -316,6 +317,7 @@ namespace zero.core.patterns.bushings
         /// <summary>
         /// The total amount of states
         /// </summary>
+        // ReSharper disable once StaticMemberInGenericType
         public static readonly int StateMapSize = Enum.GetNames(typeof(IoJobMeta.JobState)).Length;
 
         /// <summary>
@@ -329,7 +331,6 @@ namespace zero.core.patterns.bushings
         /// <summary>
         /// state heap
         /// </summary>
-        //TODO
         private readonly IoHeap<IoStateTransition<IoJobMeta.JobState>> _stateHeap;
 #endif
         /// <summary>

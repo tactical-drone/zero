@@ -40,14 +40,14 @@ namespace zero.sync
         private static volatile bool _startAccounting;
         private static int _rampDelay = 300;
         private static int _rampTarget = 40;
-        public static IHostBuilder CreateHostBuilder(string[] args) =>
-            Host.CreateDefaultBuilder(args)
+        public static IHostBuilder CreateHostBuilder(int port) =>
+            Host.CreateDefaultBuilder(null)
                 .ConfigureWebHostDefaults(webBuilder =>
                 {
                     webBuilder
                         .ConfigureKestrel(options =>
                         {
-                            options.ListenAnyIP(27021,
+                            options.ListenAnyIP(port,
                                 listenOptions => { listenOptions.Protocols = HttpProtocols.Http2; });
                         })
                         .UseStartup<StartServices>()
@@ -70,22 +70,37 @@ namespace zero.sync
 
             var total = 2;
             int localPort = - 1;
-            int remotePort = - 1;
+            int [] remotePort = new int[10];
 
             if (args.Length > 0 && !string.IsNullOrEmpty(args[0]))
                 int.TryParse(args[0], out localPort);
 
             if (args.Length > 1 && !string.IsNullOrEmpty(args[1]))
-                int.TryParse(args[1], out remotePort);
+            {
+                var l = 1;
+                while (l < args.Length)
+                {
+                    int.TryParse(args[l], out remotePort[l - 1]);
+                    l++;
+                }
+            }
+            LogManager.LoadConfiguration("nlog.config");
 
-            static void Bootstrap(out ConcurrentBag<Task<CcCollective>> concurrentBag, int total, int portOffset = 7051, int localPort = -1, int remotePort = -1)
+            if (localPort != -1)
+            {
+                LogManager.Configuration.Variables["zeroLogLevel"] = "trace";
+                LogManager.ReconfigExistingLoggers();
+            }
+
+
+            static void Bootstrap(out ConcurrentBag<Task<CcCollective>> concurrentBag, int total, int portOffset = 7051, int localPort = -1, int[] remotePort = null)
             {
                 var random1 = new Random((int)DateTime.Now.Ticks);
                 //Tangle("tcp://192.168.1.2:15600");
                 var maxDrones = 3;
-                var maxAdjuncts = 16;
+                var maxAdjuncts = 9;
                 
-                var oldBoot = remotePort == -1 && localPort == -1;
+                var oldBoot = localPort == -1;
                 var boot = false;
 
                 concurrentBag = new ConcurrentBag<Task<CcCollective>>();
@@ -198,17 +213,19 @@ namespace zero.sync
                 }
                 else
                 {
-                    Console.WriteLine($"starting udp://127.0.0.1:{localPort} -> udp://127.0.0.1:{remotePort}");
+                    var count = remotePort.Count(p => p > 0);
                     var t1 = CoCoonAsync(CcDesignation.Generate(), $"tcp://127.0.0.1:{localPort}",
                         $"udp://127.0.0.1:{localPort}",
                         $"tcp://127.0.0.1:{localPort}", $"udp://127.0.0.1:{localPort}",
-                        new string[]
-                        {
-                            $"udp://127.0.0.1:{remotePort}",
-                            //$"udp://127.0.0.1:{1236}",
-                            //$"udp://127.0.0.1:{1237}"
-                        }.ToList(), false);
+                        remotePort.Take(count).Select(p => $"udp://127.0.0.1:{p}").ToList(), false);
+                    //new string[]
+                    //{
+                    //    $"udp://127.0.0.1:{remotePort}",
+                    //    //$"udp://127.0.0.1:{1236}",
+                    //    //$"udp://127.0.0.1:{1237}"
+                    //}.ToList(), false);
 
+                    Console.WriteLine($"starting udp://127.0.0.1:{localPort} -> {string.Join(", ", remotePort.Take(count).Select(port => $"udp://127.0.0.1:{port}"))}");
 #pragma warning disable VSTHRD110 // Observe result of async calls
                     Task.Factory.StartNew(() => t1.Start(), CancellationToken.None,
                         TaskCreationOptions.DenyChildAttach,
@@ -510,17 +527,17 @@ namespace zero.sync
             //Tune dotnet for large tests
             ThreadPool.GetMinThreads(out var wt, out var cp);
             ThreadPool.SetMinThreads(wt * 3, cp * 2);
-            
-            LogManager.LoadConfiguration("nlog.config");
+
+            Console.WriteLine($"local = {localPort}, remote = {remotePort}");
 
             IHost host = null;
+            
             var grpc = Task.Factory.StartNew(() =>
             {
-                host = CreateHostBuilder(args).Build();
+                host = CreateHostBuilder(localPort == -1 ? 27021 : localPort + 1).Build();
                 host.Run();
             }, CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Default);
 
-            Console.WriteLine($"local = {localPort}, remote = {remotePort}");
             Bootstrap(out var tasks, total, 0, localPort, remotePort);
 
             long C = 0;

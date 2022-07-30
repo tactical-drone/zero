@@ -90,6 +90,8 @@ message Collective{
 message Adjunct {	
 	string collectiveId = 1;		
 	string id = 2;		
+	string ip = 3;
+	int32 animatorPort = 4;
 }
 
 message ProtoMsg {	

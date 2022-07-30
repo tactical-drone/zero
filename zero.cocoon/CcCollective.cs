@@ -122,19 +122,12 @@ namespace zero.cocoon
             if(_fuseBufSize > parm_max_handshake_bytes)
                 throw new ApplicationException($"{nameof(_fuseBufSize)} > {parm_max_handshake_bytes}");
 
-            _dupPoolFpsTarget = 1000 * 2;  
-            DupHeap = new IoHeap<IoHashCodes, CcCollective>($"{nameof(DupHeap)}: {_description}", _dupPoolFpsTarget, static (_, @this) =>
-            {
-                if (@this == null)
-                {
-                    return new IoHashCodes(string.Empty, 1);
-                }
-                return new IoHashCodes(null, @this.MaxDrones * 2, true);
-            })
+            _dupPoolFpsTarget = 10000 * 2;  
+            DupHeap = new IoHeap<List<string>, CcCollective>($"{nameof(DupHeap)}: {_description}", _dupPoolFpsTarget, static (_, @this) => new List<string>(@this.MaxDrones))
             {
                 PopAction = (popped, endpoint) =>
                 {
-                    popped.Add(endpoint.GetHashCode());
+                    popped.Add((string)endpoint);
                 },
                 Context = this
             };//ensure robotics
@@ -307,9 +300,10 @@ namespace zero.cocoon
 
         Random _random = new((int)DateTime.Now.Ticks);
         public IoZeroSemaphoreSlim DupSyncRoot { get; protected set; }
-        public ConcurrentDictionary<long, IoHashCodes> DupChecker { get; private set; } = new();
-        public IoHeap<IoHashCodes, CcCollective> DupHeap { get; protected set; }
+        public ConcurrentDictionary<long, List<string>> DupChecker { get; private set; } = new();
+        public IoHeap<List<string>, CcCollective> DupHeap { get; protected set; }
         private volatile int _dupPoolFpsTarget;
+        public int DupPoolFPSTarget => _dupPoolFpsTarget;
 
         private long _eventCounter;
         public long EventCount => Interlocked.Read(ref _eventCounter);
@@ -422,7 +416,7 @@ namespace zero.cocoon
         /// </summary>
         [IoParameter]
         // ReSharper disable once InconsistentNaming
-        public int parm_max_adjunct = 8 * 2;
+        public int parm_max_adjunct = 9;
 
         /// <summary>
         /// Protocol version
@@ -1261,7 +1255,7 @@ namespace zero.cocoon
                 {
                     if (DupChecker.TryRemove(mId, out var del))
                     {
-                        del.ZeroManaged();
+                        del.Clear();
                         DupHeap.Return(del);
                     }
                 }

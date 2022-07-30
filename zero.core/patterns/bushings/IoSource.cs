@@ -196,7 +196,7 @@ namespace zero.core.patterns.bushings
         /// </summary>
         public int BacklogCount => _backPressure?.WaitCount?? 0;
 
-        private volatile int _rate;
+        private volatile int _rate = Environment.TickCount;
 
         /// <summary>
         /// Used to rate limit

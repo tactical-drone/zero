@@ -653,14 +653,14 @@ namespace zero.cocoon.autopeer
                 //Emit event
                 try
                 {
-                    if (!CcCollective.ZeroDrone && _eventStreamAdded && AutoPeeringEventService.Operational && Router != null)
+                    if (!CcCollective.ZeroDrone && _eventStreamAdded && AutoPeeringEventService.Operational)
                         AutoPeeringEventService.AddEvent(new AutoPeerEvent
                         {
                             EventType = AutoPeerEventType.RemoveAdjunct,
                             Adjunct = new Adjunct
                             {
                                 Id = Designation!.IdString(),
-                                CollectiveId = Router.Designation.IdString()
+                                CollectiveId = Router?.Designation?.IdString()
                             }
                         });
                 }
@@ -845,7 +845,9 @@ namespace zero.cocoon.autopeer
                             Adjunct = new Adjunct
                             {
                                 Id = Designation.IdString(),
-                                CollectiveId = Router.Designation.IdString()
+                                CollectiveId = Router.Designation.IdString(),
+                                Ip = RemoteAddress.Ip,
+                                AnimatorPort = RemoteAddress.Port +1,
                             }
                         });
                     }

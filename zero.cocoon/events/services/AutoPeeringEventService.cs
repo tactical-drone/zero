@@ -32,7 +32,7 @@ namespace zero.cocoon.events.services
             new($"{nameof(AutoPeeringEventService)}", EventBatchSize<<6, true, new CancellationTokenSource(), 1),
         };
 
-        private static volatile int _operational = 0;
+        private static volatile int _operational = 1;
         private static long _seq;
         private static volatile int _curIdx = 0;
         public static bool Operational => _operational > 0;
@@ -200,7 +200,7 @@ namespace zero.cocoon.events.services
                         var ts = Environment.TickCount;
                         try
                         {
-                            const int bufSize = 2048;
+                            const int bufSize = 384;
                             char [] buffer = new char[bufSize];
                             string readStr;
                             StringBuilder sb = new StringBuilder();
@@ -208,12 +208,14 @@ namespace zero.cocoon.events.services
                             var lines = 0;
                             bool hasData;
                             int peakCycle = 0;
-                            
+
+                            //LogManager.GetCurrentClassLogger().Info($"Polling...");
+                            await proc.StandardOutput.BaseStream.FlushAsync();
                             while (!(proc.HasExited && proc.StandardOutput.EndOfStream) && 
                                    ( ((hasData = peakCycle++ % 2 == 0 ) || (hasData = proc.StandardOutput.Peek() != -1)) && 
                                        (read = await proc.StandardOutput.ReadBlockAsync(buffer, 0, bufSize)) > 0 || !hasData))
                             {
-                                LogManager.GetCurrentClassLogger().Info($"read = {read}, ready = {hasData}, time = {ts.ElapsedMs()} ms");
+                                //LogManager.GetCurrentClassLogger().Info($"read = {read}, ready = {hasData}, time = {ts.ElapsedMs()} ms");
 
                                 var flush = false;
                                 //retry om empty reads, else dump the buffer
@@ -284,6 +286,8 @@ namespace zero.cocoon.events.services
                                     sb.Clear();
                                     lines = 0;
                                 }
+
+                                await proc.StandardOutput.BaseStream.FlushAsync();
                             }
 
                             request.Time = ts.ElapsedMs();

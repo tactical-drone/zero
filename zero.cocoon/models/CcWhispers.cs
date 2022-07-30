@@ -1,4 +1,7 @@
+#define THROTTLE
+#define DUPCHECK
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
@@ -14,6 +17,7 @@ using zero.cocoon.identity;
 using zero.cocoon.models.batches;
 using zero.core.feat.models.protobuffer;
 using zero.core.misc;
+using zero.core.network.ip;
 using zero.core.patterns.bushings;
 using zero.core.patterns.bushings.contracts;
 using zero.core.patterns.heap;
@@ -328,6 +332,9 @@ namespace zero.cocoon.models
             return State;
         }*/
 
+        private const int MaxLogBatchSize = 10000;
+        private volatile int _logBatchNext = MaxLogBatchSize;
+        private volatile int _logBatchTime = Environment.TickCount;
         public override async ValueTask<IoJobMeta.JobState> ConsumeAsync()
         {
             //are we in recovery mode?
@@ -445,24 +452,112 @@ namespace zero.cocoon.models
 
                     if (req < 0)
                         continue;
-#if THROTTLE
+
+#if DUPCHECK
+                    //dup check memory management
+                    try
+                    {
+                        await CcCollective.DupSyncRoot.WaitAsync().FastPath();
+
+                        if (CcCollective.DupChecker.Count > CcCollective.DupHeap.Capacity * 4 / 5)
+                        {
+                            var culled = CcCollective.DupChecker.Keys.Where(k => k < req - CcCollective.DupPoolFPSTarget / 3).ToList();
+                            foreach (var mId in culled)
+                            {
+                                if (CcCollective.DupChecker.TryRemove(mId, out var del))
+                                {
+                                    //del.ZeroManaged();
+                                    del.Clear();
+                                    CcCollective.DupHeap.Return(del);
+                                }
+                            }
+                        }
+
+                        
+                    }
+                    catch (Exception) when (Zeroed() || CcCollective == null || CcCollective.Zeroed() || CcCollective.DupSyncRoot == null)
+                    {
+                        await SetStateAsync(IoJobMeta.JobState.ConsumeErr).FastPath();
+                    }
+                    catch (Exception) when (!Zeroed() && CcCollective != null && !CcCollective.Zeroed() && CcCollective.DupSyncRoot != null)
+                    {
+                        await SetStateAsync(IoJobMeta.JobState.ConsumeErr).FastPath();
+                    }
+                    finally
+                    {
+                        try
+                        {
+                            if (CcCollective.DupSyncRoot.Release(Environment.TickCount) == -1)
+                            {
+                                if (CcCollective != null && !CcCollective.DupSyncRoot.Zeroed() && !Zeroed())
+                                {
+                                    _logger.Error($"{Description}, drone = {CcDrone}, adjunct = {CcAdjunct}, cc = {CcCollective}, sync = `{CcCollective.DupSyncRoot}'");
+                                    //PrintStateHistory();
+                                    await SetStateAsync(IoJobMeta.JobState.ConsumeErr).FastPath();
+                                }
+                                else
+                                    await SetStateAsync(IoJobMeta.JobState.Cancelled).FastPath();
+                            }
+                        }
+                        catch (Exception) when (Zeroed() || CcCollective == null || CcCollective.Zeroed() || CcCollective?.DupSyncRoot == null)
+                        {
+                            await SetStateAsync(IoJobMeta.JobState.ConsumeErr).FastPath();
+                        }
+                        catch (Exception e) when (!Zeroed() && CcCollective is { DupSyncRoot: { } } && !CcCollective.DupSyncRoot.Zeroed() && !CcCollective.Zeroed())
+                        {
+                            _logger?.Fatal(e, $"{Description}, drone = {CcDrone}, adjunct = {CcDrone?.Adjunct}, cc = {CcDrone?.Adjunct?.CcCollective}, sync = `{CcDrone?.Adjunct?.CcCollective?.DupSyncRoot}'");
+                            //PrintStateHistory();
+                            await SetStateAsync(IoJobMeta.JobState.ConsumeErr).FastPath();
+                        }
+                    }
+
+                    if (State != IoJobMeta.JobState.Consuming)
+                        break;
+
+                    //set this message as seen if seen before
+                    var endpoint = ((IoNetClient<CcProtocMessage<CcWhisperMsg, CcGossipBatch>>)Source).IoNetSocket.Key;
+
+                    if (!CcCollective.DupChecker.TryGetValue(req, out var dupEndpoints))
+                    {
+                        dupEndpoints = CcCollective.DupHeap.Take(endpoint);
+
+                        if (dupEndpoints == null)
+                            throw new OutOfMemoryException(
+                                $"{CcCollective.DupHeap}: {CcCollective.DupHeap.ReferenceCount}/{CcCollective.DupHeap.Capacity} - c = {CcCollective.DupChecker.Count}, m = _maxReq");
+
+                        if (!CcCollective.DupChecker.TryAdd(req, dupEndpoints))
+                        {
+                            dupEndpoints.Clear();
+                            CcCollective.DupHeap.Return(dupEndpoints);
+
+                            //best effort
+                            if (CcCollective.DupChecker.TryGetValue(req, out dupEndpoints))
+                                dupEndpoints.Add(endpoint);
+
+                            continue;
+                        }
+                    }
+                    else
+                    {
+                        dupEndpoints.Add(endpoint);
+                        continue;
+                    }
+#endif
                     if (CcCollective.MaxReq > 1000 && req < 10)
                     {
                         Console.WriteLine($"RESET[{req}] {CcCollective.MaxReq} -> {IoZero.Description}");
                         CcCollective.MaxReq = -1;
                     }
-#endif
 
-                    if (req > 0 && req % 100000 == 0)
+                    if (req > _logBatchNext)
                     {
-                        _logger.Info($"[{Id}]: {req}, recover = {Source.Counters[(int)IoJobMeta.JobState.Synced]}/{Source.Counters[(int)IoJobMeta.JobState.ZeroRecovery]} ({Source.Counters[(int)IoJobMeta.JobState.Synced]/(double)Source.Counters[(int)IoJobMeta.JobState.ZeroRecovery]*100:0.0}%), frag = {Source.Counters[(int)IoJobMeta.JobState.Fragmented]}, bad = {Source.Counters[(int)IoJobMeta.JobState.BadData]}, success = {Source.Counters[(int)IoJobMeta.JobState.Consumed]}, fail = {Source.Counters[(int)IoJobMeta.JobState.Queued] - Source.Counters[(int)IoJobMeta.JobState.Consumed]}");
+                        _logger.Info($"[{Id}]: lts = {req}, {req*1000/_logBatchTime.ElapsedMs()} t/s; recover = {Source.Counters[(int)IoJobMeta.JobState.Synced]}/{Source.Counters[(int)IoJobMeta.JobState.ZeroRecovery]} ({Source.Counters[(int)IoJobMeta.JobState.Synced]/(double)Source.Counters[(int)IoJobMeta.JobState.ZeroRecovery]*100:0.0}%), frag = {Source.Counters[(int)IoJobMeta.JobState.Fragmented]}, bad = {Source.Counters[(int)IoJobMeta.JobState.BadData]}, success = {Source.Counters[(int)IoJobMeta.JobState.Consumed]}, fail = {Source.Counters[(int)IoJobMeta.JobState.Queued] - Source.Counters[(int)IoJobMeta.JobState.Consumed]}");
+                        Interlocked.Add(ref _logBatchNext, MaxLogBatchSize);
+                        _logBatchTime = Environment.TickCount;
                     }
 
-                    if(req > IoZero.IoSource.ZeroTimeStamp)
-                        IoZero.IoSource.ZeroTimeStamp = req;
-
-                    req++;
-
+                    IoZero.IoSource.ZeroTimeStamp = Math.Max(req++, IoZero.IoSource.ZeroTimeStamp);
+                    
                     if (req is > uint.MaxValue or < 0 || req <= Volatile.Read(ref CcCollective.MaxReq))
                     {
                         //Console.Write($". r = {req}, mr = {Volatile.Read(ref _maxReq)}");
@@ -470,28 +565,35 @@ namespace zero.cocoon.models
                     }
 
                     var l = CcCollective.MaxReq;
-                    if (Interlocked.CompareExchange(ref CcCollective.MaxReq, req, CcCollective.MaxReq) != l)
+                    if (Interlocked.CompareExchange(ref CcCollective.MaxReq, req, l) != l)
                         continue;
 
-                    if (req > 2 && Source.Rate.ElapsedMs() < 3000)// && req - _maxReq < 10)
-                        continue;
-
-                    //await Task.Delay(RandomNumberGenerator.GetInt32(5, 350));
-                    //await Task.Delay(RandomNumberGenerator.GetInt32(16, 90));
-
-                    //var latch = Source.Rate;
-                    //if( Source.SetRate(Environment.TickCount, latch) != latch)
-                    //    continue;
-
+                    //entropy
                     IoZero.IncEventCounter();
                     CcCollective.IncEventCounter();
 
+                    //TODO: store
+
+
+                    //broadcast not seen
+#if THROTTLE
+                    if (req > 2 && Source.Rate.ElapsedMs() < 500) //TODO: tuning, network tick rate of 2 per second
+                        continue;
+#endif
+                    //await Task.Delay(RandomNumberGenerator.GetInt32(5, 350));
+                    //await Task.Delay(RandomNumberGenerator.GetInt32(16, 90));
+
+                    var latch = Source.Rate;
+                    if (Source.SetRate(Environment.TickCount, latch) != latch)
+                        continue;
+
+                    
                     IoZeroScheduler.Zero.LoadAsyncContext(static async state =>
                     {
-                        var (@this, req) = (ValueTuple<CcWhispers,long>)state;
+                        var (@this, req, dupEndpoints) = (ValueTuple<CcWhispers,long, List<string>>)state;
 
 #if THROTTLE
-                        await Task.Delay(RandomNumberGenerator.GetInt32(500, 1500));
+                        await Task.Delay(RandomNumberGenerator.GetInt32(32, 500));
 #endif
 
                         byte[] socketBuf = null;
@@ -521,8 +623,8 @@ namespace zero.cocoon.models
                                         if (req <= source.ZeroTimeStamp)
                                             return;
 #if DUPCHECK
-                            if (source.IoNetSocket.RemoteAddress == endpoint || dupEndpoints != null && dupEndpoints.Contains(source.IoNetSocket.RemoteAddress.GetHashCode()))
-                                continue;
+                                        if (dupEndpoints != null && dupEndpoints.Contains(source.IoNetSocket.Key))
+                                            continue;
 #endif
                                         if (source == null || await source.IoNetSocket.SendAsync(socketBuf, 0, (int)compressed + sizeof(ulong)).FastPath() <= 0) continue;
                                         {
@@ -562,7 +664,7 @@ namespace zero.cocoon.models
                         {
                             @this._sendBuf.Return(socketBuf);
                         }
-                    }, (this, req));
+                    }, (this, req, dupEndpoints));
 
                 }
 
