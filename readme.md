@@ -4,8 +4,10 @@ A borg assimilated cluster.
 
 ## Current status
 
+not alpha, not beta, but experimental. 
+
 - *zero.core*: Usefull stuff
-- *zero.cocoon*: The client library that allows IOT devices to form economic clusters that add value
+- *zero.cocoon*: The client library that allows IOT devices to form economic clusters that add value (caution: experimental/incomplete/not tested)
 - *zero.sync*:  Currently runs cluster bootstrap tests.
 
 ## Requirements
