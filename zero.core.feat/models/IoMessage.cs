@@ -64,6 +64,8 @@ namespace zero.core.feat.models
         /// </summary>
         public ReadOnlySequence<byte> ReadOnlySequence { get; protected set; }
 
+        public ReadOnlySpan<byte> ReadOnlyMemory => new ReadOnlyMemory<byte>(Buffer).Span;
+
         /// <summary>
         /// The number of bytes read into the buffer
         /// </summary>

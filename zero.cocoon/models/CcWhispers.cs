@@ -552,7 +552,7 @@ namespace zero.cocoon.models
 
                     if (req > _logBatchNext)
                     {
-                        _logger.Info($"[{Id}]: lts = {req}, {req*1000/_logBatchTime.ElapsedMs()} t/s; recover = {Source.Counters[(int)IoJobMeta.JobState.Synced]}/{Source.Counters[(int)IoJobMeta.JobState.ZeroRecovery]} ({Source.Counters[(int)IoJobMeta.JobState.Synced]/(double)Source.Counters[(int)IoJobMeta.JobState.ZeroRecovery]*100:0.0}%), frag = {Source.Counters[(int)IoJobMeta.JobState.Fragmented]}, bad = {Source.Counters[(int)IoJobMeta.JobState.BadData]}, success = {Source.Counters[(int)IoJobMeta.JobState.Consumed]}, fail = {Source.Counters[(int)IoJobMeta.JobState.Queued] - Source.Counters[(int)IoJobMeta.JobState.Consumed]}");
+                        _logger.Info($"[{Id}]: lts = {req}, {req*1000/(_logBatchTime.ElapsedMs() + 1)} t/s; recover = {Source.Counters[(int)IoJobMeta.JobState.Synced]}/{Source.Counters[(int)IoJobMeta.JobState.ZeroRecovery]} ({Source.Counters[(int)IoJobMeta.JobState.Synced]/(double)Source.Counters[(int)IoJobMeta.JobState.ZeroRecovery]*100:0.0}%), frag = {Source.Counters[(int)IoJobMeta.JobState.Fragmented]}, bad = {Source.Counters[(int)IoJobMeta.JobState.BadData]}, success = {Source.Counters[(int)IoJobMeta.JobState.Consumed]}, fail = {Source.Counters[(int)IoJobMeta.JobState.Queued] - Source.Counters[(int)IoJobMeta.JobState.Consumed]}");
                         Interlocked.Add(ref _logBatchNext, MaxLogBatchSize);
                         _logBatchTime = Environment.TickCount;
                     }

@@ -217,7 +217,7 @@ namespace zero.core.feat.models.protobuffer
             try
             {
                 var magic = 0UL;
-                while (read < BytesLeftToProcess && (magic = MemoryMarshal.Read<ulong>(Buffer[(BufferOffset + read)..])) > (ulong)BytesLeftToProcess)
+                while (read < BytesLeftToProcess && (magic = MemoryMarshal.Read<ulong>(ReadOnlyMemory[(BufferOffset + read)..])) > (ulong)BytesLeftToProcess)
                     read++;
 
                 return (int)magic;
