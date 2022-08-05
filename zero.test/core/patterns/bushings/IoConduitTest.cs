@@ -111,7 +111,7 @@ namespace zero.test.core.patterns.bushings
         {
 #if DEBUG
             var count = 500000;
-            var concurrencyLevel = 2;
+            var concurrencyLevel = Environment.ProcessorCount;
 #else
             var count = 1000000;
             var concurrencyLevel = Environment.ProcessorCount * 2;
@@ -129,7 +129,7 @@ namespace zero.test.core.patterns.bushings
             var targetTime = count / concurrencyLevel;
             while (!z1.IsCompleted)
             {
-                if (c1.EventCount > count || ts.ElapsedMs() > targetTime * 3)
+                if (c1.EventCount > count || ts.ElapsedMs() > targetTime)
                 {
                     _output.WriteLine(c1.DumpStats());
                     await c1.DisposeAsync(null, "test done");
@@ -137,7 +137,7 @@ namespace zero.test.core.patterns.bushings
                 _output.WriteLine($"{c1.EventCount}/{count}");
                 await Task.Delay(2000);
             }
-            await z1.WaitAsync(TimeSpan.FromMilliseconds(targetTime * 3));
+            await z1.WaitAsync(TimeSpan.FromMilliseconds(targetTime));
 
             var fpses = c1.EventCount / (double)ts.ElapsedMsToSec()/ 1000;
 

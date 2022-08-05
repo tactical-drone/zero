@@ -116,11 +116,6 @@ namespace zero.core.core
         public int PreFetch => _preFetch;
 
         /// <summary>
-        /// The listener task
-        /// </summary>
-        private ValueTask _listenerTask;
-
-        /// <summary>
         /// A set of all node tasks that are currently running
         /// </summary>
         protected IoQueue<Task> NeighborTasks;
@@ -184,7 +179,7 @@ namespace zero.core.core
         /// <summary>
         /// Starts the node's listener
         /// </summary>
-        protected virtual async ValueTask SpawnListenerAsync<T,Tboot>(Func<IoNeighbor<TJob>, T, ValueTask<bool>> acceptConnection = null, T context = default, Func<Tboot, ValueTask> bootFunc = null, Tboot bootData = default)
+        protected virtual async ValueTask BlockOnListenerAsync<T,TBoot>(Func<IoNeighbor<TJob>, T, ValueTask<bool>> acceptConnection = null, T context = default, Func<TBoot, ValueTask> bootFunc = null, TBoot bootData = default)
         {
             //clear previous attempts
             if (_netServer != null)
@@ -195,147 +190,101 @@ namespace zero.core.core
             }
 
 #if DEBUG
-            _logger.Trace($"Starting lisener, {Description}");   
+            _logger.Trace($"Starting lisener, {Description}");
 #endif
             //start the listener
             _netServer = IoNetServer<TJob>.GetKindFromUrl(_address, _preFetch, ZeroConcurrencyLevel());
             await _netServer.ZeroHiveAsync(this).FastPath();
 
-            _listenerTask = _netServer.ListenAsync(static async (state, newSocket) =>
+            await _netServer.BlockOnListenAsync(static async (state, newSocket) =>
             {
                 var (@this, nanite, acceptConnection) = state;
                 if (newSocket == null)
                     return;
 
+                //TODO: tuning
                 if (@this.Neighbors.Count == @this.NeighborTasks.Capacity)
                 {
-                    await newSocket.DisposeAsync(@this, $"{nameof(_netServer.ListenAsync)}: neighbor count maxed out at {@this.Neighbors.Count}").FastPath();
+                    await newSocket.DisposeAsync(@this, $"{nameof(_netServer.BlockOnListenAsync)}: neighbor count maxed out at {@this.Neighbors.Count}").FastPath();
                     return;
                 }
 
-                //if (@this.Neighbors.TryGetValue(newSocket.Key, out var currentDrone))
-                //{
-                //    var ioNetSource = (IoNetClient<TJob>)currentDrone.Source;
-                //    var oldSocket = ioNetSource.IoNetSocket.NativeSocket;
-                //    ((IoNetClient<TJob>)currentDrone.Source).IoNetSocket.NativeSocket = newSocket.IoNetSocket.NativeSocket;
-
-                //    try
-                //    {
-                //        if (oldSocket.Connected)
-                //            oldSocket.Close();
-                //    }
-                //    catch
-                //    {
-                //        // ignored
-                //    }
-
-                //    @this._logger.Debug($"{nameof(SpawnListenerAsync)}: Quick reconnect {@this.Description}");
-
-                //    return;
-                //}
-
                 var newNeighbor = @this.MallocNeighbor(@this, newSocket, null);
-                
-                //superclass specific mutations
-                Task acceptTask = null;
                 try
                 {
                     if (acceptConnection != null)
                     {
                         //async accept...
-                        acceptTask = @this.ZeroAsync(  async state =>
+                        await @this.ZeroAsync(  static async state =>
                         {
-                            var (@this, newNeighbor, acceptConnection, nanite, ioNetClient) = state;
+                            var (@this, newNeighbor, acceptConnection, nanite, ioNetClient) = (ValueTuple<IoNode<TJob>, IoNeighbor<TJob>, Func<IoNeighbor<TJob>, T, ValueTask<bool>>, T, IoNetClient<TJob>>)state;
                             if (!await acceptConnection(newNeighbor, nanite).FastPath())
                             {
                                 @this._logger.Trace($"Incoming connection from {ioNetClient.Key} rejected.");
                                 await newNeighbor.DisposeAsync(@this,$"Incoming connection from {ioNetClient.Key} not accepted").FastPath();
+                                return;
                             }
-                        }, (@this, newNeighbor, acceptConnection, nanite, ioNetClient: newSocket), TaskCreationOptions.DenyChildAttach, unwrap:true).AsTask();
-                    }
-                    
-                }
-                catch (Exception e)
-                {
-                    await newNeighbor.DisposeAsync(@this,$"{nameof(acceptConnection)} Exception: {e.Message}").FastPath();
 
-                    @this._logger.Error(e, $"Accepting connection {newSocket.Key} returned with errors");
-                    return;
-                }
-
-                if (acceptTask != null)
-                {
-                    //TODO
-                    await acceptTask.ContinueWith(static async (task,s) =>
-                    {
-                        var (@this, newNeighbor) = (ValueTuple<IoNode<TJob>, IoNeighbor<TJob>>)s;
-                        if (task.IsFaulted || task.IsCanceled)
-                        {
-                            LogManager.GetCurrentClassLogger().Error(task.Exception);
-                        }
-
-                        if (task.IsCompletedSuccessfully)
-                        {
-                            if (await @this.ZeroAtomicAsync(static async (_, state, _) => 
+                            if (await @this.ZeroAtomicAsync(static async (_, state, _) =>
+                            {
+                                var (@this, newNeighbor) = state;
+                                try
+                                {
+                                    bool success;
+                                    // Does this neighbor already exist?
+                                    while (!(success = @this.Neighbors.TryAdd(newNeighbor.Key, newNeighbor)))
                                     {
-                                        var (@this, newNeighbor) = state;
-                                        try
+                                        //Drop incoming //TODO? Drop existing? No because of race.
+                                        if (@this.Neighbors.TryGetValue(newNeighbor.Key, out var existingNeighbor))
                                         {
-                                            bool success;
-                                            // Does this neighbor already exist?
-                                            while (!(success = @this.Neighbors.TryAdd(newNeighbor.Key, newNeighbor)))
+                                            try
                                             {
-                                                //Drop incoming //TODO? Drop existing? No because of race.
-                                                if (@this.Neighbors.TryGetValue(newNeighbor.Key, out var existingNeighbor))
+                                                if (!existingNeighbor.Zeroed() && !existingNeighbor.Source.IsOperational() && existingNeighbor.UpTime.ElapsedMsToSec() > @this.parm_zombie_connect_time_threshold_s)
                                                 {
-                                                    try
-                                                    {
-                                                        if (!existingNeighbor.Zeroed() && !existingNeighbor.Source.IsOperational() && existingNeighbor.UpTime.ElapsedMsToSec() > @this.parm_zombie_connect_time_threshold_s)
-                                                        {
-                                                            var errMsg = $"{nameof(SpawnListenerAsync)}: Connection {newNeighbor.Key} [REPLACED], existing {existingNeighbor.Key} with uptime {existingNeighbor.UpTime.ElapsedMs()}ms [DC]";
-                                                            @this._logger.Warn(errMsg);
+                                                    var errMsg = $"{nameof(BlockOnListenerAsync)}: Connection {newNeighbor.Key} [REPLACED], existing {existingNeighbor.Key} with uptime {existingNeighbor.UpTime.ElapsedMs()}ms [DC]";
+                                                    @this._logger.Warn(errMsg);
 
-                                                            //We remove the key here or async race conditions with the listener...
-                                                            @this.Neighbors.Remove(existingNeighbor.Key, out _);
-                                                            await existingNeighbor.DisposeAsync(@this,errMsg).FastPath();
-                                                            continue;
-                                                        }
-
-                                                        @this._logger.Warn($"{nameof(SpawnListenerAsync)}: Connection {newNeighbor.Key} [DROPPED], existing {existingNeighbor.Key} [OK]");
-                                                        return false;
-
-                                                        ////Only drop incoming if the existing one is working and originating
-                                                        //if (existingNeighbor.Source.IsOriginating && existingNeighbor.Source.IsOperational)
-                                                        //{
-                                                        //    @this._logger.Warn($"Connection {newNeighbor.Key} [DROPPED], existing {existingNeighbor.Key} [OK]");
-                                                        //    return new ValueTask<bool>(false);
-                                                        //}
-
-                                                        //else  //else drop existing
-                                                        //{
-                                                        //    @this._logger.Warn($"New Connection {newNeighbor.Key} [DROPPED], [DC]");
-                                                        //    return new ValueTask<bool>(false);
-                                                        //}
-                                                    }
-                                                    catch when (@this.Zeroed() || existingNeighbor.Zeroed()) { }
-                                                    catch (Exception e) when (!@this.Zeroed() && !existingNeighbor.Zeroed())
-                                                    {
-                                                        @this._logger.Trace(e, $"existingNeighbor {existingNeighbor.Description} from {@this.Description}, had errors");
-                                                    }
-
-                                                    break;
+                                                    //We remove the key here or async race conditions with the listener...
+                                                    @this.Neighbors.Remove(existingNeighbor.Key, out _);
+                                                    await existingNeighbor.DisposeAsync(@this, errMsg).FastPath();
+                                                    continue;
                                                 }
+
+                                                @this._logger.Warn($"{nameof(BlockOnListenerAsync)}: Connection {newNeighbor.Key} [DROPPED], existing {existingNeighbor.Key} [OK]");
+                                                return false;
+
+                                                ////Only drop incoming if the existing one is working and originating
+                                                //if (existingNeighbor.Source.IsOriginating && existingNeighbor.Source.IsOperational)
+                                                //{
+                                                //    @this._logger.Warn($"Connection {newNeighbor.Key} [DROPPED], existing {existingNeighbor.Key} [OK]");
+                                                //    return new ValueTask<bool>(false);
+                                                //}
+
+                                                //else  //else drop existing
+                                                //{
+                                                //    @this._logger.Warn($"New Connection {newNeighbor.Key} [DROPPED], [DC]");
+                                                //    return new ValueTask<bool>(false);
+                                                //}
+                                            }
+                                            catch when (@this.Zeroed() || existingNeighbor.Zeroed()) { }
+                                            catch (Exception e) when (!@this.Zeroed() && !existingNeighbor.Zeroed())
+                                            {
+                                                @this._logger.Trace(e, $"existingNeighbor {existingNeighbor.Description} from {@this.Description}, had errors");
                                             }
 
-                                            return success;
+                                            break;
                                         }
-                                        catch when (@this.Zeroed() || newNeighbor.Zeroed()) { }
-                                        catch (Exception e) when (!@this.Zeroed() && !newNeighbor.Zeroed())
-                                        {
-                                            @this._logger.Error(e, $"Adding new node failed! {@this.Description}");
-                                        }
-                                        return false;
-                                    },ValueTuple.Create(@this, newNeighbor)).FastPath())
+                                    }
+
+                                    return success;
+                                }
+                                catch when (@this.Zeroed() || newNeighbor.Zeroed()) { }
+                                catch (Exception e) when (!@this.Zeroed() && !newNeighbor.Zeroed())
+                                {
+                                    @this._logger.Error(e, $"Adding new node failed! {@this.Description}");
+                                }
+                                return false;
+                            }, (@this, newNeighbor)).FastPath())
                             {
                                 //Start processing
                                 await @this.BlockOnAssimilateAsync(newNeighbor).FastPath();
@@ -344,12 +293,17 @@ namespace zero.core.core
                             {
                                 await newNeighbor.DisposeAsync(@this, $"Failed to add new node... {@this.Description}").FastPath();
                             }
-                        }
-                    }, (@this, newNeighbor), CancellationToken.None, TaskContinuationOptions.DenyChildAttach, TaskScheduler.Default);
+                        }, (@this, newNeighbor, acceptConnection, nanite, ioNetClient: newSocket), TaskCreationOptions.DenyChildAttach).FastPath();
+                    }
                 }
-            }, ValueTuple.Create(this, context, acceptConnection), bootFunc, bootData);
+                catch (Exception e)
+                {
+                    await newNeighbor.DisposeAsync(@this,$"{nameof(acceptConnection)} Exception: {e.Message}").FastPath();
 
-            await _listenerTask.FastPath();
+                    @this._logger.Error(e, $"Accepting connection {newSocket.Key} returned with errors");
+                    return;
+                }
+            }, ValueTuple.Create(this, context, acceptConnection), bootFunc, bootData).FastPath();
         }
 
         /// <summary>
@@ -360,43 +314,17 @@ namespace zero.core.core
         {
             try
             {
-                //Start replication
-
-                var node = await NeighborTasks.EnqueueAsync(ZeroOptionAsync(static async state =>
-                {
-                    var (@this, newNeighbor) = state;
-
-                    try
-                    {
-                        while(!newNeighbor.Zeroed())
-                            await newNeighbor.BlockOnReplicateAsync().FastPath();
-                    }
-                    catch when(!@this.Zeroed() || newNeighbor.Zeroed()){}
-                    catch (Exception e) when (!@this.Zeroed() && !newNeighbor.Zeroed())
-                    {
-                        @this._logger.Error(e, $"{nameof(newNeighbor.BlockOnReplicateAsync)}: [FAILED]... restarting...");
-                    }
-
-                    if(!@this.Zeroed() && !newNeighbor.Zeroed())
-                        @this._logger.Warn($"{nameof(newNeighbor.BlockOnReplicateAsync)}: [FAILED]... restarting...");
-                }, ValueTuple.Create(this, newNeighbor), TaskCreationOptions.DenyChildAttach).AsTask()).FastPath();
-
-                if (node != null)
-                {
-                    await node.Value.ContinueWith(static async (_, state) =>
-                    {
-                        var (@this, node) = (ValueTuple<IoNode<TJob>, IoQueue<Task>.IoZNode>)state;
-                        var qid = node.Qid;
-                        if(@this.NeighborTasks != null)
-                            await @this.NeighborTasks.RemoveAsync(node, qid).FastPath();
-                    }, (this, node), CancellationToken.None, TaskContinuationOptions.DenyChildAttach, TaskScheduler.Default);
-                }
+                while(!newNeighbor.Zeroed() && !Zeroed())
+                    await newNeighbor.BlockOnReplicateAsync().FastPath();
             }
-            catch when(Zeroed()){}
-            catch (Exception e) when(!Zeroed())
+            catch when(!Zeroed() || newNeighbor.Zeroed()){}
+            catch (Exception e) when (!Zeroed() && !newNeighbor.Zeroed())
             {
-                _logger.Error(e, $"Neighbor `{newNeighbor.Source.Description}' processing thread returned with errors:");
+                _logger.Error(e, $"{nameof(newNeighbor.BlockOnReplicateAsync)}: [FAILED]... restarting");
             }
+
+            if(!Zeroed() && !newNeighbor.Zeroed())
+                _logger.Warn($"{nameof(newNeighbor.BlockOnReplicateAsync)}: [FAILED]... restarting");
         }
 
         /// <summary>
@@ -485,7 +413,7 @@ namespace zero.core.core
                     }
                     else if(newNeighbor != null)
                     {
-                        _logger.Debug($"Neighbor with id = {newNeighbor.Key} already exists! Closing connection from {newClient.IoNetSocket.RemoteNodeAddress} ...");
+                        _logger.Debug($"Neighbor with id = {newNeighbor.Key} already exists! Closing connection from {newClient.IoNetSocket.RemoteNodeAddress}");
                         await newNeighbor.DisposeAsync(this, "Dropped, connection already exists").FastPath();
                     }
                 }
@@ -499,7 +427,7 @@ namespace zero.core.core
             {
                 if (newClient != null && newNeighbor == null)
                 {
-                    await newClient.DisposeAsync(this, $"{nameof(newClient)} is not null but {nameof(newNeighbor)} is. Should not be...").FastPath();
+                    await newClient.DisposeAsync(this, $"{nameof(newClient)} is not null but {nameof(newNeighbor)} is. Should not be").FastPath();
                 }
             }
 
@@ -510,31 +438,27 @@ namespace zero.core.core
         /// <summary>
         /// Start the node
         /// </summary>
-        public async ValueTask StartAsync<TBoot>(Func<TBoot,ValueTask> bootFunc = null, TBoot bootData = default, TaskScheduler customScheduler = null)
+        public virtual async ValueTask StartAsync<TBoot>(Func<TBoot,ValueTask> bootFunc = null, TBoot bootData = default, TaskScheduler customScheduler = null)
         {
-            if(Interlocked.CompareExchange(ref _activated, 1, 0) != 0)
-                return;
-            
-            _logger.Trace($"Unimatrix ZeroAsync: {Description}");
-            
             await ZeroAsync(static async state =>
             {
                 var (@this, bootFunc, bootData) = state;
                 var retry = 3;
+                if (Interlocked.CompareExchange(ref @this._activated, 1, 0) != 0)
+                    return;
+
+                @this._logger.Trace($"unimatrix zero: {@this.Description}");
                 while (!@this.Zeroed() && retry-- > 0)
                 {
-                    await @this.SpawnListenerAsync<object,TBoot>(bootFunc: bootFunc, bootData: bootData).FastPath();
+                    await @this.BlockOnListenerAsync<object,TBoot>(bootFunc: bootFunc, bootData: bootData).FastPath();
                     if (!@this.Zeroed())
-                        @this._logger.Warn($"Listener restart... {@this.Description}");
+                        @this._logger.Warn($"Listener restart {retry}...; {@this.Description}");
                     else
-                        await @this.DisposeAsync(@this, "Zeroed").FastPath();
+                        await @this.DisposeAsync(@this, "clean exit").FastPath();
                 }
 
-                if (!@this.Zeroed())
-                    @this._logger.Trace($"{@this.Description}: {(@this._listenerTask.IsCompletedSuccessfully ? "clean" : "dirty")} exit ({@this._listenerTask}), retries left = {retry}");
+                Interlocked.Exchange(ref @this._activated, 0);
             },(this, bootFunc, bootData), TaskCreationOptions.DenyChildAttach, customScheduler??IoZeroScheduler.ZeroDefault, true).FastPath();
-            
-            _activated = 0;
         }
 
         public bool WhiteList(IoNodeAddress address)

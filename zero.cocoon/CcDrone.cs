@@ -46,7 +46,7 @@ namespace zero.cocoon
             Adjunct = adjunct;
 
             //Testing
-            var rand = new Random(DateTimeOffset.Now.Ticks.GetHashCode() * DateTimeOffset.Now.Ticks.GetHashCode());
+            //var rand = new Random(DateTimeOffset.Now.Ticks.GetHashCode() * DateTimeOffset.Now.Ticks.GetHashCode());
 
             //var t = ZeroAsync(static async @this  =>
             //{
@@ -66,7 +66,7 @@ namespace zero.cocoon
             //    }
             //},this, TaskCreationOptions.DenyChildAttach);
 
-            _m = new CcWhisperMsg() { Data = UnsafeByteOperations.UnsafeWrap(new ReadOnlyMemory<byte>(_vb)) };
+            _m = new CcWhisperMsg { Data = UnsafeByteOperations.UnsafeWrap(new ReadOnlyMemory<byte>(_vb)) };
 
             _sendBuf = new IoHeap<byte[]>($"{nameof(_sendBuf)}: {Description}", 16, (_, _) => new byte[32],true);
         }
@@ -93,16 +93,16 @@ namespace zero.cocoon
                 try
                 {
                     if(!Zeroed())
-                        return _description = $"`drone({(!Zeroed()? "Active":"Zombie")} {(_assimilated? "Participant" : "Bystander")} [{Adjunct?.Hub.Designation.IdString()}, {Adjunct?.Designation.IdString()}], {Adjunct?.Direction},{MessageService.IoNetSocket.LocalAddress} ~> {MessageService.IoNetSocket.RemoteAddress}, up = {TimeSpan.FromMilliseconds(UpTime.ElapsedMs())}'";
-                    return _description = $"`drone({(!Zeroed()? "Active" : "Zombie")} {(_assimilated ? "Participant" : "Bystander")}, [{Adjunct?.Hub?.Designation?.IdString()}, {Adjunct?.Designation?.IdString()}], {MessageService?.IoNetSocket?.LocalAddress} ~> {MessageService?.IoNetSocket?.RemoteAddress}, up = {TimeSpan.FromMilliseconds(UpTime.ElapsedMs())}'";
+                        return _description = $"`drone({(!Zeroed()? "Active":"Zombie")} {(_assimilated? "Participant" : "Bystander")} [{Adjunct?.Hub.Designation.IdString()}, {Adjunct?.Designation.IdString()}], {Adjunct?.Direction},{MessageService.IoNetSocket.LocalAddress} ~> {MessageService.IoNetSocket.RemoteAddress}, up = {TimeSpan.FromMilliseconds(UpTime.ElapsedUtcMs())}'";
+                    return _description = $"`drone({(!Zeroed()? "Active" : "Zombie")} {(_assimilated ? "Participant" : "Bystander")}, [{Adjunct?.Hub?.Designation?.IdString()}, {Adjunct?.Designation?.IdString()}], {MessageService?.IoNetSocket?.LocalAddress} ~> {MessageService?.IoNetSocket?.RemoteAddress}, up = {TimeSpan.FromMilliseconds(UpTime.ElapsedUtcMs())}'";
                 }
                 catch
                 {
-                    return _description = $"`drone({(!Zeroed()? "Active":"Zombie")} {(_assimilated ? "Participant" : "Bystander")}, [{Adjunct?.Hub?.Designation?.IdString()}, {Adjunct?.Designation?.IdString()}], {MessageService?.IoNetSocket?.LocalAddress} ~> {MessageService?.IoNetSocket?.RemoteAddress}, up = {TimeSpan.FromMilliseconds(UpTime.ElapsedMs())}'";
+                    return _description = $"`drone({(!Zeroed()? "Active":"Zombie")} {(_assimilated ? "Participant" : "Bystander")}, [{Adjunct?.Hub?.Designation?.IdString()}, {Adjunct?.Designation?.IdString()}], {MessageService?.IoNetSocket?.LocalAddress} ~> {MessageService?.IoNetSocket?.RemoteAddress}, up = {TimeSpan.FromMilliseconds(UpTime.ElapsedUtcMs())}'";
                 }
             }
         }
-        
+
 
         // private string _description;
         //
@@ -119,12 +119,12 @@ namespace zero.cocoon
         //         
         //     }
         // }
-
         private volatile CcAdjunct _adjunct;
         /// <summary>
         /// The attached neighbor
         /// </summary>
-        public CcAdjunct Adjunct {
+        public CcAdjunct Adjunct
+        {
             get => _adjunct;
             protected internal set => _adjunct = value;
         }
@@ -141,9 +141,11 @@ namespace zero.cocoon
             {
                 if (_key != null)
                     return _key;
-                if(Adjunct != null)
-                    return _key = Adjunct.Key;
-                return string.Empty;
+
+                if (Adjunct == null) return string.Empty;
+
+                Volatile.Write(ref _key, Adjunct?.Key);
+                return _key;
             }
         }
 
@@ -228,28 +230,25 @@ namespace zero.cocoon
         /// Attaches a neighbor to this peer
         /// </summary>
         /// <param name="direction"></param>
-        public async ValueTask<bool> AttachViaAdjunctAsync(CcAdjunct.Heading direction)
+        public bool AttachViaAdjunct(CcAdjunct.Heading direction)
         {
             try
             {
                 //Raced?
-                if (Adjunct.IsDroneAttached)
-                {
+                if (Adjunct.IsDroneAttached || Zeroed())
                     return false;
-                }
-                    
 
                 //Attach the other way
-                var attached = await Adjunct.AttachDroneAsync(this, direction).FastPath();
+                var attached = Adjunct.AttachDrone(this, direction);
 
                 if (attached)
                 {
-                    _logger?.Trace($"{nameof(AttachViaAdjunctAsync)}: {direction} attach to adjunct {Adjunct.Description}");
+                    _logger?.Trace($"{nameof(AttachViaAdjunct)}: {direction} attach to adjunct {Adjunct.Description}");
                     _assimilated = true;
                 }
                 else
                 {
-                    _logger?.Trace($"{nameof(AttachViaAdjunctAsync)}: [RACE LOST]{direction} attach to adjunct {Adjunct.Description}, {Adjunct.MetaDesc}");
+                    _logger?.Trace($"{nameof(AttachViaAdjunct)}: [RACE LOST]{direction} attach to adjunct {Adjunct.Description}, {Adjunct.MetaDesc}");
                 }
 
                 return attached;
@@ -257,7 +256,7 @@ namespace zero.cocoon
             catch (Exception) when (Zeroed()) { }
             catch (Exception e) when(!Zeroed())
             {
-                _logger?.Error(e, $"{nameof(AttachViaAdjunctAsync)}:");                               
+                _logger?.Error(e, $"{nameof(AttachViaAdjunct)}:");                               
             }            
             return false; 
         }
@@ -311,10 +310,9 @@ namespace zero.cocoon
                     socketBuf = _sendBuf.Take();
                     Write(_vb.AsSpan(), ref v);
 
-                    //var m = new CcWhisperMsg() {Data = UnsafeByteOperations.UnsafeWrap(new ReadOnlyMemory<byte>(vb))};
-
-                    var protoBuf = _m.ToByteArray();
-                    var compressed = (ulong)LZ4Codec.Encode(protoBuf, 0, protoBuf.Length, socketBuf, sizeof(ulong), socketBuf.Length - sizeof(ulong));
+                    //var protoBuf = _m.ToByteArray();
+                    var protoBuf = _m.ToByteString().Memory;
+                    var compressed = (ulong)LZ4Codec.Encode(protoBuf.AsArray(), 0, protoBuf.Length, socketBuf, sizeof(ulong), socketBuf.Length - sizeof(ulong));
                     Write(socketBuf, ref compressed);
 
                     if (!Zeroed())

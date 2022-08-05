@@ -1,13 +1,11 @@
 ﻿using System;
 using System.Runtime.CompilerServices;
-using System.Threading.Channels;
 using System.Threading.Tasks;
 using Google.Protobuf;
-using NLog;
 using zero.core.patterns.bushings;
 using zero.core.patterns.bushings.contracts;
 using zero.core.patterns.misc;
-using zero.core.patterns.semaphore.core;
+using zero.core.patterns.semaphore;
 
 namespace zero.core.feat.models.protobuffer.sources
 {
@@ -29,33 +27,19 @@ namespace zero.core.feat.models.protobuffer.sources
         public CcProtocBatchSource(string description, IIoSource ioSource, int prefetchSize, int concurrencyLevel, bool zeroAsyncMode = false) 
             : base(description, false, prefetchSize, concurrencyLevel, zeroAsyncMode)//TODO config
         {
-            _logger = LogManager.GetCurrentClassLogger();
-
             UpstreamSource = ioSource;
-            //BatchQueue = new IoQueue<TBatch>($"{nameof(CcProtocBatchSource<TModel, TBatch>)}: {ioSource.Description}", (prefetchSize + concurrencyLevel), prefetchSize + 1, IoQueue<TBatch>.Mode.Pressure | IoQueue<TBatch>.Mode.BackPressure);
-            //IIoZeroSemaphoreBase <TBatch> q = new IoZeroCore<TBatch>($"{nameof(CcProtocBatchSource<TModel, TBatch>)}: {ioSource.Description}", (prefetchSize + concurrencyLevel) * 2, AsyncTasks, zeroAsyncMode:true);
-            //BatchQueue = q.ZeroRef(ref q, _ => default);
-
-            BatchQueue = Channel.CreateBounded<TBatch>(new BoundedChannelOptions(prefetchSize + concurrencyLevel)
-            {
-                SingleWriter = false,
-                SingleReader = false,
-                AllowSynchronousContinuations = false,
-                FullMode = BoundedChannelFullMode.DropNewest
-            });
+            BatchChannel = new IoZeroSemaphoreChannel<TBatch>($"{nameof(BatchChannel)}: {ioSource.Description}", prefetchSize + concurrencyLevel);
         }
-
-        /// <summary>
-        /// The logger
-        /// </summary>
-        private Logger _logger;
 
         /// <summary>
         /// Used to load the next value to be produced
         /// </summary>
-        //protected readonly IoQueue<TBatch> BatchQueue;
-        //protected readonly IIoZeroSemaphoreBase<TBatch> BatchQueue;
-        protected readonly Channel<TBatch> BatchQueue;
+        protected readonly IoZeroSemaphoreChannel<TBatch> BatchChannel;
+
+        /// <summary>
+        /// API (IO)
+        /// </summary>
+        public IoZeroSemaphoreChannel<TBatch> Channel => BatchChannel;
 
         /// <summary>
         /// Keys this instance.
@@ -65,7 +49,7 @@ namespace zero.core.feat.models.protobuffer.sources
         /// <summary>
         /// A description
         /// </summary>
-        public override string Description => Key;
+        public override string Description => $"{Key} - {BatchChannel.Description}";
 
         /// <summary>
         /// Gets a value indicating whether this instance is operational.
@@ -83,7 +67,6 @@ namespace zero.core.feat.models.protobuffer.sources
             base.ZeroUnmanaged();
 
 #if SAFE_RELEASE
-            _logger = null;
 #endif
         }
 
@@ -93,65 +76,14 @@ namespace zero.core.feat.models.protobuffer.sources
         public override async ValueTask ZeroManagedAsync()
         {
             await base.ZeroManagedAsync().FastPath();
-            //BatchQueue.ZeroSem();
-            //await BatchQueue.ZeroManagedAsync(static (msgBatch,_) =>
-            //{
-            //    msgBatch.Value.Dispose();
-            //    return default;
-            //},this, zero:true).FastPath();
+            BatchChannel.ZeroSem();
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public override bool Zeroed()
         {
-            return base.Zeroed() || UpstreamSource.Zeroed();
+            return base.Zeroed() || UpstreamSource.Zeroed() || BatchChannel.Zeroed();
         }
-
-        /// <summary>
-        /// Enqueue a batch
-        /// </summary>
-        /// <param name="item">The messages</param>
-        /// <returns>Async task</returns>
-        public async ValueTask<bool> EnqueueAsync(TBatch item)
-        {
-            try
-            {
-                await BatchQueue.Writer.WriteAsync(item).FastPath();
-                return true;
-            }
-            catch (Exception e)
-            {
-                if (!Zeroed())
-                    _logger.Fatal(e, $"{nameof(EnqueueAsync)}: [FAILED], {BatchQueue.Reader.Count}");
-                return false;
-            }
-        }
-
-        /// <summary>
-        /// Dequeue item
-        /// </summary>
-        /// <returns></returns>
-        public ValueTask<TBatch> DequeueAsync()
-        {
-            try
-            {
-                //return BatchQueue.DequeueAsync();
-                return BatchQueue.Reader.ReadAsync();
-            }
-            catch when (Zeroed()){}
-            catch (Exception e)when (!Zeroed())
-            {
-                _logger.Trace(e, $"{Description}");
-            }
-
-            return default;
-        }
-
-        /// <summary>
-        /// Queue count
-        /// </summary>
-        /// <returns>returns number of items in the q</returns>
-        public uint Count => (uint)BatchQueue.Reader.Count;
 
     }
 }

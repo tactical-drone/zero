@@ -38,9 +38,9 @@ namespace zero.core.network.ip
         /// <param name="context"></param>
         /// <param name="bootFunc"></param>
         /// <returns>True on success, false otherwise</returns>
-        public override async ValueTask ListenAsync<T,TContext>(Func<T, IoNetClient<TJob>, ValueTask> connectionReceivedAction, T context = default, Func<TContext,ValueTask> bootFunc = null, TContext bootData = default)
+        public override async ValueTask BlockOnListenAsync<T,TContext>(Func<T, IoNetClient<TJob>, ValueTask> connectionReceivedAction, T context = default, Func<TContext,ValueTask> bootFunc = null, TContext bootData = default)
         {
-            await base.ListenAsync(connectionReceivedAction, context, bootFunc, bootData).FastPath();
+            await base.BlockOnListenAsync(connectionReceivedAction, context, bootFunc, bootData).FastPath();
 
             IoListenSocket = (await ZeroHiveAsync(new IoTcpSocket(ZeroConcurrencyLevel()), true).FastPath()).target;
 

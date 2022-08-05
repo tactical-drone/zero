@@ -430,7 +430,7 @@ namespace zero.test.core.patterns.queue
             //_smokeTestDone = true;
             //bag.TryEnqueue(-1);
             await Task.WhenAll(remove).WaitAsync(TimeSpan.FromSeconds(6));
-            _output.WriteLine("remove done...");
+            _output.WriteLine("remove done");
 
             //Assert.Equal(threads * InsertsPerThread + 4, bag.Count);
             Assert.InRange(SpamTestAsyncThreadId, threads & InsertsPerThread, int.MaxValue);
@@ -519,7 +519,7 @@ namespace zero.test.core.patterns.queue
 
             _output.WriteLine($"Inserts tasks {insert.Count}");
             await Task.WhenAll(insert).WaitAsync(TimeSpan.FromSeconds(10));
-            _output.WriteLine("Inserts done...");
+            _output.WriteLine("Inserts done");
             _smokeTestDone = true;
             bag.TryEnqueue(-1);
             await Task.WhenAll(remove).WaitAsync(TimeSpan.FromSeconds(10));
@@ -615,7 +615,7 @@ namespace zero.test.core.patterns.queue
 
             _output.WriteLine($"Inserts tasks {insert.Count}");
             await Task.WhenAll(remove).WaitAsync(TimeSpan.FromSeconds(10));
-            _output.WriteLine("Inserts done...");
+            _output.WriteLine("Inserts done");
             _smokeTestDone = true;
             await Task.WhenAll(insert).WaitAsync(TimeSpan.FromSeconds(10));
 

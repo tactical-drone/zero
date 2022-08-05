@@ -7,6 +7,7 @@ using System.Threading;
 using System.Threading.Channels;
 using System.Threading.Tasks;
 using System.Threading.Tasks.Sources;
+using NLog.Filters;
 using zero.core.patterns.queue;
 
 namespace zero.core.patterns.semaphore.core
@@ -28,8 +29,8 @@ namespace zero.core.patterns.semaphore.core
         #region Memory management
         public IoZeroCore(string description, int capacity, CancellationTokenSource asyncTasks, int ready = 0, bool zeroAsyncMode = false)
         {
-            if(capacity > short.MaxValue / 3)
-                throw new ArgumentOutOfRangeException(nameof(capacity));
+            //if(capacity > short.MaxValue / 3)
+            //    throw new ArgumentOutOfRangeException(nameof(capacity));
 
             if(ready > capacity)
                 throw new ArgumentOutOfRangeException(nameof(ready));
@@ -88,8 +89,8 @@ namespace zero.core.patterns.semaphore.core
 
             for (int i = 0; i < _ready; i++)
             {
-                //_results.Writer.TryWrite(_primeReady!(_primeContext));
-                _results.TryEnqueue(_primeReady!(_primeContext));
+                if (_results.TryEnqueue(_primeReady!(_primeContext)) < 0)
+                    throw new OutOfMemoryException($"{nameof(ZeroRef)}: {_results.Description}");
             }
 
             //return _zeroRef = @ref;
@@ -153,8 +154,8 @@ namespace zero.core.patterns.semaphore.core
         //public int WaitCount => _waiters.Reader.Count;
         //public int ReadyCount => _results.Reader.Count;
         public string Description => $"{nameof(IoZeroSemCore<T>)}: r = {ReadyCount}/{_capacity}, w = {WaitCount}/{_capacity}, z = {_zeroed > 0}, heap = {_heapCore.Count}, {_description}";
-        public int WaitCount => (int)_waiters.Count;
-        public int ReadyCount => (int)_results.Count;
+        public int WaitCount => _waiters.Count;
+        public int ReadyCount => _results.Count;
 
         public int Capacity => _capacity;
         public bool ZeroAsyncMode { get; }
@@ -173,17 +174,17 @@ namespace zero.core.patterns.semaphore.core
         private bool Unblock(T value, bool forceAsync)
         {
             retry:
-            //unblock
-            //if (!_waiters.Reader.TryRead(out var waiter)) return false;
             if (!_waiters.TryDequeue(out var waiter)) return false;
 
             waiter.RunContinuationsAsynchronously = forceAsync || ZeroAsyncMode;
 
+            SpinWait spinWait = new();
             //wait for the core to become ready
             while (waiter.Relay == CoreWait)
             {
-                if (!Zeroed()) continue;
-                return false;
+                if (Zeroed())
+                    return false;
+                spinWait.SpinOnce();
             }
 
             switch (waiter.Relay)
@@ -210,24 +211,39 @@ namespace zero.core.patterns.semaphore.core
 #endif
         private bool SetResult(T value, out int released, bool forceAsync = false)
         {
-            bool banked;
+            var banked = false;
             released = 0;
 
-            //while ((banked = _results.Reader.Count < ModCapacity) && !_results.Writer.TryWrite(value)){}
-            while ((banked = _results.Count < Capacity) && _results.TryEnqueue(value) < 0) { }
-
-            //drain the Q
-            //while (_waiters.Reader.Count > 0 && _results.Reader.TryRead(out var fastTracked))
-            while (_waiters.Count > 0 && _results.TryDequeue(out var fastTracked))
+            if (!(_waiters.Count == 1 && _results.Count == 0 && Unblock(value, forceAsync)))
             {
-                if (Unblock(fastTracked, forceAsync))
+                var spinWait = new SpinWait();
+                while ((banked = _results.Count < Capacity) && _results.TryEnqueue(value) < 0)
                 {
-                    released++;
-                    if(_waiters.Count < Capacity)
-                        break;
+                    if (Zeroed())
+                        return false;
+                    
+                    spinWait.SpinOnce();
                 }
-                else
-                    _results.TryEnqueue(fastTracked);
+
+                //drain the Q
+                while (_waiters.Count > 0 && _results.TryDequeue(out var fastTracked))
+                {
+                    if (Unblock(fastTracked, forceAsync))
+                    {
+                        released++;
+                        if (_waiters.Count < Capacity)
+                            break;
+                    }
+                    else
+                    {
+                        if (_results.TryEnqueue(fastTracked) < 0)
+                            throw new OutOfMemoryException($"${nameof(SetResult)}: {Description}");
+                    }
+                }
+            }
+            else
+            {
+                released++;
             }
 
             //downstream mechanics require there be a 1 if either released or unblocked
@@ -240,7 +256,7 @@ namespace zero.core.patterns.semaphore.core
             return released > 0;
         }
 
-        int iteration = 0;
+        //int iteration = 0;
 
         /// <summary>
         /// Creates a new blocking core and releases the current thread to the pool
@@ -275,7 +291,9 @@ namespace zero.core.patterns.semaphore.core
                 waiter.Reset(static state =>
                 {
                     var (@this, waiter) = (ValueTuple<IoZeroCore<T>, IIoManualResetValueTaskSourceCore<T>>)state;
-                    @this._heapCore.TryEnqueue(waiter);
+                    if (@this._heapCore.TryEnqueue(waiter) < 0)
+                        throw new OutOfMemoryException($"{nameof(@this.Block)}: {@this._heapCore.Description}");
+
                 }, (this, waiter));
             }
 

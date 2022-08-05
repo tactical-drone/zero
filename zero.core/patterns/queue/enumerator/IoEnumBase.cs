@@ -9,9 +9,9 @@ namespace zero.core.patterns.queue.enumerator
     public abstract class IoEnumBase<T>: IEnumerator<T>
     {
         protected volatile IEnumerable<T> Collection;
-
-        public volatile int Disposed;
-
+        protected int Disposed = 0;
+        protected private int InUse = 0;
+        
         protected IoEnumBase(IEnumerable<T> collection)
         {
             Collection = collection;
@@ -24,7 +24,7 @@ namespace zero.core.patterns.queue.enumerator
         {
             try
             {
-                if (Disposed == 0 || Interlocked.CompareExchange(ref Disposed, 0, 1) != 1)
+                if (!Zeroed || Interlocked.CompareExchange(ref Disposed, 0, 1) == 0)
                     return make(container);
 
                 Collection = container;

@@ -6,6 +6,7 @@ using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
 using NLog;
+using zero.core.misc;
 using zero.core.patterns.heap;
 using zero.core.patterns.misc;
 using zero.core.patterns.queue.enumerator;
@@ -42,6 +43,9 @@ namespace zero.core.patterns.queue
             BackPressure = 1<<1,
             DynamicSize = 1 << 2,
         }
+
+        private const int Q_E = 16 << 2;
+        private int Q_C = -1;
         /// <summary>
         /// constructor
         /// </summary>
@@ -53,9 +57,10 @@ namespace zero.core.patterns.queue
 #else
             var desc = _description = string.Empty;
 #endif
-
-            capacity = configuration.HasFlag(Mode.DynamicSize) ? short.MaxValue : capacity * 2;
-
+            Q_C = capacity / 2;
+            _configuration = configuration;
+            
+            var backPressure = concurrencyLevel;
             _nodeHeap = new IoHeap<IoZNode>(desc, capacity, static (_,_) => new IoZNode(), configuration.HasFlag(Mode.DynamicSize)) {
                 PushAction = 
                 node =>
@@ -72,22 +77,19 @@ namespace zero.core.patterns.queue
                 }
             };
 
-            //_syncRoot = new IoZeroSemaphore<bool>(desc, maxBlockers: concurrencyLevel, initialCount: 1, cancellationTokenSource: _asyncTasks, runContinuationsAsynchronously: true);
-            //_syncRoot.ZeroRef(ref _syncRoot, _ => true);
-
-            IIoZeroSemaphoreBase<int> q = new IoZeroCore<int>(desc, concurrencyLevel, _asyncTasks,1, false);
+            IIoZeroSemaphoreBase<int> q = new IoZeroCore<int>(desc, concurrencyLevel, _asyncTasks,1);
             _syncRoot = q.ZeroRef(ref q, _ => Environment.TickCount);
 
             if (configuration.HasFlag(Mode.Pressure))
             {
-                _pressure = new IoZeroCore<bool>($"qp {description}", concurrencyLevel, _asyncTasks, zeroAsyncMode:true);
-                _pressure.ZeroRef(ref _pressure, _ => true);
+                _pressure = new IoZeroCore<int>($"qp {description}", concurrencyLevel, _asyncTasks, zeroAsyncMode:false);
+                _pressure.ZeroRef(ref _pressure, _ => Environment.TickCount);
             }
             
             if (configuration.HasFlag(Mode.BackPressure))
             {
-                _backPressure = new IoZeroCore<bool>($"qbp {description}",concurrencyLevel, _asyncTasks,concurrencyLevel, false);
-                _backPressure.ZeroRef(ref _backPressure, _ => true);
+                _backPressure = new IoZeroCore<int>($"qbp {description}", backPressure, _asyncTasks, backPressure, false);
+                _backPressure.ZeroRef(ref _backPressure, _ => Environment.TickCount);
             }
 
             _curEnumerator = new IoQueueEnumerator<T>(this);
@@ -97,9 +99,9 @@ namespace zero.core.patterns.queue
         private readonly string _description; 
         private volatile int _zeroed;
         private readonly IIoZeroSemaphoreBase<int> _syncRoot;
-        private readonly IIoZeroSemaphoreBase<bool> _pressure;
-        private readonly IIoZeroSemaphoreBase<bool> _backPressure;
-        private CancellationTokenSource _asyncTasks = new CancellationTokenSource();
+        private readonly IIoZeroSemaphoreBase<int> _pressure;
+        private readonly IIoZeroSemaphoreBase<int> _backPressure;
+        private CancellationTokenSource _asyncTasks = new();
         private IoHeap<IoZNode> _nodeHeap;
         
         private volatile IoZNode _head;
@@ -115,9 +117,11 @@ namespace zero.core.patterns.queue
         public IoZNode Tail => _tail;
 
         public IoHeap<IoZNode> NodeHeap => _nodeHeap;
-        public IIoZeroSemaphoreBase<bool> Pressure => _backPressure;
+        public IIoZeroSemaphoreBase<int> Pressure => _backPressure;
 
         private IoQueueEnumerator<T> _curEnumerator;
+        private readonly Mode _configuration;
+        public Mode Configuration => _configuration;
 
         public bool Modified
         {
@@ -132,10 +136,6 @@ namespace zero.core.patterns.queue
         {
             if (zero && (_zeroed > 0 || Interlocked.CompareExchange(ref _zeroed, 1, 0) != 0))
                 return true;
-
-            //Prime zero
-            if (zero && !_asyncTasks.IsCancellationRequested)
-                _asyncTasks.Cancel();
 
             try
             {
@@ -176,17 +176,21 @@ namespace zero.core.patterns.queue
             }
             finally
             {
+                _syncRoot.Release(Environment.TickCount);
                 if (zero)
                 {
                     await ClearAsync().FastPath(); //TODO perf: can these two steps be combined?
                     await _nodeHeap.ZeroManagedAsync<object>().FastPath();
+
+                    //Prime zero
+                    if (!_asyncTasks.IsCancellationRequested)
+                        _asyncTasks.Cancel();
 
                     _nodeHeap = null;
                     _count = 0;
                     _head = null;
                     _tail = null;
 
-                    _asyncTasks.Cancel();
                     _asyncTasks.Dispose();
                     _asyncTasks = null;
 
@@ -195,10 +199,6 @@ namespace zero.core.patterns.queue
 
                     //unmanaged
                     _syncRoot.ZeroSem();
-                }
-                else
-                {
-                    _syncRoot.Release(Environment.TickCount);
                 }
             }
 
@@ -235,7 +235,7 @@ namespace zero.core.patterns.queue
             try
             {
                 //wait on back pressure
-                if (_backPressure != null && !await _backPressure.WaitAsync().FastPath() || _zeroed > 0)
+                if (_backPressure != null && (await _backPressure.WaitAsync().FastPath()).ElapsedMs() == int.MaxValue || _zeroed > 0)
                 {
                     if(_zeroed == 0 && (!_backPressure?.Zeroed()??true))
                         LogManager.GetCurrentClassLogger().Fatal($"{nameof(EnqueueAsync)}{nameof(_backPressure.WaitAsync)}: back pressure failure ~> {_backPressure}");
@@ -244,7 +244,7 @@ namespace zero.core.patterns.queue
                 
                 var node = _nodeHeap.Take();
                 if(node == null)
-                    throw new OutOfMemoryException($"{_description} - ({_nodeHeap.Count} + {_nodeHeap.ReferenceCount})/{_nodeHeap.Capacity}, count = {_count}, \n {Environment.StackTrace}");
+                    throw new OutOfMemoryException($"{nameof(EnqueueAsync)}: {_nodeHeap}");
 
                 node.Value = item;
 
@@ -279,18 +279,19 @@ namespace zero.core.patterns.queue
                 {
                     try
                     {
-                        if (_pressure != null && _tail != null)
-                            _pressure.Release(true, true);
-                        else
-                            _backPressure?.Release(true, true);
-
                         if (entered)
                         {
                             //additional atomic actions
                             try
                             {
                                 if (onAtomicAdd != null)
+                                {
+                                    var ts = Environment.TickCount;
                                     await onAtomicAdd.Invoke(context).FastPath();
+                                    if (ts.ElapsedMs() > Q_E)
+                                        LogManager.GetCurrentClassLogger().Warn($"q onAtomicAdd; t = {ts.ElapsedMs()}ms");
+                                }
+                                    
                             }
                             catch when (Zeroed)
                             {
@@ -304,7 +305,11 @@ namespace zero.core.patterns.queue
 #if DEBUG
                                 Interlocked.Decrement(ref _insaneExclusive);
 #endif
-                                _syncRoot.Release(Environment.TickCount, false);//FALSE
+                                var async = true; //TRUE because first come first serve
+                                var ts = Environment.TickCount;
+                                _syncRoot.Release(Environment.TickCount, async);
+                                if (ts.ElapsedMs() > Q_E)
+                                    LogManager.GetCurrentClassLogger().Warn($"q _syncRoot async = {async}; t = {ts.ElapsedMs()}ms");
                             }
                         }
                     }
@@ -313,6 +318,26 @@ namespace zero.core.patterns.queue
                     {
                         LogManager.GetCurrentClassLogger().Error(e, $"{nameof(EnqueueAsync)}");
                     }
+
+                    if (_pressure != null)
+                    {
+                        var async = _count > Q_C; //because deque feeds us threads, so we can and super fast
+                        var ts = Environment.TickCount;
+                        //LogManager.GetCurrentClassLogger().Warn($"R");
+                        _pressure.Release(ts, async);
+                        if(ts.ElapsedMs() > Q_E)
+                            LogManager.GetCurrentClassLogger().Warn($"q _pressure async = {async}, t = {ts.ElapsedMs()}ms");
+                    }
+
+                    else if(_backPressure != null) //something went wrong
+                    {
+                        var async = _count > Q_C; //because why not; it's like a retry and super fast
+                        var ts = Environment.TickCount;
+                        _backPressure.Release(ts, async);
+                        if (ts.ElapsedMs() > Q_E)
+                            LogManager.GetCurrentClassLogger().Warn($"q _backPressure async = {async}, t = {ts.ElapsedMs()}ms");
+                    }
+                        
                 }
             }
         }
@@ -334,7 +359,7 @@ namespace zero.core.patterns.queue
             try
             {
                 //wait on back pressure
-                if (_backPressure != null && !await _backPressure.WaitAsync().FastPath())
+                if (_backPressure != null && (await _backPressure.WaitAsync().FastPath()).ElapsedMs() == int.MaxValue)
                 {
                     if (_zeroed == 0 && (!_backPressure?.Zeroed()??true))
                         LogManager.GetCurrentClassLogger().Fatal($"{nameof(PushBackAsync)}{nameof(_backPressure.WaitAsync)}: back pressure failure ~> {_backPressure}");
@@ -377,17 +402,33 @@ namespace zero.core.patterns.queue
             {
                 if (!Zeroed)
                 {
-                    if (retVal != default)
-                        _pressure?.Release(true, true);
-                    else
-                        _backPressure?.Release(true, true);
-
                     if (entered)
                     {
 #if DEBUG
                         Interlocked.Decrement(ref _insaneExclusive);
 #endif
-                        _syncRoot.Release(Environment.TickCount, false);
+                        var async = true;
+                        var ts = Environment.TickCount;
+                        _syncRoot.Release(Environment.TickCount, async);
+                        if (ts.ElapsedMs() > Q_E)
+                            LogManager.GetCurrentClassLogger().Warn($"pb _syncRoot async = {async}, t = {ts.ElapsedMs()}ms");
+                    }
+
+                    if (_pressure != null && retVal != default)
+                    {
+                        var async = _count > Q_C; //TRUE because 
+                        var ts = Environment.TickCount;
+                        _pressure.Release(ts, async);
+                        if (ts.ElapsedMs() > Q_E)
+                            LogManager.GetCurrentClassLogger().Warn($"pb _pressure async = {async}, t = {ts.ElapsedMs()}ms");
+                    }
+                    else if(_backPressure != null)
+                    {
+                        var async = _count > Q_C; //FALSE
+                        var ts = Environment.TickCount;
+                        _backPressure.Release(ts, async);
+                        if (ts.ElapsedMs() > Q_E)
+                            LogManager.GetCurrentClassLogger().Warn($"pb _pressure async = {async}, t = {ts.ElapsedMs()}ms");
                     }
                 }
             }
@@ -413,10 +454,13 @@ namespace zero.core.patterns.queue
             T retVal = default;
             try
             {
-                if (_pressure != null && !await _pressure.WaitAsync().FastPath())
+                //LogManager.GetCurrentClassLogger().Warn($"dq W");
+                if (_pressure != null && (await _pressure.WaitAsync().FastPath()).ElapsedMs() == int.MaxValue)
                     return default;
 
+                //LogManager.GetCurrentClassLogger().Warn($"dq l");
                 await _syncRoot.WaitAsync().FastPath();
+                //LogManager.GetCurrentClassLogger().Warn($"dq");
                 entered = true;
 #if DEBUG
                 //Debug.Assert(Interlocked.Increment(ref _insaneExclusive) == 1 || _syncRoot.Zeroed(), $"{nameof(_insaneExclusive)} = {_insaneExclusive} > 1, {nameof(_syncRoot.ReadyCount)} = {_syncRoot.ReadyCount}, wait =  {_syncRoot.WaitCount}");
@@ -449,14 +493,46 @@ namespace zero.core.patterns.queue
             }
             finally
             {
+                if (entered && !Zeroed)
+                {
+#if DEBUG
+                    Interlocked.Decrement(ref _insaneExclusive);
+                    //Debug.Assert(_syncRoot.ReadyCount == 0, $"INVALID {nameof(_syncRoot.ReadyCount)} = {_syncRoot.ReadyCount}");
+                    Debug.Assert(_syncRoot.ReadyCount == 0);
+#endif
+                    //var async = _syncRoot.WaitCount >= _syncRoot.Capacity - _syncRoot.WaitCount + _syncRoot.ReadyCount; //FALSE because super fast??? and after back pressure because it is async and this wants to be sync
+                    var ts = Environment.TickCount;
+                    bool async; //no deadlocks allowed
+                    _syncRoot.Release(Environment.TickCount, async = true);
+                    if (ts.ElapsedMs() > Q_E)
+                        LogManager.GetCurrentClassLogger().Warn($"dq _syncRoot async = {async}, t = {ts.ElapsedMs()}ms");
+                }
+
                 try
                 {
+                    //DQ cost being load balanced
                     if (dq != null)
                     {
                         retVal = dq.Value;
                         //dq.lastOp = 1;
                         _nodeHeap.Return(dq);
-                        _backPressure?.Release(true, false);//FALSE
+                    } 
+                    //else if (_pressure != null)
+                    //{
+                    //    var async = true;
+                    //    var ts = Environment.TickCount;
+                    //    _pressure.Release(ts, async);
+                    //    if (ts.ElapsedMs() > Q_E)
+                    //        LogManager.GetCurrentClassLogger().Warn($"pb _pressure async = {async}, t = {ts.ElapsedMs()}ms");
+                    //}
+
+                    if (_backPressure != null)
+                    {
+                        var async = true; //TRUE, because FIFO!!!
+                        var ts = Environment.TickCount;
+                        _backPressure?.Release(ts, async);
+                        if (ts.ElapsedMs() > Q_E)
+                            LogManager.GetCurrentClassLogger().Warn($"pb _backPressure async = {async}, t = {ts.ElapsedMs()}ms");
                     }
                 }
                 catch when (_zeroed > 0) { }
@@ -465,15 +541,7 @@ namespace zero.core.patterns.queue
                     LogManager.GetCurrentClassLogger().Error(e, $"{_description}: DQ failed!");
                 }
 
-                if (entered && !Zeroed)
-                {
-#if DEBUG
-                    Interlocked.Decrement(ref _insaneExclusive);
-                    //Debug.Assert(_syncRoot.ReadyCount == 0, $"INVALID {nameof(_syncRoot.ReadyCount)} = {_syncRoot.ReadyCount}");
-                    Debug.Assert(_syncRoot.ReadyCount == 0);
-#endif
-                    _syncRoot.Release(Environment.TickCount, false);//FALSE!
-                }
+               
             }
             
             return retVal;
@@ -574,10 +642,11 @@ namespace zero.core.patterns.queue
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public IEnumerator<IoZNode> GetEnumerator()
         {
-            //_curEnumerator = (IoQueueEnumerator<T>)_curEnumerator.Reuse(this, c => new IoQueueEnumerator<T>((IoQueue<T>)c));
-            //_curEnumerator.Reset();
-            //return _curEnumerator;
-            return _curEnumerator = new IoQueueEnumerator<T>(this);
+            _curEnumerator = (IoQueueEnumerator<T>)_curEnumerator.Reuse(this, c => new IoQueueEnumerator<T>((IoQueue<T>)c));
+            
+            return _curEnumerator;
+            //return _curEnumerator = new IoQueueEnumerator<T>(this);
+            //return new IoQueueEnumerator<T>(this);
         }
 
         /// <summary>
@@ -653,7 +722,7 @@ namespace zero.core.patterns.queue
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Reset()
         {
-            if (_curEnumerator != null && _curEnumerator.Disposed == 0)
+            if (_curEnumerator is { Zeroed: false })
             {
                 _curEnumerator.Reset();
                 _curEnumerator.Modified = false;

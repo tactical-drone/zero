@@ -79,32 +79,32 @@ namespace zero.core.feat.models
         /// <summary>
         /// The current offset
         /// </summary>
-        public volatile int BufferOffset;
+        public int BufferOffset;
 
         /// <summary>
         /// Total number of datums contained inside the buffer
         /// </summary>
-        public volatile int DatumCount;
+        public int DatumCount;
 
         /// <summary>
         /// The number of bytes remaining of a fragmented datum
         /// </summary>
-        public volatile int DatumFragmentLength;
+        public int DatumFragmentLength;
 
         /// <summary>
         /// The expected datum length
         /// </summary>
-        public volatile int DatumSize;
+        public int DatumSize;
 
         /// <summary>
         /// The length of the buffer offset to allow previous fragments to be concatenated to the current buffer
         /// </summary>
-        public volatile int DatumProvisionLengthMax;
+        public int DatumProvisionLengthMax;
 
         /// <summary>
         /// Message receive buffer size
         /// </summary>        
-        public volatile int BufferSize;
+        public int BufferSize;
 
         /// <summary>
         /// Prepares this item for use after being popped from the heap
@@ -114,8 +114,8 @@ namespace zero.core.feat.models
         public override ValueTask<IIoHeapItem> HeapPopAsync(object context)
         {
             BytesRead = 0;
-            BufferOffset = DatumProvisionLengthMax;
-            DatumFragmentLength = 0;
+            Interlocked.Exchange(ref BufferOffset, DatumProvisionLengthMax);
+            Interlocked.Exchange(ref DatumFragmentLength, 0);
             return base.HeapPopAsync(context);
         }
 
@@ -151,11 +151,11 @@ namespace zero.core.feat.models
                     if (p.DatumFragmentLength > DatumProvisionLengthMax)
                     {
                         Source.Synced = false;
-                        DatumCount = 0;
-                        BytesRead = 0;
+                        Interlocked.Exchange(ref DatumCount, 0);
+                        Interlocked.Exchange(ref BytesRead, 0);
                         await SetStateAsync(IoJobMeta.JobState.RSync).FastPath();
 
-                        DatumFragmentLength = 0;
+                        Interlocked.Exchange(ref DatumFragmentLength, 0);
                         return;
                     }
 
@@ -171,11 +171,11 @@ namespace zero.core.feat.models
                     if (!p.MemoryBuffer[p.BufferOffset.. count].TryCopyTo(MemoryBuffer[BufferOffset..]))
                     {
                         Source.Synced = false;
-                        DatumCount = 0;
-                        BytesRead = 0;
+                        Interlocked.Exchange(ref DatumCount, 0);
+                        Interlocked.Exchange(ref BytesRead, 0);
                         await SetStateAsync(IoJobMeta.JobState.RSync).FastPath();
 
-                        DatumFragmentLength = 0;
+                        Interlocked.Exchange(ref DatumFragmentLength, 0);
                         return;
                     }
 
@@ -197,8 +197,8 @@ namespace zero.core.feat.models
         {
             try
             {
-                DatumCount = BytesLeftToProcess / DatumSize;
-                DatumFragmentLength = BytesLeftToProcess;
+                Interlocked.Exchange(ref DatumCount, BytesLeftToProcess / DatumSize);
+                Interlocked.Exchange(ref DatumFragmentLength, BytesLeftToProcess);
 
                 Source.Synced = !(IoZero.ZeroRecoveryEnabled && DatumFragmentLength > 0);
 

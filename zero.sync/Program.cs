@@ -2,12 +2,9 @@
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics;
-using System.Globalization;
 using System.Linq;
 using System.Threading;
-using System.Threading.Channels;
 using System.Threading.Tasks;
-using System.Threading.Tasks.Sources;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Server.Kestrel.Core;
 using Microsoft.Extensions.Hosting;
@@ -15,7 +12,6 @@ using Microsoft.Extensions.Logging;
 using NLog;
 using NLog.Filters;
 using NLog.Web;
-using NLog.Web.LayoutRenderers;
 using zero.cocoon;
 using zero.cocoon.autopeer;
 using zero.cocoon.events.services;
@@ -52,12 +48,12 @@ namespace zero.sync
                         })
                         .UseStartup<StartServices>()
                         .UseNLog()
-                        .ConfigureLogging(builder =>
-                        {
-                            builder.AddFilter(level => level > LogLevel.Error);
-                            builder.ClearProviders();
-                            builder.SetMinimumLevel(LogLevel.Error);
-                        });
+                    .ConfigureLogging(builder =>
+                    {
+                        builder.AddFilter(level => level > LogLevel.Error);
+                        builder.ClearProviders();
+                        builder.SetMinimumLevel(LogLevel.Error);
+                    });
 
                 });
 
@@ -93,23 +89,21 @@ namespace zero.sync
             }
 
 
-            static void Bootstrap(out ConcurrentBag<Task<CcCollective>> concurrentBag, int total, int portOffset = 7051, int localPort = -1, int[] remotePort = null)
+            static void Bootstrap(out ConcurrentBag<CcCollective> concurrentBag, int total, int portOffset = 7051, int localPort = -1, int[] remotePort = null)
             {
-                var random1 = new Random((int)DateTime.Now.Ticks);
-                //Tangle("tcp://192.168.1.2:15600");
                 var maxDrones = 3;
                 var maxAdjuncts = 9;
                 
                 var oldBoot = localPort == -1;
-                var boot = false;
+                var queens = false;
 
-                concurrentBag = new ConcurrentBag<Task<CcCollective>>();
+                concurrentBag = new ConcurrentBag<CcCollective>();
                 if (oldBoot)
                 {
-                    if (boot)
+                    if (queens)
                         // ReSharper disable once HeuristicUnreachableCode
                     {
-                        var t1 = CoCoonAsync(CcDesignation.Generate(), $"tcp://127.0.0.1:{1234}",
+                        CoCoon(CcDesignation.Generate(), $"tcp://127.0.0.1:{1234}",
                             $"udp://127.0.0.1:{1234}",
                             $"tcp://127.0.0.1:{1234}", $"udp://127.0.0.1:{1234}",
                             new string[]
@@ -117,9 +111,9 @@ namespace zero.sync
                                 $"udp://127.0.0.1:{1235}",
                                 $"udp://127.0.0.1:{1236}",
                                 $"udp://127.0.0.1:{1237}"
-                            }.ToList(), boot);
+                            }.ToList(), queens);
 
-                        var t2 = CoCoonAsync(CcDesignation.Generate(), $"tcp://127.0.0.1:{1235}",
+                        CoCoon(CcDesignation.Generate(), $"tcp://127.0.0.1:{1235}",
                             $"udp://127.0.0.1:{1235}", $"tcp://127.0.0.1:{1235}",
                             $"udp://127.0.0.1:{1235}",
                             new[]
@@ -127,9 +121,9 @@ namespace zero.sync
                                 $"udp://127.0.0.1:{1234}",
                                 $"udp://127.0.0.1:{1236}",
                                 $"udp://127.0.0.1:{1237}"
-                            }.ToList(), boot);
+                            }.ToList(), queens);
 
-                        var t3 = CoCoonAsync(CcDesignation.Generate(), $"tcp://127.0.0.1:{1236}",
+                        CoCoon(CcDesignation.Generate(), $"tcp://127.0.0.1:{1236}",
                             $"udp://127.0.0.1:{1236}",
                             $"tcp://127.0.0.1:{1236}", $"udp://127.0.0.1:{1236}",
                             new[]
@@ -137,9 +131,9 @@ namespace zero.sync
                                 $"udp://127.0.0.1:{1235}",
                                 $"udp://127.0.0.1:{1234}",
                                 $"udp://127.0.0.1:{1237}"
-                            }.ToList(), boot);
+                            }.ToList(), queens);
 
-                        var t4 = CoCoonAsync(CcDesignation.Generate(), $"tcp://127.0.0.1:{1237}",
+                        CoCoon(CcDesignation.Generate(), $"tcp://127.0.0.1:{1237}",
                             $"udp://127.0.0.1:{1237}", $"tcp://127.0.0.1:{1237}",
                             $"udp://127.0.0.1:{1237}",
                             new[]
@@ -147,38 +141,12 @@ namespace zero.sync
                                 $"udp://127.0.0.1:{1234}",
                                 $"udp://127.0.0.1:{1235}",
                                 $"udp://127.0.0.1:{1236}"
-                            }.ToList(), boot);
-
-                        concurrentBag = new ConcurrentBag<Task<CcCollective>>
-                        {
-                            t1, t2, t3, t4
-                        };
-
-                        IoZeroScheduler.Zero.LoadAsyncCallback(() =>
-                        {
-                            t1.Start();
-                            return default;
-                        });
-                        IoZeroScheduler.Zero.LoadAsyncCallback(() =>
-                        {
-                            t2.Start();
-                            return default;
-                        });
-                        IoZeroScheduler.Zero.LoadAsyncCallback(() =>
-                        {
-                            t3.Start();
-                            return default;
-                        });
-                        IoZeroScheduler.Zero.LoadAsyncCallback(() =>
-                        {
-                            t4.Start();
-                            return default;
-                        });
+                            }.ToList(), queens);
                     }
                     else
 #pragma warning disable CS0162
                     {
-                        var t1 = CoCoonAsync(CcDesignation.Generate(true), $"tcp://127.0.0.1:{1234}",
+                        StartCocoon(CoCoon(CcDesignation.Generate(true), $"tcp://127.0.0.1:{1234}",
                             $"udp://127.0.0.1:{1234}",
                             $"tcp://127.0.0.1:{1234}", $"udp://127.0.0.1:{1234}",
                             new string[]
@@ -186,9 +154,9 @@ namespace zero.sync
                                 $"udp://127.0.0.1:{1235}",
                                 //$"udp://127.0.0.1:{1236}",
                                 //$"udp://127.0.0.1:{1237}"
-                            }.ToList(), false);
+                            }.ToList(), false));
 
-                        var t2 = CoCoonAsync(CcDesignation.Generate(), $"tcp://127.0.0.1:{1235}",
+                        StartCocoon(CoCoon(CcDesignation.Generate(), $"tcp://127.0.0.1:{1235}",
                             $"udp://127.0.0.1:{1235}", $"tcp://127.0.0.1:{1235}",
                             $"udp://127.0.0.1:{1235}",
                             new string[]
@@ -196,115 +164,77 @@ namespace zero.sync
                                 $"udp://127.0.0.1:{1234}",
                                 //$"udp://127.0.0.1:{1236}",
                                 //$"udp://127.0.0.1:{1237}"
-                            }.ToList(), false);
-
-                        concurrentBag = new ConcurrentBag<Task<CcCollective>>
-                        {
-                            t1 , t2
-                        };
-#pragma warning disable VSTHRD110 // Observe result of async calls
-                        Task.Factory.StartNew(() => t1.Start(), CancellationToken.None,
-                            TaskCreationOptions.DenyChildAttach,
-                            TaskScheduler.Default);
-                        Task.Factory.StartNew(() => t2.Start(), CancellationToken.None, TaskCreationOptions.DenyChildAttach,
-                            TaskScheduler.Default);
-#pragma warning restore VSTHRD110 // Observe result of async calls
+                            }.ToList(), false));
                     }
                 }
                 else
                 {
                     var count = remotePort.Count(p => p > 0);
-                    var t1 = CoCoonAsync(CcDesignation.Generate(), $"tcp://127.0.0.1:{localPort}",
+                    StartCocoon(CoCoon(CcDesignation.Generate(), $"tcp://127.0.0.1:{localPort}",
                         $"udp://127.0.0.1:{localPort}",
                         $"tcp://127.0.0.1:{localPort}", $"udp://127.0.0.1:{localPort}",
-                        remotePort.Take(count).Select(p => $"udp://127.0.0.1:{p}").ToList(), false);
-                    //new string[]
-                    //{
-                    //    $"udp://127.0.0.1:{remotePort}",
-                    //    //$"udp://127.0.0.1:{1236}",
-                    //    //$"udp://127.0.0.1:{1237}"
-                    //}.ToList(), false);
+                        remotePort.Take(count).Select(p => $"udp://127.0.0.1:{p}").ToList(), false));
 
                     Console.WriteLine($"starting udp://127.0.0.1:{localPort} -> {string.Join(", ", remotePort.Take(count).Select(port => $"udp://127.0.0.1:{port}"))}");
-#pragma warning disable VSTHRD110 // Observe result of async calls
-                    Task.Factory.StartNew(() => t1.Start(), CancellationToken.None,
-                        TaskCreationOptions.DenyChildAttach,
-                        TaskScheduler.Default);
-#pragma warning restore VSTHRD110 // Observe result of async calls
+
                 }
 #pragma warning restore CS0162
-
 
                 for (var i = 2; i < total; i++)
                 {
                     var range = 20;
-                    //tasks.Add(CoCoonAsync(CcDesignation.Generate(), $"tcp://127.0.0.1:{1234 + portOffset + i}", $"udp://127.0.0.1:{1234 + portOffset + i}", $"tcp://127.0.0.1:{1334 + portOffset + i}", $"udp://127.0.0.1:{1234 + portOffset + i}", new[] { $"udp://127.0.0.1:{1234 + i % 4}", $"udp://127.0.0.1:{1234 + (i + 1) % 4}" }.ToList()));
                     var o1 = Random.Shared.Next(portOffset + Math.Max(0, i - range), portOffset + i);
                     var o2 = Random.Shared.Next(portOffset + Math.Max(0, i - range), portOffset + i);
                     var o3 = Random.Shared.Next(portOffset + Math.Max(0, i - range), portOffset + i);
                     var o4 = Random.Shared.Next(portOffset + Math.Max(0, i - range), portOffset + i);
-                    //tasks.Add(CoCoonAsync(CcDesignation.Generate(), $"tcp://127.0.0.1:{1234 + portOffset + i}", $"udp://127.0.0.1:{1234 + portOffset + i}", $"tcp://127.0.0.1:{1334 + portOffset + i}", $"udp://127.0.0.1:{1234 + portOffset + i}", new[] { $"udp://127.0.0.1:{1234}", $"udp://127.0.0.1:{1235}", $"udp://127.0.0.1:{1234 + o1}", $"udp://127.0.0.1:{1234 + o2}", $"udp://127.0.0.1:{1234 + o3}" , $"udp://127.0.0.1:{1234 + o4}" }.ToList()));
-                    concurrentBag.Add(CoCoonAsync(CcDesignation.Generate(), $"tcp://127.0.0.1:{1234 + portOffset + i}",
+                    string extra = i == 2 ? $"udp://127.0.0.1:{1234 + i - 1}" : $"udp://127.0.0.1:{1234 + portOffset + i - 2}";
+
+                    concurrentBag.Add(CoCoon(CcDesignation.Generate(), $"tcp://127.0.0.1:{1234 + portOffset + i}",
                         $"udp://127.0.0.1:{1234 + portOffset + i}", $"tcp://127.0.0.1:{1334 + portOffset + i}",
                         $"udp://127.0.0.1:{1234 + portOffset + i}",
                         new[]
                         {
-                            $"udp://127.0.0.1:{1235}", $"udp://127.0.0.1:{1234 + o1}", $"udp://127.0.0.1:{1234 + o2}",
-                            $"udp://127.0.0.1:{1234 + o3}", $"udp://127.0.0.1:{1234 + o4}"
+                            $"udp://127.0.0.1:{1234 + portOffset + i - 1}", extra
+                            //$"udp://127.0.0.1:{1234 + o1}", $"udp://127.0.0.1:{1234 + o2}",
+                            //$"udp://127.0.0.1:{1234 + o3}", $"udp://127.0.0.1:{1234 + o4}"
                         }.ToList()));
+
                     if (concurrentBag.Count % 10 == 0)
-                        Console.WriteLine($"Spawned {concurrentBag.Count}/{total}...");
+                        Console.WriteLine($"Spawned {concurrentBag.Count}/{total}");
                 }
 
                 var bag = concurrentBag;
                 _ = Task.Factory.StartNew(async () =>
                 {
                     Console.WriteLine($"Starting auto peering...  {bag.Count}");
-                    var c = 1;
+                    var c = 2;
                     var rateLimit = 9000;
-                    var injectionCount = 40;
-                    var rampDelay = 250;
-                    foreach (var task in bag)
+                    var injectionCount = 50;
+                    var rampDelay = 200;
+                    foreach (var cocoon in bag.OrderBy(e => e.Serial))
                     {
-                        await Task.Factory.StartNew(async () =>
-                        {
-                            if (task.Status == TaskStatus.Created)
-                            {
-                                if (c == 1)
-                                    await Task.Delay(5000);
-                                Console.WriteLine($"added {c++}/{bag.Count}");
-                                task.Start();
-                            }
-                            else
-                            {
-                                var queen = (CcCollective)task.AsyncState;
-                                while (boot && !queen!.Online)
-                                {
-                                    Console.WriteLine("Waiting for queen...");
-                                    await Task.Delay(1000);
-                                }
+                        await Task.Delay(rampDelay).ConfigureAwait(false);
+                        if (rampDelay - 1 > 0)
+                            rampDelay -= 1;
 
-                                Console.WriteLine($"Queen brought up {queen.Description}");
-                            }
-                        }, CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Default).Unwrap();
+                        StartCocoon(cocoon);
+                        Console.WriteLine($"added {c++}/{bag.Count + 2}");
 
                         if (c % injectionCount == 0)
                         {
                             await Task.Delay(rateLimit += 10).ConfigureAwait(false);
 
-                            Console.WriteLine($"Provisioned {c}/{total}...");
-                            Console.WriteLine($"Provisioned {c}/{total}...");
-                            Console.WriteLine($"Provisioned {c}/{total}...");
-                            Console.WriteLine($"Provisioned {c}/{total}...");
-                            Console.WriteLine($"Provisioned {c}/{total}...");
-                            Console.WriteLine($"Provisioned {c}/{total}...");
-                            if (injectionCount > 40)
+                            Console.WriteLine($"Provisioned {c}/{total}");
+                            Console.WriteLine($"Provisioned {c}/{total}");
+                            Console.WriteLine($"Provisioned {c}/{total}");
+                            Console.WriteLine($"Provisioned {c}/{total}");
+                            Console.WriteLine($"Provisioned {c}/{total}");
+                            Console.WriteLine($"Provisioned {c}/{total}");
+                            if (injectionCount > 20)
+                         
                                 injectionCount--;
                         }
 
-                        await Task.Delay(rampDelay).ConfigureAwait(false);
-                        if (rampDelay - 1 > 0)
-                            rampDelay -= 1;
                     }
                 }, CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Default);
 
@@ -496,7 +426,6 @@ namespace zero.sync
                                 signal.SetResult(Environment.TickCount);
                             else
                             {
-                                Console.WriteLine("!!!!!!!!!!!!!!!!!");
                                 signal.SetException(new OperationCanceledException());
                             }
                                 
@@ -505,6 +434,7 @@ namespace zero.sync
                         {
                             try
                             {
+                                signal.Reset();
                                 signal.SetException(new OperationCanceledException());
                             }
                             catch (Exception e)
@@ -520,8 +450,9 @@ namespace zero.sync
 
             //Task.Factory.StartNew(async () =>
             //{
-            //    await SemTestAsync();
-            //    await QueueTestAsync();
+            //    //await SemTestAsync();
+            //    //await QueueTestAsync();
+            //    await ZeroQTestAsync();
             //}, CancellationToken.None, TaskCreationOptions.DenyChildAttach, IoZeroScheduler.ZeroDefault).Unwrap().GetAwaiter().GetResult();
 
             //Tune dotnet for large tests
@@ -531,10 +462,10 @@ namespace zero.sync
             Console.WriteLine($"local = {localPort}, remote = {remotePort}");
 
             IHost host = null;
-            
+            var port = localPort;
             var grpc = Task.Factory.StartNew(() =>
             {
-                host = CreateHostBuilder(localPort == -1 ? 27021 : localPort + 1).Build();
+                host = CreateHostBuilder(AutoPeeringEventService.Port = port == -1 ? 27021 : port + 1).Build();
                 host.Run();
             }, CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Default);
 
@@ -669,10 +600,10 @@ namespace zero.sync
                     if (line.StartsWith("loadTest"))
                     {
                         var n = _nodes.Where(n => !n.ZeroDrone).ToArray();
-                        IoZeroScheduler.Zero.LoadAsyncCallback(async () => await n[Random.Shared.Next(0, n.Length - 1)].BootAsync(0).FastPath());
-                        IoZeroScheduler.Zero.LoadAsyncCallback(async () => await n[Random.Shared.Next(0, n.Length - 1)].BootAsync(0).FastPath());
-                        IoZeroScheduler.Zero.LoadAsyncCallback(async () => await n[Random.Shared.Next(0, n.Length - 1)].BootAsync(0).FastPath());
-                        IoZeroScheduler.Zero.LoadAsyncCallback(async () => await n[Random.Shared.Next(0, n.Length - 1)].BootAsync(0).FastPath());
+                        IoZeroScheduler.Zero.LoadAsyncCallback(async () => await n[Random.Shared.Next(0, n.Length - 1)].BootAsync(1).FastPath());
+                        //IoZeroScheduler.Zero.LoadAsyncCallback(async () => await n[Random.Shared.Next(0, n.Length - 1)].BootAsync(0).FastPath());
+                        //IoZeroScheduler.Zero.LoadAsyncCallback(async () => await n[Random.Shared.Next(0, n.Length - 1)].BootAsync(0).FastPath());
+                        //IoZeroScheduler.Zero.LoadAsyncCallback(async () => await n[Random.Shared.Next(0, n.Length - 1)].BootAsync(0).FastPath());
                         Console.WriteLine("ZERO CORE best case horizontal scale cluster TCP/IP (DDoS) pressure test started... make sure your CPU has enough juice, this test will redline your kernel and hang your OS");
                     }
 
@@ -701,15 +632,8 @@ namespace zero.sync
                                 IoZeroScheduler.Zero.LoadAsyncCallback(async () =>
                                 {
                                     await Task.WhenAll(gossipTasks.ToArray());
-                                    await tasks.ToList().ForEachAsync<Task<CcCollective>, object>(static async (t,_) =>
-                                    {
-#pragma warning disable VSTHRD003 // Avoid awaiting foreign Tasks
-                                        (await t).ClearDupBuf();
-#pragma warning restore VSTHRD003 // Avoid awaiting foreign Tasks
-                                    }, null);
-                                    //tasks.ToList().ForEach(t => t.Result.ClearDupBuf());
                                     gossipTasks.Clear();
-                                    await AutoPeeringEventService.QueuedEvents[0].ZeroManagedAsync<object>().FastPath();
+                                    await AutoPeeringEventService.ClearAsync().FastPath();
                                 });
                             }
 
@@ -722,11 +646,12 @@ namespace zero.sync
                             for (int i = 0; i < threads; i++)
                             {
                                 var i1 = i;
+                                var bag = tasks;
                                 gossipTasks.Add(Task.Factory.StartNew(async () =>
                                 {
                                     while (!_startAccounting)
                                         await Task.Delay(1000);
-                                    Console.WriteLine($"Starting accounting... {tasks.Count}");
+                                    Console.WriteLine($"Starting accounting... {bag.Count}");
                                     await Task.Delay(50 + i1);
                                     while (_running)
                                     {
@@ -736,13 +661,12 @@ namespace zero.sync
                                             continue;
                                         }
 
-                                        foreach (var t in tasks)
+                                        foreach (var t in bag)
                                         {
                                             if (!_startAccounting)
                                                 break;
                                             var ts2 = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-                                            if (!await ((CcCollective)t.AsyncState)!.BootAsync(Interlocked.Increment(ref v)).FastPath()
-                                                    )
+                                            if (!await t!.BootAsync(Interlocked.Increment(ref v)).FastPath())
                                             {
                                                 if (_verboseGossip)
                                                     Console.WriteLine($"* - {ts2.ElapsedMs()}ms");
@@ -769,11 +693,11 @@ namespace zero.sync
                                             }
                                         }
                                     }
-                                    Console.WriteLine("Stopped gossip...");
+                                    Console.WriteLine("Stopped gossip");
                                 }, CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Default));
                                 _startAccounting = true;
                             }
-                            Console.WriteLine($"Stopped auto peering...  {tasks.Count}");
+                            Console.WriteLine($"Stopped auto peering  {tasks.Count}");
                         }
                         else
                         {
@@ -841,9 +765,10 @@ namespace zero.sync
                             
                             if (_nodes != null)
                             {
-                                Console.WriteLine($"z = {_nodes.Count(n => n.Zeroed())}/{total}");
                                 _nodes.Clear();
                                 tasks.Clear();
+                                await AutoPeeringEventService.ClearAsync().FastPath();
+                                Console.WriteLine($"z = {_nodes.Count(n => n.Zeroed())}/{total}");
                             }
                         });
                     }
@@ -882,106 +807,112 @@ namespace zero.sync
         {
             await Task.Delay(1000);
             var concurrencyLevel = Environment.ProcessorCount * 2;
-            IoQueue<int> q = new("test", 16384, concurrencyLevel);
-            var head = await q.PushBackAsync(2).FastPath();
-            await q.PushBackAsync(1).FastPath();
-            await q.EnqueueAsync(3).FastPath();
-            await q.EnqueueAsync(4).FastPath();
-            var five = await q.PushBackAsync(5).FastPath();
-            await q.EnqueueAsync(6).FastPath();
-            await q.EnqueueAsync(7).FastPath();
-            await q.EnqueueAsync(8).FastPath();
-            var tail = await q.EnqueueAsync(9).FastPath();
+            IoQueue<int> q = new("test", concurrencyLevel * 2, concurrencyLevel, IoQueue<int>.Mode.Undefined);
+            if (!q.Configuration.HasFlag(IoQueue<int>.Mode.BackPressure))
+            {
 
-            Console.WriteLine("Init");
-            foreach (var ioZNode in q)
-            {
-                Console.Write(ioZNode.Value);
-            }
-            Console.WriteLine("\nDQ mid");
-            q.RemoveAsync(five, five.Qid).FastPath().GetAwaiter();
-            foreach (var ioZNode in q)
-            {
-                Console.Write(ioZNode.Value);
-            }
 
-            Console.WriteLine();
-            var c = q.Tail;
-            while (c != null)
-            {
-                Console.Write(c.Value);
-                c = c.Prev;
-            }
-            
-            Console.WriteLine("\nDQ head");
-            q.RemoveAsync(q.Head, q.Head.Qid).FastPath().GetAwaiter();
-            foreach (var ioZNode in q)
-            {
-                Console.Write(ioZNode.Value);
-            }
+                var head = await q.PushBackAsync(2).FastPath();
+                await q.PushBackAsync(1).FastPath();
+                await q.EnqueueAsync(3).FastPath();
+                await q.EnqueueAsync(4).FastPath();
+                var five = await q.PushBackAsync(5).FastPath();
+                await q.EnqueueAsync(6).FastPath();
+                await q.EnqueueAsync(7).FastPath();
+                await q.EnqueueAsync(8).FastPath();
+                var tail = await q.EnqueueAsync(9).FastPath();
 
-            Console.WriteLine();
-            c = q.Tail;
-            while (c != null)
-            {
-                Console.Write(c.Value);
-                c = c.Prev;
-            }
-            
-            Console.WriteLine("\nDQ tail");
-            q.RemoveAsync(q.Tail, q.Tail.Qid).FastPath().GetAwaiter();
-            foreach (var ioZNode in q)
-            {
-                Console.Write(ioZNode.Value);
-            }
+                Console.WriteLine("Init");
+                foreach (var ioZNode in q)
+                {
+                    Console.Write(ioZNode.Value);
+                }
 
-            Console.WriteLine();
-            c = q.Tail;
-            while (c != null)
-            {
-                Console.Write(c.Value);
-                c = c.Prev;
-            }
-            
+                Console.WriteLine("\nDQ mid");
+                q.RemoveAsync(five, five.Qid).FastPath().GetAwaiter();
+                foreach (var ioZNode in q)
+                {
+                    Console.Write(ioZNode.Value);
+                }
 
-            Console.WriteLine("\nDQ second last prime");
-            q.DequeueAsync().FastPath().GetAwaiter();
-            q.RemoveAsync(q.Head, q.Head.Qid).FastPath().GetAwaiter();
-            q.RemoveAsync(q.Head, q.Head.Qid).FastPath().GetAwaiter();
-            q.DequeueAsync().FastPath().GetAwaiter();
+                Console.WriteLine();
+                var c = q.Tail;
+                while (c != null)
+                {
+                    Console.Write(c.Value);
+                    c = c.Prev;
+                }
 
-            foreach (var ioZNode in q)
-            {
-                Console.Write(ioZNode.Value);
-            }
-
-            Console.WriteLine();
-            c = q.Tail;
-            while (c != null)
-            {
-                Console.Write(c.Value);
-                c = c.Prev;
-            }
-            
-            Console.WriteLine("\nDQ second last");
-
-            if (true)
-            {
+                Console.WriteLine("\nDQ head");
                 q.RemoveAsync(q.Head, q.Head.Qid).FastPath().GetAwaiter();
-                q.RemoveAsync(q.Head, q.Head.Qid).FastPath().GetAwaiter();    
-            }
+                foreach (var ioZNode in q)
+                {
+                    Console.Write(ioZNode.Value);
+                }
 
-            foreach (var ioZNode in q)
-            {
-                Console.Write(ioZNode.Value);
-            }
+                Console.WriteLine();
+                c = q.Tail;
+                while (c != null)
+                {
+                    Console.Write(c.Value);
+                    c = c.Prev;
+                }
 
-            Console.WriteLine();
-            c = q.Head;
-            while (c != null)
-            {
-                Console.Write(c.Value);
-                c = c.Next;
+                Console.WriteLine("\nDQ tail");
+                q.RemoveAsync(q.Tail, q.Tail.Qid).FastPath().GetAwaiter();
+                foreach (var ioZNode in q)
+                {
+                    Console.Write(ioZNode.Value);
+                }
+
+                Console.WriteLine();
+                c = q.Tail;
+                while (c != null)
+                {
+                    Console.Write(c.Value);
+                    c = c.Prev;
+                }
+
+
+                Console.WriteLine("\nDQ second last prime");
+                q.DequeueAsync().FastPath().GetAwaiter();
+                q.RemoveAsync(q.Head, q.Head.Qid).FastPath().GetAwaiter();
+                q.RemoveAsync(q.Head, q.Head.Qid).FastPath().GetAwaiter();
+                q.DequeueAsync().FastPath().GetAwaiter();
+
+                foreach (var ioZNode in q)
+                {
+                    Console.Write(ioZNode.Value);
+                }
+
+                Console.WriteLine();
+                c = q.Tail;
+                while (c != null)
+                {
+                    Console.Write(c.Value);
+                    c = c.Prev;
+                }
+
+                Console.WriteLine("\nDQ second last");
+
+                if (true)
+                {
+                    q.RemoveAsync(q.Head, q.Head.Qid).FastPath().GetAwaiter();
+                    q.RemoveAsync(q.Head, q.Head.Qid).FastPath().GetAwaiter();
+                }
+
+                foreach (var ioZNode in q)
+                {
+                    Console.Write(ioZNode.Value);
+                }
+
+                Console.WriteLine();
+                c = q.Head;
+                while (c != null)
+                {
+                    Console.Write(c.Value);
+                    c = c.Next;
+                }
             }
 
             var _concurrentTasks = new List<Task>();
@@ -991,39 +922,62 @@ namespace zero.sync
             var mult = 1000000;
             //var rounds = 5;
             //var mult = 1000;
+            var done = 0;
+            var ts = Environment.TickCount;
             for (var i = 0; i < rounds; i++)
             {
                 Console.Write(".");
                 var i3 = i;
+                var maxDiff = rounds * 4;
                 _concurrentTasks.Add(Task.Factory.StartNew(async () =>
                 {                    
                     for (int j = 0; j < mult; j++)
                     {
                         try
                         {
-                            
+
                             //await q.PushBackAsync(i3).FastPath();//Console.WriteLine("1");
-                            await q.EnqueueAsync(i3 + 1).FastPath();//Console.WriteLine("2");
-                            await q.EnqueueAsync(i3 + 1).FastPath();//Console.WriteLine("2");
-                            await q.EnqueueAsync(i3 + 1).FastPath();//Console.WriteLine("2");
-                            await q.EnqueueAsync(i3 + 1).FastPath();//Console.WriteLine("2");
-                            await q.EnqueueAsync(i3 + 3).FastPath();//Console.WriteLine("4");
-                            //await q.PushBackAsync(i3 + 2).FastPath();//Console.WriteLine("3");
-                            //var n = await q.PushBackAsync(i3 + 4).FastPath();//Console.WriteLine("5");
-                            //await q.RemoveAsync(n).FastPath();//Console.WriteLine("6");
-                            await q.DequeueAsync().FastPath();//Console.WriteLine("7");
-                            await q.DequeueAsync().FastPath();//Console.WriteLine("8");
-                            await q.DequeueAsync().FastPath();//Console.WriteLine("9");
-                            await q.DequeueAsync().FastPath();//Console.WriteLine("10");
-                            await q.DequeueAsync().FastPath();//Console.WriteLine("10");
+                            await q.EnqueueAsync(Volatile.Read(ref done)).FastPath(); //Console.WriteLine("2");
+                            var ts = Environment.TickCount;
+                            var dq = await q.DequeueAsync().FastPath(); //Console.WriteLine("7");
+                            if (dq < done - maxDiff && ts.ElapsedMs() > 0)
+                                Console.WriteLine($"* diff = {done -dq}, {ts.ElapsedMs()}ms");
+
+                            //await q.EnqueueAsync(Volatile.Read(ref done)).FastPath(); //Console.WriteLine("2");
+                            await q.PushBackAsync(Volatile.Read(ref done)).FastPath(); //Console.WriteLine("2");
+                            ts = Environment.TickCount;
+                            dq = await q.DequeueAsync().FastPath(); //Console.WriteLine("8");
+                            if (dq < done - maxDiff && ts.ElapsedMs() > 0)
+                                Console.WriteLine($"* diff = {done - dq}, {ts.ElapsedMs()}ms");
+
+                            await q.EnqueueAsync(Volatile.Read(ref done)).FastPath(); //Console.WriteLine("2");
+                            ts = Environment.TickCount;
+                            dq = await q.DequeueAsync().FastPath(); //Console.WriteLine("9");
+                            if (dq < done - maxDiff && ts.ElapsedMs() > 0)
+                                Console.WriteLine($"* diff = {done - dq}, {ts.ElapsedMs()}ms");
+
+                            await q.PushBackAsync(Volatile.Read(ref done)).FastPath(); //Console.WriteLine("2");
+                            ts = Environment.TickCount;
+                            dq = await q.DequeueAsync().FastPath(); //Console.WriteLine("10");.
+                            if (dq < done - maxDiff && ts.ElapsedMs() > 0)
+                                Console.WriteLine($"* diff = {done - dq}, {ts.ElapsedMs()}ms");
                         }
                         catch (Exception e)
                         {
                             Console.WriteLine($"Failed... {e.Message}");
                             break;
                         }
+                        finally
+                        {
+                            Interlocked.Increment(ref done);
+                            var p = done * 100.0 / (rounds * mult);
+                            if (p % 2 == 0)
+                            {
+                                Console.Write($"({i3}-{q.Count} {p}% {done/ts.ElapsedMs()} Kq/s)");
+                            }
+                        }
                         //if(j%2000 == 0) 
-                        //    Console.Write($"({i3}-{q.Count})");
+                            //Console.Write($"({i3}-{q.Count})");
                     }
                     Console.Write($"({i3}-{q.Count})");
                 }, new CancellationToken(), TaskCreationOptions.DenyChildAttach, IoZeroScheduler.ZeroDefault).Unwrap());
@@ -1042,7 +996,95 @@ namespace zero.sync
             Console.ReadLine();
             throw new Exception("done");
         }
-        
+
+        private static async Task ZeroQTestAsync() //TODO make unit tests
+        {
+            await Task.Delay(1000);
+            var concurrencyLevel = Environment.ProcessorCount * 2;
+            IoZeroQ<int> q = new("test", concurrencyLevel * 2);
+
+            var _concurrentTasks = new List<Task>();
+
+            var start = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+            var rounds = concurrencyLevel;
+            var mult = 1000000;
+            //var rounds = 5;
+            //var mult = 1000;
+            var done = 0;
+            var ts = Environment.TickCount;
+            for (var i = 0; i < rounds; i++)
+            {
+                Console.Write(".");
+                var i3 = i;
+                var maxDiff = rounds * 4;
+                _concurrentTasks.Add(Task.Factory.StartNew(async () =>
+                {
+                    for (int j = 0; j < mult; j++)
+                    {
+                        try
+                        {
+
+                            //await q.PushBackAsync(i3).FastPath();//Console.WriteLine("1");
+                                q.TryEnqueue(Volatile.Read(ref done)); //Console.WriteLine("2");
+                            var ts = Environment.TickCount;
+                            q.TryDequeue(out var dq); 
+                            if (dq < done - maxDiff && ts.ElapsedMs() > 0)
+                                Console.WriteLine($"* diff = {done - dq}, {ts.ElapsedMs()}ms");
+
+                            
+                            q.TryEnqueue(Volatile.Read(ref done)); //Console.WriteLine("2");
+                            ts = Environment.TickCount;
+                            q.TryDequeue(out dq);
+                            if (dq < done - maxDiff && ts.ElapsedMs() > 0)
+                                Console.WriteLine($"* diff = {done - dq}, {ts.ElapsedMs()}ms");
+
+                            q.TryEnqueue(Volatile.Read(ref done)); //Console.WriteLine("2");
+                            ts = Environment.TickCount;
+                            q.TryDequeue(out dq);
+                            if (dq < done - maxDiff && ts.ElapsedMs() > 0)
+                                Console.WriteLine($"* diff = {done - dq}, {ts.ElapsedMs()}ms");
+
+                            q.TryEnqueue(Volatile.Read(ref done)); //Console.WriteLine("2");
+                            ts = Environment.TickCount;
+                            q.TryDequeue(out dq);
+                            if (dq < done - maxDiff && ts.ElapsedMs() > 0)
+                                Console.WriteLine($"* diff = {done - dq}, {ts.ElapsedMs()}ms");
+                        }
+                        catch (Exception e)
+                        {
+                            Console.WriteLine($"Failed... {e.Message}");
+                            break;
+                        }
+                        finally
+                        {
+                            Interlocked.Increment(ref done);
+                            var p = done * 100.0 / (rounds * mult);
+                            if (p % 2 == 0)
+                            {
+                                Console.Write($"({i3}-{q.Count} {p}% {done / ts.ElapsedMs()} Kq/s)");
+                            }
+                        }
+                        //if(j%2000 == 0) 
+                        //Console.Write($"({i3}-{q.Count})");
+                    }
+                    Console.Write($"({i3}-{q.Count})");
+                }, new CancellationToken(), TaskCreationOptions.DenyChildAttach, IoZeroScheduler.ZeroDefault).Unwrap());
+            }
+
+            await Task.WhenAll(_concurrentTasks);
+
+            Console.WriteLine($"count = {q.Count}, Head = {q?.Tail}, tail = {q?.Head}, time = {DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() - start}ms, {rounds * mult * 6 / (DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() - start)} kOPS");
+
+            await q.ZeroManagedAsync<object>().FastPath();
+            foreach (var ioZNode in q)
+            {
+                Console.Write($"{ioZNode},");
+            }
+
+            Console.ReadLine();
+            throw new Exception("\ndone");
+        }
+
         /// <summary>
         /// Tests the semaphore
         /// </summary>
@@ -1437,7 +1479,7 @@ namespace zero.sync
 //            }
 //        }
 
-        private static Task<CcCollective> CoCoonAsync(CcDesignation ccDesignation, string gossipAddress, string peerAddress,
+        private static CcCollective CoCoon(CcDesignation ccDesignation, string gossipAddress, string peerAddress,
             string fpcAddress, string extAddress, IEnumerable<string> bootStrapAddress, bool zeroDrone = false)
         {
 
@@ -1450,14 +1492,32 @@ namespace zero.sync
                 3, 2, 2, 1, zeroDrone);
 
             _nodes.Add(cocoon);
+            return cocoon;
+        }
 
-            var t = new Task<CcCollective>(static cocoon =>
+        private static void StartCocoon(CcCollective cocoon)
+        {
+            //IoZeroScheduler.Zero.LoadAsyncContext(static async state =>
+            //{
+            //    var cocoon = (CcCollective)state;
+            //    //await cocoon.StartAsync<object>().FastPath();
+            //    await cocoon.StartAsync(c =>
+            //    {
+            //        c.Emit();
+            //        return default;
+            //    }, cocoon, TaskScheduler.Default).FastPath();
+
+            //}, cocoon);
+            _= Task.Factory.StartNew(static async state =>
             {
-                ((CcCollective)cocoon).Emit();
-                ((CcCollective)cocoon).StartAsync<object>().AsTask().GetAwaiter().GetResult();
-                return (CcCollective)cocoon;
-            }, cocoon, TaskCreationOptions.DenyChildAttach);
-            return t;
+                var cocoon = (CcCollective)state;
+                //await cocoon.StartAsync<object>().FastPath();
+                await cocoon.StartAsync(c =>
+                {
+                    c.Emit();
+                    return default;
+                }, cocoon, TaskScheduler.Default).FastPath();
+            }, cocoon, CancellationToken.None,TaskCreationOptions.DenyChildAttach, TaskScheduler.Default);
         }
     }
 }

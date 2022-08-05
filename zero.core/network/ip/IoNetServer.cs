@@ -93,7 +93,7 @@ namespace zero.core.network.ip
         /// <param name="connectionReceivedAction">Action to execute when an incoming connection was made</param>
         /// <param name="context">Caller context</param>
         /// <param name="bootFunc">Bootstrap code</param>
-        public virtual ValueTask ListenAsync<T,TBoot>(Func<T, IoNetClient<TJob>, ValueTask> connectionReceivedAction, T context = default, Func<TBoot, ValueTask> bootFunc = null, TBoot bootData = default)
+        public virtual ValueTask BlockOnListenAsync<T,TBoot>(Func<T, IoNetClient<TJob>, ValueTask> connectionReceivedAction, T context = default, Func<TBoot, ValueTask> bootFunc = null, TBoot bootData = default)
         {
             if (IoListenSocket != null)
                 throw new ConstraintException($"Listener has already been started for `{ListeningAddress}'");

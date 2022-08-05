@@ -6,6 +6,8 @@ using System.Threading.Channels;
 using System.Threading.Tasks;
 using NLog;
 using zero.core.patterns.misc;
+using zero.core.patterns.queue;
+using zero.core.runtime.scheduler;
 
 namespace zero.core.patterns.heap
 {
@@ -39,6 +41,15 @@ namespace zero.core.patterns.heap
             _description = description;
             Malloc = malloc;
 
+            _ioHeapBuf = new IoZeroQ<TItem>($"{nameof(_ioHeapBuf)}: {description}", capacity, autoScale);
+            //_ioHeapBuf = Channel.CreateBounded<TItem>(new BoundedChannelOptions(capacity)
+            //{
+            //    SingleWriter = false,
+            //    SingleReader = false,
+            //    AllowSynchronousContinuations = true,
+            //    FullMode = BoundedChannelFullMode.DropNewest
+            //});
+
             if (_ioHeapBuf is Channel<TItem>)//TODO: tuning
             {
                 if (autoScale)
@@ -47,14 +58,6 @@ namespace zero.core.patterns.heap
                     capacity *= 2;
             }
 
-            //_ioHeapBuf = new IoZeroQ<TItem>($"{nameof(_ioHeapBuf)}: {description}", capacity,autoScale);
-            _ioHeapBuf = Channel.CreateBounded<TItem>(new BoundedChannelOptions(capacity)
-            {
-                SingleWriter = false,
-                SingleReader = false,
-                AllowSynchronousContinuations = true,
-                FullMode = BoundedChannelFullMode.DropNewest
-            });
             Context = context;
             _capacity = capacity;
             _autoScale = autoScale;
@@ -78,7 +81,8 @@ namespace zero.core.patterns.heap
         /// <summary>
         /// The heap buffer space
         /// </summary>
-        private Channel<TItem> _ioHeapBuf;
+        //private Channel<TItem> _ioHeapBuf;
+        private IoZeroQ<TItem> _ioHeapBuf;
 
         /// <summary>
         /// Whether this object has been cleaned up
@@ -89,7 +93,7 @@ namespace zero.core.patterns.heap
         /// The current WorkHeap size
         /// </summary>
         //public int Count => _ioHeapBuf.Reader.Count;
-        public int Count => _ioHeapBuf.Reader.Count;
+        public int Count => _ioHeapBuf.Count;
 
 
         /// <summary>
@@ -145,24 +149,24 @@ namespace zero.core.patterns.heap
             if (Interlocked.CompareExchange(ref _zeroed, 1, 0) != 0 )
                 return;
 
-            _ioHeapBuf.Writer.Complete();
+            //_ioHeapBuf.Writer.Complete();
 
-            if (zeroAction != null)
-            {
-                await foreach (var item in _ioHeapBuf.Reader.ReadAllAsync())
-                {
-                    try
-                    {
-                        await zeroAction(item, context).FastPath();
-                    }
-                    catch (Exception e)
-                    {
-                        _logger.Error(e, Description);
-                    }
-                }
-            }
+            //if (zeroAction != null)
+            //{
+            //    await foreach (var item in _ioHeapBuf.Reader.ReadAllAsync())
+            //    {
+            //        try
+            //        {
+            //            await zeroAction(item, context).FastPath();
+            //        }
+            //        catch (Exception e)
+            //        {
+            //            _logger.Error(e, Description);
+            //        }
+            //    }
+            //}
 
-            //await _ioHeapBuf.ZeroManagedAsync<object>(zero: true).FastPath();
+            await _ioHeapBuf.ZeroManagedAsync<object>(zero: true).FastPath();
 
             _refCount = 0;
         }
@@ -192,9 +196,9 @@ namespace zero.core.patterns.heap
             {
                 retry:
                 //If the heap is empty
-                if (!_ioHeapBuf.Reader.TryRead(out var heapItem))
+                if (!_ioHeapBuf.TryDequeue(out var heapItem))
                 {
-                    if (_ioHeapBuf.Reader.Count > 0)
+                    if (_ioHeapBuf.Count > 0)
                         goto retry; //TODO: hack
 
                     //TODO: Leak
@@ -277,9 +281,28 @@ namespace zero.core.patterns.heap
             try
             {
                 if (!zero)
-                    _ioHeapBuf.Writer.TryWrite(item);
+                {
+                    if (_ioHeapBuf.TryEnqueue(item) < 0 && !_ioHeapBuf.Zeroed)
+                        _logger.Warn($"{nameof(Return)}: Unable to return {item} to the heap, {Description}");
+                }
                 else
+                {
+                    if (item is not IIoHeapItem)
+                    {
+                        if(item is IDisposable disposable)
+                            disposable.Dispose();
+                        if (item is IAsyncDisposable asyncDisposable)
+                        {
+                            IoZeroScheduler.Zero.LoadAsyncContext(static async state =>
+                            {
+                                var item = (IAsyncDisposable)state;
+                                await item.DisposeAsync().FastPath();
+                            }, asyncDisposable);
+                        }
+                    }
                     Interlocked.Increment(ref _hit);
+                }
+                    
             }
             catch when (_zeroed > 0)
             {
@@ -344,8 +367,9 @@ namespace zero.core.patterns.heap
         where T2 : class
     {
         public IoHeap(string description, int capacity, Func<object, object, T2> malloc, bool autoScale = false,
-            object context = null) : base(description, capacity, malloc, false, context)
+            object context = null) : base(description, capacity, malloc, autoScale, context)
         {
+
         }
     }
 

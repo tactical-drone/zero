@@ -12,6 +12,7 @@ using zero.core.patterns.misc;
 using zero.core.patterns.queue;
 using zero.core.patterns.semaphore;
 using zero.core.patterns.semaphore.core;
+using zero.core.runtime.scheduler;
 
 namespace zero.core.patterns.bushings
 {
@@ -275,7 +276,7 @@ namespace zero.core.patterns.bushings
         /// </summary>
         [IoParameter]
         // ReSharper disable once InconsistentNaming
-        public int parm_io_batch_size = 16;
+        public int parm_io_batch_size = 4;
 
         /// <summary>
         /// If we are zeroed or not
@@ -312,6 +313,7 @@ namespace zero.core.patterns.bushings
             await Source.DisposeAsync(this, $"{nameof(ZeroManagedAsync)}: teardown").FastPath();
 
             //await _queue.ZeroManagedAsync(static async (sink, @this) => await sink.DisposeAsync(@this, $"{nameof(ZeroManagedAsync)}: teardown").FastPath(), this,zero: true).FastPath();
+            _queue.ZeroSem();
 
             await JobHeap.ZeroManagedAsync(static async (sink, @this) =>
             {
@@ -324,7 +326,8 @@ namespace zero.core.patterns.bushings
             }
 
 #if DEBUG
-            _logger.Trace($"Closed {Description}");
+            if(UpTime.ElapsedUtcMs() > parm_min_uptime_ms)
+                _logger.Trace($"Closed {Description}");
 #endif
         }
 
@@ -374,14 +377,14 @@ namespace zero.core.patterns.bushings
                             try
                             {
                                 await job.Source.WaitForBackPressureAsync().FastPath();
+                                return true;
                             }
                             catch when(@this.Zeroed() || job.Zeroed()){}
                             catch (Exception e) when (!@this.Zeroed() && !job.Zeroed())
                             {
                                 @this._logger.Error(e,$"{@this.Description}");
-                                return false;
                             }
-                            return true;
+                            return false;
                         }, this).FastPath() == IoJobMeta.JobState.Produced || nextJob.State == IoJobMeta.JobState.ProdConnReset)
                     {
 #if DEBUG
@@ -409,7 +412,7 @@ namespace zero.core.patterns.bushings
                         if(nextJob.State != IoJobMeta.JobState.ProdConnReset)
                             await nextJob.SetStateAsync(IoJobMeta.JobState.Queued).FastPath();
 
-                        if(_queue.Release(nextJob) < 0)
+                        if(_queue.Release(nextJob, true) < 0)
                         {
                             ts = ts.ElapsedMs();
 
@@ -417,9 +420,8 @@ namespace zero.core.patterns.bushings
                             await ZeroJobAsync(nextJob, true).FastPath();
                             nextJob = null;
 
-                            Source.BackPressure(zeroAsync:true);
-                            Source.PrefetchPressure(zeroAsync:false);
-
+                            Source.BackPressure(zeroAsync: true);
+                            
                             //IsArbitrating = false;
                             //Is the producer spinning? Slow it down
                             int throttleTime;
@@ -428,6 +430,9 @@ namespace zero.core.patterns.bushings
 
                             if(!Zeroed())
                                 _logger.Warn($"Producer stalled.... {Description}");
+
+                            Source.PrefetchPressure(zeroAsync: false);
+
                             return true;  //maybe we retry instead of crashing the producer
                         }
 
@@ -438,7 +443,7 @@ namespace zero.core.patterns.bushings
                         //    IsArbitrating = true;
 
                         //Fetch more work
-                        Source.PrefetchPressure(zeroAsync: true);
+                        Source.PrefetchPressure(zeroAsync: false);
                         return true;
                     }
                     else //produce job returned with errors or nothing...
@@ -460,7 +465,7 @@ namespace zero.core.patterns.bushings
                             return false;
 
                         //signal back pressure
-                        Source.BackPressure(zeroAsync:true);
+                        Source.BackPressure(zeroAsync: true);
 
                         ////Is the producer spinning? Slow it down
                         //int throttleTime;
@@ -479,7 +484,7 @@ namespace zero.core.patterns.bushings
                     if (Zeroed() || JobHeap.Zeroed)
                         return false;
 
-                    Source.BackPressure(zeroAsync:true);
+                    Source.BackPressure(zeroAsync: true);
                     // prefetch pressure
                     Source.PrefetchPressure(zeroAsync:false);
                     
@@ -748,7 +753,7 @@ namespace zero.core.patterns.bushings
             {
                 var desc = Description;
 #if DEBUG
-                _logger.Trace($"{GetType().Name}: Assimulating {desc}");
+                _logger.Debug($"{GetType().Name}: Assimulating {desc}");
 #endif
                 //Consumer
                 var width = Source.ZeroConcurrencyLevel();
@@ -782,7 +787,7 @@ namespace zero.core.patterns.bushings
                         {
                             @this._logger.Error(e, $"Consumption failed! {@this.Description}");
                         }
-                    }, (this,i), TaskCreationOptions.DenyChildAttach).FastPath(); //TODO tuning
+                    }, (this, i), TaskCreationOptions.DenyChildAttach).FastPath(); //TODO tuningO tuning
 
                 //Producer
                 width = Source.PrefetchSize;
@@ -813,7 +818,6 @@ namespace zero.core.patterns.bushings
                             @this._logger.Error(e, $"Production failed! {@this.Description}");
                         }
                     }, this, TaskCreationOptions.DenyChildAttach).FastPath(); //TODO tuning
-
                 await AsyncTasks.Token.BlockOnNotCanceledAsync().FastPath();
 #if DEBUG
                 _logger?.Trace($"{GetType().Name}: Processing for {desc} stopped");

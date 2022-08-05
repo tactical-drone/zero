@@ -92,6 +92,7 @@ namespace zero.core.patterns.queue
         private long _head;
         private long _tail;
         private int _zeroed;
+        private int _clearing;
         private int _count;
         private long _hwm;
 
@@ -123,6 +124,7 @@ namespace zero.core.patterns.queue
         private int _sharingConsumers;
         private int _pumpingConsumers;
         private int _primedForScale;
+        private int _timeSinceLastScale = Environment.TickCount;
         private readonly bool _autoScale;
         private readonly bool _blockingCollection;
 
@@ -147,7 +149,7 @@ namespace zero.core.patterns.queue
         /// <summary>
         /// Description
         /// </summary>
-        public string Description => $"{nameof(IoZeroQ<T>)}: z = {_zeroed > 0}, {nameof(Count)} = {_count}/{Capacity}, s = {IsAutoScaling}, h = {Head}/{Tail} (d:{Tail - Head}), desc = {_description}";
+        public string Description => $"{nameof(IoZeroQ<T>)}: z = {_zeroed > 0}, {nameof(Count)} = {_count}/{Capacity}, s = {IsAutoScaling}({_timeSinceLastScale.ElapsedMs()/1000} sec), h = {Head}/{Tail} (d:{Tail - Head}), desc = {_description}";
 
         /// <summary>
         /// Current number of items in the bag
@@ -230,6 +232,7 @@ namespace zero.core.patterns.queue
                     Interlocked.Add(ref _hwm, hwm);
                     Interlocked.Increment(ref _virility);
                     Interlocked.Exchange(ref _primedForScale, 0);
+                    Interlocked.Exchange(ref _timeSinceLastScale, Environment.TickCount);
                     Interlocked.MemoryBarrierProcessWide();
                     return true;
                 }
@@ -312,7 +315,10 @@ namespace zero.core.patterns.queue
                         if (Tail != index) //Covers choking throughput causing wrap around issues. CAS passes but at distant past tail and needs to be undone...
                         {
                             //TAIL is racing towards this _one... set it back to _zero and hope for the best. So far it checks out. 
-                            Interlocked.CompareExchange(ref fastBloomPtr, _zero, _one);
+                            if (Interlocked.CompareExchange(ref fastBloomPtr, _zero, _one) != _one)
+                            {
+                                LogManager.GetCurrentClassLogger().Fatal($"Unable to restore lock at {index} - {Description}");
+                            }
                             return (false, default);
                         }
 
@@ -334,7 +340,8 @@ namespace zero.core.patterns.queue
 
                 if (Tail != index) 
                 {
-                    Interlocked.CompareExchange(ref bloomPtr, _zero, _one);
+                    if(Interlocked.CompareExchange(ref bloomPtr, _zero, _one) != _one)
+                        LogManager.GetCurrentClassLogger().Fatal($"Unable to restore lock at {index} - {Description}");
                     return (false, default);
                 }
 
@@ -431,6 +438,14 @@ namespace zero.core.patterns.queue
                         ref var fastBloomPtr = ref _fastBloom[modIdx];
                         if (Head == index && Interlocked.CompareExchange(ref fastBloomPtr, _reset, _set) == _set)
                         {
+                            if (Head != index)
+                            {
+                                if(Interlocked.CompareExchange(ref fastBloomPtr, _set, _reset) != _reset)
+                                    LogManager.GetCurrentClassLogger().Fatal($"R> Unable to restore lock at {index} - {Description}");
+                                value = default;
+                                return false;
+                            }
+
                             value = _fastStorage[modIdx];
                             _fastStorage[modIdx] = default;
                             Interlocked.Decrement(ref _count);
@@ -449,6 +464,14 @@ namespace zero.core.patterns.queue
                 
                 if (Interlocked.CompareExchange(ref bloomPtr, _reset, _set) == _set)
                 {
+                    if (Head != index)
+                    {
+                        if (Interlocked.CompareExchange(ref bloomPtr, _set, _reset) != _reset)
+                            LogManager.GetCurrentClassLogger().Fatal($"R> Unable to restore lock at {index} - {Description}");
+                        value = default;
+                        return false;
+                    }
+
                     value = _storage[i][i2];
                     _storage[i][i2] = default;
                     Interlocked.Decrement(ref _count);
@@ -486,6 +509,10 @@ namespace zero.core.patterns.queue
         {
             Debug.Assert(Zeroed || item != null);
 
+            if (Zeroed || _clearing > 0)
+                return -1;
+
+            //auto scale
             if (_autoScale && (_primedForScale == 1 || Count >= Capacity >> 1))
             {
                 if (!Scale() && Count >= Capacity)
@@ -556,13 +583,21 @@ namespace zero.core.patterns.queue
                 SpinWait yield = new();
                 while ((tail = Tail) >= Head + (cap = Capacity) || _count >= cap || !AtomicAdd(tail, item).success)
                 {
+                    if (_count == cap)
+                    {
+                        if (IsAutoScaling)
+                            Scale();
+                        else
+                            return -1;
+                    }
+
                     if (Zeroed)
                         return -1;
 
                     yield.SpinOnce();
+                    if(yield.Count % 1000 == 0)
+                        Console.WriteLine($"Z-> {Description}");
                 }
-
-                
 
                 //execute atomic action on success
                 onAtomicAdd?.Invoke(context);
@@ -681,23 +716,30 @@ namespace zero.core.patterns.queue
             if (zero && Interlocked.CompareExchange(ref _zeroed, 1, 0) != 0)
                 return true;
 
+            if (Interlocked.CompareExchange(ref _clearing, 1, 0) != 0)
+                return true;
+
             try
             {
-                for (var i = 0; i < Capacity; i++)
+                for (long i = 0; i < Capacity; i++)
                 {
                     var item = this[i];
                     try
                     {
-                        if (item is null)
-                            continue;
-
-                        if (op != null)
-                            await op(item, nanite).FastPath();
-
-                        if (item is IIoNanite ioNanite)
+                        if (item is not null)
                         {
-                            if (!ioNanite.Zeroed())
-                                await ioNanite.DisposeAsync((IIoNanite)nanite, string.Empty).FastPath();
+                            if (op != null)
+                                await op(item, nanite).FastPath();
+
+                            if (item is IIoNanite ioNanite)
+                            {
+                                if (!ioNanite.Zeroed())
+                                    await ioNanite.DisposeAsync((IIoNanite)nanite, string.Empty).FastPath();
+                            }
+                            else if (item is IAsyncDisposable asyncDisposable)
+                                await asyncDisposable.DisposeAsync().FastPath();
+                            else if (item is IDisposable disposable)
+                                disposable.Dispose();
                         }
                     }
                     catch (InvalidCastException) { }
@@ -709,6 +751,15 @@ namespace zero.core.patterns.queue
                     finally
                     {
                         this[i] = default;
+
+                        if (!IsAutoScaling)
+                            _fastBloom[i % _capacity] = 0;
+                        else
+                        {
+                            var idx = i % Capacity;
+                            var i2 = (int)(Math.Log10(idx + 1) / Math.Log10(2));
+                            Interlocked.Exchange(ref _bloom[i2][idx - ((1 << i2) - 1)], 0);
+                        }
                     }
                 }
 
@@ -720,6 +771,22 @@ namespace zero.core.patterns.queue
             finally
             {
                 _count = (int)(_head = _tail = 0);
+#if DEBUG
+                if (IsAutoScaling)
+                {
+                    for (var i = 0; i < _bloom.Length && _bloom[i] != null; i++)
+                    {
+                        for (var j = 0; j < _bloom[i].Length; j++)
+                        {
+                            if (_bloom != null && _bloom[i][j] != 0)
+                            {
+                                LogManager.GetCurrentClassLogger().Fatal($"{nameof(ZeroManagedAsync)}: Tainted bloom filter at [{i}][{j}] = {_bloom[i][j]} ({_storage[i][j]})");
+                            }
+                        }
+                    }
+                }
+#endif
+                Interlocked.Exchange(ref _clearing, 0);
             }
 
             return true;

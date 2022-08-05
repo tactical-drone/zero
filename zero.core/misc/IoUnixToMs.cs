@@ -101,7 +101,7 @@ namespace zero.core.misc
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static long ElapsedUctMsToSec(this long timestamp)
+        public static long ElapsedUtcMsToSec(this long timestamp)
         {
             return timestamp.ElapsedUtcMs() / 1000;
         }

@@ -36,15 +36,15 @@ namespace zero.core.network.ip
         /// Start the listener
         /// </summary>
         /// <param name="connectionReceivedAction">Action to execute when an incoming connection was made</param>
+        /// <param name="context"></param>
         /// <param name="bootFunc"></param>
+        /// <param name="bootData"></param>
         /// <returns>
         /// True on success, false otherwise
         /// </returns>
-        public override async ValueTask ListenAsync<T,TContext>(Func<T, IoNetClient<TJob>, ValueTask> connectionReceivedAction,
-            T context = default,
-            Func<TContext,ValueTask> bootFunc = null, TContext bootData = default)
+        public override async ValueTask BlockOnListenAsync<T,TContext>(Func<T, IoNetClient<TJob>, ValueTask> connectionReceivedAction, T context = default, Func<TContext,ValueTask> bootFunc = null, TContext bootData = default)
         {
-            await base.ListenAsync(connectionReceivedAction, context,bootFunc,bootData).FastPath();
+            await base.BlockOnListenAsync(connectionReceivedAction, context,bootFunc,bootData).FastPath();
 
             while (!Zeroed())
             {
@@ -86,10 +86,8 @@ namespace zero.core.network.ip
                 catch when (Zeroed()){}
                 catch (Exception e) when (!Zeroed())
                 {
-                    _logger.Error(e,$"{nameof(ListenAsync)}: ");
+                    _logger.Error(e,$"{nameof(BlockOnListenAsync)}: ");
                 }
-
-                await Task.Delay(parm_connection_timeout);
             }
         }
 

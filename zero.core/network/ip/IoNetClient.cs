@@ -13,7 +13,7 @@ using zero.core.patterns.misc;
 namespace zero.core.network.ip
 {
     /// <summary>
-    /// Used by clients to hold the <see cref="IoNetSocket"/> of a connection. Used by <see cref="IoNetServer{TJob}.ConnectAsync"/> and <see cref="IoNetServer{TJob}.ListenAsync"/>
+    /// Used by clients to hold the <see cref="IoNetSocket"/> of a connection. Used by <see cref="IoNetServer{TJob}.ConnectAsync"/> and <see cref="IoNetServer{TJob}.BlockOnListenAsync{T,TBoot}"/>
     /// to wrap a connection.
     ///
     /// Currently two flavors exist: <see cref="IoTcpClient{TJob}"/> & <see cref="IoUdpClient{TJob}"/>
@@ -185,8 +185,8 @@ namespace zero.core.network.ip
                     //TODO more checks?
                     if (!IoNetSocket.IsConnected())
                     {
-                        if (UpTime.ElapsedMsToSec() > 5)
-                            _logger.Error($"DC {IoNetSocket.RemoteNodeAddress} from {IoNetSocket.LocalNodeAddress}, uptime = {TimeSpan.FromMilliseconds(UpTime.ElapsedMs())}");
+                        if (UpTime.ElapsedUtcMsToSec() > 5)
+                            _logger.Error($"DC {IoNetSocket.RemoteNodeAddress} from {IoNetSocket.LocalNodeAddress}, uptime = {TimeSpan.FromMilliseconds(UpTime.ElapsedUtcMs())}");
 
                         _ = Task.Factory.StartNew(static s =>
                         {

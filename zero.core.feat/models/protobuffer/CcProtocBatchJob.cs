@@ -48,7 +48,7 @@ namespace zero.core.feat.models.protobuffer
         /// <summary>
         /// The transaction that is ultimately consumed
         /// </summary>
-        private volatile TBatch _batch;
+        private TBatch _batch;
 
         /// <summary>
         /// sentinel
@@ -134,8 +134,16 @@ namespace zero.core.feat.models.protobuffer
 
                     try
                     {
-                        job._batch = await ((CcProtocBatchSource<TModel, TBatch>)source).DequeueAsync().FastPath();
-                        job.GenerateJobId();
+                        job._batch = await ((CcProtocBatchSource<TModel, TBatch>)source).Channel.WaitAsync();
+                        if (job._batch != null)
+                        {
+#if TRACE
+                            _logger.Fatal($"{nameof(ProduceAsync)}: <-- from batch, {ioJob.Description}");                   
+#endif
+                            job.GenerateJobId();
+                        }
+                        else
+                            return false;
                     }
                     catch when (source.Zeroed() || job.Zeroed())
                     {
@@ -143,7 +151,7 @@ namespace zero.core.feat.models.protobuffer
                     }
                     catch (Exception e) when(!source.Zeroed() && !job.Zeroed())
                     {
-                        _logger.Fatal(e,$"BatchQueue.TryDequeueAsync failed: {job.Description}"); 
+                        _logger.Fatal(e,$"BatchChannel.TryDequeueAsync failed: {job.Description}"); 
                     }
 
                     return job._batch != null;

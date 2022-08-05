@@ -8,7 +8,7 @@ namespace zero.core.patterns.queue.enumerator
     public class IoQueueEnumerator<T> : IoEnumBase<IoQueue<T>.IoZNode>
     {
         private IoQueue<T> Q => (IoQueue<T>)Collection;
-        private volatile IoQueue<T>.IoZNode _iteratorIoZNode;
+        private IoQueue<T>.IoZNode _iteratorIoZNode;
 
         public IoQueueEnumerator(IoQueue<T> queue):base(queue)
         {
@@ -18,9 +18,6 @@ namespace zero.core.patterns.queue.enumerator
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public override bool MoveNext()
         {
-            if (Disposed > 0)
-                return false;
-
             try
             {
                 if (Q.Count == 0 || _iteratorIoZNode == null)
@@ -31,10 +28,10 @@ namespace zero.core.patterns.queue.enumerator
                     Q.Reset();
                     return MoveNext();
                 }
+                
+                Interlocked.Exchange(ref _iteratorIoZNode, _iteratorIoZNode.Next);
 
-                _iteratorIoZNode = _iteratorIoZNode.Next;
-
-                return _iteratorIoZNode != null && Disposed == 0;
+                return _iteratorIoZNode != null;
             }
             catch when(Zeroed || Disposed > 0) {}
             catch (Exception e) when (!Zeroed && Disposed == 0)
@@ -48,7 +45,8 @@ namespace zero.core.patterns.queue.enumerator
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public sealed override void Reset()
         {
-            _iteratorIoZNode = new IoQueue<T>.IoZNode { Next = Q.Head };
+            var node = new IoQueue<T>.IoZNode { Next = Q.Head };
+            Interlocked.Exchange<IoQueue<T>.IoZNode>(ref _iteratorIoZNode, node);
         }
 
         public override IoQueue<T>.IoZNode Current => _iteratorIoZNode;
@@ -59,8 +57,8 @@ namespace zero.core.patterns.queue.enumerator
         {
             if(Disposed > 0 || Interlocked.CompareExchange(ref Disposed, 1, 0) != 0)
                 return;
-            
-            _iteratorIoZNode = null;
+
+            Interlocked.Exchange(ref _iteratorIoZNode, null); 
             Collection = null;
         }
     }

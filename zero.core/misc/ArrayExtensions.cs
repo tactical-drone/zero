@@ -6,7 +6,7 @@ using System.Security.Cryptography;
 #endif
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
-
+using System.Text;
 using NLog;
 
 namespace zero.core.misc
@@ -172,7 +172,7 @@ namespace zero.core.misc
         private static SHA256 _sha256;
         public static SHA256 Sha256 => _sha256 ??= SHA256.Create();
 
-        public static string PayloadSig(this byte[] payload)
+        public static string PayloadSig(this byte[] payload, string T = "P")
         {
             Span<byte> hash = stackalloc byte[256];
             if (payload.Length > 0)
@@ -185,10 +185,14 @@ namespace zero.core.misc
                 catch (Exception e)
                 {
                     LogManager.GetCurrentClassLogger().Fatal(e,$"Compute hash failed: read = {read}/{payload.Length}");
-                    return $"P(0x000)";
+                    return $"{T}(0x000)";
                 }
             }
-            return $"P({Convert.ToBase64String(hash)[..7][..^2]})";
+            else
+            {
+                return $"{T}(null)";
+            }
+            return $"{T}({Convert.ToBase64String(hash)[..7]})";
         }
         public static string PayloadSig(this ReadOnlyMemory<byte> memory)
         {
@@ -213,6 +217,16 @@ namespace zero.core.misc
         public static string HashSig(this ReadOnlyMemory<byte> memory)
         {
             return memory.AsArray().HashSig();
+        }
+
+        public static string Print(this ReadOnlyMemory<byte> memory, string T = "F")
+        {
+            return $"{T}{BitConverter.ToString(memory.AsArray())}";
+        }
+
+        public static string Print(this byte[] memory, string T = "F")
+        {
+            return $"{T}{BitConverter.ToString(memory)}";
         }
 #else
         public static string PayloadSig(this byte[] payload)

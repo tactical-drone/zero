@@ -2,12 +2,14 @@
 using System.Collections.Concurrent;
 using System.Globalization;
 using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices.ComTypes;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using NLog;
 using zero.core.conf;
 using zero.core.data.contracts;
+using zero.core.misc;
 using zero.core.patterns.bushings.contracts;
 using zero.core.patterns.misc;
 using zero.core.patterns.semaphore;
@@ -304,7 +306,8 @@ namespace zero.core.patterns.bushings
             catch { }
 
 #if DEBUG
-            _logger.Trace($"Closed {Description}");
+            if (UpTime.ElapsedUtcMs() > 2000)
+                _logger.Trace($"Closed {Description}");
 #endif
         }
 
@@ -337,20 +340,25 @@ namespace zero.core.patterns.bushings
         {
             if (channelSource != null && !IoConduits.ContainsKey(id))
             {
+                //var locker = UpstreamSource ?? this;
                 if (!await ZeroAtomicAsync(static async (_, @params, _) =>
                     {
+                        
                         var (@this, id, channelSource, jobMalloc, concurrencyLevel) = @params;
-                        var newConduit = new IoConduit<TFJob>($"`conduit({id}>{ channelSource.UpstreamSource.Description} ~> { channelSource.Description}", channelSource, jobMalloc, concurrencyLevel);
 
+                        if (@this.IoConduits.ContainsKey(id))
+                            return true;
+
+                        var newConduit = new IoConduit<TFJob>($"`conduit({id}>{channelSource.UpstreamSource.Description} ~> {channelSource.Description}", channelSource, jobMalloc, concurrencyLevel);
                         if (!@this.IoConduits.TryAdd(id, newConduit))
-                        {
-                            await newConduit.DisposeAsync(@this,$"{nameof(CreateConduitOnceAsync)}: lost race").FastPath();
-                            @this._logger.Trace($"Could not add {id}, already exists = {@this.IoConduits.ContainsKey(id)}");
-                            return false;
-                        }
+                            await newConduit.DisposeAsync(@this, $"{nameof(CreateConduitOnceAsync)}: lost race, Could not add {id}, already exists = {@this.IoConduits.ContainsKey(id)} {@this.Description}").FastPath();
+#if DEBUG
+                        else
+                            @this._logger.Debug($"Added {nameof(IoConduit<TJob>)}: {id}; {@this.Description}");
+#endif
 
                         return true;
-                    }, ValueTuple.Create(this, id,channelSource, jobMalloc, concurrencyLevel)).FastPath())
+                }, ValueTuple.Create(this, id,channelSource, jobMalloc, concurrencyLevel)).FastPath())
                 {
                     if (!Zeroed())
                     {

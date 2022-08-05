@@ -35,15 +35,15 @@ namespace zero.cocoon.models
 
             IoZero = (IoZero<CcProtocMessage<chroniton, CcDiscoveryBatch>>)context;
             
-            var pf = 3;
-            var cc = 2; 
+            var pf = Source.PrefetchSize * 3;
+            var cc = Source.ZeroConcurrencyLevel() * 3; 
 
             if (!Source.Proxy && Adjunct.CcCollective.ZeroDrone)
             {
                 parm_max_msg_batch_size *= 2;
                 
-                pf = 3;
-                cc = 2;
+                pf = 2;
+                cc = 1;
             }
 
 #if DEBUG
@@ -102,13 +102,13 @@ namespace zero.cocoon.models
         {
             await base.ZeroManagedAsync().FastPath();
 
-            _currentBatch?.Dispose();
-            
             await _batchHeap.ZeroManagedAsync<object>(static (batch, _) =>
             {
                 batch.Dispose();
                 return default;
             }).FastPath();
+
+            _currentBatch?.Dispose();
         }
 
         /// <summary>
@@ -201,8 +201,6 @@ namespace zero.cocoon.models
                 if (BytesRead == 0)
                     return await SetStateAsync(IoJobMeta.JobState.BadData).FastPath();
 
-                var verified = false;
-
                 //Ensure that the previous job (which could have been launched out of sync) has completed
                 var prevJob = ((CcDiscoveries)PreviousJob)?.ZeroRecovery;
                 if (prevJob != null)
@@ -237,19 +235,19 @@ namespace zero.cocoon.models
                         int length;
                         while ((length = ZeroSync()) > 0)
                         {
-                            if (length > BytesLeftToProcess)
-                            {
-                                await SetStateAsync(IoJobMeta.JobState.Fragmented).FastPath();
-                                break;
-                            }
-                            
                             try
                             {
                                 var unpackOffset = DatumProvisionLengthMax << 2;
-                                var packetLen = LZ4Codec.Decode(Buffer, BufferOffset + sizeof(ulong), length, Buffer, unpackOffset, Buffer.Length - unpackOffset - 1);
+                                
+                                var packetLen = LZ4Codec.Decode(Buffer, BufferOffset + sizeof(ulong), length, Buffer, unpackOffset, Buffer.Length - unpackOffset);
 
-                                read = length + sizeof(ulong);
-                                Interlocked.Add(ref BufferOffset, read);
+#if TRACE
+                                _logger.Trace($"<\\= {Source.Key} -> {Buffer[BufferOffset..(BufferOffset + length + sizeof(ulong))].PayloadSig("C")} -> {Buffer[unpackOffset..(unpackOffset + packetLen)].PayloadSig()}");
+                                //_logger.Trace($"<-\\ {Buffer[unpackOffset..(unpackOffset + packetLen)].Print()}");
+#endif
+
+                                Interlocked.Add(ref BufferOffset, read = length + sizeof(ulong));
+                                
 
                                 if (packetLen > 0)
                                     packet = chroniton.Parser.ParseFrom(Buffer, unpackOffset, packetLen);
@@ -287,19 +285,15 @@ namespace zero.cocoon.models
                         break;
 
                     //Sanity check the data
-                    if (packet == null || packet.Data == null || packet.Data.Length == 0)
+                    if (packet == null || packet.Data.IsEmpty || packet.PublicKey.IsEmpty || packet.Signature.IsEmpty)
                     {
                         await SetStateAsync(IoJobMeta.JobState.BadData).FastPath();
                         continue;
                     }
 
                     var packetMsgRaw = packet.Data.Memory.AsArray();
-                    if (packet.Signature != null && !packet.Signature.IsEmpty)
-                    {
-                        verified = CcDesignation.Verify(packetMsgRaw, 0, packetMsgRaw.Length, packet.PublicKey.Memory.AsArray(),
-                                0, packet.Signature.Memory.AsArray(), 0);
-                    }
-
+                    var verified = CcDesignation.Verify(packetMsgRaw, 0, packetMsgRaw.Length, packet.PublicKey.Memory.AsArray(), 0, packet.Signature.Memory.AsArray(), 0);
+                    
                     var messageType = Enum.GetName(typeof(MessageTypes), packet.Type);
 #if DEBUG
                     _logger.Trace($"<\\= {messageType ?? "Unknown"} [{RemoteEndPoint.GetEndpoint()} ~> {MessageService.IoNetSocket.LocalNodeAddress}], ({CcCollective.CcId.IdString()})<<[{(verified ? "signed" : "un-signed")}]{packet.Data.Memory.PayloadSig()}: <{MessageService.Description}> id = {Id}, r = {BytesRead}");
@@ -491,29 +485,38 @@ namespace zero.cocoon.models
                 if (_currentBatch.Count == 0 || Zeroed())
                     return;
 
-                //cog the source
-                if (!await ProtocolConduit.UpstreamSource.ProduceAsync<object>(static async (source, _, _, ioJob) =>
+                //cog the producer
+                if (!await ProtocolConduit.UpstreamSource.ProduceAsync<object>(static (source, _, _, ioJob) =>
                     {
                         var @this = (CcDiscoveries)ioJob;
 
                         try
                         {
-                            if (source == null || !await ((CcProtocBatchSource<chroniton, CcDiscoveryBatch>)source).EnqueueAsync(@this._currentBatch).FastPath())
+                            var chan = ((CcProtocBatchSource<chroniton, CcDiscoveryBatch>)source).Channel;
+#if TRACE
+                            _logger.Fatal($"{nameof(ZeroBatchAsync)}: -1-> to batch; id = {ioJob.Id}, r = {chan.ReadyCount}, w = {chan.WaitCount}");
+#endif
+                            if (source == null || chan.Release(@this._currentBatch, forceAsync: true) != 1)
                             {
                                 if (source != null && !((CcProtocBatchSource<chroniton, CcDiscoveryBatch>)source).Zeroed())
                                 {
-                                    _logger.Fatal($"{nameof(ZeroBatchAsync)}: Unable to q batch, {@this.Description}");
+                                    _logger.Fatal($"{nameof(ZeroBatchAsync)}: Unable to q batch,{chan.Description} {@this.Description}");
                                 }
-                                return false;
+                                return new ValueTask<bool>(false);
                             }
-
+#if TRACE
+                            else
+                            {
+                                _logger.Fatal($"{nameof(ZeroBatchAsync)}: -2-> to batch; id = {ioJob.Id}, r = {chan.ReadyCount}, w = {chan.WaitCount}");
+                            }
+#endif
                             @this._currentBatch = @this._batchHeap.Take();
                             if (@this._currentBatch == null)
                                 throw new OutOfMemoryException($"{@this.Description}: {nameof(@this._batchHeap)}, c = {@this._batchHeap.Count}/{@this._batchHeap.Capacity}, ref = {@this._batchHeap.ReferenceCount}");
 
                             @this._currentBatch.Count = 0;
 
-                            return true;
+                            return new ValueTask<bool>(true);
                         }
                         catch (Exception) when (@this.Zeroed() ) { }
                         catch (Exception e) when (!@this.Zeroed() )
@@ -521,7 +524,7 @@ namespace zero.cocoon.models
                             _logger.Error(e, $"{@this.Description} - Forward failed!");
                         }
 
-                        return false;
+                        return new ValueTask<bool>(false);
                     }, this, null, default).FastPath())
                 {
                     if(!Zeroed())

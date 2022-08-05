@@ -54,7 +54,7 @@ namespace zero.test.core.patterns.semaphore
                 _output.WriteLine($"P -> {i} {ts.ElapsedMs()}ms");
             }
             
-            _output.WriteLine("pre-load done...");
+            _output.WriteLine("pre-load done");
 
             for (int i = 0; i < threads; i++)
             {
@@ -104,7 +104,7 @@ namespace zero.test.core.patterns.semaphore
                 _output.WriteLine($"P -> {i}, {ts.ElapsedMs()}ms");
             }
 
-            _output.WriteLine("pre-load done...");
+            _output.WriteLine("pre-load done");
 
             for (int i = 0; i < threads * spamFactor; i++)
             {
@@ -151,7 +151,7 @@ namespace zero.test.core.patterns.semaphore
                     _output.WriteLine($"P -> {i} {ts.ElapsedMs()}ms - {(double)i / t.ElapsedMsToSec():0.0} r/s");
             }
 
-            _output.WriteLine("pre-load done...");
+            _output.WriteLine("pre-load done");
             t  = Environment.TickCount;
             for (int i = 0; i < threads; i++)
             {

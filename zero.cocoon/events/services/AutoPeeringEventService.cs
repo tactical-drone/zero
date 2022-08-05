@@ -11,7 +11,6 @@ using NLog;
 using zero.core.misc;
 using zero.core.patterns.misc;
 using zero.core.patterns.queue;
-using zero.core.runtime.scheduler;
 
 
 namespace zero.cocoon.events.services
@@ -23,16 +22,18 @@ namespace zero.cocoon.events.services
             _logger = logger;
         }
 
+        public static int Port { get; set; }
+
         private const int EventBatchSize = 4096;
         private const int TotalBatches = 10;
         private readonly ILogger<AutoPeeringEventService> _logger;
         public static IoZeroQ<AutoPeerEvent>[] QueuedEvents =
         {
             //TODO tuning
-            new($"{nameof(AutoPeeringEventService)}", EventBatchSize<<6, true, new CancellationTokenSource(), 1),
+            new($"{nameof(AutoPeeringEventService)}", EventBatchSize<<6, true, concurrencyLevel: 1),
         };
 
-        private static volatile int _operational = 1;
+        private static volatile int _operational = 0;
         private static long _seq;
         private static volatile int _curIdx = 0;
         public static bool Operational => _operational > 0;
@@ -64,9 +65,8 @@ namespace zero.cocoon.events.services
                 IoZeroQ<AutoPeerEvent> curQ = QueuedEvents[0];
 
                 int c = 0;
-
                 while (curQ.Count == 0 && c++ < 20)
-                    await Task.Delay(16<<1);
+                    await Task.Delay(1000);
 
                 c = 0;
                 AutoPeerEvent cur;
@@ -141,12 +141,13 @@ namespace zero.cocoon.events.services
             proc.Start();
         }
 
-        public override Task<Response> Shell(ShellCommand request, ServerCallContext context)
+        public override async Task<Response> Shell(ShellCommand request, ServerCallContext context)
         {
             var response = new Response();
             if (!string.IsNullOrEmpty(request.Command))
             {
-                IoZeroScheduler.Zero.LoadAsyncContext(static async state =>
+                
+                await Task.Factory.StartNew(static async state =>
                 {
                     var (@this,request) = (ValueTuple<AutoPeeringEventService,ShellCommand>)state;
                     var isZero = request.Command.Contains("zero.sync");
@@ -202,14 +203,13 @@ namespace zero.cocoon.events.services
                         {
                             const int bufSize = 384;
                             char [] buffer = new char[bufSize];
-                            string readStr;
                             StringBuilder sb = new StringBuilder();
                             int read = -1;
                             var lines = 0;
                             bool hasData;
                             int peakCycle = 0;
 
-                            //LogManager.GetCurrentClassLogger().Info($"Polling...");
+                            //LogManager.GetCurrentClassLogger().Info($"Polling");
                             await proc.StandardOutput.BaseStream.FlushAsync();
                             while (!(proc.HasExited && proc.StandardOutput.EndOfStream) && 
                                    ( ((hasData = peakCycle++ % 2 == 0 ) || (hasData = proc.StandardOutput.Peek() != -1)) && 
@@ -340,7 +340,7 @@ namespace zero.cocoon.events.services
                     }
                    
 
-                }, (this,request));
+                }, (this,request), CancellationToken.None,TaskCreationOptions.HideScheduler | TaskCreationOptions.DenyChildAttach, TaskScheduler.Default);
 
                 response.Status = 0;
             }
@@ -349,7 +349,7 @@ namespace zero.cocoon.events.services
                 response.Status = 1;
                 response.Message = $"error: invalid command parameters; seq = {request.Seq}, id = {request.Id}";
             }
-            return Task.FromResult(response);
+            return response;
         }
         public static void AddEvent(AutoPeerEvent newAutoPeerEvent)
         {
@@ -368,7 +368,7 @@ namespace zero.cocoon.events.services
                     LogManager.GetCurrentClassLogger().Fatal($"Shutting down event stream! {curQ.Description}");
                     LogManager.GetCurrentClassLogger().Fatal($"Shutting down event stream! {curQ.Description}");
                     _operational = 0;
-                    _ = Task.Run(ClearAsync);
+                    _ = Task.Run(ZeroAsync);
                 }
             }
             catch
@@ -385,8 +385,8 @@ namespace zero.cocoon.events.services
             //if (newAutoPeerEvent.EventType == AutoPeerEventType.AddDrone)
             //    LogManager.GetCurrentClassLogger().Error($"[{newAutoPeerEvent.Seq}] => {newAutoPeerEvent.EventType}: <<{newAutoPeerEvent.Drone.CollectiveId}| {newAutoPeerEvent.Drone.Id} >");
 
-            //if (newAutoPeerEvent.EventType == AutoPeerEventType.AddAdjunct)
-            //    LogManager.GetCurrentClassLogger().Error($"[{newAutoPeerEvent.Seq}] => {newAutoPeerEvent.EventType}: <<{newAutoPeerEvent.Adjunct.CollectiveId}| {newAutoPeerEvent.Adjunct.Id} >");
+            if (newAutoPeerEvent.EventType == AutoPeerEventType.AddAdjunct)
+                LogManager.GetCurrentClassLogger().Error($"[{newAutoPeerEvent.Seq}] => {newAutoPeerEvent.EventType}: <<{newAutoPeerEvent.Adjunct.CollectiveId}| {newAutoPeerEvent.Adjunct.Id} >");
         }
 
 
@@ -395,13 +395,25 @@ namespace zero.cocoon.events.services
         /// </summary>
         public static async ValueTask ClearAsync()
         {
-            Interlocked.Exchange(ref _operational, 0);
             var q = QueuedEvents;
             if (QueuedEvents == null)
                 return;
-            QueuedEvents = null;
-            await q[0].ZeroManagedAsync<object>(zero:true).FastPath();
+
+            await q[0].ZeroManagedAsync<object>(zero: false).FastPath();
             //await q[1].ZeroManagedAsync<object>(zero:true).FastPath();
+        }
+
+        /// <summary>
+        /// Clears all buffers
+        /// </summary>
+        public static async ValueTask ZeroAsync()
+        {
+            Interlocked.Exchange(ref _operational, 0);
+            await ClearAsync().FastPath();
+            if (QueuedEvents[0] != null)
+                await QueuedEvents[0].ZeroManagedAsync<object>(zero: true).FastPath();
+            //if (QueuedEvents[1] != null)
+            //    await QueuedEvents[1].ZeroManagedAsync<object>(zero: false).FastPath();
         }
     }
 }

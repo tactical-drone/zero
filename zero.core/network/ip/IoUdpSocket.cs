@@ -226,8 +226,10 @@ namespace zero.core.network.ip
         /// <param name="acceptConnectionHandler">The handler once a connection is made, mostly used in UDPs case to look function like <see cref="T:zero.core.network.ip.IoTcpSocket" /></param>
         /// <param name="context">Context</param>
         /// <param name="bootFunc">Bootstrap callback invoked when a listener has started</param>
+        /// <param name="bootData"></param>
         /// <returns>True if successful, false otherwise</returns>
-        public override async ValueTask BlockOnListenAsync<T, TBoot>(IoNodeAddress listeningAddress,
+        public override async ValueTask BlockOnListenAsync<T, TBoot>(
+            IoNodeAddress listeningAddress,
             Func<IoSocket, T, ValueTask> acceptConnectionHandler,
             T context,
             Func<TBoot, ValueTask> bootFunc = null,
@@ -250,7 +252,7 @@ namespace zero.core.network.ip
             //Init connection tracking
             try
             {
-                //_logger.Trace($"Waiting for a new connection to {LocalNodeAddress}...");
+                //_logger.Trace($"Waiting for a new connection to {LocalNodeAddress}");
 
                 try
                 {
@@ -268,8 +270,6 @@ namespace zero.core.network.ip
                     IoZeroScheduler.Zero.LoadAsyncContext(static async state =>
                     {
                         var (bootstrapAsync, bContext) = (ValueTuple<Func<TBoot, ValueTask>, TBoot>)state;
-                        //TODO: tuning;
-                        await Task.Delay(2000);
                         await bootstrapAsync(bContext).FastPath();
                     },(bootFunc,bootData));
                 }
@@ -496,10 +496,6 @@ namespace zero.core.network.ip
         {
             try
             {
-                //concurrency
-                //if (!await _rcvSync.WaitAsync().FastPath())
-                //    return 0;
-
                 if (timeout == 0)
                 {
                     SocketAsyncEventArgs args = null;
@@ -518,9 +514,7 @@ namespace zero.core.network.ip
                         try
                         {
                             if (NativeSocket.ReceiveFromAsync(args) && !await receive.FastPath())
-                            {
                                 return 0;
-                            }
                         }
                         catch when(Zeroed()){}
                         catch (Exception e) when (!Zeroed())
@@ -537,7 +531,7 @@ namespace zero.core.network.ip
                         }
 
                         args.RemoteEndPoint.AsBytes(remoteEp);
-#if !DEBUG
+#if DEBUG
                         if(args.SocketError != SocketError.Success)
                             _logger.Error($"socket error = {args.SocketError}");
 #endif

@@ -48,7 +48,7 @@ namespace zero.core.network.ip
                 RemoteNodeAddress = IoNodeAddress.CreateFromEndpoint(NativeSocket.ProtocolType.ToString().ToLower(),
                     (IPEndPoint)(NativeSocket.RemoteEndPoint ?? remoteEndPoint));
 
-                Key = NativeSocket.RemoteEndPoint != null ? RemoteNodeAddress.Key : $"{NativeSocket.ProtocolType.ToString().ToLower()}{remoteEndPoint}";
+                Key = NativeSocket.RemoteEndPoint != null ? RemoteNodeAddress.Key : $"{NativeSocket.ProtocolType.ToString().ToLower()}://{remoteEndPoint}";
             }
             catch (ObjectDisposedException)
             {
@@ -78,11 +78,11 @@ namespace zero.core.network.ip
                 try
                 {
                     return
-                        $"{(Proxy ? "[proxy]" : "")}{Kind} socket({LocalNodeAddress}({NativeSocket?.LocalEndPoint}), {(Kind <= Connection.Listener ? "N/A" : RemoteNodeAddress?.ToString())}({NativeSocket?.RemoteEndPoint}), bound = {NativeSocket?.IsBound}";
+                        $"{(Proxy ? "[proxy]" : "")}{Kind} socket({LocalNodeAddress}({NativeSocket?.LocalEndPoint}), {(Kind <= Connection.Listener ? "N/A" : RemoteNodeAddress?.ToString())}({NativeSocket?.RemoteEndPoint})";
                 }
                 catch (Exception e)
                 {
-                    return $"{(Proxy ? "[proxy]" : "")}{Kind} socket({LocalNodeAddress}, ({e.Message}), {(Kind <= Connection.Listener ? "N/A" : RemoteNodeAddress?.ToString())}, bound = {NativeSocket?.IsBound}";
+                    return $"{(Proxy ? "[proxy]" : "")}{Kind} socket({LocalNodeAddress}, ({e.Message}), {(Kind <= Connection.Listener ? "N/A" : RemoteNodeAddress?.ToString())}";
                 }
             }
         }

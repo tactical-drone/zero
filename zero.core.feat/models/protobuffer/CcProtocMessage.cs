@@ -1,9 +1,13 @@
 ﻿using System;
 using System.Buffers;
+using System.CodeDom;
 using System.Diagnostics;
 using System.IO;
 using System.Net;
 using System.Net.Http.Headers;
+using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
+using System.Security.Cryptography;
 using System.Threading;
 using System.Threading.Tasks;
 using Google.Protobuf;
@@ -133,7 +137,7 @@ namespace zero.core.feat.models.protobuffer
                             return false;
                         }
                         //Async read the message from the message stream
-                        
+                        //CryptographicOperations.ZeroMemory(job.MemoryBuffer.Span);
                         var read = await ((IoNetClient<CcProtocMessage<TModel, TBatch>>)ioSocket).IoNetSocket.ReadAsync(job.MemoryBuffer, job.BufferOffset, job.BufferSize, job.RemoteEndPoint).FastPath();
                         job.GenerateJobId();
 
@@ -142,23 +146,26 @@ namespace zero.core.feat.models.protobuffer
                         {
                             if (!job.MessageService.IsOperational() || ((IoNetClient<CcProtocMessage<TModel, TBatch>>)ioSocket).IoNetSocket.IsTcpSocket)
                             {
-                                await job.MessageService.DisposeAsync(ioJob, "ZERO TCP READS!!!").FastPath();
+                                await job.MessageService.DisposeAsync(ioJob, "ZERO READS!!!").FastPath();
                                 await job.SetStateAsync(IoJobMeta.JobState.Error).FastPath();
                             }
                             else
                             {
 #if DEBUG
-                                _logger.Error($"ReadAsync [FAILED]: ZERO UDP READS!!! {ioJob.Description}, {ioZero}");
+                                _logger.Error($"ReadAsync [FAILED]: ZERO UDP READS!!! {ioJob.Description}");
 #endif
-                                await job.SetStateAsync(IoJobMeta.JobState.ProdConnReset).FastPath();
-                                //await job.SetStateAsync(IoJobMeta.JobState.ProdSkipped).FastPath();
+                                //await job.SetStateAsync(IoJobMeta.JobState.ProdConnReset).FastPath();
+                                await job.SetStateAsync(IoJobMeta.JobState.ProdSkipped).FastPath();
                             }
                             return false;
                         }
 
                         Interlocked.Add(ref job.BytesRead, read);
-                        //_logger.Trace($"{job.Description} => {job.GetType().Name}[{job.Id}]: r = {job.BytesRead}, r = {job.BytesLeftToProcess}, dc = {job.DatumCount}, ds = {job.DatumSize}, f = {job.DatumFragmentLength}, b = {job.BytesLeftToProcess}/{job.BufferSize + job.DatumProvisionLengthMax}, b = {(int)(job.BytesLeftToProcess / (double)(job.BufferSize + job.DatumProvisionLengthMax) * 100)}%");
-                            
+
+#if TRACE
+                        _logger.Trace($"<\\== {job.Buffer[job.DatumProvisionLengthMax..(job.DatumProvisionLengthMax + job.BytesRead)].PayloadSig("C")} {job.Description}; clr type = ({job.GetType().Name}), job id = {job.Id}, prev Id = {job.PreviousJob?.Id}, r = {job.BytesRead}, r = {job.BytesLeftToProcess}, dc = {job.DatumCount}, ds = {job.DatumSize}, f = {job.DatumFragmentLength}, b = {job.BytesLeftToProcess}/{job.BufferSize + job.DatumProvisionLengthMax}, b = {(int)(job.BytesLeftToProcess / (double)(job.BufferSize + job.DatumProvisionLengthMax) * 100)}%");
+#endif
+
                         await job.SetStateAsync(IoJobMeta.JobState.Produced).FastPath();
                         return true;
                     }
@@ -201,33 +208,19 @@ namespace zero.core.feat.models.protobuffer
         ///
         /// This function should not run if byte streams contain verbatim data. 
         /// </summary>
-        //[MethodImpl(MethodImplOptions.AggressiveInlining)]
+#if RELEASE
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+#endif
         protected int ZeroSync()
         {
             var read = 0;
-            var frameStart = BufferOffset + sizeof(uint);
             try
             {
-                while (read + sizeof(ulong) < BytesLeftToProcess)
-                {
-                    var sizeIdx = frameStart - sizeof(uint);
-                    byte lower;
-                    if (read == 0 && (lower = Buffer[sizeIdx]) != 0 || 
-                        Buffer[frameStart + 0] == 0 &&
-                        Buffer[frameStart + 1] == 0 && 
-                        Buffer[frameStart + 2] == 0 && 
-                        Buffer[frameStart + 3] == 0 &&
-                        (lower = Buffer[sizeIdx]) != 0)
-                    {
-                        var p = lower | Buffer[sizeIdx + 1] << 8;
-                        if (p <= BytesLeftToProcess)
-                            return p;
-                    }
-
-                    frameStart++;
+                var magic = 0UL;
+                while (read < BytesLeftToProcess && (magic = MemoryMarshal.Read<ulong>(Buffer[(BufferOffset + read)..])) > (ulong)BytesLeftToProcess)
                     read++;
-                }
-                return read = -1;
+
+                return (int)magic;
             }
             catch when(Zeroed()){}
             catch (Exception e)when (!Zeroed())
@@ -236,7 +229,7 @@ namespace zero.core.feat.models.protobuffer
             }
             finally
             {
-                if(read != -1 && read > 0)
+                if(read > 0)
                     Interlocked.Add(ref BufferOffset, read);
             }
 

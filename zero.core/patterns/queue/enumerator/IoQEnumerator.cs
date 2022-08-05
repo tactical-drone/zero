@@ -29,7 +29,6 @@ namespace zero.core.patterns.queue.enumerator
         public sealed override void Reset()
         {
             Interlocked.Exchange(ref _cur, ZeroQ.Head - 1);
-            //Interlocked.Exchange(ref _iteratorCount, ZeroQ.Count);
         }
 
         public override T Current => ZeroQ[_cur];

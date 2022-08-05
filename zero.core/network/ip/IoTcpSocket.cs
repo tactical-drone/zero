@@ -10,6 +10,7 @@ using NLog;
 using zero.core.conf;
 using zero.core.patterns.heap;
 using zero.core.patterns.semaphore.core;
+using zero.core.runtime.scheduler;
 
 namespace zero.core.network.ip
 {
@@ -102,7 +103,7 @@ namespace zero.core.network.ip
             }
 
             //Execute bootstrap
-            if(bootFunc!=null)
+            if (bootFunc != null)
                 await bootFunc(bootData).FastPath();
 
             var description = Description;
@@ -128,12 +129,13 @@ namespace zero.core.network.ip
                         {
                             taskCore.SetResult(socket.EndAccept(result));
                         }
+                        catch (ObjectDisposedException){}
                         catch (Exception e)
                         {
                             try
                             {
-                                taskCore.SetResult(null);
                                 LogManager.GetCurrentClassLogger().Trace(e, $"{nameof(NativeSocket.BeginConnect)}");
+                                taskCore.Reset();
                             }
                             catch
                             {
@@ -244,9 +246,9 @@ namespace zero.core.network.ip
 
                 if (timeout > 0)
                 {
-                    await ZeroAsync(static async state =>
+                    IoZeroScheduler.Zero.LoadAsyncContext(static async state =>
                     {
-                        var (@this, taskCore, connectAsync, timeout) = state;
+                        var (@this, taskCore, connectAsync, timeout) = (ValueTuple<IoTcpSocket, IIoManualResetValueTaskSourceCore<bool>, IAsyncResult, int>)state;
 
                         try
                         {
@@ -269,7 +271,7 @@ namespace zero.core.network.ip
                         {
                             // ignored
                         }
-                    }, (this, taskCore, connectAsync, timeout), TaskCreationOptions.DenyChildAttach).FastPath();
+                    }, (this, taskCore, connectAsync, timeout));
                 }
 
                 var connected = new ValueTask<bool>(taskCore, 0);

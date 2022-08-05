@@ -84,13 +84,14 @@ namespace zero.cocoon.autopeer
         /// Configure the UDP proxy router
         /// </summary>
         /// <typeparam name="T"></typeparam>
+        /// <typeparam name="TContext"></typeparam>
         /// <param name="acceptConnection"></param>
         /// <param name="context"></param>
         /// <param name="bootFunc"></param>
         /// <returns></returns>
-        protected override ValueTask SpawnListenerAsync<T,TContext>(Func<IoNeighbor<CcProtocMessage<chroniton, CcDiscoveryBatch>>, T,ValueTask<bool>> acceptConnection = null, T context = default, Func<TContext,ValueTask> bootFunc = null, TContext bootData = default)
+        protected override ValueTask BlockOnListenerAsync<T,TContext>(Func<IoNeighbor<CcProtocMessage<chroniton, CcDiscoveryBatch>>, T,ValueTask<bool>> acceptConnection = null, T context = default, Func<TContext,ValueTask> bootFunc = null, TContext bootData = default)
         {
-            return base.SpawnListenerAsync(static async (router, state) =>
+            return base.BlockOnListenerAsync(static async (router, state) =>
             {
                 var (@this, nanite, acceptConnection) = state;
                 @this.Router ??= (CcAdjunct)router;

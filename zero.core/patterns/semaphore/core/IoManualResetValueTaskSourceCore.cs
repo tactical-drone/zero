@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
+using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Runtime.ExceptionServices;
 using System.Runtime.InteropServices;
@@ -9,6 +10,7 @@ using System.Threading.Tasks;
 using System.Threading.Tasks.Sources;
 using NLog;
 using zero.core.misc;
+using zero.core.patterns.bushings;
 using zero.core.runtime.scheduler;
 
 namespace zero.core.patterns.semaphore.core
@@ -24,10 +26,10 @@ namespace zero.core.patterns.semaphore.core
         /// or null if a callback hasn't yet been provided and the operation hasn't yet completed.
         /// </summary>
 #pragma warning disable CS8632 // The annotation for nullable reference types should only be used in code within a '#nullable' annotations context.
-        private Action<object?>? _continuation;
+        private Action<object> _continuation;
 
         /// <summary>State to pass to <see cref="_continuation"/>.</summary>
-        private object? _continuationState;
+        private object _continuationState;
 
         /// <summary><see cref="ExecutionContext"/> to flow to the callback, or null if no flowing is required.</summary>
         private ExecutionContext _executionContext;
@@ -36,7 +38,7 @@ namespace zero.core.patterns.semaphore.core
         /// A "captured" <see cref="SynchronizationContext"/> or <see cref="TaskScheduler"/> with which to invoke the callback,
         /// or null if no special context is required.
         /// </summary>
-        private object? _capturedContext;
+        private object _capturedContext;
 
         /// <summary>The exception with which the operation failed, or null if it hasn't yet completed or completed successfully.</summary>
         private ExceptionDispatchInfo? _error;
@@ -205,7 +207,9 @@ namespace zero.core.patterns.semaphore.core
 
         /// <summary>Completes with a successful result.</summary>
         /// <param name = "result" > The result.</param>
+#if !DEBUG
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
+#endif
         //public void SetResult<TContext>(TResult result, Action<bool, TContext> async = null, TContext context = default)
         public void SetResult(TResult result)
         {
@@ -251,7 +255,9 @@ namespace zero.core.patterns.semaphore.core
 
         /// <summary>Gets the status of the operation.</summary>
         /// <param name="token">Opaque value that was provided to the <see cref="ValueTask"/>'s constructor.</param>
+#if !DEBUG
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
+#endif
         public ValueTaskSourceStatus GetStatus(short token)
         {
 #if DEBUG
@@ -265,7 +271,7 @@ namespace zero.core.patterns.semaphore.core
 
         /// <summary>Gets the result of the operation.</summary>
         /// <param name="token">Opaque value that was provided to the <see cref="ValueTask"/>'s constructor.</param>
-#if RELEASE
+#if !DEBUG
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
 #endif
         public TResult GetResult(short token)
@@ -294,7 +300,7 @@ namespace zero.core.patterns.semaphore.core
         /// <param name="state">The state object to pass to <paramref name="continuation"/> when it's invoked.</param>
         /// <param name="token">Opaque value that was provided to the <see cref="ValueTask"/>'s constructor.</param>
         /// <param name="flags">The flags describing the behavior of the continuation.</param>
-#if RELEASE
+#if !DEBUG
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
 #endif
         public void OnCompleted(Action<object> continuation, object state, short token, ValueTaskSourceOnCompletedFlags flags)
@@ -359,7 +365,7 @@ namespace zero.core.patterns.semaphore.core
                     throw new InvalidOperationException($"[{Thread.CurrentThread.ManagedThreadId}] // => had = {oldContinuation}, // => has = {continuation}, {state}, v = [{_version}], primed = {Primed}, blocking = {Blocking}, burned = {Burned}, completed = {_completed}, {GetStatus((short)Version)}");       
 #else
                 if (oldContinuation != ManualResetValueTaskSourceCoreShared.SSentinel)
-                    throw new InvalidOperationException($"[{Thread.CurrentThread.ManagedThreadId}] // => had = {oldContinuation}, // => has = {continuation}, {state}, v = [{_version}], primed = {Primed}, blocking = {Blocking}, completed = {_completed}, {GetStatus((short)Version)}");       
+                    throw new InvalidOperationException($"[{Thread.CurrentThread.ManagedThreadId}] // => had = {oldContinuation}, // => has = {continuation}, {state}, v = [{_version}], primed = {Primed}, blocking = {Blocking}, completed = {_completed}, {GetStatus((short)Version)}");
 #endif
 
 #pragma warning restore CS0252 // Possible unintended reference comparison; left hand side needs cast
@@ -373,11 +379,37 @@ namespace zero.core.patterns.semaphore.core
                 //    // ignored
                 //}
 
+                WaitCallback proxy = static delegate (object context)
+                {
+                    var (continuation, state) = (ValueTuple<Action<object>, object>)context;
+                    continuation(state);
+                };
                 switch (_capturedContext)
                 {
                     case null:
                         if (RunContinuationsAsynchronously)
+#if !ZERO_CORE
                             _ = Task.Factory.StartNew(continuation, state, CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Default);
+#else
+                            if (!ThreadPool.UnsafeQueueUserWorkItem(static delegate (object s)
+                                {
+                                    var (callback, state) = (ValueTuple<Action<object>, object>)s;
+                                    try
+                                    {
+                                        callback(state);
+                                    }
+                                    catch (Exception e)
+                                    {
+                                        LogManager.GetCurrentClassLogger().Trace(e);
+                                    }
+                                }, (continuation, state)))
+                            {
+                                _ = Task.Factory.StartNew(continuation, state, CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Default);
+                            }
+                            //ThreadPool.UnsafeQueueUserWorkItem(proxy, (continuation,state));
+                            //IoZeroScheduler.Zero.QueueCallback(continuation, state);
+                            //IoZeroScheduler.Zero.FallbackContext(continuation, state);
+#endif
                         else
                             continuation(state);
                         break;
@@ -425,14 +457,12 @@ namespace zero.core.patterns.semaphore.core
         //private void SignalCompletion() => SignalCompletion<object>();
 
         /// <summary>Signals that the operation has completed.  Invoked after the result or error has been set.</summary>
-#if RELEASE
+#if !DEBUG
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
 #endif
         //private void SignalCompletion<TContext>(Action<bool, TContext> async = null, TContext context = default)
         private void SignalCompletion()
         {
-            if (_error != null)
-                return;
 #if DEBUG
             if (_completed)
             {
@@ -483,7 +513,7 @@ namespace zero.core.patterns.semaphore.core
         /// This assumes that if <see cref="_executionContext"/> is not null we're already
         /// running within that <see cref="ExecutionContext"/>.
         /// </summary>
-#if RELEASE
+#if !DEBUG
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
 #endif
         private void InvokeContinuation()
@@ -510,6 +540,7 @@ namespace zero.core.patterns.semaphore.core
                     _continuation!(_continuationState);
                     break;
                 case TaskScheduler ts:
+                    //new Task(_continuation, _continuationState).Start(IoZeroScheduler.ZeroDefault);
                     _ = Task.Factory.StartNew(_continuation!, _continuationState, CancellationToken.None, TaskCreationOptions.DenyChildAttach, ts); 
                     break;
             }

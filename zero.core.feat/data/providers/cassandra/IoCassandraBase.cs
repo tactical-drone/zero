@@ -111,7 +111,7 @@ namespace zero.core.feat.data.providers.cassandra
                         
             _cluster = Cluster.Builder().AddContactPoint(_clusterAddress.IpEndPoint).Build();            
 
-            _logger.Trace("Connecting to Cassandra...");
+            _logger.Trace("Connecting to Cassandra");
 
             try
             {

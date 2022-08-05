@@ -709,17 +709,17 @@ namespace zero.core.patterns.semaphore.core
                     }, (callback, state));
 #pragma warning restore VSTHRD001 // Avoid legacy thread switching APIs
                     break;
-                case IoZeroScheduler zs:
-                    //async
-                    if (forceAsync | RunContinuationsAsynchronously)
-                    {
-                        IoZeroScheduler.Zero.QueueCallback(callback, state);
-                    }
-                    else //sync
-                    {
-                        callback(state);
-                    }
-                    break;
+                //case IoZeroScheduler zs:
+                //    //async
+                //    if (forceAsync | RunContinuationsAsynchronously)
+                //    {
+                //        IoZeroScheduler.Zero.QueueCallback(callback, state);
+                //    }
+                //    else //sync
+                //    {
+                //        callback(state);
+                //    }
+                //    break;
 
                 case TaskScheduler ts:
                     _ = Task.Factory.StartNew(callback, state, CancellationToken.None, TaskCreationOptions.DenyChildAttach, ts); 

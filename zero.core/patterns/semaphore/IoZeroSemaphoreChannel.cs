@@ -21,6 +21,7 @@ namespace zero.core.patterns.semaphore
         }
 
         private readonly IIoZeroSemaphoreBase<T> _semaphore;
+        public override string Description => _semaphore.Description;
 
         public override void ZeroUnmanaged()
         {
@@ -54,22 +55,21 @@ namespace zero.core.patterns.semaphore
         public IIoZeroSemaphoreBase<T> ZeroRef(ref IIoZeroSemaphoreBase<T> @ref, Func<object, T> primeResult,
             object context = null) => _semaphore.ZeroRef(ref @ref, primeResult);
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public int Release(T value, int releaseCount, bool forceAsync = false)
         {
             return _semaphore.Release(value, releaseCount);
         }
 
-        public int Release(T value, bool forceAsync = false)
-        {
-            return _semaphore.Release(value, forceAsync);
-        }
+        public int Release(T value, bool forceAsync = false) =>_semaphore.Release(value, forceAsync);
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public int Release(T[] value, bool forceAsync = false)
         {
             return _semaphore.Release(value, forceAsync);
         }
 
-        //[MethodImpl(MethodImplOptions.AggressiveInlining)]
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public ValueTask<T> WaitAsync()
         {
             return _semaphore.WaitAsync();
@@ -79,6 +79,7 @@ namespace zero.core.patterns.semaphore
         public void ZeroSem()
         {
             _semaphore.ZeroSem();
+            Dispose();
         }
 
         public int ReadyCount => _semaphore.ReadyCount;

@@ -1,4 +1,4 @@
-#define THROTTLE
+//#define THROTTLE
 #define DUPCHECK
 using System;
 using System.Collections.Generic;
@@ -31,7 +31,7 @@ namespace zero.cocoon.models
     {
         public CcWhispers(string sinkDesc, string jobDesc, IoSource<CcProtocMessage<CcWhisperMsg, CcGossipBatch>> source) : base(sinkDesc, jobDesc, source)
         {
-            _m = new CcWhisperMsg() { Data = UnsafeByteOperations.UnsafeWrap(new ReadOnlyMemory<byte>(_vb)) };
+            _m = new CcWhisperMsg { Data = UnsafeByteOperations.UnsafeWrap(new ReadOnlyMemory<byte>(_vb)) };
             _sendBuf = new IoHeap<byte[]>($"{nameof(_sendBuf)}: {Description}", 32, (_, _) => new byte[32], true);
         }
 
@@ -335,6 +335,7 @@ namespace zero.cocoon.models
         private const int MaxLogBatchSize = 10000;
         private volatile int _logBatchNext = MaxLogBatchSize;
         private volatile int _logBatchTime = Environment.TickCount;
+        private const int HeartbeatTime = 10000;
         public override async ValueTask<IoJobMeta.JobState> ConsumeAsync()
         {
             //are we in recovery mode?
@@ -556,19 +557,19 @@ namespace zero.cocoon.models
                         _logBatchTime = Environment.TickCount;
                     }
 
-                    IoZero.IoSource.ZeroTimeStamp = Math.Max(req++, IoZero.IoSource.ZeroTimeStamp);
+                    var l = CcCollective.MaxReq;
                     
-                    if (req is > uint.MaxValue or < 0 || req <= Volatile.Read(ref CcCollective.MaxReq))
+                    if (req is > uint.MaxValue or < 0 || req <= l)
                     {
-                        //Console.Write($". r = {req}, mr = {Volatile.Read(ref _maxReq)}");
+                        //Console.Write($". r = {req}, mr = {Volatile.Read(ref CcCollective.MaxReq)}");
                         continue;
                     }
 
-                    var l = CcCollective.MaxReq;
                     if (Interlocked.CompareExchange(ref CcCollective.MaxReq, req, l) != l)
                         continue;
 
                     //entropy
+                    IoZero.IoSource.ZeroTimeStamp = Environment.TickCount;
                     IoZero.IncEventCounter();
                     CcCollective.IncEventCounter();
 
@@ -577,7 +578,7 @@ namespace zero.cocoon.models
 
                     //broadcast not seen
 #if THROTTLE
-                    if (req > 2 && Source.Rate.ElapsedMs() < 500) //TODO: tuning, network tick rate of 2 per second
+                    if (req > 2 && Source.Rate.ElapsedMs() < HeartbeatTime) //TODO: tuning, network tick rate of 2 per second
                         continue;
 #endif
                     //await Task.Delay(RandomNumberGenerator.GetInt32(5, 350));
@@ -593,17 +594,18 @@ namespace zero.cocoon.models
                         var (@this, req, dupEndpoints) = (ValueTuple<CcWhispers,long, List<string>>)state;
 
 #if THROTTLE
-                        await Task.Delay(RandomNumberGenerator.GetInt32(32, 500));
+                        //await Task.Delay(RandomNumberGenerator.GetInt32(32, 500));
+                        await Task.Delay(HeartbeatTime);
 #endif
 
                         byte[] socketBuf = null;
                         try
                         {
                             socketBuf = @this._sendBuf.Take();
+                            req = @this.CcCollective.MaxReq + 1;
                             MemoryMarshal.Write(@this._vb.AsSpan(), ref req);
-
-                            var protoBuf = @this._m.ToByteArray();
-                            var compressed = (ulong)LZ4Codec.Encode(protoBuf, 0, protoBuf.Length, socketBuf,
+                            var protoBuf = @this._m.ToByteString().Memory;
+                            var compressed = (ulong)LZ4Codec.Encode(protoBuf.AsArray(), 0, protoBuf.Length, socketBuf,
                                 sizeof(ulong), socketBuf.Length - sizeof(ulong));
                             MemoryMarshal.Write(socketBuf, ref compressed);
 
@@ -611,18 +613,26 @@ namespace zero.cocoon.models
                             {
                                 foreach (var drone in @this.CcCollective.Neighbors.Values.Cast<CcDrone>().Where(d=>d.MessageService?.IsOperational()??false))
                                 {
-                                    if (@this.CcCollective == null || req + 1 < Volatile.Read(ref @this.CcCollective.MaxReq))
+                                    if (@this.CcCollective == null || req < Volatile.Read(ref @this.CcCollective.MaxReq))
                                         break;
+
                                     try
                                     {
                                         var source = drone.MessageService;
 
+                                        //update latest state
+                                        if (req < @this.CcCollective.MaxReq)
+                                        {
+                                            req = @this.CcCollective.MaxReq + 1;
+                                            MemoryMarshal.Write(@this._vb.AsSpan(), ref req);
+                                            compressed = (ulong)LZ4Codec.Encode(@this._m.Data.Memory.AsArray(), 0, @this._m.Data.Memory.Length, socketBuf,
+                                                sizeof(ulong), socketBuf.Length - sizeof(ulong));
+                                            MemoryMarshal.Write(socketBuf, ref compressed);
+                                        }
+#if DUPCHECK
                                         //Don't forward new messages to nodes from which we have received the msg in the mean time.
                                         //This trick has the added bonus of using congestion as a governor to catch more of those overlaps, 
                                         //which in turn lowers the traffic causing less congestion
-                                        if (req <= source.ZeroTimeStamp)
-                                            return;
-#if DUPCHECK
                                         if (dupEndpoints != null && dupEndpoints.Contains(source.IoNetSocket.Key))
                                             continue;
 #endif
