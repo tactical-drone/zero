@@ -209,8 +209,8 @@ namespace zero.sync
                     Console.WriteLine($"Starting auto peering...  {bag.Count}");
                     var c = 2;
                     var rateLimit = 9000;
-                    var injectionCount = 50;
-                    var rampDelay = 200;
+                    var injectionCount = bag.Count / 12;
+                    var rampDelay = 50;
                     foreach (var cocoon in bag.OrderBy(e => e.Serial))
                     {
                         await Task.Delay(rampDelay).ConfigureAwait(false);
@@ -222,7 +222,7 @@ namespace zero.sync
 
                         if (c % injectionCount == 0)
                         {
-                            await Task.Delay(rateLimit += 10).ConfigureAwait(false);
+                            await Task.Delay(rateLimit -= 500).ConfigureAwait(false);
 
                             Console.WriteLine($"Provisioned {c}/{total}");
                             Console.WriteLine($"Provisioned {c}/{total}");
@@ -230,8 +230,7 @@ namespace zero.sync
                             Console.WriteLine($"Provisioned {c}/{total}");
                             Console.WriteLine($"Provisioned {c}/{total}");
                             Console.WriteLine($"Provisioned {c}/{total}");
-                            if (injectionCount > 20)
-                         
+                            if (injectionCount > 30)
                                 injectionCount--;
                         }
 

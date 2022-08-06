@@ -117,7 +117,7 @@ namespace zero.core.patterns.heap
         /// <summary>
         /// If we are in zero state
         /// </summary>
-        public bool Zeroed => _zeroed > 0;
+        public bool Zeroed => _zeroed > 0 || _ioHeapBuf.Zeroed;
 
         /// <summary>
         /// The number of outstanding references
@@ -282,7 +282,7 @@ namespace zero.core.patterns.heap
             {
                 if (!zero)
                 {
-                    if (_ioHeapBuf.TryEnqueue(item) < 0 && !_ioHeapBuf.Zeroed)
+                    if (_ioHeapBuf.TryEnqueue(item) < 0 && !Zeroed)
                         _logger.Warn($"{nameof(Return)}: Unable to return {item} to the heap, {Description}");
                 }
                 else

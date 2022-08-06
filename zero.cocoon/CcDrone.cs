@@ -310,7 +310,6 @@ namespace zero.cocoon
                     socketBuf = _sendBuf.Take();
                     Write(_vb.AsSpan(), ref v);
 
-                    //var protoBuf = _m.ToByteArray();
                     var protoBuf = _m.ToByteString().Memory;
                     var compressed = (ulong)LZ4Codec.Encode(protoBuf.AsArray(), 0, protoBuf.Length, socketBuf, sizeof(ulong), socketBuf.Length - sizeof(ulong));
                     Write(socketBuf, ref compressed);

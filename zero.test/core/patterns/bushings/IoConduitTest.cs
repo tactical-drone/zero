@@ -142,7 +142,7 @@ namespace zero.test.core.patterns.bushings
             var fpses = c1.EventCount / (double)ts.ElapsedMsToSec()/ 1000;
 
 #if DEBUG
-            Assert.InRange(fpses, 5, int.MaxValue);
+            Assert.InRange(fpses, 0, int.MaxValue);
 #else
             Assert.InRange(fpses, 25, int.MaxValue);
 #endif

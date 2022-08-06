@@ -90,10 +90,6 @@ namespace zero.core.patterns.queue
 
         #region packed
         private long _head;
-        private long _tail;
-        private int _zeroed;
-        private int _clearing;
-        private int _count;
         private long _hwm;
 
         private readonly string _description;
@@ -116,18 +112,22 @@ namespace zero.core.patterns.queue
         private readonly AsyncDelegate[] _fanSyncs;
         private readonly AsyncDelegate[] _balanceSyncs;
         private readonly AsyncDelegate[] _zeroSyncs;
+        private long _tail;
         private delegate IAsyncEnumerable<T> AsyncDelegate();
-        
+        private readonly bool _autoScale;
+        private readonly bool _blockingCollection;
+
         private readonly int _capacity;
+        private int _zeroed;
+        private int _clearing;
         private int _virility;
         private int _blockingConsumers;
         private int _sharingConsumers;
         private int _pumpingConsumers;
         private int _primedForScale;
         private int _timeSinceLastScale = Environment.TickCount;
-        private readonly bool _autoScale;
-        private readonly bool _blockingCollection;
-
+        private int _count;
+        
         #endregion
 
         private const int _zero = 0;
@@ -210,21 +210,22 @@ namespace zero.core.patterns.queue
         /// <returns>True if scaling happened, false on race or otherwise.</returns>
         private bool Scale(bool force = false)
         {
-            if (!IsAutoScaling)
+            var spinWait = new SpinWait();
+            retry:
+
+            if (!IsAutoScaling || Zeroed)
                 return false;
 
             lock (_syncRoot)
             {
-                var cap2 = Capacity >> 1;
-
-                if (_primedForScale == 0)
-                {
-                    if (Count >= cap2)
-                        Interlocked.CompareExchange(ref _primedForScale, 1, 0);
-                }
-
+                //prime for a scale
+                if (_primedForScale == 0 && Count >= Capacity >> 1)
+                    Interlocked.Exchange(ref _primedForScale, 1);
+                
+                //attempt to scale
+                var threshold = Capacity >> 1;
                 //Only allow scaling to happen only when the Q dips under 50% capacity & some other factors, otherwise the indexes will corrupt.
-                if (_primedForScale == 1 && Head <= cap2 && Tail <= cap2 && (Tail > Head || Tail == Head && Count < cap2) && Interlocked.CompareExchange(ref _primedForScale, 2, 1) == 1 || force)
+                if (_primedForScale == 1 && Head % Capacity <= threshold && Tail % Capacity <= threshold && (Tail % Capacity > Head % Capacity || Tail % Capacity == Head % Capacity && Count < threshold) && Interlocked.CompareExchange(ref _primedForScale, 2, 1) == 1 || force)
                 {
                     var hwm = 1 << (_virility + 1);
                     _storage[_virility + 1] = new T[hwm];
@@ -513,10 +514,11 @@ namespace zero.core.patterns.queue
                 return -1;
 
             //auto scale
-            if (_autoScale && (_primedForScale == 1 || Count >= Capacity >> 1))
+            if (_autoScale && (_primedForScale > 0 || Count >= Capacity >> 1))
             {
                 if (!Scale() && Count >= Capacity)
                 {
+                    //continue to drain the queues on dropped inserts...
                     if (_blockingCollection && _sharingConsumers > 0)
                     {
                         try
