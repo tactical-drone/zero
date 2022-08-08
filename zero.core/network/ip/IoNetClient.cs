@@ -33,7 +33,7 @@ namespace zero.core.network.ip
     /// <see cref="IIoZero.BlockOnReplicateAsync"/> -> <see cref="IoZero{TJob}.ConsumeAsync{T}"/> -> <see cref="IoSink{TJob}.ConsumeAsync"/>
     ///
     /// A Networked Node producer/consumer implementation's base blueprint:
-    /// <see cref="IoNode{TJob}.ConnectAsync"/> -> <see cref="IoZero{TJob}.ConsumeAsync{T}"/> -> <see cref="IoMessage{TJob}.ConsumeAsync"/>
+    /// <see cref="IoNode{TJob}.ConnectAndBootAsync{T,TBoot}"/> -> <see cref="IoZero{TJob}.ConsumeAsync{T}"/> -> <see cref="IoMessage{TJob}.ConsumeAsync"/>
     /// 
     /// </summary>
     public abstract class IoNetClient<TJob> : IoSource<TJob>
@@ -52,7 +52,7 @@ namespace zero.core.network.ip
         {
             IoNetSocket = netSocket;
             _logger = LogManager.GetCurrentClassLogger();
-            IsOriginating = false;
+            Direction = IIoSource.Heading.Ingress;
         }
 
         /// <summary>
@@ -64,7 +64,7 @@ namespace zero.core.network.ip
         protected IoNetClient(string description, int prefetchSize, int concurrencyLevel) : base(description, false, prefetchSize, concurrencyLevel)
         {
             _logger = LogManager.GetCurrentClassLogger();
-            IsOriginating = true;
+            Direction = IIoSource.Heading.Egress;
         }
 
         /// <summary>
@@ -94,7 +94,6 @@ namespace zero.core.network.ip
         /// </summary>
         public override string Description => IoNetSocket?.Description??"N/A";
 
-        public new bool IsOriginating { get; }
         /// <summary>
         /// Abstracted dotnet udp and tcp socket
         /// </summary>

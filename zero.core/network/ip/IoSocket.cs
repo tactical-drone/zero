@@ -82,7 +82,7 @@ namespace zero.core.network.ip
                 }
                 catch (Exception e)
                 {
-                    return $"{(Proxy ? "[proxy]" : "")}{Kind} socket({LocalNodeAddress}, ({e.Message}), {(Kind <= Connection.Listener ? "N/A" : RemoteNodeAddress?.ToString())}";
+                    return $"{(Proxy ? "[proxy]" : "")}{Kind} socket({LocalNodeAddress}, {(Kind <= Connection.Listener ? "N/A" : RemoteNodeAddress?.ToString())}";
                 }
             }
         }

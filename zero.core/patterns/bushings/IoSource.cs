@@ -97,6 +97,11 @@ namespace zero.core.patterns.bushings
         /// </summary>
         /// <returns>The unique key of this instance</returns>
         public abstract string Key { get; }
+        
+        /// <summary>
+        /// If the connection is Ingress or Egress or both
+        /// </summary>
+        public IIoSource.Heading Direction { get; protected internal set; }
 
         /// <summary>
         /// Sets an upstream source
@@ -172,14 +177,6 @@ namespace zero.core.patterns.bushings
         {
             return !Zeroed();
         }
-
-        /// <summary>
-        /// Gets a value indicating whether this source is originating or terminating
-        /// </summary>
-        /// <value>
-        ///   <c>true</c> if this instance is Egress; Ingress otherwise, <c>false</c>.
-        /// </value>
-        public bool IsOriginating { get; }= false;
 
         /// <summary>
         /// Initial productions, typically larger than 0 for sources

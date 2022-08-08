@@ -13,6 +13,7 @@ using zero.core.core;
 using zero.core.feat.models.protobuffer;
 using zero.core.misc;
 using zero.core.network.ip;
+using zero.core.patterns.bushings.contracts;
 using zero.core.patterns.heap;
 using zero.core.patterns.misc;
 using Zero.Models.Protobuf;
@@ -142,9 +143,7 @@ namespace zero.cocoon
                 if (_key != null)
                     return _key;
 
-                if (Adjunct == null) return string.Empty;
-
-                Volatile.Write(ref _key, Adjunct?.Key);
+                Volatile.Write(ref _key, Source?.Key??"zero-key");
                 return _key;
             }
         }
@@ -230,7 +229,7 @@ namespace zero.cocoon
         /// Attaches a neighbor to this peer
         /// </summary>
         /// <param name="direction"></param>
-        public bool AttachViaAdjunct(CcAdjunct.Heading direction)
+        public bool AttachViaAdjunct(IIoSource.Heading direction)
         {
             try
             {

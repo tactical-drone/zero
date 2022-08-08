@@ -64,7 +64,7 @@ namespace zero.sync
         static void Main(string[] args)
         {
 
-            var total = 2;
+            var total = 0;
             int localPort = - 1;
             int [] remotePort = new int[10];
 
@@ -180,21 +180,23 @@ namespace zero.sync
                 }
 #pragma warning restore CS0162
 
-                for (var i = 2; i < total; i++)
+                portOffset += 2;
+                for (var i = 0; i < total; i++)
                 {
                     var range = 20;
                     var o1 = Random.Shared.Next(portOffset + Math.Max(0, i - range), portOffset + i);
                     var o2 = Random.Shared.Next(portOffset + Math.Max(0, i - range), portOffset + i);
                     var o3 = Random.Shared.Next(portOffset + Math.Max(0, i - range), portOffset + i);
                     var o4 = Random.Shared.Next(portOffset + Math.Max(0, i - range), portOffset + i);
-                    string extra = i == 2 ? $"udp://127.0.0.1:{1234 + i - 1}" : $"udp://127.0.0.1:{1234 + portOffset + i - 2}";
+                    string extra = i == 0 ? $"udp://127.0.0.1:{1235}" : $"udp://127.0.0.1:{1234 + portOffset + i - 1}";
 
                     concurrentBag.Add(CoCoon(CcDesignation.Generate(), $"tcp://127.0.0.1:{1234 + portOffset + i}",
                         $"udp://127.0.0.1:{1234 + portOffset + i}", $"tcp://127.0.0.1:{1334 + portOffset + i}",
                         $"udp://127.0.0.1:{1234 + portOffset + i}",
                         new[]
                         {
-                            $"udp://127.0.0.1:{1234 + portOffset + i - 1}", extra
+                            //$"udp://127.0.0.1:{1234 + portOffset + i - 1}",
+                            extra, 
                             //$"udp://127.0.0.1:{1234 + o1}", $"udp://127.0.0.1:{1234 + o2}",
                             //$"udp://127.0.0.1:{1234 + o3}", $"udp://127.0.0.1:{1234 + o4}"
                         }.ToList()));
@@ -207,29 +209,31 @@ namespace zero.sync
                 _ = Task.Factory.StartNew(async () =>
                 {
                     Console.WriteLine($"Starting auto peering...  {bag.Count}");
-                    var c = 2;
+                    var c = 0;
                     var rateLimit = 9000;
-                    var injectionCount = bag.Count / 12;
-                    var rampDelay = 50;
+                    var injectionCount = Math.Max(1,bag.Count / 20);
+                    var rampDelay = 200;
                     foreach (var cocoon in bag.OrderBy(e => e.Serial))
                     {
                         await Task.Delay(rampDelay).ConfigureAwait(false);
-                        if (rampDelay - 1 > 0)
+                        if (rampDelay - 1 > 100)
                             rampDelay -= 1;
 
+                        Console.WriteLine($"addeding {c}/{bag.Count}");
                         StartCocoon(cocoon);
-                        Console.WriteLine($"added {c++}/{bag.Count + 2}");
+                        Console.WriteLine($"added {++c}/{bag.Count}");
 
                         if (c % injectionCount == 0)
                         {
+                            Console.WriteLine($"Provisioned {c}/{total}");
+                            Console.WriteLine($"Provisioned {c}/{total}");
+                            Console.WriteLine($"Provisioned {c}/{total}");
+                            Console.WriteLine($"Provisioned {c}/{total}");
+                            Console.WriteLine($"Provisioned {c}/{total}");
+                            Console.WriteLine($"Provisioned {c}/{total}");
+
                             await Task.Delay(rateLimit -= 500).ConfigureAwait(false);
 
-                            Console.WriteLine($"Provisioned {c}/{total}");
-                            Console.WriteLine($"Provisioned {c}/{total}");
-                            Console.WriteLine($"Provisioned {c}/{total}");
-                            Console.WriteLine($"Provisioned {c}/{total}");
-                            Console.WriteLine($"Provisioned {c}/{total}");
-                            Console.WriteLine($"Provisioned {c}/{total}");
                             if (injectionCount > 30)
                                 injectionCount--;
                         }

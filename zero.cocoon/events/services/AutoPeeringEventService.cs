@@ -56,7 +56,7 @@ namespace zero.cocoon.events.services
             
             var response = new EventResponse();
 
-            if (_operational == 0)
+            if (!Operational)
                 return response;
 
             try
@@ -144,7 +144,7 @@ namespace zero.cocoon.events.services
         public override async Task<Response> Shell(ShellCommand request, ServerCallContext context)
         {
             var response = new Response();
-            if (!string.IsNullOrEmpty(request.Command))
+            if (Operational && !string.IsNullOrEmpty(request.Command))
             {
                 
                 await Task.Factory.StartNew(static async state =>
@@ -356,7 +356,7 @@ namespace zero.cocoon.events.services
             try
             {
                 var curQ = QueuedEvents[_curIdx % 2];
-                if (_operational > 0 && curQ.Count < curQ.Capacity)
+                if (Operational && curQ.Count < curQ.Capacity)
                 {
                     newAutoPeerEvent.Timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
                     newAutoPeerEvent.Seq = Interlocked.Increment(ref _seq);
@@ -376,14 +376,20 @@ namespace zero.cocoon.events.services
                 // ignored
             }
 
-            //if(newAutoPeerEvent.EventType == AutoPeerEventType.RemoveDrone)
-            //    LogManager.GetCurrentClassLogger().Error($"[{newAutoPeerEvent.Seq}] => {newAutoPeerEvent.EventType}: <<{newAutoPeerEvent.Drone.CollectiveId}| {newAutoPeerEvent.Drone.Id} >");
+            if (newAutoPeerEvent.EventType == AutoPeerEventType.AddCollective)
+                LogManager.GetCurrentClassLogger().Error($"[{newAutoPeerEvent.Seq}] => {newAutoPeerEvent.EventType}: <<{newAutoPeerEvent.Collective.Id}| >");
 
-            //if (newAutoPeerEvent.EventType == AutoPeerEventType.RemoveAdjunct)
-            //    LogManager.GetCurrentClassLogger().Error($"[{newAutoPeerEvent.Seq}] => {newAutoPeerEvent.EventType}: <<{newAutoPeerEvent.Adjunct.CollectiveId}| {newAutoPeerEvent.Adjunct.Id} >");
+            if (newAutoPeerEvent.EventType == AutoPeerEventType.RemoveCollective)
+                LogManager.GetCurrentClassLogger().Error($"[{newAutoPeerEvent.Seq}] => {newAutoPeerEvent.EventType}: <<{newAutoPeerEvent.Collective.Id}| >");
 
-            //if (newAutoPeerEvent.EventType == AutoPeerEventType.AddDrone)
-            //    LogManager.GetCurrentClassLogger().Error($"[{newAutoPeerEvent.Seq}] => {newAutoPeerEvent.EventType}: <<{newAutoPeerEvent.Drone.CollectiveId}| {newAutoPeerEvent.Drone.Id} >");
+            if (newAutoPeerEvent.EventType == AutoPeerEventType.RemoveDrone)
+                LogManager.GetCurrentClassLogger().Error($"[{newAutoPeerEvent.Seq}] => {newAutoPeerEvent.EventType}: <<{newAutoPeerEvent.Drone.CollectiveId}| {newAutoPeerEvent.Drone.Id} >");
+
+            if (newAutoPeerEvent.EventType == AutoPeerEventType.RemoveAdjunct)
+                LogManager.GetCurrentClassLogger().Error($"[{newAutoPeerEvent.Seq}] => {newAutoPeerEvent.EventType}: <<{newAutoPeerEvent.Adjunct.CollectiveId}| {newAutoPeerEvent.Adjunct.Id} >");
+
+            if (newAutoPeerEvent.EventType == AutoPeerEventType.AddDrone)
+                LogManager.GetCurrentClassLogger().Error($"[{newAutoPeerEvent.Seq}] => {newAutoPeerEvent.EventType}: <<{newAutoPeerEvent.Drone.CollectiveId}| {newAutoPeerEvent.Drone.Id} >");
 
             if (newAutoPeerEvent.EventType == AutoPeerEventType.AddAdjunct)
                 LogManager.GetCurrentClassLogger().Error($"[{newAutoPeerEvent.Seq}] => {newAutoPeerEvent.EventType}: <<{newAutoPeerEvent.Adjunct.CollectiveId}| {newAutoPeerEvent.Adjunct.Id} >");

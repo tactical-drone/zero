@@ -276,7 +276,7 @@ namespace zero.cocoon.autopeer
         /// <summary>
         /// Whether the drone is nominal
         /// </summary>
-        public bool IsDroneConnected => IsDroneAttached && State == AdjunctState.Connected && Direction != Heading.Undefined;
+        public bool IsDroneConnected => IsDroneAttached && State == AdjunctState.Connected && Direction != IIoSource.Heading.Undefined;
         
         /// <summary>
         /// If the adjunct is working 
@@ -377,38 +377,27 @@ namespace zero.cocoon.autopeer
         /// Who contacted who?
         /// </summary>
         //public Kind Direction { get; protected set; } = Kind.Undefined;
-        public Heading Direction => (Heading) _direction;
+        public IIoSource.Heading Direction => (IIoSource.Heading) _direction;
 
         /// <summary>
         /// inbound
         /// </summary>
-        public bool IsIngress =>  IsDroneConnected && Direction == Heading.Ingress;
+        public bool IsIngress =>  IsDroneConnected && Direction == IIoSource.Heading.Ingress;
 
         /// <summary>
         /// outbound
         /// </summary>
-        public bool IsEgress => IsDroneConnected && Direction == Heading.Egress;
-
-        /// <summary>
-        /// Who contacted who?
-        /// </summary>
-        public enum Heading
-        {
-            Undefined = 0,
-            Ingress = 1,
-            Egress = 2,
-            Both = 3
-        }
+        public bool IsEgress => IsDroneConnected && Direction == IIoSource.Heading.Egress;
 
         /// <summary>
         /// The node that this adjunct belongs to
         /// </summary>
-        public CcCollective CcCollective => Hub?.CcCollective;
+        public CcCollective CcCollective => Hub.CcCollective;
 
         /// <summary>
         /// The router
         /// </summary>
-        public CcAdjunct Router => Hub?.Router;
+        public CcAdjunct Router => Hub.Router;
 
         /// <summary>
         /// Receives protocol messages from here
@@ -653,6 +642,8 @@ namespace zero.cocoon.autopeer
                     // ignored
                 }
 
+                await DetachDroneAsync().FastPath();
+
                 //Emit event
                 try
                 {
@@ -663,7 +654,7 @@ namespace zero.cocoon.autopeer
                             Adjunct = new Adjunct
                             {
                                 Id = Designation!.IdString(),
-                                CollectiveId = Router?.Designation?.IdString()
+                                CollectiveId = CcCollective.CcId.IdString()
                             }
                         });
                 }
@@ -684,8 +675,6 @@ namespace zero.cocoon.autopeer
                 if (!CcCollective.ZeroDrone && Assimilated && WasAttached && UpTime.ElapsedMs() > parm_min_uptime_ms && EventCount > 10)
                     _logger.Info($"- {(Assimilated ? "apex" : "sub")} {Direction} {Description}; {from}: r = {ZeroReason}");
 
-                await DetachDroneAsync().FastPath();
-                
                 //swarm 
                 IoZeroScheduler.Zero.LoadAsyncContext(static async state =>
                 {
@@ -838,14 +827,11 @@ namespace zero.cocoon.autopeer
                     await ZeroAsync(static async @this =>
                     {
                         await @this.ProcessDiscoveriesAsync().FastPath();
-                    }, this, TaskCreationOptions.DenyChildAttach).FastPath();
+                    }, this).FastPath();
 
-                    await ZeroAsync(static async @this =>
-                    {
-                        await RoboAsync(@this).FastPath();
-                    }, this, TaskCreationOptions.DenyChildAttach).FastPath();
                     //Watchdog
-
+                    await ZeroAsync(RoboAsync, this).FastPath();
+                    
                     //base
                     await base.BlockOnReplicateAsync().FastPath();
                 }
@@ -867,8 +853,6 @@ namespace zero.cocoon.autopeer
                             }
                         });
                     }
-
-                    //await AsyncTasks.Token.BlockOnNotCanceledAsync();
                 }
             }
             catch when(Zeroed()){}
@@ -1919,6 +1903,7 @@ namespace zero.cocoon.autopeer
 
             try
             {
+                
                 var newAdjunct = (CcAdjunct)Hub.MallocNeighbor(Hub, MessageService, Tuple.Create(designation, newRemoteEp, verified));
                 if (!Zeroed() && await Hub.ZeroAtomicAsync(static async (s, state, ___) =>
                     {
@@ -1993,6 +1978,7 @@ namespace zero.cocoon.autopeer
 #if DEBUG
                     newAdjunct.DebugAddress = DebugAddress;
 #endif
+                    await newAdjunct.BlockOnReplicateAsync();
                     if (!verified)
                     {
                         //await Task.Delay(parm_max_network_latency_ms / 2 + RandomNumberGenerator.GetInt32(0, parm_max_network_latency_ms), AsyncTasks.Token);
@@ -2020,13 +2006,7 @@ namespace zero.cocoon.autopeer
                             _logger.Warn($"Verified with queen `{newRemoteEp}' ~> {MessageService.IoNetSocket.LocalAddress} ");
 #endif
                         //Start processing on adjunct
-                        await ZeroAsync(static async state =>
-                        {
-                            var (@this, newAdjunct) = state;
-                            await newAdjunct.BlockOnReplicateAsync();
-                        }, (this, newAdjunct), TaskCreationOptions.DenyChildAttach).FastPath();
-
-                        await newAdjunct.SeduceAsync("SYN-ACK", Heading.Ingress, NatAddress, force:true).FastPath();
+                        await newAdjunct.SeduceAsync("SYN-ACK", IIoSource.Heading.Ingress, NatAddress, force:true).FastPath();
                     }
 
                     return true;
@@ -2512,7 +2492,7 @@ namespace zero.cocoon.autopeer
 #endif
 
                 if (!CcCollective.ZeroDrone)
-                    await SeduceAsync("SYN-POK", Heading.Both).FastPath();
+                    await SeduceAsync("SYN-POK", IIoSource.Heading.Both).FastPath();
 
                 //eradicate zombie drones
                 if (((DroneStatus)response.Status).HasFlag(DroneStatus.Drone) && !IsDroneAttached && UpTime.ElapsedMs() > parm_min_uptime_ms)
@@ -2529,7 +2509,7 @@ namespace zero.cocoon.autopeer
         /// Seduces another adjunct
         /// </summary>
         /// <returns>A valuable task</returns>s
-        public async ValueTask<bool> SeduceAsync(string desc, Heading heading, IoNodeAddress dmzEndpoint = null, bool force = false)
+        public async ValueTask<bool> SeduceAsync(string desc, IIoSource.Heading heading, IoNodeAddress dmzEndpoint = null, bool force = false)
         {
             if (!force && Volatile.Read(ref _stealthy).ElapsedMs() < parm_max_network_latency_ms || Zeroed() || IsDroneAttached ||
                 _currState.Value > AdjunctState.Verified /*don't change this from Connecting*/)
@@ -2539,8 +2519,8 @@ namespace zero.cocoon.autopeer
             
             try
             {
-                if (IsProxy && Probed && heading > Heading.Ingress &&
-                    !CcCollective.ZeroDrone && Direction == Heading.Undefined &&
+                if (IsProxy && Probed && heading > IIoSource.Heading.Ingress &&
+                    !CcCollective.ZeroDrone && Direction == IIoSource.Heading.Undefined &&
                     CcCollective.EgressCount < CcCollective.parm_max_outbound &&
                     FuseCount < parm_zombie_max_connection_attempts)
                 {
@@ -2554,7 +2534,7 @@ namespace zero.cocoon.autopeer
                             Interlocked.Exchange(ref _stealthy, Environment.TickCount);
                         return true;
                     }
-                } else if (!CcCollective.ZeroDrone && ((int)heading & (int)Heading.Ingress) > 0 && CcCollective.IngressCount < CcCollective.parm_max_inbound)
+                } else if (!CcCollective.ZeroDrone && ((int)heading & (int)IIoSource.Heading.Ingress) > 0 && CcCollective.IngressCount < CcCollective.parm_max_inbound)
                 {
                     var proxy = dmzEndpoint == null ? this : Router;
                     //delta trigger
@@ -2937,7 +2917,7 @@ namespace zero.cocoon.autopeer
         /// </summary>
         /// <param name="ccDrone">The drone</param>
         /// <param name="direction"></param>
-        public bool AttachDrone(CcDrone ccDrone, Heading direction)
+        public bool AttachDrone(CcDrone ccDrone, IIoSource.Heading direction)
         {
             try
             {
@@ -2946,7 +2926,7 @@ namespace zero.cocoon.autopeer
                     return false;
                 
                 //Race for direction
-                if (Interlocked.CompareExchange(ref _direction, (int) direction, (int) Heading.Undefined) != (int) Heading.Undefined)
+                if (Interlocked.CompareExchange(ref _direction, (int) direction, (int) IIoSource.Heading.Undefined) != (int) IIoSource.Heading.Undefined)
                 {
                     _logger.Warn($"oz: race for {direction} lost {ccDrone.Description}, current = {Direction}, {_drone?.Description}");
                     return false;
@@ -2962,7 +2942,7 @@ namespace zero.cocoon.autopeer
                 _logger.Trace($"{nameof(AttachDrone)}: [WON] {_drone?.Description}");
 
 
-                if (Direction == Heading.Ingress)
+                if (Direction == IIoSource.Heading.Ingress)
                     CcCollective.IngressCount.ZeroNext(CcCollective.IngressCount + 1);
                 else
                     CcCollective.EgressCount.ZeroNext(CcCollective.EgressCount + 1);
@@ -3015,7 +2995,7 @@ namespace zero.cocoon.autopeer
                 Interlocked.Exchange(ref _fuseRequestCount, 0);
                 Interlocked.Exchange(ref _scanCount, 0);
 
-                if (!Zeroed() && Node != null && Direction == Heading.Ingress &&
+                if (!Zeroed() && Node != null && Direction == IIoSource.Heading.Ingress &&
                     CcCollective.IngressCount < CcCollective.parm_max_inbound)
                 {
                     //back off for a while... Try to re-establish a link 
@@ -3035,13 +3015,13 @@ namespace zero.cocoon.autopeer
 
                 try
                 {
-                    if (!CcCollective.ZeroDrone && AutoPeeringEventService.Operational && Router != null)
+                    if (!CcCollective.ZeroDrone && AutoPeeringEventService.Operational && CcCollective != null)
                         AutoPeeringEventService.AddEvent(new AutoPeerEvent
                         {
                             EventType = AutoPeerEventType.RemoveDrone,
                             Drone = new Drone
                             {
-                                CollectiveId = Router.Designation.IdString(),
+                                CollectiveId = CcCollective.CcId.IdString(),
                                 Id = Designation.IdString()
                             }
                         });

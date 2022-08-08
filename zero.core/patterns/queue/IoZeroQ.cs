@@ -48,12 +48,12 @@ namespace zero.core.patterns.queue
             if (autoScale)
             {
                 //TODO: tuning
+                _capacity = 1;
                 capacity = Math.Max(4, capacity);
-                _hwm = _capacity = 1;
                 _storage = new T[32][];
-                _storage[0] = _fastStorage = new T[_capacity];
+                _storage[0] = _fastStorage = new T[1];
                 _bloom = new int[32][];
-                _bloom[0] = _fastBloom = new int[_capacity];
+                _bloom[0] = _fastBloom = new int[1];
 
                 var v = Math.Log10(capacity - 1)/Math.Log10(2);
                 var scaled = false;
@@ -62,12 +62,13 @@ namespace zero.core.patterns.queue
                     scaled = Scale(true);
                 }
 
-                if (!scaled)
+                if (!scaled) 
                     Scale(true);
             }
             else
             {
-                _hwm = _capacity = capacity;
+                //_hwm = _capacity = capacity;
+                _capacity = capacity;
                 _storage = new T[1][];
                 _storage[0] = _fastStorage = new T[_capacity];
                 _bloom = new int[1][];
@@ -90,7 +91,7 @@ namespace zero.core.patterns.queue
 
         #region packed
         private long _head;
-        private long _hwm;
+        //private long _hwm;
 
         private readonly string _description;
 
@@ -99,7 +100,7 @@ namespace zero.core.patterns.queue
         private readonly int[][] _bloom;
         private readonly int[]   _fastBloom;
 
-        private readonly object _syncRoot = new object();
+        private readonly object _syncRoot = new();
 
         //private readonly ReaderWriterLockSlim _rwLock = new(LockRecursionPolicy.NoRecursion);
         //private const int _readTo = 100;
@@ -117,7 +118,7 @@ namespace zero.core.patterns.queue
         private readonly bool _autoScale;
         private readonly bool _blockingCollection;
 
-        private readonly int _capacity;
+        private int _capacity;
         private int _zeroed;
         private int _clearing;
         private int _virility;
@@ -149,7 +150,7 @@ namespace zero.core.patterns.queue
         /// <summary>
         /// Description
         /// </summary>
-        public string Description => $"{nameof(IoZeroQ<T>)}: z = {_zeroed > 0}, {nameof(Count)} = {_count}/{Capacity}, s = {IsAutoScaling}({_timeSinceLastScale.ElapsedMs()/1000} sec), h = {Head}/{Tail} (d:{Tail - Head}), desc = {_description}";
+        public string Description => $"{nameof(IoZeroQ<T>)}: z = {_zeroed > 0}, {nameof(Count)} = {_count}/{Capacity}, s = {IsAutoScaling}({_timeSinceLastScale.ElapsedMs()/1000} sec), h = {Head}/{Tail}({Head%Capacity}/{Tail % Capacity}) (max: {Capacity}) (d:{Tail - Head}), desc = {_description}";
 
         /// <summary>
         /// Current number of items in the bag
@@ -160,7 +161,7 @@ namespace zero.core.patterns.queue
         /// <summary>
         /// Capacity
         /// </summary>
-        public long Capacity => IsAutoScaling ? unchecked(_capacity * ((1 << (_virility + 1)) - 1)) : _capacity;
+        public long Capacity => _capacity;
 
         /// <summary>
         /// Whether we are auto scaling
@@ -210,27 +211,28 @@ namespace zero.core.patterns.queue
         /// <returns>True if scaling happened, false on race or otherwise.</returns>
         private bool Scale(bool force = false)
         {
-            var spinWait = new SpinWait();
-            retry:
-
             if (!IsAutoScaling || Zeroed)
                 return false;
 
             lock (_syncRoot)
             {
-                //prime for a scale
-                if (_primedForScale == 0 && Count >= Capacity >> 1)
-                    Interlocked.Exchange(ref _primedForScale, 1);
-                
-                //attempt to scale
                 var threshold = Capacity >> 1;
+
+                //prime for a scale
+                if (_primedForScale == 0 && Count >= threshold)
+                    Interlocked.Exchange(ref _primedForScale, 1);
+
                 //Only allow scaling to happen only when the Q dips under 50% capacity & some other factors, otherwise the indexes will corrupt.
-                if (_primedForScale == 1 && Head % Capacity <= threshold && Tail % Capacity <= threshold && (Tail % Capacity > Head % Capacity || Tail % Capacity == Head % Capacity && Count < threshold) && Interlocked.CompareExchange(ref _primedForScale, 2, 1) == 1 || force)
+                if (_primedForScale == 1 &&
+                    _storage[_virility][0] == null && _storage[_virility][_storage[_virility].Length - 1] == null
+                    && Interlocked.CompareExchange(ref _primedForScale, 2, 1) == 1 || force)
                 {
                     var hwm = 1 << (_virility + 1);
                     _storage[_virility + 1] = new T[hwm];
                     _bloom[_virility + 1] = new int[hwm];
-                    Interlocked.Add(ref _hwm, hwm);
+                    _tail %= _capacity;
+                    _head %= _capacity;
+                    Interlocked.Add(ref _capacity, hwm);
                     Interlocked.Increment(ref _virility);
                     Interlocked.Exchange(ref _primedForScale, 0);
                     Interlocked.Exchange(ref _timeSinceLastScale, Environment.TickCount);

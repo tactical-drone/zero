@@ -44,7 +44,7 @@ namespace zero.core.core
         /// <summary>
         /// The node this neighbor belongs to
         /// </summary>
-        protected IoNode<TJob> Node;
+        protected readonly IoNode<TJob> Node;
 
         /// <summary>
         /// The Id of this neighbor
@@ -61,7 +61,6 @@ namespace zero.core.core
 
 #if SAFE_RELEASE
             _logger = null;
-            Node = null;
 #endif
         }
 

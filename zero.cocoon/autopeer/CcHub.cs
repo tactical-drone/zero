@@ -85,18 +85,18 @@ namespace zero.cocoon.autopeer
         /// </summary>
         /// <typeparam name="T"></typeparam>
         /// <typeparam name="TContext"></typeparam>
-        /// <param name="acceptConnection"></param>
+        /// <param name="handshake"></param>
         /// <param name="context"></param>
         /// <param name="bootFunc"></param>
         /// <returns></returns>
-        protected override ValueTask BlockOnListenerAsync<T,TContext>(Func<IoNeighbor<CcProtocMessage<chroniton, CcDiscoveryBatch>>, T,ValueTask<bool>> acceptConnection = null, T context = default, Func<TContext,ValueTask> bootFunc = null, TContext bootData = default)
+        protected override ValueTask BlockOnListenerAsync<T,TContext>(Func<IoNeighbor<CcProtocMessage<chroniton, CcDiscoveryBatch>>, T,ValueTask<bool>> handshake = null, T context = default, Func<TContext,ValueTask> bootFunc = null, TContext bootData = default)
         {
             return base.BlockOnListenerAsync(static async (router, state) =>
             {
                 var (@this, nanite, acceptConnection) = state;
                 @this.Router ??= (CcAdjunct)router;
                 return acceptConnection == null || await acceptConnection(router,nanite).FastPath();
-            }, ValueTuple.Create(this, context, acceptConnection), bootFunc, bootData);
+            }, ValueTuple.Create(this, context, handshake), bootFunc, bootData);
         }
     }
 }

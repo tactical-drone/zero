@@ -13,6 +13,18 @@ namespace zero.core.patterns.bushings.contracts
     public interface IIoSource : IIoNanite
     {
         /// <summary>
+        /// Flow direction
+        /// </summary>
+        public enum Heading
+        {
+            Undefined = 0,
+            Ingress = 1,
+            Egress = 2,
+            Both = 3
+        }
+
+
+        /// <summary>
         /// Keys this instance.
         /// </summary>
         /// <returns>The unique key of this instance</returns>
@@ -117,12 +129,9 @@ namespace zero.core.patterns.bushings.contracts
         bool IsOperational();
 
         /// <summary>
-        /// Gets a value indicating whether this source is originating or terminating
+        /// The direction of data flow
         /// </summary>
-        /// <value>
-        ///   <c>true</c> if this instance is Egress; Ingress otherwise, <c>false</c>.
-        /// </value>
-        bool IsOriginating { get; }
+        public Heading Direction { get; }
 
         /// <summary>
         /// Gets a value indicating whether this <see cref="IoSource{TJob}"/> is synced.
