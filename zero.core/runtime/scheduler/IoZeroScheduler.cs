@@ -117,7 +117,7 @@ namespace zero.core.runtime.scheduler
             //    FullMode = BoundedChannelFullMode.DropNewest
             //});
 
-            var initialCap = 1024;
+            var initialCap = 2048;
             _callbackHeap = new IoHeap<ZeroContinuation>($"{nameof(_callbackHeap)}", initialCap, (_, _) => new ZeroContinuation(), autoScale:true)
             {
                 PopAction = (signal, _) =>

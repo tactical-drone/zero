@@ -507,7 +507,7 @@ namespace zero.cocoon
             //limit connects
             try
             {
-                if (@this.Zeroed() || @this.IngressCount >= @this.parm_max_inbound)
+                if (@this.Zeroed() || @this.TotalConnections >= @this.parm_max_drone)
                     return false;
 
                 //Handshake

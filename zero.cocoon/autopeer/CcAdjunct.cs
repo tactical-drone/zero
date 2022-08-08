@@ -2943,9 +2943,22 @@ namespace zero.cocoon.autopeer
 
 
                 if (Direction == IIoSource.Heading.Ingress)
-                    CcCollective.IngressCount.ZeroNext(CcCollective.IngressCount + 1);
+                {
+                    if (CcCollective.IngressCount.ZeroNext(CcCollective.parm_max_inbound) == CcCollective.parm_max_inbound)
+                    {
+                        _logger.Trace($"{nameof(AttachDrone)}: {Direction} [FULL!]; {ccDrone.Description}");
+                        return false;
+                    }
+                }
                 else
-                    CcCollective.EgressCount.ZeroNext(CcCollective.EgressCount + 1);
+                {
+                    if (CcCollective.EgressCount.ZeroNext(CcCollective.parm_max_outbound) == CcCollective.parm_max_outbound)
+                    {
+                        _logger.Trace($"{nameof(AttachDrone)}: {Direction} [FULL!]; {ccDrone.Description}");
+                        return false;
+                    }
+                }
+                    
 
                 Assimilated = true;
                 AttachTimestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds();

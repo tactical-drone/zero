@@ -197,8 +197,8 @@ namespace zero.sync
                         {
                             //$"udp://127.0.0.1:{1234 + portOffset + i - 1}",
                             extra, 
-                            //$"udp://127.0.0.1:{1234 + o1}", $"udp://127.0.0.1:{1234 + o2}",
-                            //$"udp://127.0.0.1:{1234 + o3}", $"udp://127.0.0.1:{1234 + o4}"
+                            $"udp://127.0.0.1:{1234 + o1}", $"udp://127.0.0.1:{1234 + o2}",
+                            $"udp://127.0.0.1:{1234 + o3}", $"udp://127.0.0.1:{1234 + o4}"
                         }.ToList()));
 
                     if (concurrentBag.Count % 10 == 0)
@@ -210,13 +210,13 @@ namespace zero.sync
                 {
                     Console.WriteLine($"Starting auto peering...  {bag.Count}");
                     var c = 0;
-                    var rateLimit = 9000;
+                    var rateLimit = 5000;
                     var injectionCount = Math.Max(1,bag.Count / 20);
-                    var rampDelay = 200;
+                    var rampDelay = 50;
                     foreach (var cocoon in bag.OrderBy(e => e.Serial))
                     {
                         await Task.Delay(rampDelay).ConfigureAwait(false);
-                        if (rampDelay - 1 > 100)
+                        if (rampDelay> 50)
                             rampDelay -= 1;
 
                         Console.WriteLine($"addeding {c}/{bag.Count}");
@@ -232,10 +232,10 @@ namespace zero.sync
                             Console.WriteLine($"Provisioned {c}/{total}");
                             Console.WriteLine($"Provisioned {c}/{total}");
 
-                            await Task.Delay(rateLimit -= 500).ConfigureAwait(false);
+                            await Task.Delay(rateLimit -= 0).ConfigureAwait(false);
 
-                            if (injectionCount > 30)
-                                injectionCount--;
+                            //if (injectionCount > 50)
+                            //    injectionCount--;
                         }
 
                     }
