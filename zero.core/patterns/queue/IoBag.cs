@@ -169,9 +169,8 @@ namespace zero.core.patterns.queue
                     }
                 }
 
-                var cap = _head + Capacity;
-                var next = _tail.ZeroNext(cap);
-                if (next < cap)
+                var next = _tail.ZeroNext(_head + Capacity);
+                if (next < _head + Capacity)
                 {
                     this[next] = item;
                     Interlocked.Increment(ref _count);
@@ -248,9 +247,8 @@ namespace zero.core.patterns.queue
                     return false;
                 }
 
-                var cap = _tail;
-                var next = _head.ZeroNext(cap);
-                if (next < cap)
+                var next = _head.ZeroNext(_tail);
+                if (next < _tail)
                 {
                     var idx = next % Capacity;
                     if (Interlocked.Exchange(ref _fastBloom[idx], 0) == 1)

@@ -15,7 +15,13 @@ using zero.core.runtime.scheduler;
 
 namespace zero.core.patterns.semaphore.core
 {
-    /// <summary>Provides the core logic for implementing a manual-reset <see cref="IValueTaskSource"/> or <see cref="IValueTaskSource{TResult}"/>.</summary>
+    /// <summary>Provides the core logic for implementing a manual-reset <see cref="IValueTaskSource"/> or <see cref="IValueTaskSource{TResult}"/>.
+    ///
+    /// This version is a slightly modified version of the runtime, allowing a special case where if a waiter is blocking it can be un-blocked asynchronously,
+    /// while if a blocker's result is already ready, it executes synchronously.
+    ///
+    /// Caution: Highly experimental!
+    /// </summary>
     /// <typeparam name="TResult"></typeparam>
     [StructLayout(LayoutKind.Auto)]
     public struct IoManualResetValueTaskSourceCore<TResult>: IIoManualResetValueTaskSourceCore<TResult>
@@ -278,11 +284,13 @@ namespace zero.core.patterns.semaphore.core
         {
 #if DEBUG
             if (Interlocked.CompareExchange(ref _burned, 1, 0) != 0)
-                throw new InvalidOperationException($"[{Thread.CurrentThread.ManagedThreadId}] {nameof(GetResult)}: core #{_version} already burned {_completeTime.ElapsedMs()} ms, burned = {_burnTime.ElapsedMs()} ms");
-            ValidateToken(token);   
+                throw new InvalidOperationException($"[{Thread.CurrentThread.ManagedThreadId}] {nameof(GetResult)}: core #{_version} already burned completed {_completeTime.ElapsedMs()} ms ago, burned = {_burnTime.ElapsedMs()} ms ago");
+            ValidateToken(token);
 #endif
+            _burnTime = Environment.TickCount;
+
             if (!_completed)
-                throw new InvalidOperationException($"[{Thread.CurrentThread.ManagedThreadId}] {nameof(GetResult)}: core  #{_version} not completed {_completeTime.ElapsedMs()} ms, burned = {_burnTime.ElapsedMs()} ms");
+                throw new InvalidOperationException($"[{Thread.CurrentThread.ManagedThreadId}] {nameof(GetResult)}: core  #{_version} not completed {_completeTime.ElapsedMs()} ms, burned = {_burnTime.ElapsedMs()} ms ago");
             
             var r = _result;
 
@@ -291,7 +299,6 @@ namespace zero.core.patterns.semaphore.core
 
             _error?.Throw();
 
-            _burnTime = Environment.TickCount;
             return r;
         }
 

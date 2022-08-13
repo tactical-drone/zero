@@ -33,7 +33,7 @@ namespace zero.core.patterns.heap
         /// Construct a heap with capacity
         /// </summary>
         /// <param name="description">A description</param>
-        /// <param name="capacity">Heap  capacity</param>
+        /// <param name="capacity">Heap capacity</param>
         /// <param name="malloc"></param>
         /// <param name="autoScale">Whether this heap capacity grows (exponentially) with demand</param>
         /// <param name="context">dev context</param>
