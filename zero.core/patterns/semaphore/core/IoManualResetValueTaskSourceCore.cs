@@ -161,7 +161,7 @@ namespace zero.core.patterns.semaphore.core
             _continuation = null;
 
 #if DEBUG
-            if(_burned > 0)
+            //if(_burned > 0)
                 _heapAction?.Invoke(_heapContext);
 #else
             _heapAction?.Invoke(_heapContext);
@@ -422,7 +422,7 @@ namespace zero.core.patterns.semaphore.core
                         }, (continuation, state));
 #pragma warning restore VSTHRD001 // Avoid legacy thread switching APIs
                         break;
-                    case IoZeroScheduler tz when TaskScheduler.Current is IoZeroScheduler && !RunContinuationsAsynchronously:
+                    case IoZeroScheduler when !RunContinuationsAsynchronously && TaskScheduler.Current is IoZeroScheduler:
                         continuation(state);
                         break;
                     case TaskScheduler ts:
@@ -536,7 +536,7 @@ namespace zero.core.patterns.semaphore.core
                     }, (_continuation, _continuationState));
 #pragma warning restore VSTHRD001 // Avoid legacy thread switching APIs
                     break;
-                case IoZeroScheduler tz when TaskScheduler.Current is IoZeroScheduler && !RunContinuationsAsynchronously:
+                case IoZeroScheduler tz when !RunContinuationsAsynchronously && TaskScheduler.Current is IoZeroScheduler:
                     _continuation!(_continuationState);
                     break;
                 case TaskScheduler ts:

@@ -5,6 +5,7 @@ using System.Text;
 using System.Threading.Tasks;
 using BenchmarkDotNet.Attributes;
 using zero.core.patterns.semaphore.core;
+using zero.core.runtime.scheduler;
 
 namespace zero.gauge.core.misc
 {
@@ -14,19 +15,21 @@ namespace zero.gauge.core.misc
         [Benchmark]
         public async Task ZeroNext()
         {
-            var _count = 100000;
-            var threads = 100;
-            
+            const int count = 10000000;
+            //var threads = Environment.ProcessorCount * 4;
+            var threads = Environment.ProcessorCount + Environment.ProcessorCount/2;
+
             var tasks = new List<Task>();
             for (var t = 0; t < threads; t++)
             {
                 tasks.Add(Task.Factory.StartNew(() =>
                 {
-                    for (var i = 0; i < _count; i++)
+                    for (var i = 0; i < count; i++)
                     {
-                        _reg.ZeroNext(_count);
+                        if (_reg.ZeroNext(count) == count)
+                            break;
                     }
-                }, CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Default));
+                }, CancellationToken.None, TaskCreationOptions.DenyChildAttach, IoZeroScheduler.ZeroDefault));
             }
 
             await Task.WhenAll(tasks).WaitAsync(TimeSpan.FromSeconds(15));

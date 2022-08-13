@@ -29,6 +29,7 @@ namespace zero.core.patterns.semaphore.core
         static volatile object _syncroot = new object();
         private static int _redundency = 3;
         static volatile int _cheapMonitor = _redundency;
+
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static long ZeroNextHard(this ref long val, long cap)
         {
@@ -91,39 +92,23 @@ namespace zero.core.patterns.semaphore.core
             }
         }
 
+        
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static long ZeroNext(this ref long val, long cap)
         {
             if (val + 1 > cap)
                 return cap;
 
-
             long latch;
-            //lock (_syncroot)
+
+            while ((latch = val) + 1 > cap || Interlocked.CompareExchange(ref val, latch + 1, latch) != latch)
             {
-#if DEBUG
-                var ts = Environment.TickCount;
-#endif
-                try
-                {
-                    while ((latch = val) + 1 > cap || Interlocked.CompareExchange(ref val, val + 1, latch) != latch)
-                    {
-                        if (val + 1 > cap)
-                            return cap;
-                    }
-                }
-                finally
-                {
-#if DEBUG
-                    if (ts.ElapsedMs() > 16)
-                    {
-                        LogManager.GetCurrentClassLogger().Fatal($"{nameof(ZeroNext)}: CAS took => {ts.ElapsedMs()} ms");
-                    }
-#endif
-                }
-                Debug.Assert(latch < cap);
-                return latch;
+                if (val + 1 > cap)
+                    return cap;
             }
+
+            Debug.Assert(latch < cap);
+            return latch;
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]

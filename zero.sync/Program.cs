@@ -9,6 +9,7 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Server.Kestrel.Core;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Microsoft.VisualStudio.Threading;
 using NLog;
 using NLog.Filters;
 using NLog.Web;
@@ -451,12 +452,42 @@ namespace zero.sync
                 t.Start((delta, signal, token));
             });
 
-            //Task.Factory.StartNew(async () =>
+            var j = new JoinableTaskFactory(new JoinableTaskContext());
+            {
+                var t = j.RunAsync(async () =>
+                {
+                    await SemTestAsync();
+                    //await QueueTestAsync();
+                    //await ZeroQTestAsync();
+                    //await BagTestAsync();)
+                });
+                t.Join();
+            }
+
+            //var testDone = false;
+            //var testTask = Task.Factory.StartNew(async () =>
             //{
-            //    //await SemTestAsync();
+            //    Console.Write("1->");
+            //    await SemTestAsync();
             //    //await QueueTestAsync();
-            //    await ZeroQTestAsync();
-            //}, CancellationToken.None, TaskCreationOptions.DenyChildAttach, IoZeroScheduler.ZeroDefault).Unwrap().GetAwaiter().GetResult();
+            //    //await ZeroQTestAsync();
+            //    //await BagTestAsync();
+            //}, CancellationToken.None, TaskCreationOptions.DenyChildAttach, IoZeroScheduler.ZeroDefault).Unwrap();
+
+
+
+            //var spinWait = new SpinWait();
+
+            //while (!testDone)
+            //{
+            //    spinWait.SpinOnce();
+            //    if (spinWait.Count % 2000 == 0)
+            //    {
+            //        Thread.Sleep(2000);
+            //    }
+            //}
+
+
 
             //Tune dotnet for large tests
             ThreadPool.GetMinThreads(out var wt, out var cp);
@@ -809,8 +840,9 @@ namespace zero.sync
         private static async Task QueueTestAsync() //TODO make unit tests
         {
             await Task.Delay(1000);
-            var concurrencyLevel = Environment.ProcessorCount * 2;
-            IoQueue<int> q = new("test", concurrencyLevel * 2, concurrencyLevel, IoQueue<int>.Mode.Undefined);
+            //var concurrencyLevel = Environment.ProcessorCount * 2;
+            var concurrencyLevel = 2;
+            IoQueue<int> q = new("test", 4096, concurrencyLevel);
             if (!q.Configuration.HasFlag(IoQueue<int>.Mode.BackPressure))
             {
 
@@ -932,13 +964,14 @@ namespace zero.sync
                 Console.Write(".");
                 var i3 = i;
                 var maxDiff = rounds * 4;
+                var measuredConcurrency = 0;
                 _concurrentTasks.Add(Task.Factory.StartNew(async () =>
-                {                    
-                    for (int j = 0; j < mult; j++)
+                {
+                    for (var j = 0; j < mult; j++)
                     {
+                        Interlocked.Increment(ref measuredConcurrency);
                         try
                         {
-
                             //await q.PushBackAsync(i3).FastPath();//Console.WriteLine("1");
                             await q.EnqueueAsync(Volatile.Read(ref done)).FastPath(); //Console.WriteLine("2");
                             var ts = Environment.TickCount;
@@ -978,6 +1011,8 @@ namespace zero.sync
                             {
                                 Console.Write($"({i3}-{q.Count} {p}% {done/ts.ElapsedMs()} Kq/s)");
                             }
+                            Interlocked.Decrement(ref measuredConcurrency);
+                            Debug.Assert(measuredConcurrency < rounds);
                         }
                         //if(j%2000 == 0) 
                             //Console.Write($"({i3}-{q.Count})");
@@ -1088,6 +1123,94 @@ namespace zero.sync
             throw new Exception("\ndone");
         }
 
+        private static async Task BagTestAsync() //TODO make unit tests
+        {
+            await Task.Delay(1000);
+            var concurrencyLevel = Environment.ProcessorCount * 2;
+            IoBag<int> q = new("test", concurrencyLevel * 2);
+
+            var _concurrentTasks = new List<Task>();
+
+            var start = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+            var rounds = concurrencyLevel;
+            var mult = 1000000;
+            //var rounds = 5;
+            //var mult = 1000;
+            var done = 0;
+            var ts = Environment.TickCount;
+            for (var i = 0; i < rounds; i++)
+            {
+                Console.Write(".");
+                var i3 = i;
+                var maxDiff = rounds * 4;
+                _concurrentTasks.Add(Task.Factory.StartNew(async () =>
+                {
+                    for (int j = 0; j < mult; j++)
+                    {
+                        try
+                        {
+
+                            //await q.PushBackAsync(i3).FastPath();//Console.WriteLine("1");
+                            q.TryEnqueue(Volatile.Read(ref done)); //Console.WriteLine("2");
+                            var ts = Environment.TickCount;
+                            q.TryDequeue(out var dq);
+                            if (dq < done - maxDiff && ts.ElapsedMs() > 0)
+                                Console.WriteLine($"* diff = {done - dq}, {ts.ElapsedMs()}ms");
+
+
+                            q.TryEnqueue(Volatile.Read(ref done)); //Console.WriteLine("2");
+                            ts = Environment.TickCount;
+                            q.TryDequeue(out dq);
+                            if (dq < done - maxDiff && ts.ElapsedMs() > 0)
+                                Console.WriteLine($"* diff = {done - dq}, {ts.ElapsedMs()}ms");
+
+                            q.TryEnqueue(Volatile.Read(ref done)); //Console.WriteLine("2");
+                            ts = Environment.TickCount;
+                            q.TryDequeue(out dq);
+                            if (dq < done - maxDiff && ts.ElapsedMs() > 0)
+                                Console.WriteLine($"* diff = {done - dq}, {ts.ElapsedMs()}ms");
+
+                            q.TryEnqueue(Volatile.Read(ref done)); //Console.WriteLine("2");
+                            ts = Environment.TickCount;
+                            q.TryDequeue(out dq);
+                            if (dq < done - maxDiff && ts.ElapsedMs() > 0)
+                                Console.WriteLine($"* diff = {done - dq}, {ts.ElapsedMs()}ms");
+                        }
+                        catch (Exception e)
+                        {
+                            Console.WriteLine($"Failed... {e.Message}");
+                            break;
+                        }
+                        finally
+                        {
+                            Interlocked.Increment(ref done);
+                            var p = done * 100.0 / (rounds * mult);
+                            if (p % 2 == 0)
+                            {
+                                Console.Write($"({i3}-{q.Count} {p}% {done / ts.ElapsedMs()} Kq/s)");
+                            }
+                        }
+                        //if(j%2000 == 0) 
+                        //Console.Write($"({i3}-{q.Count})");
+                    }
+                    Console.Write($"({i3}-{q.Count})");
+                }, new CancellationToken(), TaskCreationOptions.DenyChildAttach, IoZeroScheduler.ZeroDefault).Unwrap());
+            }
+
+            await Task.WhenAll(_concurrentTasks);
+
+            Console.WriteLine($"count = {q.Count}, Head = {q?.Tail}, tail = {q?.Head}, time = {DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() - start}ms, {rounds * mult * 6 / (DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() - start)} kOPS");
+
+            await q.ZeroManagedAsync<object>().FastPath();
+            foreach (var ioZNode in q)
+            {
+                Console.Write($"{ioZNode},");
+            }
+
+            Console.ReadLine();
+            throw new Exception("\ndone");
+        }
+
         /// <summary>
         /// Tests the semaphore
         /// </summary>
@@ -1100,7 +1223,7 @@ namespace zero.sync
 
             //.NET RUNTIME REFERENCE MUTEX FOR TESTING
             //var mutex = new IoZeroRefMut(asyncTasks.Token);
-            IIoZeroSemaphoreBase<int> mutex = new IoZeroSemaphoreSlim(asyncTasks, "zero slim", maxBlockers: capacity, initialCount: 1, zeroAsyncMode: false, enableAutoScale: false, enableFairQ: false, enableDeadlockDetection: true);
+            IIoZeroSemaphoreBase<int> mutex = new IoZeroSemaphoreSlim(asyncTasks, "mutex TEST", maxBlockers: capacity, initialCount: 1, zeroAsyncMode: false, enableAutoScale: false, enableFairQ: false, enableDeadlockDetection: true);
 
             var releaseCount = 2;
             var waiters = 3;
@@ -1122,16 +1245,16 @@ namespace zero.sync
             // IoFpsCounter wfps2 = new IoFpsCounter(1000, 10000);
             // IoFpsCounter ifps1 = new IoFpsCounter(1000, 10000);
             // IoFpsCounter ifps2 = new IoFpsCounter(1000, 10000);
-            uint eq1 = 0;
-            uint eq2 = 0;
-            uint eq3 = 0;
-            var eq1_fps = 0.0;
-            var eq2_fps = 0.0;
-            var eq3_fps = 0.0;
-            var dq_fps = new double[10];
+            uint dq1 = 0;
+            uint dq2 = 0;
+            uint dq3 = 0;
+            var dq1_fps = 0.0;
+            var dq2_fps = 0.0;
+            var dq3_fps = 0.0;
+            var eQ_fps = new double[10];
             var r = new Random();
-            var dq = new long[10];
-            var ERR_T = 16  * 3;
+            var eQ = new long[10];
+            var ERR_T = 250;
             
 
             //TaskCreationOptions options = TaskCreationOptions.LongRunning | TaskCreationOptions.PreferFairness | TaskCreationOptions.RunContinuationsAsynchronously;
@@ -1155,7 +1278,7 @@ namespace zero.sync
                          {
                              
                              var tt = mainSW.ElapsedMilliseconds;
-                             Interlocked.Increment(ref eq1);
+                             Interlocked.Increment(ref dq1);
 
                              Action a = (tt - targetSleep * targetSleepMult) switch
                              {
@@ -1177,20 +1300,20 @@ namespace zero.sync
 
                              if (delta > 5)
                              {
-                                 eq1_fps = (eq1 / delta);
-                                 eq2_fps = (eq2 / delta);
-                                 eq3_fps = (eq3 / delta);
+                                 dq1_fps = (dq1 / delta);
+                                 dq2_fps = (dq2 / delta);
+                                 dq3_fps = (dq3 / delta);
                                  for (int i = 0; i < releasers; i++)
                                  {
-                                     dq_fps[i] = (dq[i] / delta);
+                                     eQ_fps[i] = (eQ[i] / delta);
                                  }
                              }
                              
                              //Console.WriteLine($"T1:{mut.AsyncMutex}({++c}) t = {tt - targetSleep}ms, {fps.Fps(): 00.0}");
                              if (Interlocked.Increment(ref c) % logSpam == 0)
                              {
-                                 var totalDq = dq.Aggregate((u, u1) => u + u1);
-                                 Console.WriteLine($"[{Thread.CurrentThread.ManagedThreadId}] T1:{mutex}({c}) t = {tt - targetSleep * targetSleepMult}ms, [{eq1_fps + eq2_fps + eq3_fps: 0}, ({eq1_fps: 0}, {eq2_fps: 0}, {eq3_fps: 0})], [{totalDq/delta: 0.0} ({dq_fps[0]: 0}, {dq_fps[1]: 0}, {dq_fps[2]: 0}, {dq_fps[3]: 0})], s = {semCount / (double)(semPollCount+1):0.0}, S = {mutex.ReadyCount}, D = {(int)(eq1 + eq2 + eq3) - (int)totalDq}");
+                                 var totalEq = eQ.Aggregate((u, u1) => u + u1);
+                                 Console.WriteLine($"[{Thread.CurrentThread.ManagedThreadId}] T1:{mutex}({c}) t = {tt - targetSleep * targetSleepMult}ms, [{dq1_fps + dq2_fps + dq3_fps: 0}, ({dq1_fps: 0}, {dq2_fps: 0}, {dq3_fps: 0})], [{totalEq/delta: 0.0} ({eQ_fps[0]: 0}, {eQ_fps[1]: 0}, {eQ_fps[2]: 0}, {eQ_fps[3]: 0})], s = {semCount / (double)(semPollCount+1):0.0}, S = {mutex.ReadyCount}, DQ DELTA = {(int)(dq1 + dq2 + dq3) - (int)totalEq} (+ means release is not working)");
                                  Console.ResetColor();
                              }
                               
@@ -1229,7 +1352,7 @@ namespace zero.sync
                         if (qt.ElapsedMs() < targetSleep + ERR_T)
                         { 
                             var tt = mainSW.ElapsedMilliseconds;
-                            Interlocked.Increment(ref eq2);
+                            Interlocked.Increment(ref dq2);
                             
                             Action a = (tt - targetSleep * targetSleepMult) switch
                             {
@@ -1250,12 +1373,12 @@ namespace zero.sync
                             
                             if (delta > 5)
                             {
-                                eq1_fps = (eq1 / delta);
-                                eq2_fps = (eq2 / delta);
-                                eq3_fps = (eq3 / delta);
+                                dq1_fps = (dq1 / delta);
+                                dq2_fps = (dq2 / delta);
+                                dq3_fps = (dq3 / delta);
                                 for (int i = 0; i < releasers; i++)
                                 {
-                                    dq_fps[i] = (dq[i] / delta);
+                                    eQ_fps[i] = (eQ[i] / delta);
                                 }
                             }
                              
@@ -1263,8 +1386,8 @@ namespace zero.sync
                             delta = (curTime - startTime + 1)/1000.0;
                             if (Interlocked.Increment(ref c) % logSpam == 0)
                             {
-                                var totalDq = dq.Aggregate((u, u1) => u + u1);
-                                Console.WriteLine($"[{Thread.CurrentThread.ManagedThreadId}] T2:{mutex}({c}) t = {tt - targetSleep * targetSleepMult}ms, [{eq1_fps + eq2_fps + eq3_fps: 0}, ({eq1_fps: 0}, {eq2_fps: 0}, {eq3_fps: 0})], [{totalDq/delta: 0.0} ({dq_fps[0]: 0}, {dq_fps[1]: 0}, {dq_fps[2]: 0}, {dq_fps[3]: 0})], s = {semCount / (double)(semPollCount+1):0.0}, S = {mutex.ReadyCount}, D = {(int)(eq1 + eq2 + eq3) - (int)totalDq}");
+                                var totalEq = eQ.Aggregate((u, u1) => u + u1);
+                                Console.WriteLine($"[{Thread.CurrentThread.ManagedThreadId}] T2:{mutex}({c}) t = {tt - targetSleep * targetSleepMult}ms, [{dq1_fps + dq2_fps + dq3_fps: 0}, ({dq1_fps: 0}, {dq2_fps: 0}, {dq3_fps: 0})], [{totalEq/delta: 0.0} ({eQ_fps[0]: 0}, {eQ_fps[1]: 0}, {eQ_fps[2]: 0}, {eQ_fps[3]: 0})], s = {semCount / (double)(semPollCount+1):0.0}, S = {mutex.ReadyCount}, D = {(int)(dq1 + dq2 + dq3) - (int)totalEq}");
                                 Console.ResetColor();
                             }
                              
@@ -1303,7 +1426,7 @@ namespace zero.sync
                         if (qt.ElapsedMs() < targetSleep + ERR_T)
                         {
                            var tt = mainSW.ElapsedMilliseconds;
-                           Interlocked.Increment(ref eq3);
+                           Interlocked.Increment(ref dq3);
            
                            Action a = (tt - targetSleep * targetSleepMult) switch
                            {
@@ -1323,8 +1446,8 @@ namespace zero.sync
                             double delta = (curTime - startTime + 1)/1000.0;
                             if (Interlocked.Increment(ref c) % logSpam == 0)
                             {
-                                var totalDq = dq.Aggregate((u, u1) => u + u1);
-                                Console.WriteLine($"[{Thread.CurrentThread.ManagedThreadId}] T3:{mutex}({c}) t = {tt - targetSleep * targetSleepMult}ms, [{eq1_fps + eq2_fps + eq3_fps: 0}, ({eq1_fps: 0}, {eq2_fps: 0}, {eq3_fps: 0})], [{totalDq/delta: 0.0} ({dq_fps[0]: 0}, {dq_fps[1]: 0}, {dq_fps[2]: 0}, {dq_fps[3]: 0})], s = {semCount / (double)(semPollCount+1):0.0}, S = {mutex.ReadyCount}, D = {(int)(eq1 + eq2 + eq3) - (int)totalDq}");
+                                var totalDq = eQ.Aggregate((u, u1) => u + u1);
+                                Console.WriteLine($"[{Thread.CurrentThread.ManagedThreadId}] T3:{mutex}({c}) t = {tt - targetSleep * targetSleepMult}ms, [{dq1_fps + dq2_fps + dq3_fps: 0}, ({dq1_fps: 0}, {dq2_fps: 0}, {dq3_fps: 0})], [{totalDq/delta: 0.0} ({eQ_fps[0]: 0}, {eQ_fps[1]: 0}, {eQ_fps[2]: 0}, {eQ_fps[3]: 0})], s = {semCount / (double)(semPollCount+1):0.0}, S = {mutex.ReadyCount}, D = {(int)(dq1 + dq2 + dq3) - (int)totalDq}");
                                 Console.ResetColor();
                             }
                         }
@@ -1351,7 +1474,7 @@ namespace zero.sync
                     {
                         try
                         {
-                            var curCount = 0;
+                            var released = 0;
                             Console.WriteLine($"releaser: [{i1}]");
                             while (releasers > 0)
                             {
@@ -1360,11 +1483,11 @@ namespace zero.sync
                                     if (targetSleep > 0)
                                         await Task.Delay((int)targetSleep, asyncTasks.Token);
                                     
-                                    if (Interlocked.Decrement(ref totalReleases) >= 0 && (curCount = mutex.Release(Environment.TickCount, releaseCount)) > 0)
+                                    if (Interlocked.Decrement(ref totalReleases) >= 0 && (released = mutex.Release(Environment.TickCount, releaseCount)) > 0)
                                     {
                                         //Interlocked.Add(ref semCount, curCount);
                                         Interlocked.Increment(ref semPollCount);
-                                        Interlocked.Add(ref dq[i1], curCount);
+                                        Interlocked.Add(ref eQ[i1], released);
                                     }
                                     else
                                     {

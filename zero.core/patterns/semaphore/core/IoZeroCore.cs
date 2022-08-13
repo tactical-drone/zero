@@ -7,6 +7,7 @@ using System.Threading;
 using System.Threading.Channels;
 using System.Threading.Tasks;
 using System.Threading.Tasks.Sources;
+using NLog;
 using NLog.Filters;
 using zero.core.patterns.queue;
 
@@ -38,13 +39,13 @@ namespace zero.core.patterns.semaphore.core
             _zeroed = 0;
             _description = description;
             _capacity = capacity++;
-            //capacity *= 2;
             ZeroAsyncMode = zeroAsyncMode;
 
             _waiters = new IoZeroQ<IIoManualResetValueTaskSourceCore<T>>(string.Empty, capacity, false, asyncTasks:null, capacity, false);
 
             _results = new IoZeroQ<T>(string.Empty, capacity, false, asyncTasks: null, capacity, false);
-            _heapCore = new IoZeroQ<IIoManualResetValueTaskSourceCore<T>>(string.Empty, capacity, false, asyncTasks: null, capacity, false);
+            _priorityQ = new IoBag<T>(string.Empty, capacity, false, asyncTasks: null, capacity, false);
+            _heapCore = new IoBag<IIoManualResetValueTaskSourceCore<T>>(string.Empty, capacity, false, asyncTasks: null, capacity, false);
             //_waiters = Channel.CreateBounded<IIoManualResetValueTaskSourceCore<T>>(new BoundedChannelOptions(capacity)
             //{
             //    SingleWriter = false,
@@ -127,7 +128,8 @@ namespace zero.core.patterns.semaphore.core
         //private readonly Channel<IIoManualResetValueTaskSourceCore<T>> _heapCore;
         private readonly IoZeroQ<IIoManualResetValueTaskSourceCore<T>> _waiters;
         private readonly IoZeroQ<T> _results;
-        private readonly IoZeroQ<IIoManualResetValueTaskSourceCore<T>> _heapCore;
+        private readonly IoBag<T> _priorityQ;
+        private readonly IoBag<IIoManualResetValueTaskSourceCore<T>> _heapCore;
         private readonly CancellationTokenSource _asyncTasks;
         private Func<object, T> _primeReady;
         private object _primeContext;
@@ -225,19 +227,45 @@ namespace zero.core.patterns.semaphore.core
                     spinWait.SpinOnce();
                 }
 
+                var fastTrackSet = _priorityQ.TryDequeue(out var fastTracked);
+                //var count = _waiters.Count;
+                //var resultCount = _results.Count;
+                //var count2 = _waiters.Count;
+                //var resultCount2 = _results.Count;
+                //var count3 = _waiters.Count;
+                //var resultCount3 = _results.Count;
+                //var wasFastTrackSet = fastTrackSet;
+                var dqResult = false;
+                //var unblocked = true;
                 //drain the Q
-                while (_waiters.Count > 0 && _results.TryDequeue(out var fastTracked))
+                while (_waiters.Count > 0 && (fastTrackSet || (dqResult = _results.TryDequeue(out fastTracked))))
                 {
-                    if (Unblock(fastTracked, forceAsync))
+                    if (!fastTrackSet)
+                        fastTrackSet = true;
+
+                    //count2 = _waiters.Count;
+                    //resultCount2 = _results.Count;
+
+                    if (!Unblock(fastTracked, forceAsync))
                     {
-                        released++;
-                        if (_waiters.Count < Capacity)
-                            break;
+                        //count3 = _waiters.Count;
+                        //resultCount3 = _results.Count;
+                        //unblocked = false;
+                        continue;
                     }
-                    else
+                    
+                    fastTrackSet = false;
+                    released++;
+                    if (_waiters.Count < Capacity)
+                        break;
+                }
+
+                if (fastTrackSet)
+                {
+                    if (_priorityQ.TryEnqueue(fastTracked) == -1)
                     {
-                        if (_results.TryEnqueue(fastTracked) < 0)
-                            throw new OutOfMemoryException($"${nameof(SetResult)}: {Description}");
+                        LogManager.GetCurrentClassLogger().Fatal($"{nameof(SetResult)}: unable to Q raced value");
+                        _results.TryEnqueue(fastTracked); // this is never supposed to execute. 
                     }
                 }
             }
@@ -247,13 +275,10 @@ namespace zero.core.patterns.semaphore.core
             }
 
             //downstream mechanics require there be a 1 if either released or unblocked
-            if (released == 0 && banked)
-            {
-                released = 1;
-                return true;
-            }
-            
-            return released > 0;
+            if (released != 0 || !banked) return released > 0;
+
+            released = 1;
+            return true;
         }
 
         //int iteration = 0;
@@ -270,13 +295,10 @@ namespace zero.core.patterns.semaphore.core
 #endif
         private bool Block(out ValueTask<T> slowTaskCore)
         {
-            Debug.Assert(Zeroed() || WaitCount <= ModCapacity);
+            Debug.Assert(Zeroed() || WaitCount <= Capacity);
 
             slowTaskCore = default;
-            //if (++iteration >= 2)
-            //{
-            //    Console.WriteLine($"{iteration}");
-            //}
+
             //fast path
             if (_waiters.Count == 0 && _results.TryDequeue(out var primedCore))
             {
@@ -287,7 +309,7 @@ namespace zero.core.patterns.semaphore.core
             //heap
             if (!_heapCore.TryDequeue(out var waiter))
             {
-                waiter = new IoManualResetValueTaskSourceCore<T> { AutoReset = false };
+                waiter = new IoManualResetValueTaskSourceCore<T> { AutoReset = true };
                 waiter.Reset(static state =>
                 {
                     var (@this, waiter) = (ValueTuple<IoZeroCore<T>, IIoManualResetValueTaskSourceCore<T>>)state;
@@ -301,7 +323,7 @@ namespace zero.core.patterns.semaphore.core
             if (_waiters.Count == 0 && _results.TryDequeue(out var jitCore))
             {
                 slowTaskCore = new ValueTask<T>(jitCore);
-                //_heapCore.TryEnqueue(waiter); //TODO: Maybe free some memory every now and again?
+                _heapCore.TryEnqueue(waiter); //TODO: Maybe free some memory every now and again?
                 return true;
             }
 
@@ -364,12 +386,17 @@ namespace zero.core.patterns.semaphore.core
         /// <exception cref="InvalidOperationException">When invalid concurrency levels are detected.</exception>
         public ValueTask<T> WaitAsync()
         {
+            if (_waiters.Count >= Capacity)
+            {
+                Console.Write(".");
+            }
+
             // => slow core
             if (!Zeroed() && Block(out var slowCore))
                 return slowCore;
-            
+
             // => API implementation error
-            if(!Zeroed())
+            if (!Zeroed())
                 throw new InvalidOperationException($"{nameof(IoZeroCore<T>)}: Invalid concurrency level detected, check that {_capacity} matches or exceeds the expected level of concurrent blockers expected. {Description}");
 
             return default;

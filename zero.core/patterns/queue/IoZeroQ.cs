@@ -68,11 +68,11 @@ namespace zero.core.patterns.queue
             else
             {
                 //_hwm = _capacity = capacity;
-                _capacity = capacity;
+                _capacity = capacity++;
                 _storage = new T[1][];
-                _storage[0] = _fastStorage = new T[_capacity];
+                _storage[0] = _fastStorage = new T[capacity];
                 _bloom = new int[1][];
-                _bloom[0] = _fastBloom = new int[_capacity];
+                _bloom[0] = _fastBloom = new int[capacity];
             }
 
             if (_blockingCollection)
@@ -127,7 +127,7 @@ namespace zero.core.patterns.queue
         private int _pumpingConsumers;
         private int _primedForScale;
         private int _timeSinceLastScale = Environment.TickCount;
-        private int _count;
+        private volatile int _count;
         
         #endregion
 
@@ -202,6 +202,7 @@ namespace zero.core.patterns.queue
                 idx %= Capacity;
                 var i = (int)(Math.Log10(idx + 1) / Math.Log10(2));
                 _storage[i][idx - ((1 << i) - 1)] = value;
+                Interlocked.MemoryBarrier();
             }
         }
 

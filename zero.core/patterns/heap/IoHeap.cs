@@ -28,6 +28,7 @@ namespace zero.core.patterns.heap
             _logger = LogManager.GetCurrentClassLogger();
         }
 
+        public volatile bool trollmode = false;
         /// <summary>
         /// Construct a heap with capacity
         /// </summary>
@@ -41,26 +42,12 @@ namespace zero.core.patterns.heap
             _description = description;
             Malloc = malloc;
 
-            _ioHeapBuf = new IoZeroQ<TItem>($"{nameof(_ioHeapBuf)}: {description}", capacity, autoScale);
-            //_ioHeapBuf = Channel.CreateBounded<TItem>(new BoundedChannelOptions(capacity)
-            //{
-            //    SingleWriter = false,
-            //    SingleReader = false,
-            //    AllowSynchronousContinuations = true,
-            //    FullMode = BoundedChannelFullMode.DropNewest
-            //});
-
-            if (_ioHeapBuf is Channel<TItem>)//TODO: tuning
-            {
-                if (autoScale)
-                    capacity = ushort.MaxValue;
-                else
-                    capacity *= 2;
-            }
+            _ioHeapBuf = new IoBag<TItem>($"{nameof(_ioHeapBuf)}: {description}", capacity, autoScale);
 
             Context = context;
             _capacity = capacity;
             _autoScale = autoScale;
+            Console.WriteLine($"{description} constructed");
         }
 
         /// <summary>
@@ -82,7 +69,7 @@ namespace zero.core.patterns.heap
         /// The heap buffer space
         /// </summary>
         //private Channel<TItem> _ioHeapBuf;
-        private IoZeroQ<TItem> _ioHeapBuf;
+        private IoBag<TItem> _ioHeapBuf;
 
         /// <summary>
         /// Whether this object has been cleaned up
@@ -196,7 +183,7 @@ namespace zero.core.patterns.heap
             {
                 retry:
                 //If the heap is empty
-                if (!_ioHeapBuf.TryDequeue(out var heapItem))
+                if (trollmode || !_ioHeapBuf.TryDequeue(out var heapItem))
                 {
                     if (_ioHeapBuf.Count > 0)
                         goto retry; //TODO: hack
@@ -280,7 +267,7 @@ namespace zero.core.patterns.heap
 
             try
             {
-                if (!zero)
+                if (!zero && !trollmode)
                 {
                     if (_ioHeapBuf.TryEnqueue(item) < 0 && !Zeroed)
                         _logger.Warn($"{nameof(Return)}: Unable to return {item} to the heap, {Description}");

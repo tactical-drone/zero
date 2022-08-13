@@ -1,4 +1,5 @@
-﻿using System.Net.Http.Headers;
+﻿using System;
+using System.Net.Http.Headers;
 using System.Runtime.CompilerServices;
 using System.Threading;
 
@@ -14,6 +15,11 @@ namespace zero.core.patterns.queue.enumerator
         public IoQEnumerator(IoZeroQ<T> zeroQ):base(zeroQ)
         {
             Reset();
+        }
+
+        public IoQEnumerator(IoBag<T> zeroQ) : base(ArraySegment<T>.Empty)
+        {
+            
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]

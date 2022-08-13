@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
 using System.Net.NetworkInformation;
@@ -22,71 +23,71 @@ namespace zero.test.core.patterns.semaphore
             _output = output;
         }
 
-        //List<long> _selection = new List<long>(short.MaxValue);
-        //private int _accepted;
-        //private int _rejected;
+        ConcurrentBag<long> _selection = new();
+        private int _accepted;
+        private int _rejected;
 
-        //[Fact]
-        //async Task NextAsync()
-        //{
-        //    var threads = 128;
+        [Fact]
+        async Task NextAsync()
+        {
+            var threads = 128;
 
-        //    var tasks = new List<Task>();
-        //    for (var t = 0; t < threads; t++)
-        //    {
-        //        tasks.Add(Task.Factory.StartNew(() =>
-        //        {
-        //            Thread.Sleep(Random.Shared.Next(0,50));
-        //            //for (int i = 0; i < _count; i++)
-        //            while(true)
-        //            {
-        //                var l = _reg;
-        //                var cap = _reg + threads / 4;
+            var tasks = new List<Task>();
+            for (var t = 0; t < threads; t++)
+            {
+                tasks.Add(Task.Factory.StartNew(() =>
+                {
+                    Thread.Sleep(Random.Shared.Next(0, 50));
+                    //for (int i = 0; i < _count; i++)
+                    while (true)
+                    {
+                        var l = _reg;
+                        var cap = _reg + threads / 4;
 
-        //                if (cap > _count)
-        //                    cap = _count;
+                        if (cap > _count)
+                            cap = _count;
 
-        //                var r = _reg.ZeroNext(cap);
-        //                if (r != cap && r < _count)
-        //                {
-        //                    Interlocked.Increment(ref _accepted);
-        //                    _selection.Add(r);
-        //                }
-        //                else if(r == cap)
-        //                    Interlocked.Increment(ref _rejected);
+                        var r = _reg.ZeroNext(cap);
+                        if (r != cap && r < _count)
+                        {
+                            Interlocked.Increment(ref _accepted);
+                            _selection.Add(r);
+                        }
+                        else if (r == cap)
+                            Interlocked.Increment(ref _rejected);
 
-        //                if(r >= _count)
-        //                    return;
+                        if (r >= _count)
+                            return;
 
-        //                Assert.InRange(r, l, cap + 1);
-        //            }
-        //        }, CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Default));
-        //    }
+                        Assert.InRange(r, l, cap + 1);
+                    }
+                }, CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Default));
+            }
 
-        //    await Task.WhenAll(tasks).WaitAsync(TimeSpan.FromSeconds(25));
+            await Task.WhenAll(tasks).WaitAsync(TimeSpan.FromSeconds(25));
 
-        //    //Assert.Equal(_count, _reg);
-        //    var sorted = _selection.OrderBy(i => i);
-        //    long prev = -1;
+            //Assert.Equal(_count, _reg);
+            var sorted = _selection.OrderBy(i => i);
+            long prev = -1;
 
-        //    var bad = 0;
-        //    var duplicates = 0;
-        //    foreach (var next in sorted)
-        //    {
-        //        //_output.WriteLine($"next = {next}");
-        //        if (next != prev + 1)
-        //            bad++;
+            var bad = 0;
+            var duplicates = 0;
+            foreach (var next in sorted)
+            {
+                //_output.WriteLine($"next = {next}");
+                if (next != prev + 1)
+                    bad++;
 
-        //        if (next == prev)
-        //            duplicates++;
+                if (next == prev)
+                    duplicates++;
 
-        //        //Assert.True(next > prev);
-        //        //Assert.True(next == prev + 1);
-        //        prev = next;
-        //    }
-        //    _output.WriteLine($"Bad = {bad}/{_count}, {(double)bad/(_count) * 100:0.0}%, rejected = {_rejected}/{_accepted} = {(double)_rejected/_accepted * 100:0.0}%, duplicates = {duplicates}");
-        //    Assert.InRange(bad, 0,0);
-        //}
+                //Assert.True(next > prev);
+                //Assert.True(next == prev + 1);
+                prev = next;
+            }
+            _output.WriteLine($"Bad = {bad}/{_count}, {(double)bad / (_count) * 100:0.0}%, rejected = {_rejected}/{_accepted} = {(double)_rejected / _accepted * 100:0.0}%, duplicates = {duplicates}");
+            Assert.InRange(bad, 0, 0);
+        }
 
         [Fact]
         async Task NextOneAsync()
@@ -106,7 +107,7 @@ namespace zero.test.core.patterns.semaphore
                 }, CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Default));
             }
 
-            await Task.WhenAll(tasks).WaitAsync(TimeSpan.FromSeconds(15));
+            await Task.WhenAll(tasks).WaitAsync(TimeSpan.FromSeconds(30));
 
             Assert.Equal(_count - 1, _reg);
         }

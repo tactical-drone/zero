@@ -20,7 +20,6 @@ namespace zero.core.patterns.queue
     /// A lighter concurrent round robin Q
     /// </summary>
     public class IoBag<T> : IEnumerable<T>
-        //where T : class
     {
         /// <summary>
         /// Constructor
@@ -41,10 +40,9 @@ namespace zero.core.patterns.queue
 #endif
 
             _blockingCollection = asyncTasks != null;
-
-            //_hwm = _capacity = capacity;
-            _capacity = capacity;
-            _fastStorage = new T[_capacity];
+            _capacity = capacity++;
+            _fastStorage = new T[capacity];
+            _fastBloom = new int[capacity];
 
             if (_blockingCollection)
             {
@@ -56,23 +54,15 @@ namespace zero.core.patterns.queue
                 _balanceSyncs = Enumerable.Repeat<AsyncDelegate>(BalanceOnConsumeAsync, concurrencyLevel).ToArray();
                 _zeroSyncs = Enumerable.Repeat<AsyncDelegate>(PumpOnConsumeAsync, concurrencyLevel).ToArray();
             }
-            
-            //_curEnumerator = new IoQEnumerator<T>(this);
         }
 
         #region packed
         private long _head;
         private readonly string _description;
 
-        private readonly T[]     _fastStorage;
+        private readonly T[]   _fastStorage;
+        private readonly int[] _fastBloom;
 
-        private readonly object _syncRoot = new();
-
-        //private readonly ReaderWriterLockSlim _rwLock = new(LockRecursionPolicy.NoRecursion);
-        //private const int _readTo = 100;
-        //private const int _writeTo = 50;
-        
-        //private volatile IoQEnumerator<T> _curEnumerator;
         private readonly IoZeroSemaphoreSlim _fanSync;
         private readonly IoZeroSemaphoreChannel<T> _zeroSync;
         private readonly IoZeroSemaphoreSlim _balanceSync;
@@ -84,27 +74,14 @@ namespace zero.core.patterns.queue
 
         private readonly bool _blockingCollection;
 
-        private int _capacity;
+        private readonly int _capacity;
         private int _zeroed;
         private int _clearing;
-        private int _virility;
         private int _blockingConsumers;
         private int _sharingConsumers;
         private int _pumpingConsumers;
-        private int _primedForScale;
-        private int _timeSinceLastScale = Environment.TickCount;
         private int _count;
-        
         #endregion
-
-        private const int _zero = 0;
-        private const int _one = 1;
-        private const int _set = 2;
-        private const int _reset = 3;
-        private const int YieldRetryCount = 4;
-
-        //public long Tail => Interlocked.Read(ref _tail);
-        //public long Head => Interlocked.Read(ref _head);
         public long Tail => _tail;
         public long Head => _head;
 
@@ -116,12 +93,11 @@ namespace zero.core.patterns.queue
         /// <summary>
         /// Description
         /// </summary>
-        public string Description => $"{nameof(IoZeroQ<T>)}: z = {_zeroed > 0}, {nameof(Count)} = {_count}/{Capacity}({_timeSinceLastScale.ElapsedMs()/1000} sec), h = {Head}/{Tail}({Head%Capacity}/{Tail % Capacity}) (max: {Capacity}) (d:{Tail - Head}), desc = {_description}";
+        public string Description => $"{nameof(IoZeroQ<T>)}: z = {_zeroed > 0}, {nameof(Count)} = {_count}/{Capacity}, h = {Head}/{Tail}({Head%Capacity}/{Tail % Capacity}) (max: {Capacity}) (d:{Tail - Head}), desc = {_description}";
 
         /// <summary>
         /// Current number of items in the bag
         /// </summary>
-        //public long Count => Interlocked.Read(ref _count);
         public int Count => _count;
 
         /// <summary>
@@ -140,16 +116,16 @@ namespace zero.core.patterns.queue
             get
             {
                 Debug.Assert(idx >= 0);
-                //return _fastStorage[idx % _capacity];
-                var r = _fastStorage[idx % _capacity];
-                _fastStorage[idx % _capacity] = default;
-                return r;
+                return _fastStorage[idx % _capacity];
             }
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
-            protected set
+            set
             {
                 Debug.Assert(idx >= 0);
-                _fastStorage[idx % _capacity] = value; 
+                idx %= _capacity;
+                _fastStorage[idx] = value;
+                Interlocked.Exchange(ref _fastBloom[idx], 1);
+                Interlocked.MemoryBarrier();
             }
         }
 
@@ -193,8 +169,9 @@ namespace zero.core.patterns.queue
                     }
                 }
 
-                var next = _tail.ZeroNext(_head + Capacity);
-                if (next < _tail)
+                var cap = _head + Capacity;
+                var next = _tail.ZeroNext(cap);
+                if (next < cap)
                 {
                     this[next] = item;
                     Interlocked.Increment(ref _count);
@@ -262,6 +239,7 @@ namespace zero.core.patterns.queue
         public bool TryDequeue([MaybeNullWhen(false)] out T slot)
         {
             slot = default;
+            retry:
             try
             {
                 if (Count == 0)
@@ -270,14 +248,23 @@ namespace zero.core.patterns.queue
                     return false;
                 }
 
-                var next = _head.ZeroNext(_tail);
-                if (next < _tail)
+                var cap = _tail;
+                var next = _head.ZeroNext(cap);
+                if (next < cap)
                 {
-                    slot = this[next];
-                    if (slot != null)
+                    var idx = next % Capacity;
+                    if (Interlocked.Exchange(ref _fastBloom[idx], 0) == 1)
                     {
+                        slot = this[next];
+                        _fastStorage[next % Capacity] = default;
+                        Interlocked.Exchange(ref _fastBloom[next % Capacity], 0);
                         Interlocked.Decrement(ref _count);
                         return true;
+                    }
+                    else
+                    {
+                        Console.WriteLine($"empty slot at [{next} - {_head} - {_tail}]");
+                        goto retry;
                     }
                 }
             }
