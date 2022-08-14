@@ -316,7 +316,7 @@ namespace zero.core.patterns.queue
                         if (Tail != index || fastBloomPtr != _zero || Interlocked.CompareExchange(ref fastBloomPtr, _one, _zero) != _zero)
                             return (false, default);
 
-                        if (Tail != index) //Covers choking throughput causing wrap around issues. CAS passes but at distant past tail and needs to be undone...
+                        if (Tail != index) //Covers choking throughput (possibly OS preempting threads and resurrecting them MUCH later than "sibling" threads) causing wrap around issues. CAS passes but at distant past tail and needs to be undone...
                         {
                             //TAIL is racing towards this _one... set it back to _zero and hope for the best. So far it checks out. 
                             if (Interlocked.CompareExchange(ref fastBloomPtr, _zero, _one) != _one)

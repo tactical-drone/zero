@@ -58,12 +58,418 @@ namespace zero.sync
 
                 });
 
+        static void Bootstrap(out ConcurrentBag<CcCollective> concurrentBag, int total, int portOffset = 7051, int localPort = -1, int[] remotePort = null)
+        {
+            var maxDrones = 3;
+            var maxAdjuncts = 9;
+
+            var oldBoot = localPort == -1;
+            var queens = false;
+
+            concurrentBag = new ConcurrentBag<CcCollective>();
+            if (oldBoot)
+            {
+                if (queens)
+                // ReSharper disable once HeuristicUnreachableCode
+                {
+                    CoCoon(CcDesignation.Generate(), $"tcp://127.0.0.1:{1234}",
+                        $"udp://127.0.0.1:{1234}",
+                        $"tcp://127.0.0.1:{1234}", $"udp://127.0.0.1:{1234}",
+                        new string[]
+                        {
+                                $"udp://127.0.0.1:{1235}",
+                                $"udp://127.0.0.1:{1236}",
+                                $"udp://127.0.0.1:{1237}"
+                        }.ToList(), queens);
+
+                    CoCoon(CcDesignation.Generate(), $"tcp://127.0.0.1:{1235}",
+                        $"udp://127.0.0.1:{1235}", $"tcp://127.0.0.1:{1235}",
+                        $"udp://127.0.0.1:{1235}",
+                        new[]
+                        {
+                                $"udp://127.0.0.1:{1234}",
+                                $"udp://127.0.0.1:{1236}",
+                                $"udp://127.0.0.1:{1237}"
+                        }.ToList(), queens);
+
+                    CoCoon(CcDesignation.Generate(), $"tcp://127.0.0.1:{1236}",
+                        $"udp://127.0.0.1:{1236}",
+                        $"tcp://127.0.0.1:{1236}", $"udp://127.0.0.1:{1236}",
+                        new[]
+                        {
+                                $"udp://127.0.0.1:{1235}",
+                                $"udp://127.0.0.1:{1234}",
+                                $"udp://127.0.0.1:{1237}"
+                        }.ToList(), queens);
+
+                    CoCoon(CcDesignation.Generate(), $"tcp://127.0.0.1:{1237}",
+                        $"udp://127.0.0.1:{1237}", $"tcp://127.0.0.1:{1237}",
+                        $"udp://127.0.0.1:{1237}",
+                        new[]
+                        {
+                                $"udp://127.0.0.1:{1234}",
+                                $"udp://127.0.0.1:{1235}",
+                                $"udp://127.0.0.1:{1236}"
+                        }.ToList(), queens);
+                }
+                else
+#pragma warning disable CS0162
+                {
+                    StartCocoon(CoCoon(CcDesignation.Generate(true), $"tcp://127.0.0.1:{1234}",
+                        $"udp://127.0.0.1:{1234}",
+                        $"tcp://127.0.0.1:{1234}", $"udp://127.0.0.1:{1234}",
+                        new string[]
+                        {
+                                $"udp://127.0.0.1:{1235}",
+                            //$"udp://127.0.0.1:{1236}",
+                            //$"udp://127.0.0.1:{1237}"
+                        }.ToList(), false));
+
+                    StartCocoon(CoCoon(CcDesignation.Generate(), $"tcp://127.0.0.1:{1235}",
+                        $"udp://127.0.0.1:{1235}", $"tcp://127.0.0.1:{1235}",
+                        $"udp://127.0.0.1:{1235}",
+                        new string[]
+                        {
+                                $"udp://127.0.0.1:{1234}",
+                            //$"udp://127.0.0.1:{1236}",
+                            //$"udp://127.0.0.1:{1237}"
+                        }.ToList(), false));
+                }
+            }
+            else
+            {
+                var count = remotePort.Count(p => p > 0);
+                StartCocoon(CoCoon(CcDesignation.Generate(), $"tcp://127.0.0.1:{localPort}",
+                    $"udp://127.0.0.1:{localPort}",
+                    $"tcp://127.0.0.1:{localPort}", $"udp://127.0.0.1:{localPort}",
+                    remotePort.Take(count).Select(p => $"udp://127.0.0.1:{p}").ToList(), false));
+
+                Console.WriteLine($"starting udp://127.0.0.1:{localPort} -> {string.Join(", ", remotePort.Take(count).Select(port => $"udp://127.0.0.1:{port}"))}");
+
+            }
+#pragma warning restore CS0162
+
+            portOffset += 2;
+            for (var i = 0; i < total; i++)
+            {
+                var range = 20;
+                var o1 = Random.Shared.Next(portOffset + Math.Max(0, i - range), portOffset + i);
+                var o2 = Random.Shared.Next(portOffset + Math.Max(0, i - range), portOffset + i);
+                var o3 = Random.Shared.Next(portOffset + Math.Max(0, i - range), portOffset + i);
+                var o4 = Random.Shared.Next(portOffset + Math.Max(0, i - range), portOffset + i);
+                string extra = i == 0 ? $"udp://127.0.0.1:{1235}" : $"udp://127.0.0.1:{1234 + portOffset + i - 1}";
+
+                concurrentBag.Add(CoCoon(CcDesignation.Generate(), $"tcp://127.0.0.1:{1234 + portOffset + i}",
+                    $"udp://127.0.0.1:{1234 + portOffset + i}", $"tcp://127.0.0.1:{1334 + portOffset + i}",
+                    $"udp://127.0.0.1:{1234 + portOffset + i}",
+                    new[]
+                    {
+                            //$"udp://127.0.0.1:{1234 + portOffset + i - 1}",
+                            extra,
+                            $"udp://127.0.0.1:{1234 + o1}", $"udp://127.0.0.1:{1234 + o2}",
+                            $"udp://127.0.0.1:{1234 + o3}", $"udp://127.0.0.1:{1234 + o4}"
+                    }.ToList()));
+
+                if (concurrentBag.Count % 10 == 0)
+                    Console.WriteLine($"Spawned {concurrentBag.Count}/{total}");
+            }
+
+            var bag = concurrentBag;
+            _ = Task.Factory.StartNew(async () =>
+            {
+                Console.WriteLine($"Starting auto peering...  {bag.Count}");
+                var c = 0;
+                var rateLimit = 5000;
+                var injectionCount = Math.Max(1, bag.Count / 20);
+                var rampDelay = 50;
+                foreach (var cocoon in bag.OrderBy(e => e.Serial))
+                {
+                    await Task.Delay(rampDelay).ConfigureAwait(false);
+                    if (rampDelay > 50)
+                        rampDelay -= 1;
+
+                    Console.WriteLine($"addeding {c}/{bag.Count}");
+                    StartCocoon(cocoon);
+                    Console.WriteLine($"added {++c}/{bag.Count}");
+
+                    if (c % injectionCount == 0)
+                    {
+                        Console.WriteLine($"Provisioned {c}/{total}");
+                        Console.WriteLine($"Provisioned {c}/{total}");
+                        Console.WriteLine($"Provisioned {c}/{total}");
+                        Console.WriteLine($"Provisioned {c}/{total}");
+                        Console.WriteLine($"Provisioned {c}/{total}");
+                        Console.WriteLine($"Provisioned {c}/{total}");
+
+                        await Task.Delay(rateLimit -= 0).ConfigureAwait(false);
+
+                        //if (injectionCount > 50)
+                        //    injectionCount--;
+                    }
+
+                }
+            }, CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Default);
+
+            _running = true;
+            var outBound = 0;
+            var inBound = 0;
+            var available = 0;
+            var logger = LogManager.GetCurrentClassLogger();
+            _ = Task.Factory.StartNew(() =>
+            {
+                var ooutBound = 0;
+                var oinBound = 0;
+                var oavailable = 0;
+                long uptime = 0;
+                long uptimeCount = 1;
+                long opeers = 0;
+                long peers = 0;
+                int minOut = int.MaxValue;
+                int minIn = int.MaxValue;
+                int minOutC = 0;
+                int minInC = 0;
+                int empty = 0;
+                long lastUpdate = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+                long perfTime = Environment.TickCount, totalPerfTime = Environment.TickCount;
+                long opsCheckpoint = ThreadPool.CompletedWorkItemCount, totalOpsCheckpoint = ThreadPool.CompletedWorkItemCount;
+                while (_running)
+                {
+                    try
+                    {
+                        ooutBound = 0;
+                        oinBound = 0;
+                        oavailable = 0;
+                        opeers = 0;
+                        empty = 0;
+                        minOut = int.MaxValue;
+                        minIn = int.MaxValue;
+                        minOutC = 0;
+                        minInC = 0;
+                        uptime = 0;
+                        uptimeCount = 1;
+                        foreach (var ioCcNode in _nodes)
+                        {
+                            //if (ioCcNode.Zeroed())
+                            //{
+                            //    Thread.Sleep(1000);
+                            //    continue;
+                            //}
+
+                            try
+                            {
+                                opeers += ioCcNode.Drones.Count;
+                                var e = ioCcNode.EgressCount;
+                                var i = ioCcNode.IngressCount;
+                                minOut = Math.Min(minOut, e);
+                                minIn = Math.Min(minIn, i);
+                                if (ioCcNode.TotalConnections == 0)
+                                    empty++;
+                                if (ioCcNode.EgressCount == 0)
+                                    minOutC++;
+                                if (ioCcNode.IngressCount == 0)
+                                    minInC++;
+
+                                if (ioCcNode.TotalConnections > ioCcNode.MaxDrones)
+                                {
+                                    Console.WriteLine($"[{ioCcNode.Description}]");
+                                    foreach (var d in ioCcNode.Neighbors.Values)
+                                    {
+                                        var drone = (CcDrone)d;
+                                        Console.WriteLine(
+                                            $"t = {ioCcNode.TotalConnections} ({ioCcNode.IngressCount},{ioCcNode.EgressCount}), [{ioCcNode.Description}] -> {drone.Description} ][ {drone.Adjunct.MetaDesc}, uptime = {drone.UpTime.ElapsedMs():0.0}s");
+                                    }
+                                }
+
+                                ooutBound += e;
+                                oinBound += i;
+                                oavailable += ioCcNode.Hub.Neighbors.Values.Count(static n => ((CcAdjunct)n).IsProxy);
+
+                                uptime += ioCcNode.Hub.Neighbors.Values.Select(static n =>
+                                {
+                                    if (((CcAdjunct)n).IsDroneConnected && ((CcAdjunct)n).AttachTimestamp > 0)
+                                        return ((CcAdjunct)n).AttachTimestamp.ElapsedUtc();
+
+                                    return 0;
+                                }).Sum();
+
+                                uptimeCount += ioCcNode.TotalConnections;
+                            }
+                            catch
+                            {
+                            }
+                        }
+
+                        if (outBound != ooutBound || inBound != oinBound || available != oavailable || opeers != peers)
+                        {
+                            var prevPeers = peers;
+                            outBound = ooutBound;
+                            inBound = oinBound;
+                            peers = opeers;
+                            available = oavailable;
+
+                            ThreadPool.GetAvailableThreads(out var wt, out var cpt);
+                            ThreadPool.GetMaxThreads(out var maxwt, out var maxcpt);
+                            ThreadPool.GetMinThreads(out var minwt, out var mincpt);
+
+                            var localOps = (ThreadPool.CompletedWorkItemCount - opsCheckpoint);
+                            var totalOps = (ThreadPool.CompletedWorkItemCount - totalOpsCheckpoint);
+                            var fps = localOps / (double)perfTime.ElapsedMsToSec();
+                            var tfps = totalOps / (double)totalPerfTime.ElapsedMsToSec();
+                            opsCheckpoint = ThreadPool.CompletedWorkItemCount;
+                            perfTime = Environment.TickCount;
+                            try
+                            {
+                                Console.ForegroundColor = prevPeers <= peers ? ConsoleColor.Green : ConsoleColor.Red;
+                                Console.WriteLine(
+                                    $"({outBound},{inBound}), ({minOut}/{minOutC},{minIn}/{minInC}::{empty}), {inBound + outBound}/{(double)_nodes.Count * maxDrones}, p = {peers}/{available}({_nodes.Count * maxAdjuncts}), {(inBound + outBound) / ((double)_nodes.Count * maxDrones * 2) * 100:0.00}%, t = {TimeSpan.FromSeconds(uptime / (double)uptimeCount).TotalHours:0.000}h, T = {TimeSpan.FromSeconds(uptime).TotalDays:0.00} days, ({minwt} < {wt} < {maxwt}), ({mincpt} < {cpt} < {maxcpt}), con = {CcAdjunct.ConnectionTime / (CcAdjunct.ConnectionCount + 1.0):0.0}ms,  [iKo/s = {fps / 1000.0:0.000}, i = {localOps / 1000000.0:0.000} Mil], [tKo/s = {tfps / 1000.0:0.000}, t = {totalOps / 1000000.0:0.000} Mil]");
+                            }
+                            catch
+                            {
+                            }
+                            finally
+                            {
+                                Console.ResetColor();
+                            }
+                        }
+                        else if (DateTimeOffset.UtcNow.ToUnixTimeSeconds() - lastUpdate > 120)
+                        {
+                            ThreadPool.GetAvailableThreads(out var wt, out var cpt);
+                            ThreadPool.GetMaxThreads(out var maxwt, out var maxcpt);
+                            ThreadPool.GetMinThreads(out var minwt, out var mincpt);
+
+
+                            var localOps = (ThreadPool.CompletedWorkItemCount - opsCheckpoint);
+                            var totalOps = (ThreadPool.CompletedWorkItemCount - totalOpsCheckpoint);
+                            var fps = localOps / (double)perfTime.ElapsedMsToSec();
+                            var tfps = totalOps / (double)totalPerfTime.ElapsedMsToSec();
+                            perfTime = Environment.TickCount;
+                            opsCheckpoint = ThreadPool.CompletedWorkItemCount;
+
+                            Console.ForegroundColor = ConsoleColor.Green;
+                            try
+                            {
+                                Console.WriteLine(
+                                    $"({outBound},{inBound}), ({minOut}/{minOutC},{minIn}/{minInC}::{empty}), {inBound + outBound}/{(double)_nodes.Count * maxDrones}, p = {peers}/{available}({_nodes.Count * maxAdjuncts}), {(inBound + outBound) / (double)(_nodes.Count * maxDrones * 2) * 100:0.00}%, t = {TimeSpan.FromSeconds(uptime / (double)uptimeCount).TotalHours:0.000}h, T = {TimeSpan.FromSeconds(uptime).TotalDays:0.00} days, w = {-wt + maxwt}, ports = {-cpt + maxcpt}, connect time = {CcAdjunct.ConnectionTime / (CcAdjunct.ConnectionCount + 1.0):0.0}ms, [iKo/s = {fps / 1000.0:0.000}, i = {localOps / 1000000.0:0.000} Mil], [tKo/s = {tfps / 1000.0:0.000}, t = {totalOps / 1000000.0:0.000} Mil]");
+                            }
+                            catch
+                            {
+                                // ignored
+                            }
+                            finally
+                            {
+                                Console.ResetColor();
+                            }
+
+                            lastUpdate = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+                        }
+
+                        if (!_startAccounting && (inBound + outBound) / (double)(_nodes.Count * maxDrones) > 0.955)
+                        {
+                            _startAccounting = true;
+                        }
+                    }
+                    catch (Exception e)
+                    {
+                        Console.WriteLine($"Failed... {e.Message} {e.InnerException}");
+                    }
+
+
+                    Thread.Sleep(30000);
+                }
+            }, CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Default);
+        }
+        static void CoreTest()
+        {
+            //------------------------ TEST-----------------------------------
+            var j = new JoinableTaskFactory(new JoinableTaskContext());
+            {
+                var t = j.RunAsync(async () =>
+                {
+                    //await SemTestAsync();
+                    await QueueTestAsync();
+                    //await ZeroQTestAsync();
+                    //await BagTestAsync();
+                });
+                t.Join();
+            }
+            //------------------------ TEST-----------------------------------
+        }
+
+
+        static void PrimePeriodicTimer()
+        {
+            IoTimer.Make(make: static (delta, signal, token) =>
+            {
+#pragma warning disable VSTHRD101
+                var t = new Thread(static async state =>
+                {
+                    var (delta, signal, token) = (ValueTuple<TimeSpan, IIoManualResetValueTaskSourceCore<int>, CancellationToken>)state;
+
+                    signal.RunContinuationsAsynchronouslyAlways = true;
+                    var p = new PeriodicTimer(delta);
+                    while (!token.IsCancellationRequested)
+                    {
+                        try
+                        {
+                            if (await p.WaitForNextTickAsync(token).FastPath())
+                                signal.SetResult(Environment.TickCount);
+                            else
+                            {
+                                signal.SetException(new OperationCanceledException());
+                            }
+
+                        }
+                        catch
+                        {
+                            try
+                            {
+                                signal.Reset();
+                                signal.SetException(new OperationCanceledException());
+                            }
+                            catch (Exception e)
+                            {
+                                Console.WriteLine(e);
+                            }
+                        }
+                    }
+                });
+#pragma warning restore VSTHRD101
+                t.Start((delta, signal, token));
+            });
+        }
+
+        static IHost _host = null;
+
+        static void StartGRPC(int localPort)
+        {
+            //BOOSTRAP GRPC
+            
+            var port = localPort;
+            var grpc = Task.Factory.StartNew(() =>
+            {
+                _host = CreateHostBuilder(AutoPeeringEventService.Port = port == -1 ? 27021 : port + 1).Build();
+                _host.Run();
+            }, CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Default);
+        }
+
         /// <summary>
         /// Cluster test mode
         /// </summary>
         /// <param name="args"></param>
         static void Main(string[] args)
         {
+            LogManager.LoadConfiguration("nlog.config");
+
+            Console.WriteLine($"zero ({Environment.OSVersion}: {Environment.MachineName} - dotnet v{Environment.Version}, CPUs = {Environment.ProcessorCount})");
+            
+            //Tune dotnet for large tests
+            //ThreadPool.GetMinThreads(out var wt, out var cp);
+            //ThreadPool.SetMinThreads(wt * 3, cp * 2);
+
+            //run tests
+            //CoreTest();
+
+            PrimePeriodicTimer();
 
             var total = 0;
             int localPort = - 1;
@@ -81,430 +487,20 @@ namespace zero.sync
                     l++;
                 }
             }
-            LogManager.LoadConfiguration("nlog.config");
-
+            
             if (localPort != -1)
             {
                 LogManager.Configuration.Variables["zeroLogLevel"] = "trace";
                 LogManager.ReconfigExistingLoggers();
             }
 
-
-            static void Bootstrap(out ConcurrentBag<CcCollective> concurrentBag, int total, int portOffset = 7051, int localPort = -1, int[] remotePort = null)
-            {
-                var maxDrones = 3;
-                var maxAdjuncts = 9;
-                
-                var oldBoot = localPort == -1;
-                var queens = false;
-
-                concurrentBag = new ConcurrentBag<CcCollective>();
-                if (oldBoot)
-                {
-                    if (queens)
-                        // ReSharper disable once HeuristicUnreachableCode
-                    {
-                        CoCoon(CcDesignation.Generate(), $"tcp://127.0.0.1:{1234}",
-                            $"udp://127.0.0.1:{1234}",
-                            $"tcp://127.0.0.1:{1234}", $"udp://127.0.0.1:{1234}",
-                            new string[]
-                            {
-                                $"udp://127.0.0.1:{1235}",
-                                $"udp://127.0.0.1:{1236}",
-                                $"udp://127.0.0.1:{1237}"
-                            }.ToList(), queens);
-
-                        CoCoon(CcDesignation.Generate(), $"tcp://127.0.0.1:{1235}",
-                            $"udp://127.0.0.1:{1235}", $"tcp://127.0.0.1:{1235}",
-                            $"udp://127.0.0.1:{1235}",
-                            new[]
-                            {
-                                $"udp://127.0.0.1:{1234}",
-                                $"udp://127.0.0.1:{1236}",
-                                $"udp://127.0.0.1:{1237}"
-                            }.ToList(), queens);
-
-                        CoCoon(CcDesignation.Generate(), $"tcp://127.0.0.1:{1236}",
-                            $"udp://127.0.0.1:{1236}",
-                            $"tcp://127.0.0.1:{1236}", $"udp://127.0.0.1:{1236}",
-                            new[]
-                            {
-                                $"udp://127.0.0.1:{1235}",
-                                $"udp://127.0.0.1:{1234}",
-                                $"udp://127.0.0.1:{1237}"
-                            }.ToList(), queens);
-
-                        CoCoon(CcDesignation.Generate(), $"tcp://127.0.0.1:{1237}",
-                            $"udp://127.0.0.1:{1237}", $"tcp://127.0.0.1:{1237}",
-                            $"udp://127.0.0.1:{1237}",
-                            new[]
-                            {
-                                $"udp://127.0.0.1:{1234}",
-                                $"udp://127.0.0.1:{1235}",
-                                $"udp://127.0.0.1:{1236}"
-                            }.ToList(), queens);
-                    }
-                    else
-#pragma warning disable CS0162
-                    {
-                        StartCocoon(CoCoon(CcDesignation.Generate(true), $"tcp://127.0.0.1:{1234}",
-                            $"udp://127.0.0.1:{1234}",
-                            $"tcp://127.0.0.1:{1234}", $"udp://127.0.0.1:{1234}",
-                            new string[]
-                            {
-                                $"udp://127.0.0.1:{1235}",
-                                //$"udp://127.0.0.1:{1236}",
-                                //$"udp://127.0.0.1:{1237}"
-                            }.ToList(), false));
-
-                        StartCocoon(CoCoon(CcDesignation.Generate(), $"tcp://127.0.0.1:{1235}",
-                            $"udp://127.0.0.1:{1235}", $"tcp://127.0.0.1:{1235}",
-                            $"udp://127.0.0.1:{1235}",
-                            new string[]
-                            {
-                                $"udp://127.0.0.1:{1234}",
-                                //$"udp://127.0.0.1:{1236}",
-                                //$"udp://127.0.0.1:{1237}"
-                            }.ToList(), false));
-                    }
-                }
-                else
-                {
-                    var count = remotePort.Count(p => p > 0);
-                    StartCocoon(CoCoon(CcDesignation.Generate(), $"tcp://127.0.0.1:{localPort}",
-                        $"udp://127.0.0.1:{localPort}",
-                        $"tcp://127.0.0.1:{localPort}", $"udp://127.0.0.1:{localPort}",
-                        remotePort.Take(count).Select(p => $"udp://127.0.0.1:{p}").ToList(), false));
-
-                    Console.WriteLine($"starting udp://127.0.0.1:{localPort} -> {string.Join(", ", remotePort.Take(count).Select(port => $"udp://127.0.0.1:{port}"))}");
-
-                }
-#pragma warning restore CS0162
-
-                portOffset += 2;
-                for (var i = 0; i < total; i++)
-                {
-                    var range = 20;
-                    var o1 = Random.Shared.Next(portOffset + Math.Max(0, i - range), portOffset + i);
-                    var o2 = Random.Shared.Next(portOffset + Math.Max(0, i - range), portOffset + i);
-                    var o3 = Random.Shared.Next(portOffset + Math.Max(0, i - range), portOffset + i);
-                    var o4 = Random.Shared.Next(portOffset + Math.Max(0, i - range), portOffset + i);
-                    string extra = i == 0 ? $"udp://127.0.0.1:{1235}" : $"udp://127.0.0.1:{1234 + portOffset + i - 1}";
-
-                    concurrentBag.Add(CoCoon(CcDesignation.Generate(), $"tcp://127.0.0.1:{1234 + portOffset + i}",
-                        $"udp://127.0.0.1:{1234 + portOffset + i}", $"tcp://127.0.0.1:{1334 + portOffset + i}",
-                        $"udp://127.0.0.1:{1234 + portOffset + i}",
-                        new[]
-                        {
-                            //$"udp://127.0.0.1:{1234 + portOffset + i - 1}",
-                            extra, 
-                            $"udp://127.0.0.1:{1234 + o1}", $"udp://127.0.0.1:{1234 + o2}",
-                            $"udp://127.0.0.1:{1234 + o3}", $"udp://127.0.0.1:{1234 + o4}"
-                        }.ToList()));
-
-                    if (concurrentBag.Count % 10 == 0)
-                        Console.WriteLine($"Spawned {concurrentBag.Count}/{total}");
-                }
-
-                var bag = concurrentBag;
-                _ = Task.Factory.StartNew(async () =>
-                {
-                    Console.WriteLine($"Starting auto peering...  {bag.Count}");
-                    var c = 0;
-                    var rateLimit = 5000;
-                    var injectionCount = Math.Max(1,bag.Count / 20);
-                    var rampDelay = 50;
-                    foreach (var cocoon in bag.OrderBy(e => e.Serial))
-                    {
-                        await Task.Delay(rampDelay).ConfigureAwait(false);
-                        if (rampDelay> 50)
-                            rampDelay -= 1;
-
-                        Console.WriteLine($"addeding {c}/{bag.Count}");
-                        StartCocoon(cocoon);
-                        Console.WriteLine($"added {++c}/{bag.Count}");
-
-                        if (c % injectionCount == 0)
-                        {
-                            Console.WriteLine($"Provisioned {c}/{total}");
-                            Console.WriteLine($"Provisioned {c}/{total}");
-                            Console.WriteLine($"Provisioned {c}/{total}");
-                            Console.WriteLine($"Provisioned {c}/{total}");
-                            Console.WriteLine($"Provisioned {c}/{total}");
-                            Console.WriteLine($"Provisioned {c}/{total}");
-
-                            await Task.Delay(rateLimit -= 0).ConfigureAwait(false);
-
-                            //if (injectionCount > 50)
-                            //    injectionCount--;
-                        }
-
-                    }
-                }, CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Default);
-
-                _running = true;
-                var outBound = 0;
-                var inBound = 0;
-                var available = 0;
-                var logger = LogManager.GetCurrentClassLogger();
-                _ = Task.Factory.StartNew(() =>
-                {
-                    var ooutBound = 0;
-                    var oinBound = 0;
-                    var oavailable = 0;
-                    long uptime = 0;
-                    long uptimeCount = 1;
-                    long opeers = 0;
-                    long peers = 0;
-                    int minOut = int.MaxValue;
-                    int minIn = int.MaxValue;
-                    int minOutC = 0;
-                    int minInC = 0;
-                    int empty = 0;
-                    long lastUpdate = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
-                    long perfTime = Environment.TickCount, totalPerfTime = Environment.TickCount;
-                    long opsCheckpoint = ThreadPool.CompletedWorkItemCount, totalOpsCheckpoint = ThreadPool.CompletedWorkItemCount;
-                    while (_running)
-                    {
-                        try
-                        {
-                            ooutBound = 0;
-                            oinBound = 0;
-                            oavailable = 0;
-                            opeers = 0;
-                            empty = 0;
-                            minOut = int.MaxValue;
-                            minIn = int.MaxValue;
-                            minOutC = 0;
-                            minInC = 0;
-                            uptime = 0;
-                            uptimeCount = 1;
-                            foreach (var ioCcNode in _nodes)
-                            {
-                                //if (ioCcNode.Zeroed())
-                                //{
-                                //    Thread.Sleep(1000);
-                                //    continue;
-                                //}
-
-                                try
-                                {
-                                    opeers += ioCcNode.Drones.Count;
-                                    var e = ioCcNode.EgressCount;
-                                    var i = ioCcNode.IngressCount;
-                                    minOut = Math.Min(minOut, e);
-                                    minIn = Math.Min(minIn, i);
-                                    if (ioCcNode.TotalConnections == 0)
-                                        empty++;
-                                    if (ioCcNode.EgressCount == 0)
-                                        minOutC++;
-                                    if (ioCcNode.IngressCount == 0)
-                                        minInC++;
-
-                                    if (ioCcNode.TotalConnections > ioCcNode.MaxDrones)
-                                    {
-                                        Console.WriteLine($"[{ioCcNode.Description}]");
-                                        foreach (var d in ioCcNode.Neighbors.Values)
-                                        {
-                                            var drone = (CcDrone)d;
-                                            Console.WriteLine(
-                                                $"t = {ioCcNode.TotalConnections} ({ioCcNode.IngressCount},{ioCcNode.EgressCount}), [{ioCcNode.Description}] -> {drone.Description} ][ {drone.Adjunct.MetaDesc}, uptime = {drone.UpTime.ElapsedMs():0.0}s");
-                                        }
-                                    }
-
-                                    ooutBound += e;
-                                    oinBound += i;
-                                    oavailable += ioCcNode.Hub.Neighbors.Values.Count(static n => ((CcAdjunct)n).IsProxy);
-
-                                    uptime += ioCcNode.Hub.Neighbors.Values.Select(static n =>
-                                    {
-                                        if (((CcAdjunct)n).IsDroneConnected && ((CcAdjunct)n).AttachTimestamp > 0)
-                                            return ((CcAdjunct)n).AttachTimestamp.ElapsedUtc();
-
-                                        return 0;
-                                    }).Sum();
-
-                                    uptimeCount += ioCcNode.TotalConnections;
-                                }
-                                catch
-                                {
-                                }
-                            }
-
-                            if (outBound != ooutBound || inBound != oinBound || available != oavailable || opeers != peers)
-                            {
-                                var prevPeers = peers;
-                                outBound = ooutBound;
-                                inBound = oinBound;
-                                peers = opeers;
-                                available = oavailable;
-
-                                ThreadPool.GetAvailableThreads(out var wt, out var cpt);
-                                ThreadPool.GetMaxThreads(out var maxwt, out var maxcpt);
-                                ThreadPool.GetMinThreads(out var minwt, out var mincpt);
-
-                                var localOps = (ThreadPool.CompletedWorkItemCount - opsCheckpoint);
-                                var totalOps = (ThreadPool.CompletedWorkItemCount - totalOpsCheckpoint);
-                                var fps = localOps / (double)perfTime.ElapsedMsToSec();
-                                var tfps = totalOps / (double)totalPerfTime.ElapsedMsToSec();
-                                opsCheckpoint = ThreadPool.CompletedWorkItemCount;
-                                perfTime = Environment.TickCount;
-                                try
-                                {
-                                    Console.ForegroundColor = prevPeers <= peers ? ConsoleColor.Green : ConsoleColor.Red;
-                                    Console.WriteLine(
-                                        $"({outBound},{inBound}), ({minOut}/{minOutC},{minIn}/{minInC}::{empty}), {inBound + outBound}/{(double)_nodes.Count * maxDrones}, p = {peers}/{available}({_nodes.Count * maxAdjuncts}), {(inBound + outBound) / ((double)_nodes.Count * maxDrones * 2) * 100:0.00}%, t = {TimeSpan.FromSeconds(uptime / (double)uptimeCount).TotalHours:0.000}h, T = {TimeSpan.FromSeconds(uptime).TotalDays:0.00} days, ({minwt} < {wt} < {maxwt}), ({mincpt} < {cpt} < {maxcpt}), con = {CcAdjunct.ConnectionTime / (CcAdjunct.ConnectionCount + 1.0):0.0}ms,  [iKo/s = {fps / 1000.0:0.000}, i = {localOps / 1000000.0:0.000} Mil], [tKo/s = {tfps / 1000.0:0.000}, t = {totalOps / 1000000.0:0.000} Mil]");
-                                }
-                                catch
-                                {
-                                }
-                                finally
-                                {
-                                    Console.ResetColor();
-                                }
-                            }
-                            else if (DateTimeOffset.UtcNow.ToUnixTimeSeconds() - lastUpdate > 120)
-                            {
-                                ThreadPool.GetAvailableThreads(out var wt, out var cpt);
-                                ThreadPool.GetMaxThreads(out var maxwt, out var maxcpt);
-                                ThreadPool.GetMinThreads(out var minwt, out var mincpt);
-
-
-                                var localOps = (ThreadPool.CompletedWorkItemCount - opsCheckpoint);
-                                var totalOps = (ThreadPool.CompletedWorkItemCount - totalOpsCheckpoint);
-                                var fps = localOps / (double)perfTime.ElapsedMsToSec();
-                                var tfps = totalOps / (double)totalPerfTime.ElapsedMsToSec();
-                                perfTime = Environment.TickCount;
-                                opsCheckpoint = ThreadPool.CompletedWorkItemCount;
-
-                                Console.ForegroundColor = ConsoleColor.Green;
-                                try
-                                {
-                                    Console.WriteLine(
-                                        $"({outBound},{inBound}), ({minOut}/{minOutC},{minIn}/{minInC}::{empty}), {inBound + outBound}/{(double)_nodes.Count * maxDrones}, p = {peers}/{available}({_nodes.Count * maxAdjuncts}), {(inBound + outBound) / (double)(_nodes.Count * maxDrones * 2) * 100:0.00}%, t = {TimeSpan.FromSeconds(uptime / (double)uptimeCount).TotalHours:0.000}h, T = {TimeSpan.FromSeconds(uptime).TotalDays:0.00} days, w = {-wt + maxwt}, ports = {-cpt + maxcpt}, connect time = {CcAdjunct.ConnectionTime / (CcAdjunct.ConnectionCount + 1.0):0.0}ms, [iKo/s = {fps / 1000.0:0.000}, i = {localOps / 1000000.0:0.000} Mil], [tKo/s = {tfps / 1000.0:0.000}, t = {totalOps / 1000000.0:0.000} Mil]");
-                                }
-                                catch
-                                {
-                                    // ignored
-                                }
-                                finally
-                                {
-                                    Console.ResetColor();
-                                }
-
-                                lastUpdate = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
-                            }
-
-                            if (!_startAccounting && (inBound + outBound) / (double)(_nodes.Count * maxDrones) > 0.955)
-                            {
-                                _startAccounting = true;
-                            }
-                        }
-                        catch (Exception e)
-                        {
-                            Console.WriteLine($"Failed... {e.Message} {e.InnerException}");
-                        }
-
-
-                        Thread.Sleep(30000);
-                    }
-                }, CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Default);
-            }
-
-            Console.WriteLine($"zero ({Environment.OSVersion}: {Environment.MachineName} - dotnet v{Environment.Version}, CPUs = {Environment.ProcessorCount})");
-
-            IoTimer.Make(make: static (delta,signal, token) =>
-            {
-#pragma warning disable VSTHRD101
-                var t = new Thread(static async state =>
-                {
-                    var (delta,signal,token) = (ValueTuple<TimeSpan, IIoManualResetValueTaskSourceCore<int>, CancellationToken>) state;
-
-                    signal.RunContinuationsAsynchronouslyAlways = true;
-                    var p = new PeriodicTimer(delta);
-                    while (!token.IsCancellationRequested)
-                    {
-                        try
-                        {
-                            if (await p.WaitForNextTickAsync(token).FastPath())
-                                signal.SetResult(Environment.TickCount);
-                            else
-                            {
-                                signal.SetException(new OperationCanceledException());
-                            }
-                                
-                        }
-                        catch 
-                        {
-                            try
-                            {
-                                signal.Reset();
-                                signal.SetException(new OperationCanceledException());
-                            }
-                            catch (Exception e)
-                            {
-                                Console.WriteLine(e);
-                            }
-                        }
-                    }
-                });
-#pragma warning restore VSTHRD101
-                t.Start((delta, signal, token));
-            });
-
-            var j = new JoinableTaskFactory(new JoinableTaskContext());
-            {
-                var t = j.RunAsync(async () =>
-                {
-                    await SemTestAsync();
-                    //await QueueTestAsync();
-                    //await ZeroQTestAsync();
-                    //await BagTestAsync();)
-                });
-                t.Join();
-            }
-
-            //var testDone = false;
-            //var testTask = Task.Factory.StartNew(async () =>
-            //{
-            //    Console.Write("1->");
-            //    await SemTestAsync();
-            //    //await QueueTestAsync();
-            //    //await ZeroQTestAsync();
-            //    //await BagTestAsync();
-            //}, CancellationToken.None, TaskCreationOptions.DenyChildAttach, IoZeroScheduler.ZeroDefault).Unwrap();
-
-
-
-            //var spinWait = new SpinWait();
-
-            //while (!testDone)
-            //{
-            //    spinWait.SpinOnce();
-            //    if (spinWait.Count % 2000 == 0)
-            //    {
-            //        Thread.Sleep(2000);
-            //    }
-            //}
-
-
-
-            //Tune dotnet for large tests
-            ThreadPool.GetMinThreads(out var wt, out var cp);
-            ThreadPool.SetMinThreads(wt * 3, cp * 2);
-
             Console.WriteLine($"local = {localPort}, remote = {remotePort}");
-
-            IHost host = null;
-            var port = localPort;
-            var grpc = Task.Factory.StartNew(() =>
-            {
-                host = CreateHostBuilder(AutoPeeringEventService.Port = port == -1 ? 27021 : port + 1).Build();
-                host.Run();
-            }, CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Default);
+            
+            StartGRPC(localPort);
 
             Bootstrap(out var tasks, total, 0, localPort, remotePort);
 
+            //Continue to print some stats while tests are running... 
             long C = 0;
 
             string line;
@@ -820,8 +816,8 @@ namespace zero.sync
             _nodes?.Clear();
             _nodes = null;
 
-            var s = host.StopAsync();
-            host = null;
+            var s = _host.StopAsync();
+            _host = null;
             LogManager.Shutdown();
 
             Console.WriteLine("## - done");
@@ -1126,8 +1122,9 @@ namespace zero.sync
         private static async Task BagTestAsync() //TODO make unit tests
         {
             await Task.Delay(1000);
-            var concurrencyLevel = Environment.ProcessorCount * 2;
-            IoBag<int> q = new("test", concurrencyLevel * 2);
+            //var concurrencyLevel = Environment.ProcessorCount * 2;
+            var concurrencyLevel = 2;
+            IoBag<int> q = new("test", concurrencyLevel);
 
             var _concurrentTasks = new List<Task>();
 
@@ -1313,7 +1310,7 @@ namespace zero.sync
                              if (Interlocked.Increment(ref c) % logSpam == 0)
                              {
                                  var totalEq = eQ.Aggregate((u, u1) => u + u1);
-                                 Console.WriteLine($"[{Thread.CurrentThread.ManagedThreadId}] T1:{mutex}({c}) t = {tt - targetSleep * targetSleepMult}ms, [{dq1_fps + dq2_fps + dq3_fps: 0}, ({dq1_fps: 0}, {dq2_fps: 0}, {dq3_fps: 0})], [{totalEq/delta: 0.0} ({eQ_fps[0]: 0}, {eQ_fps[1]: 0}, {eQ_fps[2]: 0}, {eQ_fps[3]: 0})], s = {semCount / (double)(semPollCount+1):0.0}, S = {mutex.ReadyCount}, DQ DELTA = {(int)(dq1 + dq2 + dq3) - (int)totalEq} (+ means release is not working)");
+                                 Console.WriteLine($"[{Thread.CurrentThread.ManagedThreadId}] T1:{mutex}({c}) t = {tt - targetSleep * targetSleepMult}ms, [{dq1_fps + dq2_fps + dq3_fps: 0}, ({dq1_fps: 0}, {dq2_fps: 0}, {dq3_fps: 0})], [{totalEq/delta: 0.0} ({eQ_fps[0]: 0}, {eQ_fps[1]: 0}, {eQ_fps[2]: 0}, {eQ_fps[3]: 0})], s = {semCount / (double)(semPollCount+1):0.0}, S = {mutex.ReadyCount}, DQ DELTA = {(int)(dq1 + dq2 + dq3) - (int)totalEq} (+eq), last race ={((IoZeroSemaphoreSlim)mutex).LastRace.ElapsedMs()}");
                                  Console.ResetColor();
                              }
                               
@@ -1322,7 +1319,7 @@ namespace zero.sync
                          }
                          else
                          {
-                             Console.WriteLine($"[{Thread.CurrentThread.ManagedThreadId}] T1: {qt.ElapsedMs()}ms - {qt}");
+                             Console.WriteLine($"[{Thread.CurrentThread.ManagedThreadId}] T1: {qt.ElapsedMs()}ms, last race ={((IoZeroSemaphoreSlim)mutex).LastRace.ElapsedMs()}");
                              //break;
                          }
 
@@ -1396,9 +1393,9 @@ namespace zero.sync
                         }
                         else
                         {
-                            Console.WriteLine($"[{Thread.CurrentThread.ManagedThreadId}] T2: {qt.ElapsedMs()}ms - {qt}");
-                            //break;
-                        }
+                           Console.WriteLine($"[{Thread.CurrentThread.ManagedThreadId}] T2: {qt.ElapsedMs()}ms, last race ={((IoZeroSemaphoreSlim)mutex).LastRace.ElapsedMs()}");
+                           //break;
+                       }
            
                    }
                }
@@ -1453,9 +1450,9 @@ namespace zero.sync
                         }
                         else
                         {
-                            Console.WriteLine($"[{Thread.CurrentThread.ManagedThreadId}] T3: {qt.ElapsedMs()}ms - {qt}");
-                            //break;
-                        }
+                           Console.WriteLine($"[{Thread.CurrentThread.ManagedThreadId}] T3: {qt.ElapsedMs()}ms, last race ={((IoZeroSemaphoreSlim)mutex).LastRace.ElapsedMs()}");
+                           //break;
+                       }
 
                    }
                }

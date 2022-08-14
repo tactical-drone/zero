@@ -6,6 +6,7 @@ using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Threading;
+using System.Threading.Channels;
 using System.Threading.Tasks;
 using NLog;
 using zero.core.misc;
@@ -17,7 +18,7 @@ using zero.core.patterns.semaphore.core;
 namespace zero.core.patterns.queue
 {
     /// <summary>
-    /// A lighter concurrent round robin Q
+    /// A lit Q with strong order guarantees 
     /// </summary>
     public class IoBag<T> : IEnumerable<T>
     {
@@ -26,12 +27,11 @@ namespace zero.core.patterns.queue
         /// </summary>
         /// <param name="description">A description</param>
         /// <param name="capacity">The initial capacity</param>
-        /// <param name="autoScale">This is pseudo scaling: If set, allows the internal buffers to grow (amortized) if buffer pressure drops below 50% after exceeding it, otherwise scaling is not possible</param>
         /// <param name="asyncTasks">When used as async blocking collection</param>
         /// <param name="concurrencyLevel">Max expected concurrency</param>
         /// <param name="zeroAsyncMode"></param>
         /// <exception cref="ArgumentOutOfRangeException"></exception>
-        public IoBag(string description, int capacity, bool autoScale = false, CancellationTokenSource asyncTasks = null, int concurrencyLevel = 1, bool zeroAsyncMode = false)
+        public IoBag(string description, int capacity, CancellationTokenSource asyncTasks = null, int concurrencyLevel = 1, bool zeroAsyncMode = false)
         {
 #if DEBUG
             _description = description;
@@ -41,8 +41,8 @@ namespace zero.core.patterns.queue
 
             _blockingCollection = asyncTasks != null;
             _capacity = capacity++;
-            _fastStorage = new T[capacity];
-            _fastBloom = new int[capacity];
+            _storage = new T[capacity];
+            _bloom = new int[capacity];
 
             if (_blockingCollection)
             {
@@ -54,14 +54,18 @@ namespace zero.core.patterns.queue
                 _balanceSyncs = Enumerable.Repeat<AsyncDelegate>(BalanceOnConsumeAsync, concurrencyLevel).ToArray();
                 _zeroSyncs = Enumerable.Repeat<AsyncDelegate>(PumpOnConsumeAsync, concurrencyLevel).ToArray();
             }
+
+#if DEBUG
+            _auditLog = Channel.CreateBounded<long>(int.MaxValue);
+#endif
         }
 
         #region packed
         private long _head;
         private readonly string _description;
 
-        private readonly T[]   _fastStorage;
-        private readonly int[] _fastBloom;
+        private readonly T[]   _storage;
+        private readonly int[] _bloom;
 
         private readonly IoZeroSemaphoreSlim _fanSync;
         private readonly IoZeroSemaphoreChannel<T> _zeroSync;
@@ -82,6 +86,11 @@ namespace zero.core.patterns.queue
         private int _pumpingConsumers;
         private int _count;
         #endregion
+
+#if DEBUG
+        private Channel<long> _auditLog;
+#endif
+
         public long Tail => _tail;
         public long Head => _head;
 
@@ -112,20 +121,22 @@ namespace zero.core.patterns.queue
         /// <returns>Object stored at index</returns>
         public T this[long idx]
         {
+#if !DEBUG
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
+#endif
             get
             {
                 Debug.Assert(idx >= 0);
-                return _fastStorage[idx % _capacity];
+                return _storage[idx % _capacity];
             }
+#if !DEBUG
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
+#endif
             set
             {
                 Debug.Assert(idx >= 0);
                 idx %= _capacity;
-                _fastStorage[idx] = value;
-                Interlocked.Exchange(ref _fastBloom[idx], 1);
-                Interlocked.MemoryBarrier();
+                _storage[idx] = value;
             }
         }
 
@@ -169,11 +180,45 @@ namespace zero.core.patterns.queue
                     }
                 }
 
-                var next = _tail.ZeroNext(_head + Capacity);
-                if (next < _head + Capacity)
+                long latch;
+                var next = _tail.ZeroNext(latch = Interlocked.Read(ref _head) + Capacity);
+                if (next < latch)
                 {
-                    this[next] = item;
-                    Interlocked.Increment(ref _count);
+                    var spinWait = new SpinWait();
+                    while (Volatile.Read(ref _bloom[next % Capacity]) == 2)
+                    {
+                        if(!spinWait.NextSpinWillYield)
+                            spinWait.SpinOnce();
+                    }
+
+                    long prevBloom;
+                    if ((prevBloom = Interlocked.CompareExchange(ref _bloom[next % Capacity], 1, 0)) == 0)
+                    {
+                        this[next] = item;
+                        Interlocked.Increment(ref _count);
+
+#if DEBUG
+                        _auditLog.Writer.TryWrite(next);
+#endif
+
+                        var prev = Interlocked.Exchange(ref _bloom[next % Capacity], 2);
+                        Debug.Assert(prev == 1, $"next = {this[next]}, bloom = {_bloom[next % Capacity]}, h = {_head}, t = {_tail}, delta = {_tail - _head}, cap = {Capacity}");
+                    }
+                    else
+                    {
+#if DEBUG
+                        var i = 0;
+                        var count = _auditLog.Reader.Count;
+                        while (_auditLog.Reader.TryRead(out var entry))
+                        {
+                            if(i++ < count - Environment.ProcessorCount * 2)
+                                continue;
+                            Console.WriteLine($"[{i%Capacity}] = {entry % Capacity}");
+                        }
+#endif
+                        throw new InvalidOperationException($"{nameof(TryEnqueue)}: Control should never reach here; next = {next}({next%Capacity}), bloom = {prevBloom}, {Description}");
+                    }
+                        
                 }
                 else
                     return -1;
@@ -238,7 +283,7 @@ namespace zero.core.patterns.queue
         public bool TryDequeue([MaybeNullWhen(false)] out T slot)
         {
             slot = default;
-            retry:
+            
             try
             {
                 if (Count == 0)
@@ -247,23 +292,54 @@ namespace zero.core.patterns.queue
                     return false;
                 }
 
-                var next = _head.ZeroNext(_tail);
-                if (next < _tail)
+                long latch;
+                var next = _head.ZeroNext(latch = Interlocked.Read(ref _tail));
+                if (next < latch 
+                    && next < _tail + Capacity) //Covers choking throughput (possibly OS preempting threads and resurrecting them MUCH later than "sibling" threads) causing wrap around issues.
                 {
                     var idx = next % Capacity;
-                    if (Interlocked.Exchange(ref _fastBloom[idx], 0) == 1)
+                    var spinWait = new SpinWait();
+                    int cur;
+                    while ((cur = Volatile.Read(ref _bloom[idx])) == 1)
                     {
-                        slot = this[next];
-                        _fastStorage[next % Capacity] = default;
-                        Interlocked.Exchange(ref _fastBloom[next % Capacity], 0);
+                        if(!spinWait.NextSpinWillYield)
+                            spinWait.SpinOnce();
+                    }
+
+                    if (cur == 0)
+                    {
+#if TRACE
+                        var i = 0;
+                        var count = _auditLog.Reader.Count;
+                        while (_auditLog.Reader.TryRead(out var entry))
+                        {
+                            if (i++ < count - Environment.ProcessorCount * 2)
+                                continue;
+                            Console.WriteLine($"[{i % Capacity}] = {entry % Capacity}");
+                        }
+#endif
+                        var zombie = next < _tail + Capacity;
+                        if(!zombie)
+                            throw new InvalidOperationException($"{nameof(TryDequeue)}[RACE]: zombie = {zombie}, next = {next}({next%Capacity}), latch = {latch}({latch%Capacity}), bloom = {cur}, {Description}");
+                        else
+                            LogManager.GetCurrentClassLogger().Warn($"{nameof(TryDequeue)}[ZOMBIE]: zombie = {zombie}, next = {next}({next % Capacity}), latch = {latch}({latch % Capacity}), bloom = {cur}, {Description}");
+                        
+                    }
+                    
+                    Interlocked.MemoryBarrier();
+                    slot = this[next];
+
+                    long prev;
+                    if ((prev = Interlocked.Exchange(ref _bloom[idx], 0)) == 2)
+                    {
                         Interlocked.Decrement(ref _count);
+#if DEBUG
+                        _auditLog.Writer.TryWrite(-next);
+#endif
                         return true;
                     }
-                    else
-                    {
-                        Console.WriteLine($"empty slot at [{next} - {_head} - {_tail}]");
-                        goto retry;
-                    }
+
+                    throw new InvalidOperationException($"{nameof(TryDequeue)}[SET]: Control should never reach here; bloom was = {prev}, {Description}");
                 }
             }
             catch (Exception e)
@@ -360,7 +436,7 @@ namespace zero.core.patterns.queue
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public bool Contains(T item)
         {
-            return _fastStorage.Contains(item);
+            return _storage.Contains(item);
         }
 
         /// <summary>

@@ -62,7 +62,7 @@ namespace zero.core.patterns.semaphore.core
 #pragma warning restore CS8632 // The annotation for nullable reference types should only be used in code within a '#nullable' annotations context.
 
         /// <summary>Whether the current operation has completed.</summary>
-        private int _version;
+        private readonly int _version;
         private int _completeTime;
         private int _burnTime;
         private bool _completed;
@@ -164,33 +164,32 @@ namespace zero.core.patterns.semaphore.core
             _completeTime = 0;
             Relay = 0;
             _completed = false;
+#if DEBUG
+            _burned = 0;
+#endif
             _continuation = null;
+            Interlocked.MemoryBarrier();
+
+            //_version++;
 
 #if DEBUG
             //if(_burned > 0)
-                _heapAction?.Invoke(_heapContext);
+            _heapAction?.Invoke(_heapContext);
 #else
             _heapAction?.Invoke(_heapContext);
 #endif
-
-            Interlocked.MemoryBarrier();
-
-#if DEBUG
-            _burned = 0;   
-#endif
-
         }
 
         public void Reset(int version)
         {
             Reset();
-            _version = version;
+            //_version = version;
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Prime(int version)
         {
-            _version = version;
+            //_version = version;
         }
 
         /// <summary>
@@ -267,7 +266,7 @@ namespace zero.core.patterns.semaphore.core
         public ValueTaskSourceStatus GetStatus(short token)
         {
 #if DEBUG
-            ValidateToken(token);   
+            //ValidateToken(token);   
 #endif
             return
                 _continuation == null || !_completed ? ValueTaskSourceStatus.Pending :
@@ -285,7 +284,7 @@ namespace zero.core.patterns.semaphore.core
 #if DEBUG
             if (Interlocked.CompareExchange(ref _burned, 1, 0) != 0)
                 throw new InvalidOperationException($"[{Thread.CurrentThread.ManagedThreadId}] {nameof(GetResult)}: core #{_version} already burned completed {_completeTime.ElapsedMs()} ms ago, burned = {_burnTime.ElapsedMs()} ms ago");
-            ValidateToken(token);
+            //ValidateToken(token);
 #endif
             _burnTime = Environment.TickCount;
 
@@ -314,7 +313,7 @@ namespace zero.core.patterns.semaphore.core
         {
 #if DEBUG
             Debug.Assert(continuation != null && state != null);
-            ValidateToken(token);
+            //ValidateToken(token);
 #endif
             if ((flags & ValueTaskSourceOnCompletedFlags.FlowExecutionContext) != 0)
             {
@@ -452,13 +451,13 @@ namespace zero.core.patterns.semaphore.core
 #if DEBUG
         /// <summary>Ensures that the specified token matches the current version.</summary>
         /// <param name="token">The token supplied by <see cref="ValueTask"/>.</param>
-        private void ValidateToken(int token)
-        {
-            if (token != _version)
-            {
-                throw new InvalidOperationException($"{nameof(ValidateToken)}: Invalid core token detected: wants = {token}, has = {_version}");
-            }
-        }
+        //private void ValidateToken(int token)
+        //{
+        //    //if (token != _version)
+        //    //{
+        //    //    throw new InvalidOperationException($"{nameof(ValidateToken)}: Invalid core token detected: wants = {token}, has = {_version}");
+        //    //}
+        //}
 #endif
 
         //private void SignalCompletion() => SignalCompletion<object>();

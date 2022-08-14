@@ -97,5 +97,9 @@ namespace zero.core.patterns.semaphore
         {
             return _semaphore.Zeroed() || base.Zeroed();
         }
+
+#if DEBUG
+        public int LastRace => ((IoZeroCore<int>)_semaphore).LastRace;
+#endif
     }
 }

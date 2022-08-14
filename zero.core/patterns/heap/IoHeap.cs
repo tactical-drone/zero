@@ -42,12 +42,11 @@ namespace zero.core.patterns.heap
             _description = description;
             Malloc = malloc;
 
-            _ioHeapBuf = new IoBag<TItem>($"{nameof(_ioHeapBuf)}: {description}", capacity, autoScale);
+            _ioHeapBuf = new IoBag<TItem>($"{nameof(_ioHeapBuf)}: {description}", capacity);
 
             Context = context;
             _capacity = capacity;
             _autoScale = autoScale;
-            Console.WriteLine($"{description} constructed");
         }
 
         /// <summary>

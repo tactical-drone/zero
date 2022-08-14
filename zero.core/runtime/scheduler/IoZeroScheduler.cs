@@ -42,8 +42,7 @@ namespace zero.core.runtime.scheduler
             //_workerCount = Environment.ProcessorCount * 2;
             //_syncCount = _asyncCount = _asyncTaskWithContextCount = _workerCount * 2;
             //_asyncFallbackCount = _forkCount = _syncCount * 2;
-            _workerCount = _syncCount = _asyncCount =
-                _asyncTaskWithContextCount = _asyncFallbackCount = _forkCount = _syncCount = 6;
+            _workerCount = _syncCount = _asyncCount = _asyncTaskWithContextCount = _asyncFallbackCount = _forkCount = _syncCount = Environment.ProcessorCount * 2;
 
             //_workerCount = _asyncCount = _asyncTaskWithContextCount = _syncCount = _forkCount = _asyncFallbackCount = _asyncCount = 1;
 
@@ -133,49 +132,49 @@ namespace zero.core.runtime.scheduler
                 }, (this, i), CancellationToken.None, TaskCreationOptions.LongRunning, ZeroDefault);
             }
 
-            ////async callbacks
-            //for (var i = 0; i < _syncCount; i++)
-            //{
-            //    _ = Task.Factory.StartNew(static async state =>
-            //    {
-            //        var (@this, i) = (ValueTuple<IoZeroScheduler, int>)(state);
-            //        await @this.HandleAsyncCallback(i).FastPath();
-            //    }, (this, i), CancellationToken.None, TaskCreationOptions.LongRunning, ZeroDefault);
-            //}
+            //async callbacks
+            for (var i = 0; i < _syncCount; i++)
+            {
+                _ = Task.Factory.StartNew(static async state =>
+                {
+                    var (@this, i) = (ValueTuple<IoZeroScheduler, int>)(state);
+                    await @this.HandleAsyncCallback(i).FastPath();
+                }, (this, i), CancellationToken.None, TaskCreationOptions.LongRunning, ZeroDefault);
+            }
 
-            ////async value callbacks
-            //for (var i = 0; i < _asyncCount; i++)
-            //{
-            //    _ = Task.Factory.StartNew(static async state =>
-            //    {
-            //        var (@this, i) = (ValueTuple<IoZeroScheduler, int>)(state);
-            //        await @this.HandleAsyncValueTask(i).FastPath();
-            //    }, (this, i), CancellationToken.None, TaskCreationOptions.LongRunning, ZeroDefault);
-            //}
+            //async value callbacks
+            for (var i = 0; i < _asyncCount; i++)
+            {
+                _ = Task.Factory.StartNew(static async state =>
+                {
+                    var (@this, i) = (ValueTuple<IoZeroScheduler, int>)(state);
+                    await @this.HandleAsyncValueTask(i).FastPath();
+                }, (this, i), CancellationToken.None, TaskCreationOptions.LongRunning, ZeroDefault);
+            }
 
 
 
-            ////async callbacks
-            //for (var i = 0; i < _asyncCount; i++)
-            //{
-            //    _ = Task.Factory.StartNew(static async state =>
-            //    {
-            //        var (@this, i) = (ValueTuple<IoZeroScheduler, int>)state;
-            //        await @this.ForkAsyncCallbacks(i).ConfigureAwait(false);
-            //    }, (this, i), CancellationToken.None, TaskCreationOptions.LongRunning, ZeroDefault);
-            //}
+            //async callbacks
+            for (var i = 0; i < _asyncCount; i++)
+            {
+                _ = Task.Factory.StartNew(static async state =>
+                {
+                    var (@this, i) = (ValueTuple<IoZeroScheduler, int>)state;
+                    await @this.ForkAsyncCallbacks(i).ConfigureAwait(false);
+                }, (this, i), CancellationToken.None, TaskCreationOptions.LongRunning, ZeroDefault);
+            }
 
-            ////forks
-            //for (var i = 0; i < _forkCount; i++)
-            //{
-            //    _ = Task.Factory.StartNew(static async state =>
-            //    {
-            //        var (@this, i) = (ValueTuple<IoZeroScheduler, int>)state;
-            //        await @this.ForkCallbacks(i).FastPath();
-            //    }, (this, i), CancellationToken.None, TaskCreationOptions.LongRunning, ZeroDefault);
-            //}
+            //forks
+            for (var i = 0; i < _forkCount; i++)
+            {
+                _ = Task.Factory.StartNew(static async state =>
+                {
+                    var (@this, i) = (ValueTuple<IoZeroScheduler, int>)state;
+                    await @this.ForkCallbacks(i).FastPath();
+                }, (this, i), CancellationToken.None, TaskCreationOptions.LongRunning, ZeroDefault);
+            }
 
-            
+
         }
 
         internal class ZeroContinuation

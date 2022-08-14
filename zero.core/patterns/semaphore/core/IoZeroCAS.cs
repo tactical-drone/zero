@@ -100,6 +100,27 @@ namespace zero.core.patterns.semaphore.core
                 return cap;
 
             long latch;
+            var spinWait = new SpinWait();
+            while ((latch = val) + 1 > cap || Interlocked.CompareExchange(ref val, latch + 1, latch) != latch)
+            {
+                if (val + 1 > cap)
+                    return cap;
+
+                if(!spinWait.NextSpinWillYield)
+                    spinWait.SpinOnce();
+            }
+
+            Debug.Assert(latch < cap);
+            return latch;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static long ZeroNextTail(this ref long val, ref long cap)
+        {
+            if (val + 1 > cap)
+                return cap;
+
+            long latch;
 
             while ((latch = val) + 1 > cap || Interlocked.CompareExchange(ref val, latch + 1, latch) != latch)
             {
