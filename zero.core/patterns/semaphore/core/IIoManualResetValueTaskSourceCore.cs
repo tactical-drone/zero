@@ -18,7 +18,7 @@ namespace zero.core.patterns.semaphore.core
 #if DEBUG
         bool Burned { get; }
 #endif
-        int Relay { get; set; }
+        int SyncRoot { get; set; }
 
         void SetResult(TResult result);
         void SetException(Exception error);

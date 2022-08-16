@@ -49,10 +49,10 @@ namespace zero.core.patterns.semaphore
 #if DEBUG
         public bool Burned => _zeroCore.Burned;
 #endif
-        public int Relay
+        public int SyncRoot
         {
-            get => _zeroCore.Relay;
-            set => _zeroCore.Relay = value;
+            get => _zeroCore.SyncRoot;
+            set => _zeroCore.SyncRoot = value;
         }
 
         public T GetResult(short token) => _zeroCore.GetResult(token);

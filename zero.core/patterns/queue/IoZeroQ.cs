@@ -155,7 +155,6 @@ namespace zero.core.patterns.queue
         /// <summary>
         /// Current number of items in the bag
         /// </summary>
-        //public long Count => Interlocked.Read(ref _count);
         public int Count => _count;
 
         /// <summary>
@@ -600,8 +599,10 @@ namespace zero.core.patterns.queue
                         return -1;
 
                     yield.SpinOnce();
+#if DEBUG
                     if(yield.Count % 1000 == 0)
                         Console.WriteLine($"Z-> {Description}");
+#endif
                 }
 
                 //execute atomic action on success

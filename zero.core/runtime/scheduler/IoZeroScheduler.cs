@@ -3,15 +3,12 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Runtime.CompilerServices;
-using System.Security.Cryptography;
 using System.Threading;
-using System.Threading.Channels;
 using System.Threading.Tasks;
 using NLog;
 using zero.core.misc;
 using zero.core.patterns.heap;
 using zero.core.patterns.misc;
-using zero.core.patterns.queue;
 using zero.core.patterns.semaphore;
 
 namespace zero.core.runtime.scheduler
@@ -42,34 +39,19 @@ namespace zero.core.runtime.scheduler
             //_workerCount = Environment.ProcessorCount * 2;
             //_syncCount = _asyncCount = _asyncTaskWithContextCount = _workerCount * 2;
             //_asyncFallbackCount = _forkCount = _syncCount * 2;
-            _workerCount = _syncCount = _asyncCount = _asyncTaskWithContextCount = _asyncFallbackCount = _forkCount = _syncCount = Environment.ProcessorCount * 2;
+            
+            _workerCount = _syncCount = _asyncCount = _asyncTaskWithContextCount = _asyncFallbackCount = _forkCount = _syncCount = Environment.ProcessorCount * 4;
 
-            //_workerCount = _asyncCount = _asyncTaskWithContextCount = _syncCount = _forkCount = _asyncFallbackCount = _asyncCount = 1;
+            //_workerCount = _asyncCount = _asyncTaskWithContextCount = _syncCount = _forkCount = _asyncFallbackCount = _asyncCount = Environment.ProcessorCount;
 
-            //_taskChannel = new IoZeroQ<Task>(string.Empty, short.MaxValue / 3, false, _asyncTasks, short.MaxValue / 3, true); //TRUE
-            //_asyncForkQueue = new IoZeroQ<Func<ValueTask>>(string.Empty, short.MaxValue / 3, false, _asyncTasks, short.MaxValue / 3, true); //FALSE
-            //_asyncCallbackQueue = new IoZeroQ<ZeroContinuation>(string.Empty, short.MaxValue / 3, false, _asyncTasks, short.MaxValue / 3, true); //TRUE
-            //_asyncFallbackQueue = new IoZeroQ<ZeroContinuation>(string.Empty, short.MaxValue / 3, false, _asyncTasks, short.MaxValue / 3, true); //TRUE
-            //_asyncValueTaskQueue = new IoZeroQ<ZeroValueContinuation>(string.Empty, short.MaxValue / 3, false, _asyncTasks, short.MaxValue / 3, true); //TRUE
-            //_asyncValueTaskWithContextQueue = new IoZeroQ<ZeroValueContinuation>(string.Empty, short.MaxValue / 3, false, _asyncTasks, short.MaxValue / 3, true); //TRUE
-            //_forkQueue = new IoZeroQ<Action>(string.Empty, short.MaxValue / 3, false, _asyncTasks, short.MaxValue / 3, true); //TRUE
             var size = _workerCount;
             _taskChannel = new IoZeroSemaphoreChannel<Task>($"{nameof(_taskChannel)}", size, 0, false);
             _asyncFallbackQueue = new IoZeroSemaphoreChannel<ZeroContinuation>($"{nameof(_asyncFallbackQueue)}", size, 0, false);
             _asyncValueTaskWithContextQueue = new IoZeroSemaphoreChannel<ZeroValueContinuation>($"{nameof(_asyncValueTaskWithContextQueue)}", size, 0, false);
-
-            //_asyncForkQueue = new IoZeroSemaphoreChannel<Func<ValueTask>>($"{nameof(_asyncForkQueue)}", size, 0, false);
-            //Console.Write("s->3");
-            //_asyncCallbackQueue = new IoZeroSemaphoreChannel<ZeroContinuation>($"{nameof(_asyncCallbackQueue)}", size, 0, false);
-            //Console.Write("s->4");
-            
-            //Console.Write("s->5");
-            //_asyncValueTaskQueue = new IoZeroSemaphoreChannel<ZeroValueContinuation>($"{nameof(_asyncValueTaskQueue)}", size, 0, false);
-            //Console.Write("s->6");
-            //Console.Write("s->7");
-            //_forkQueue = new IoZeroSemaphoreChannel<Action>($"{nameof(_forkQueue)}", size, 0, false);
-            //Console.Write("s->8");
-
+            _asyncForkQueue = new IoZeroSemaphoreChannel<Func<ValueTask>>($"{nameof(_asyncForkQueue)}", size, 0, false);
+            _asyncCallbackQueue = new IoZeroSemaphoreChannel<ZeroContinuation>($"{nameof(_asyncCallbackQueue)}", size, 0, false);
+            _asyncValueTaskQueue = new IoZeroSemaphoreChannel<ZeroValueContinuation>($"{nameof(_asyncValueTaskQueue)}", size, 0, false);
+            _forkQueue = new IoZeroSemaphoreChannel<Action>($"{nameof(_forkQueue)}", size, 0, false);
 
             var initialCap = 2048;
             _callbackHeap = new IoHeap<ZeroContinuation>($"{nameof(_callbackHeap)}", initialCap, (_, _) => new ZeroContinuation(), autoScale:true)

@@ -380,6 +380,12 @@ namespace zero.sync
         }
         static void CoreTest()
         {
+            //var t2 = Task.Factory.StartNew(async () =>
+            //{
+            //    await Task.Delay(1000);
+            //    Console.WriteLine("TEST TASK STARTED [OK]");
+            //}, CancellationToken.None, TaskCreationOptions.DenyChildAttach, IoZeroScheduler.ZeroDefault);
+
             //------------------------ TEST-----------------------------------
             var j = new JoinableTaskFactory(new JoinableTaskContext());
             {
@@ -392,6 +398,7 @@ namespace zero.sync
                 });
                 t.Join();
             }
+            Console.ReadLine();
             //------------------------ TEST-----------------------------------
         }
 
@@ -458,6 +465,11 @@ namespace zero.sync
         /// <param name="args"></param>
         static void Main(string[] args)
         {
+            var prime = IoZeroScheduler.ZeroDefault; //TODO: how do we prime the scheduler automagically?
+            if (prime.Id > 1)
+                Console.WriteLine("using IoZeroScheduler");
+
+            
             LogManager.LoadConfiguration("nlog.config");
 
             Console.WriteLine($"zero ({Environment.OSVersion}: {Environment.MachineName} - dotnet v{Environment.Version}, CPUs = {Environment.ProcessorCount})");
@@ -836,13 +848,11 @@ namespace zero.sync
         private static async Task QueueTestAsync() //TODO make unit tests
         {
             await Task.Delay(1000);
-            //var concurrencyLevel = Environment.ProcessorCount * 2;
-            var concurrencyLevel = 2;
+            var concurrencyLevel = Environment.ProcessorCount * 2;
+            //var concurrencyLevel = 4;
             IoQueue<int> q = new("test", 4096, concurrencyLevel);
             if (!q.Configuration.HasFlag(IoQueue<int>.Mode.BackPressure))
             {
-
-
                 var head = await q.PushBackAsync(2).FastPath();
                 await q.PushBackAsync(1).FastPath();
                 await q.EnqueueAsync(3).FastPath();
@@ -1220,7 +1230,7 @@ namespace zero.sync
 
             //.NET RUNTIME REFERENCE MUTEX FOR TESTING
             //var mutex = new IoZeroRefMut(asyncTasks.Token);
-            IIoZeroSemaphoreBase<int> mutex = new IoZeroSemaphoreSlim(asyncTasks, "mutex TEST", maxBlockers: capacity, initialCount: 1, zeroAsyncMode: false, enableAutoScale: false, enableFairQ: false, enableDeadlockDetection: true);
+            IIoZeroSemaphoreBase<int> mutex = new IoZeroSemaphoreSlim(asyncTasks, "mutex TEST", maxBlockers: capacity, initialCount: 0, zeroAsyncMode: false, enableAutoScale: false, enableFairQ: false, enableDeadlockDetection: true);
 
             var releaseCount = 2;
             var waiters = 3;
@@ -1271,11 +1281,12 @@ namespace zero.sync
                          //await Task.Delay(2500);
                          var qt = await mutex.WaitAsync().FastPath();
                          //Debug.Assert(qt.ElapsedMs() < ERR_T);
+                         Interlocked.Increment(ref dq1);
                          if (qt.ElapsedMs() < targetSleep + ERR_T)
                          {
                              
                              var tt = mainSW.ElapsedMilliseconds;
-                             Interlocked.Increment(ref dq1);
+                             
 
                              Action a = (tt - targetSleep * targetSleepMult) switch
                              {
@@ -1310,7 +1321,7 @@ namespace zero.sync
                              if (Interlocked.Increment(ref c) % logSpam == 0)
                              {
                                  var totalEq = eQ.Aggregate((u, u1) => u + u1);
-                                 Console.WriteLine($"[{Thread.CurrentThread.ManagedThreadId}] T1:{mutex}({c}) t = {tt - targetSleep * targetSleepMult}ms, [{dq1_fps + dq2_fps + dq3_fps: 0}, ({dq1_fps: 0}, {dq2_fps: 0}, {dq3_fps: 0})], [{totalEq/delta: 0.0} ({eQ_fps[0]: 0}, {eQ_fps[1]: 0}, {eQ_fps[2]: 0}, {eQ_fps[3]: 0})], s = {semCount / (double)(semPollCount+1):0.0}, S = {mutex.ReadyCount}, DQ DELTA = {(int)(dq1 + dq2 + dq3) - (int)totalEq} (+eq), last race ={((IoZeroSemaphoreSlim)mutex).LastRace.ElapsedMs()}");
+                                 Console.WriteLine($"[{Thread.CurrentThread.ManagedThreadId}] T1:{mutex}({c}) t = {tt - targetSleep * targetSleepMult}ms, [{dq1_fps + dq2_fps + dq3_fps: 0}, ({dq1_fps: 0}, {dq2_fps: 0}, {dq3_fps: 0})], [{totalEq/delta: 0.0} ({eQ_fps[0]: 0}, {eQ_fps[1]: 0}, {eQ_fps[2]: 0}, {eQ_fps[3]: 0})], s = {semCount / (double)(semPollCount+1):0.0}, R = {mutex.ReadyCount}, W = {mutex.WaitCount}, D = {(int)(dq1 + dq2 + dq3) - (int)totalEq}");
                                  Console.ResetColor();
                              }
                               
@@ -1319,7 +1330,7 @@ namespace zero.sync
                          }
                          else
                          {
-                             Console.WriteLine($"[{Thread.CurrentThread.ManagedThreadId}] T1: {qt.ElapsedMs()}ms, last race ={((IoZeroSemaphoreSlim)mutex).LastRace.ElapsedMs()}");
+                             Console.WriteLine($"[{Thread.CurrentThread.ManagedThreadId}] T1: {qt.ElapsedMs()}ms");
                              //break;
                          }
 
@@ -1345,11 +1356,12 @@ namespace zero.sync
 
                        mainSW.Restart();
                         var qt = await mutex.WaitAsync().FastPath();
-                        //Debug.Assert(qt.ElapsedMs() < ERR_T);
-                        if (qt.ElapsedMs() < targetSleep + ERR_T)
-                        { 
+                       //Debug.Assert(qt.ElapsedMs() < ERR_T);
+                       Interlocked.Increment(ref dq2);
+                       if (qt.ElapsedMs() < targetSleep + ERR_T)
+                       { 
                             var tt = mainSW.ElapsedMilliseconds;
-                            Interlocked.Increment(ref dq2);
+                            
                             
                             Action a = (tt - targetSleep * targetSleepMult) switch
                             {
@@ -1384,16 +1396,16 @@ namespace zero.sync
                             if (Interlocked.Increment(ref c) % logSpam == 0)
                             {
                                 var totalEq = eQ.Aggregate((u, u1) => u + u1);
-                                Console.WriteLine($"[{Thread.CurrentThread.ManagedThreadId}] T2:{mutex}({c}) t = {tt - targetSleep * targetSleepMult}ms, [{dq1_fps + dq2_fps + dq3_fps: 0}, ({dq1_fps: 0}, {dq2_fps: 0}, {dq3_fps: 0})], [{totalEq/delta: 0.0} ({eQ_fps[0]: 0}, {eQ_fps[1]: 0}, {eQ_fps[2]: 0}, {eQ_fps[3]: 0})], s = {semCount / (double)(semPollCount+1):0.0}, S = {mutex.ReadyCount}, D = {(int)(dq1 + dq2 + dq3) - (int)totalEq}");
+                                Console.WriteLine($"[{Thread.CurrentThread.ManagedThreadId}] T2:{mutex}({c}) t = {tt - targetSleep * targetSleepMult}ms, [{dq1_fps + dq2_fps + dq3_fps: 0}, ({dq1_fps: 0}, {dq2_fps: 0}, {dq3_fps: 0})], [{totalEq/delta: 0.0} ({eQ_fps[0]: 0}, {eQ_fps[1]: 0}, {eQ_fps[2]: 0}, {eQ_fps[3]: 0})], s = {semCount / (double)(semPollCount+1):0.0}, R = {mutex.ReadyCount}, W = {mutex.WaitCount}, D = {(int)(dq1 + dq2 + dq3) - (int)totalEq}");
                                 Console.ResetColor();
                             }
                              
                             // if(r.Next()%2 != 0)
                             //     await Task.Delay(1).ConfigureAwait(ZC);
-                        }
-                        else
-                        {
-                           Console.WriteLine($"[{Thread.CurrentThread.ManagedThreadId}] T2: {qt.ElapsedMs()}ms, last race ={((IoZeroSemaphoreSlim)mutex).LastRace.ElapsedMs()}");
+                       }
+                       else
+                       {
+                           Console.WriteLine($"[{Thread.CurrentThread.ManagedThreadId}] T2: {qt.ElapsedMs()}ms");
                            //break;
                        }
            
@@ -1419,11 +1431,12 @@ namespace zero.sync
 
                        mainSW.Restart();
                         var qt = await mutex.WaitAsync().FastPath();
-                        //Debug.Assert(qt.ElapsedMs() < ERR_T);
-                        if (qt.ElapsedMs() < targetSleep + ERR_T)
-                        {
+                       //Debug.Assert(qt.ElapsedMs() < ERR_T);
+                       Interlocked.Increment(ref dq3);
+                       if (qt.ElapsedMs() < targetSleep + ERR_T)
+                       {
                            var tt = mainSW.ElapsedMilliseconds;
-                           Interlocked.Increment(ref dq3);
+                           
            
                            Action a = (tt - targetSleep * targetSleepMult) switch
                            {
@@ -1443,14 +1456,14 @@ namespace zero.sync
                             double delta = (curTime - startTime + 1)/1000.0;
                             if (Interlocked.Increment(ref c) % logSpam == 0)
                             {
-                                var totalDq = eQ.Aggregate((u, u1) => u + u1);
-                                Console.WriteLine($"[{Thread.CurrentThread.ManagedThreadId}] T3:{mutex}({c}) t = {tt - targetSleep * targetSleepMult}ms, [{dq1_fps + dq2_fps + dq3_fps: 0}, ({dq1_fps: 0}, {dq2_fps: 0}, {dq3_fps: 0})], [{totalDq/delta: 0.0} ({eQ_fps[0]: 0}, {eQ_fps[1]: 0}, {eQ_fps[2]: 0}, {eQ_fps[3]: 0})], s = {semCount / (double)(semPollCount+1):0.0}, S = {mutex.ReadyCount}, D = {(int)(dq1 + dq2 + dq3) - (int)totalDq}");
+                                var totalEq = eQ.Aggregate((u, u1) => u + u1);
+                                Console.WriteLine($"[{Thread.CurrentThread.ManagedThreadId}] T3:{mutex}({c}) t = {tt - targetSleep * targetSleepMult}ms, [{dq1_fps + dq2_fps + dq3_fps: 0}, ({dq1_fps: 0}, {dq2_fps: 0}, {dq3_fps: 0})], [{totalEq/delta: 0.0} ({eQ_fps[0]: 0}, {eQ_fps[1]: 0}, {eQ_fps[2]: 0}, {eQ_fps[3]: 0})], s = {semCount / (double)(semPollCount+1):0.0}, R = {mutex.ReadyCount}, W = {mutex.WaitCount}, D = {(int)(dq1 + dq2 + dq3) - (int)totalEq}");
                                 Console.ResetColor();
                             }
                         }
                         else
                         {
-                           Console.WriteLine($"[{Thread.CurrentThread.ManagedThreadId}] T3: {qt.ElapsedMs()}ms, last race ={((IoZeroSemaphoreSlim)mutex).LastRace.ElapsedMs()}");
+                           Console.WriteLine($"[{Thread.CurrentThread.ManagedThreadId}] T3: {qt.ElapsedMs()}ms");
                            //break;
                        }
 

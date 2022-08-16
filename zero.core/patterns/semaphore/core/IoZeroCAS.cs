@@ -106,8 +106,7 @@ namespace zero.core.patterns.semaphore.core
                 if (val + 1 > cap)
                     return cap;
 
-                if(!spinWait.NextSpinWillYield)
-                    spinWait.SpinOnce();
+                spinWait.SpinOnce();
             }
 
             Debug.Assert(latch < cap);

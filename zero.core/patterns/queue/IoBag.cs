@@ -88,7 +88,7 @@ namespace zero.core.patterns.queue
         #endregion
 
 #if DEBUG
-        private Channel<long> _auditLog;
+        private readonly Channel<long> _auditLog;
 #endif
 
         public long Tail => _tail;
@@ -102,7 +102,7 @@ namespace zero.core.patterns.queue
         /// <summary>
         /// Description
         /// </summary>
-        public string Description => $"{nameof(IoZeroQ<T>)}: z = {_zeroed > 0}, {nameof(Count)} = {_count}/{Capacity}, h = {Head}/{Tail}({Head%Capacity}/{Tail % Capacity}) (max: {Capacity}) (d:{Tail - Head}), desc = {_description}";
+        public string Description => $"{nameof(IoBag<T>)}: z = {_zeroed > 0}, {nameof(Count)} = {_count}/{Capacity}, h = {Head}/{Tail}({Head%Capacity}/{Tail % Capacity}) (max: {Capacity}) (d:{Tail - Head}), desc = {_description}";
 
         /// <summary>
         /// Current number of items in the bag
@@ -185,10 +185,12 @@ namespace zero.core.patterns.queue
                 if (next < latch)
                 {
                     var spinWait = new SpinWait();
-                    while (Volatile.Read(ref _bloom[next % Capacity]) == 2)
+                    while (_bloom[next % Capacity] != 0)
                     {
-                        if(!spinWait.NextSpinWillYield)
-                            spinWait.SpinOnce();
+                        if (Zeroed)
+                            return -1;
+
+                        spinWait.SpinOnce();
                     }
 
                     long prevBloom;
@@ -282,6 +284,7 @@ namespace zero.core.patterns.queue
 #endif
         public bool TryDequeue([MaybeNullWhen(false)] out T slot)
         {
+            retry:
             slot = default;
             
             try
@@ -294,19 +297,20 @@ namespace zero.core.patterns.queue
 
                 long latch;
                 var next = _head.ZeroNext(latch = Interlocked.Read(ref _tail));
-                if (next < latch 
-                    && next < _tail + Capacity) //Covers choking throughput (possibly OS preempting threads and resurrecting them MUCH later than "sibling" threads) causing wrap around issues.
+                if (next < latch) 
                 {
                     var idx = next % Capacity;
                     var spinWait = new SpinWait();
                     int cur;
-                    while ((cur = Volatile.Read(ref _bloom[idx])) == 1)
+                    while ((cur = _bloom[idx]) != 2)
                     {
-                        if(!spinWait.NextSpinWillYield)
-                            spinWait.SpinOnce();
+                        if (Zeroed)
+                            return false;
+
+                        spinWait.SpinOnce();
                     }
 
-                    if (cur == 0)
+                    if (cur != 2)
                     {
 #if TRACE
                         var i = 0;
@@ -321,9 +325,13 @@ namespace zero.core.patterns.queue
                         var zombie = next < _tail + Capacity;
                         if(!zombie)
                             throw new InvalidOperationException($"{nameof(TryDequeue)}[RACE]: zombie = {zombie}, next = {next}({next%Capacity}), latch = {latch}({latch%Capacity}), bloom = {cur}, {Description}");
+#if TRACE
                         else
                             LogManager.GetCurrentClassLogger().Warn($"{nameof(TryDequeue)}[ZOMBIE]: zombie = {zombie}, next = {next}({next % Capacity}), latch = {latch}({latch % Capacity}), bloom = {cur}, {Description}");
-                        
+#endif
+                        //slot = default;
+                        //return false;
+                        goto retry;
                     }
                     
                     Interlocked.MemoryBarrier();

@@ -31,29 +31,24 @@ namespace zero.core.patterns.semaphore.core
         #region Memory management
         public IoZeroCore(string description, int capacity, CancellationTokenSource asyncTasks, int ready = 0, bool zeroAsyncMode = false)
         {
-            //if(capacity > short.MaxValue / 3)
-            //    throw new ArgumentOutOfRangeException(nameof(capacity));
-
             if(ready > capacity)
                 throw new ArgumentOutOfRangeException(nameof(ready));
 
             _zeroed = 0;
             _description = description;
-            _capacity = capacity++;
+            _capacity = capacity;
             ZeroAsyncMode = zeroAsyncMode;
 
-            _waiters = new IoZeroQ<IIoManualResetValueTaskSourceCore<T>>(string.Empty, capacity, false, asyncTasks:null, capacity, false);
+            _blockingCores = new IoZeroQ<IIoManualResetValueTaskSourceCore<T>>(string.Empty, capacity, false, asyncTasks:null, capacity, false);
 
             _results = new IoZeroQ<T>(string.Empty, capacity, false, asyncTasks: null, capacity, false);
-            //_priorityQ = new IoBag<T>(string.Empty, capacity, asyncTasks: null, capacity * 2, false);
             _heapCore = new IoBag<IIoManualResetValueTaskSourceCore<T>>(string.Empty, capacity, asyncTasks: null, capacity, false);
-            
+
             _primeReady = _ => default;
             _primeContext = null;
             _asyncTasks = asyncTasks;
             
             _ensureCriticalRegion = (_ready = ready) == 1; //a mutex will always have a 1 here
-            //_zeroRef = null;
         }
 
         public IIoZeroSemaphoreBase<T> ZeroRef(ref IIoZeroSemaphoreBase<T> @ref, Func<object, T> primeResult = default,
@@ -62,7 +57,6 @@ namespace zero.core.patterns.semaphore.core
             if (@ref == null)
                 throw new ArgumentNullException(nameof(@ref));
 
-            //_primeReady = primeResult ?? throw new ArgumentNullException(nameof(primeResult));
             _primeReady = primeResult;
             _primeContext = context;
 
@@ -72,7 +66,6 @@ namespace zero.core.patterns.semaphore.core
                     throw new OutOfMemoryException($"{nameof(ZeroRef)}: {_results.Description}");
             }
 
-            //return _zeroRef = @ref;
             return @ref;
         }
 
@@ -81,8 +74,7 @@ namespace zero.core.patterns.semaphore.core
             if (_zeroed > 0 || Interlocked.CompareExchange(ref _zeroed, 1, 0) != 0)
                 return;
 
-            //while (_waiters.Reader.TryRead(out var cancelled))
-            while (_waiters.TryDequeue(out var cancelled))
+            while (_blockingCores.TryDequeue(out var cancelled))
             {
                 try
                 {
@@ -101,13 +93,9 @@ namespace zero.core.patterns.semaphore.core
         #endregion Memory management
 
         #region Aligned
-        //private readonly Channel<IIoManualResetValueTaskSourceCore<T>> _waiters;
-        //private readonly Channel<T> _results;
-        //private readonly Channel<IIoManualResetValueTaskSourceCore<T>> _heapCore;
-        private readonly IoZeroQ<IIoManualResetValueTaskSourceCore<T>> _waiters;
+        private readonly IoZeroQ<IIoManualResetValueTaskSourceCore<T>> _blockingCores;
         private readonly IoZeroQ<T> _results;
-        //private readonly IoBag<T> _priorityQ;
-        private int _racedResultSyncroot;
+        private int _racedResultSyncRoot;
         private T _racedResult;
         private readonly IoBag<IIoManualResetValueTaskSourceCore<T>> _heapCore;
         private readonly CancellationTokenSource _asyncTasks;
@@ -121,22 +109,14 @@ namespace zero.core.patterns.semaphore.core
         #endregion
 
         #region Properties
-        private readonly int ModCapacity => _capacity * 2;
-
-        private const int CoreReady = 0;
-        private const int CoreWait  = 1;
-        private const int CoreRace  = 2;
-
-        //private IIoZeroSemaphoreBase<T> _zeroRef;
+        private const int SyncReady = 0;
+        private const int SyncWait  = 1;
+        private const int SyncRace  = 2;
         #endregion
 
         #region State
-
-        //public string Description => $"{nameof(IoZeroSemCore<T>)}: r = {ReadyCount}/{_capacity}, w = {WaitCount}/{_capacity}, z = {_zeroed > 0}, heap = {_heapCore.Reader.Count}, {_description}";
-        //public int WaitCount => _waiters.Reader.Count;
-        //public int ReadyCount => _results.Reader.Count;
         public string Description => $"{nameof(IoZeroSemCore<T>)}: r = {ReadyCount}/{_capacity}, w = {WaitCount}/{_capacity}, z = {_zeroed > 0}, heap = {_heapCore.Count}, {_description}";
-        public int WaitCount => _waiters.Count;
+        public int WaitCount => _blockingCores.Count;
         public int ReadyCount => _results.Count;
 
         public int Capacity => _capacity;
@@ -156,133 +136,121 @@ namespace zero.core.patterns.semaphore.core
         private bool Unblock(T value, bool forceAsync)
         {
             retry:
-            var spinWait = new SpinWait();
-            IIoManualResetValueTaskSourceCore<T> waiter;
 
-            //retry Environment.ProcessorCount times
-            while (!_waiters.TryDequeue(out waiter))
+            //fetch a blocking core from the Q
+            var spinWait = new SpinWait();
+            IIoManualResetValueTaskSourceCore<T> blockingCore;
+            while (!_blockingCores.TryDequeue(out blockingCore))
             {
-                if(spinWait.NextSpinWillYield)
-                    continue;
-                
-                spinWait.SpinOnce();
-                if (spinWait.Count == Environment.ProcessorCount)
+                if (Zeroed())
                     return false;
+
+                if (_blockingCores.Count == 0)
+                    return false;
+
+                spinWait.SpinOnce();
             }
 
-            waiter.RunContinuationsAsynchronously = forceAsync || ZeroAsyncMode;
-
-            //wait for the core to become ready
-            while (waiter.Relay == CoreWait)
+            //wait for the blocking core to synchronize with release
+            while (blockingCore.SyncRoot == SyncWait)
             {
                 if (Zeroed())
                     return false;
                 spinWait.SpinOnce();
             }
 
-            switch (waiter.Relay)
+            switch (blockingCore.SyncRoot)
             {
-                //use the core
-                case CoreReady:
-                    waiter.SetResult(value);
+                case SyncReady://use the core
+                    blockingCore.RunContinuationsAsynchronously = forceAsync;
+                    blockingCore.SetResult(value);
                     return true;
-                case CoreRace:
+                case SyncRace://discard the core
                     goto retry;
             }
+
             return false;
         }
 
-#if DEBUG
-        private int _lastRace = Environment.TickCount;
-        public int LastRace => _lastRace;
-#endif
 
         /// <summary>
         /// Dequeue a slow core and unblock it using the <see cref="value"/> provided
         /// </summary>
         /// <param name="value">Send this value to the blocker</param>
-        /// <param name="released">The number of blockers released with <see cref="value"/></param>
         /// <param name="forceAsync"></param>
         /// <returns>If a waiter was unblocked, false otherwise</returns>
 #if RELEASE
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
 #endif
-        private bool SetResult(T value, out int released, bool forceAsync = false)
+        private bool SetResult(T value, bool forceAsync = false)
         {
-            var banked = false;
-            released = 0;
+            //insane checks
+            if (_results.Count >= Capacity && _blockingCores.Count == 0) //TODO: if the semaphore is full, but there are waiters hanging around... unblock one. Seems legit
+                return false;
 
-            if (!(_waiters.Count == 1 && _results.Count == 0 && Unblock(value, forceAsync)))
+            //fast path
+            if (!(_results.Count == 0 && _racedResultSyncRoot == 0 && _blockingCores.Count <= 1 && Unblock(value, forceAsync)))
             {
+                //slow path
                 var spinWait = new SpinWait();
-                while ((banked = _results.Count < Capacity) && _results.TryEnqueue(value) < 0)
+                
+                while (_results.TryEnqueue(value) < 0)
                 {
                     if (Zeroed())
                         return false;
                     
                     spinWait.SpinOnce();
+
+                    if(_blockingCores.Count != Capacity) //if we are not bricked reject the incoming result on FULL, else ensure liveness by matching a waiter and a result
+                        return false;
                 }
 
-                var fastTrackSet = false;
-                T fastTracked = default;
-                if (_racedResultSyncroot > 0 && Interlocked.CompareExchange(ref _racedResultSyncroot, 0, 2) == 2)
+                var raced = false;
+                T nextResult = default;
+                if (_racedResultSyncRoot > 0)
                 {
-                    fastTrackSet = true;
-                    fastTracked = _racedResult;
-                }
-
-                //var fastTrackSet = _priorityQ.TryDequeue(out var fastTracked);
-
-                retry:
-                //drain the Q
-                while (_waiters.Count > 0 && (fastTrackSet || _results.TryDequeue(out fastTracked)))
-                {
-                    if (!Unblock(fastTracked, forceAsync))
+                    while (Interlocked.CompareExchange(ref _racedResultSyncRoot, 0, 2) != 2)
                     {
-                        fastTrackSet = true;
+                        if (Zeroed())
+                            return false;
+
+                        spinWait.SpinOnce();
+                    }
+                    raced = true;
+                    nextResult = _racedResult;
+                }
+
+                //drain the Q
+                while (_blockingCores.Count > 0 && (raced || _results.TryDequeue(out nextResult)))
+                {
+                    if (!Unblock(nextResult, forceAsync))
+                    {
+                        raced = true;
                         continue;
                     }
 
-                    fastTrackSet = false;
-                    released++;
-                    if (_waiters.Count < Capacity)
-                        break;
+                    raced = false;
+                    break;
                 }
 
-                if (fastTrackSet)
+                //did we race and loose?
+                if (raced)
                 {
-#if DEBUG
-                    _lastRace = Environment.TickCount;
-#endif
-                    while (Interlocked.CompareExchange(ref _racedResultSyncroot, 1, 0) != 0)
+                    while (Interlocked.CompareExchange(ref _racedResultSyncRoot, 1, 0) != 0)
                     {
-                        if(spinWait.NextSpinWillYield)
-                            continue;
+                        if (Zeroed())
+                            return false;
                         spinWait.SpinOnce();
                     }
 
-                    _racedResult = fastTracked;
-                    Interlocked.Exchange(ref _racedResultSyncroot, 2);
-                    //if (_priorityQ.TryEnqueue(fastTracked) == -1)
-                    //{
-                    //    LogManager.GetCurrentClassLogger().Fatal($"{nameof(SetResult)}: unable to Q raced value");
-                    //    _results.TryEnqueue(fastTracked); // this is never supposed to execute, serves as a last resort counter measure
-                    //}
+                    //fast track next result
+                    _racedResult = nextResult;
+                    Interlocked.Exchange(ref _racedResultSyncRoot, 2);
                 }
             }
-            else
-            {
-                released++;
-            }
-
-            //downstream mechanics require there be a 1 if either released or unblocked
-            if (released != 0 || !banked) return released > 0;
-
-            released = 1;
+            
             return true;
         }
-
-        //int iteration = 0;
 
         /// <summary>
         /// Creates a new blocking core and releases the current thread to the pool
@@ -299,59 +267,71 @@ namespace zero.core.patterns.semaphore.core
             slowTaskCore = default;
 
             //fast path
-            if (_waiters.Count == 0 && _results.TryDequeue(out var primedCore))
+            if (_blockingCores.Count == 0 && _results.TryDequeue(out var readyResult))
             {
-                slowTaskCore = new ValueTask<T>(primedCore);
+                slowTaskCore = new ValueTask<T>(readyResult);
                 return true;
             }
 
-            //heap
-            if (!_heapCore.TryDequeue(out var waiter))
+            //fetch a core from the heap
+            if (!_heapCore.TryDequeue(out var blockingCore))
             {
-                waiter = new IoManualResetValueTaskSourceCore<T> { AutoReset = true };
-                waiter.Reset(static state =>
+                blockingCore = new IoManualResetValueTaskSourceCore<T> { AutoReset = true, RunContinuationsAsynchronouslyAlways = ZeroAsyncMode};
+                blockingCore.Reset(static state =>
                 {
-                    var (@this, waiter) = (ValueTuple<IoZeroCore<T>, IIoManualResetValueTaskSourceCore<T>>)state;
-                    if (@this._heapCore.TryEnqueue(waiter) < 0)
-                        throw new OutOfMemoryException($"{nameof(@this.Block)}: {@this._heapCore.Description}");
-
-                }, (this, waiter));
+                    var (@this, blockingCore) = (ValueTuple<IoZeroCore<T>, IIoManualResetValueTaskSourceCore<T>>)state;
+                    if (@this._heapCore.TryEnqueue(blockingCore) < 0)
+                        throw new InvalidOperationException($"{nameof(@this.Block)}: unable to return memory to heap; {@this._heapCore.Description}");
+                }, (this, blockingCore));
             }
 
-            Debug.Assert(waiter != null);
+            Debug.Assert(blockingCore != null);
 
-            //fast jit
-            if (_waiters.Count == 0 && _results.TryDequeue(out var jitCore))
+            //fast jit, in case a result came in while we were preparing to block
+            if (_blockingCores.Count == 0 && _results.TryDequeue(out var jitCore))
             {
                 slowTaskCore = new ValueTask<T>(jitCore);
-                //TODO: Maybe free some memory every now and again?
-                //_heapCore.TryEnqueue(waiter); 
+                //TODO: Maybe free some memory every now and again so we don't return the racing core to the heap?
+                //_heapCore.TryEnqueue(blockingCore); 
                 return true;
             }
 
-            waiter.Relay = _ensureCriticalRegion? CoreWait : CoreReady;
+            blockingCore.SyncRoot = _ensureCriticalRegion? SyncWait : SyncReady;
 
-            //block
-            Debug.Assert(Zeroed() || WaitCount <= Capacity + 1); //TODO: bug
-            if (_waiters.TryEnqueue(waiter) < 0) 
-                return false;
-
-            //ensure critical region
-            if (_ensureCriticalRegion && _results.Count == 1 && _results.TryDequeue(out var racedCore))
+            //prepare to synchronize with release
+            var spinWait = new SpinWait();
+            while (_blockingCores.TryEnqueue(blockingCore) < 0)
             {
-                waiter.Relay = CoreRace;
-                slowTaskCore = new ValueTask<T>(racedCore);
+                Debug.Assert(Zeroed() || WaitCount <= Capacity, Description);
+
+                if (Zeroed())
+                    return false;
+
+                spinWait.SpinOnce();
+            }
+            
+            //prepare the task core, but don't block just yet
+            slowTaskCore = new ValueTask<T>(blockingCore, 0);
+
+            //ensure critical region - last ditched attempt to access the fast path on racing result
+            if (_ensureCriticalRegion && _results.Count <= 1 && _results.TryDequeue(out var racedResult))
+            {
+                blockingCore.SyncRoot = SyncRace;
+                slowTaskCore = new ValueTask<T>(racedResult);
                 return true;
             }
 
-            //prime blocking core
-            waiter.Relay = CoreReady;
-            slowTaskCore = new ValueTask<T>(waiter, 0);
+            //important critical region insane checks
+            //Debug.Assert(!_ensureCriticalRegion || _results.Count < 1 || Zeroed(), Description);
+
+            //block the core by synchronizing with release
+            blockingCore.SyncRoot = SyncReady;
+
             return true;
         }
 #endregion
 
-        #region API
+#region API
         public T GetResult(short token) => throw new NotImplementedException(nameof(GetResult));
 
         public ValueTaskSourceStatus GetStatus(short token) => throw new NotImplementedException(nameof(GetStatus));
@@ -379,7 +359,7 @@ namespace zero.core.patterns.semaphore.core
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public int Release(T value, bool forceAsync = false) => SetResult(value, out var release,forceAsync) ? release : 0;
+        public int Release(T value, bool forceAsync = false) => SetResult(value,forceAsync) ? 1 : 0;
         
 
         /// <summary>
@@ -390,7 +370,7 @@ namespace zero.core.patterns.semaphore.core
         public ValueTask<T> WaitAsync()
         {
             // => slow core
-            if (!Zeroed() && Block(out var slowCore))
+            if (Block(out var slowCore))
                 return slowCore;
 
             // => API implementation error

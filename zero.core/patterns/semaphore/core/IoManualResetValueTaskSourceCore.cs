@@ -118,7 +118,7 @@ namespace zero.core.patterns.semaphore.core
         /// <summary>
         /// Whether this core is busy relaying
         /// </summary>
-        public int Relay { get; set; }
+        public int SyncRoot { get; set; }
 //#if ZERO_CHECK
 //        [MethodImpl(MethodImplOptions.AggressiveInlining)]
 //        public bool Lock() => Interlocked.CompareExchange(ref _heapItemLock, 1, 0) == 0;
@@ -162,12 +162,13 @@ namespace zero.core.patterns.semaphore.core
             _capturedContext = null;
             _continuationState = null;
             _completeTime = 0;
-            Relay = 0;
+            SyncRoot = 0;
             _completed = false;
 #if DEBUG
             _burned = 0;
 #endif
             _continuation = null;
+            RunContinuationsAsynchronously = false; 
             Interlocked.MemoryBarrier();
 
             //_version++;
