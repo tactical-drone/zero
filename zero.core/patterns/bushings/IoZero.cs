@@ -611,7 +611,6 @@ namespace zero.core.patterns.bushings
                 //await foreach (var curJob in _queue.BalanceOnConsumeAsync(threadIdx))
                 var curJob = await _queue.WaitAsync().FastPath();
                 {
-                    Debug.Assert(curJob != null);
                     try
                     {
                         if(curJob.State != IoJobMeta.JobState.ProdConnReset)

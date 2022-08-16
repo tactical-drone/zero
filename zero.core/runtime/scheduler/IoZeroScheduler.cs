@@ -36,23 +36,33 @@ namespace zero.core.runtime.scheduler
 
             _fallbackScheduler = fallback;
             _asyncTasks = asyncTasks ?? new CancellationTokenSource();
-            //_workerCount = Environment.ProcessorCount * 2;
-            //_syncCount = _asyncCount = _asyncTaskWithContextCount = _workerCount * 2;
-            //_asyncFallbackCount = _forkCount = _syncCount * 2;
-            
-            _workerCount = _syncCount = _asyncCount = _asyncTaskWithContextCount = _asyncFallbackCount = _forkCount = _syncCount = Environment.ProcessorCount * 4;
+            //_taskQueueCapacity = Environment.ProcessorCount * 2;
+            //_asyncCallbackWithContextCapacity = _asyncTaskCapacity = _asyncTaskWithContextCapacity = _taskQueueCapacity * 2;
+            //_asyncFallbackCapacity = _forkCapacity = _asyncCallbackWithContextCapacity * 2;
 
-            //_workerCount = _asyncCount = _asyncTaskWithContextCount = _syncCount = _forkCount = _asyncFallbackCount = _asyncCount = Environment.ProcessorCount;
+            _taskQueueCapacity = Environment.ProcessorCount * 4 * 5;
+            _asyncFallbackCapacity = _taskQueueCapacity;
 
-            var size = _workerCount;
-            _taskChannel = new IoZeroSemaphoreChannel<Task>($"{nameof(_taskChannel)}", size, 0, false);
+            _asyncTaskWithContextCapacity = _taskQueueCapacity / 5;
+            _asyncTaskCapacity = _taskQueueCapacity / 5;
+
+            _asyncCallbackWithContextCapacity = _taskQueueCapacity / 5;
+
+            _asyncForkCapacity = _taskQueueCapacity / 5;
+            _forkCapacity = _taskQueueCapacity / 5;
+
+            var size = short.MaxValue; //TODO: tuning
+            _taskQueue = new IoZeroSemaphoreChannel<Task>($"{nameof(_taskQueue)}", size, 0, false);
             _asyncFallbackQueue = new IoZeroSemaphoreChannel<ZeroContinuation>($"{nameof(_asyncFallbackQueue)}", size, 0, false);
-            _asyncValueTaskWithContextQueue = new IoZeroSemaphoreChannel<ZeroValueContinuation>($"{nameof(_asyncValueTaskWithContextQueue)}", size, 0, false);
-            _asyncForkQueue = new IoZeroSemaphoreChannel<Func<ValueTask>>($"{nameof(_asyncForkQueue)}", size, 0, false);
-            _asyncCallbackQueue = new IoZeroSemaphoreChannel<ZeroContinuation>($"{nameof(_asyncCallbackQueue)}", size, 0, false);
-            _asyncValueTaskQueue = new IoZeroSemaphoreChannel<ZeroValueContinuation>($"{nameof(_asyncValueTaskQueue)}", size, 0, false);
-            _forkQueue = new IoZeroSemaphoreChannel<Action>($"{nameof(_forkQueue)}", size, 0, false);
 
+            _asyncTaskWithContextQueue = new IoZeroSemaphoreChannel<ZeroValueContinuation>($"{nameof(_asyncTaskWithContextQueue)}", size, 0, false);
+            _asyncTaskQueue = new IoZeroSemaphoreChannel<ZeroValueContinuation>($"{nameof(_asyncTaskQueue)}", size, 0, false);
+
+            _asyncCallbackWithContextQueue = new IoZeroSemaphoreChannel<ZeroContinuation>($"{nameof(_asyncCallbackWithContextQueue)}", size, 0, false);
+
+            _asyncForkQueue = new IoZeroSemaphoreChannel<Func<ValueTask>>($"{nameof(_asyncForkQueue)}", size, 0, false);
+            _forkQueue = new IoZeroSemaphoreChannel<Action>($"{nameof(_forkQueue)}", size, 0, false);
+            
             var initialCap = 2048;
             _callbackHeap = new IoHeap<ZeroContinuation>($"{nameof(_callbackHeap)}", initialCap, (_, _) => new ZeroContinuation(), autoScale:true)
             {
@@ -82,98 +92,6 @@ namespace zero.core.runtime.scheduler
             _native = native;
         }
 
-        private void InitQueues()
-        {
-            //tasks
-            for (var i = 0; i < _workerCount; i++)
-            {
-                _ = Task.Factory.StartNew(static async state =>
-                {
-                    var (@this, i) = (ValueTuple<IoZeroScheduler, int>)state;
-                    await @this.HandleAsyncSchedulerTask(i).ConfigureAwait(false);
-                }, (this, i), CancellationToken.None, TaskCreationOptions.LongRunning | TaskCreationOptions.HideScheduler, Default);
-            }
-
-            //forks with context
-            for (var i = 0; i < _asyncFallbackCount; i++)
-            {
-                _ = Task.Factory.StartNew(static async state =>
-                {
-                    var (@this, i) = (ValueTuple<IoZeroScheduler, int>)state;
-                    await @this.AsyncFallbacks(i).ConfigureAwait(false);
-                }, (this, i), CancellationToken.None, TaskCreationOptions.LongRunning, Default);
-            }
-
-            //async value callbacks with context
-            for (var i = 0; i < _asyncTaskWithContextCount; i++)
-            {
-                _ = Task.Factory.StartNew(static async state =>
-                {
-                    var (@this, i) = (ValueTuple<IoZeroScheduler, int>)(state);
-                    await @this.HandleAsyncValueTaskWithContext(i).FastPath();
-                }, (this, i), CancellationToken.None, TaskCreationOptions.LongRunning, ZeroDefault);
-            }
-
-            //async callbacks
-            for (var i = 0; i < _syncCount; i++)
-            {
-                _ = Task.Factory.StartNew(static async state =>
-                {
-                    var (@this, i) = (ValueTuple<IoZeroScheduler, int>)(state);
-                    await @this.HandleAsyncCallback(i).FastPath();
-                }, (this, i), CancellationToken.None, TaskCreationOptions.LongRunning, ZeroDefault);
-            }
-
-            //async value callbacks
-            for (var i = 0; i < _asyncCount; i++)
-            {
-                _ = Task.Factory.StartNew(static async state =>
-                {
-                    var (@this, i) = (ValueTuple<IoZeroScheduler, int>)(state);
-                    await @this.HandleAsyncValueTask(i).FastPath();
-                }, (this, i), CancellationToken.None, TaskCreationOptions.LongRunning, ZeroDefault);
-            }
-
-
-
-            //async callbacks
-            for (var i = 0; i < _asyncCount; i++)
-            {
-                _ = Task.Factory.StartNew(static async state =>
-                {
-                    var (@this, i) = (ValueTuple<IoZeroScheduler, int>)state;
-                    await @this.ForkAsyncCallbacks(i).ConfigureAwait(false);
-                }, (this, i), CancellationToken.None, TaskCreationOptions.LongRunning, ZeroDefault);
-            }
-
-            //forks
-            for (var i = 0; i < _forkCount; i++)
-            {
-                _ = Task.Factory.StartNew(static async state =>
-                {
-                    var (@this, i) = (ValueTuple<IoZeroScheduler, int>)state;
-                    await @this.ForkCallbacks(i).FastPath();
-                }, (this, i), CancellationToken.None, TaskCreationOptions.LongRunning, ZeroDefault);
-            }
-
-
-        }
-
-        internal class ZeroContinuation
-        {
-            public Action<object> Callback;
-            public object State;
-            public int Timestamp;
-        }
-
-        internal class ZeroValueContinuation
-        {
-            public ValueTask ValueTask;
-            public Func<object, ValueTask> ValueFunc;
-            public object Context;
-            public int Timestamp;
-        }
-
         [Flags]
         enum IoMark
         {
@@ -196,108 +114,356 @@ namespace zero.core.runtime.scheduler
 
         private static volatile int _workerSpawnBurstMax = WorkerSpawnBurstMax; 
         private static readonly int MaxWorker = short.MaxValue / 3;
+
         public static readonly TaskScheduler ZeroDefault;
         public static readonly IoZeroScheduler Zero;
         private readonly CancellationTokenSource _asyncTasks;
-        //private readonly IoZeroSemaphoreChannel<Task> _taskChannel;
 
-        //private readonly Channel<Task> _taskChannel;
-        //private readonly Channel<Func<ValueTask>> _asyncForkQueue;
-        //private readonly Channel<ZeroContinuation> _asyncCallbackQueue;
-        //private readonly Channel<ZeroContinuation> _asyncFallbackQueue;
-        //private readonly Channel<ZeroValueContinuation> _asyncValueTaskQueue;
-        //private readonly Channel<ZeroValueContinuation> _asyncValueTaskWithContextQueue;
-        //private readonly Channel<Action> _forkQueue;
-
-        //private readonly IoZeroSemaphoreChannel<Task> _taskChannel;
-        //private readonly IoZeroQ<Task> _taskChannel;
-        //private readonly IoZeroQ<Func<ValueTask>> _asyncForkQueue;
-        //private readonly IoZeroQ<ZeroContinuation> _asyncCallbackQueue;
-        //private readonly IoZeroQ<ZeroContinuation> _asyncFallbackQueue;
-        //private readonly IoZeroQ<ZeroValueContinuation> _asyncValueTaskQueue;
-        //private readonly IoZeroQ<ZeroValueContinuation> _asyncValueTaskWithContextQueue;
-        //private readonly IoZeroQ<Action> _forkQueue;
-
-        private readonly IoZeroSemaphoreChannel<Task> _taskChannel;
-        private readonly IoZeroSemaphoreChannel<Func<ValueTask>> _asyncForkQueue;
-        private readonly IoZeroSemaphoreChannel<ZeroContinuation> _asyncCallbackQueue;
+        private readonly IoZeroSemaphoreChannel<Task> _taskQueue;
         private readonly IoZeroSemaphoreChannel<ZeroContinuation> _asyncFallbackQueue;
-        private readonly IoZeroSemaphoreChannel<ZeroValueContinuation> _asyncValueTaskQueue;
-        private readonly IoZeroSemaphoreChannel<ZeroValueContinuation> _asyncValueTaskWithContextQueue;
+
+        private readonly IoZeroSemaphoreChannel<ZeroValueContinuation> _asyncTaskWithContextQueue;
+        private readonly IoZeroSemaphoreChannel<ZeroValueContinuation> _asyncTaskQueue;
+
+        private readonly IoZeroSemaphoreChannel<ZeroContinuation> _asyncCallbackWithContextQueue;
+
+        private readonly IoZeroSemaphoreChannel<Func<ValueTask>> _asyncForkQueue;
         private readonly IoZeroSemaphoreChannel<Action> _forkQueue;
 
         private readonly IoHeap<ZeroContinuation> _callbackHeap;
         private readonly IoHeap<ZeroValueContinuation> _contextHeap;
         //private readonly IoHeap<List<int>> _diagnosticsHeap;
+        private ZeroContinuation _fbQQuickSlot;
 
-        private volatile int _workerLoad;
-        public int Load => _workerLoad;
-        private volatile int _asyncLoad;
-        public int AsyncLoad => _asyncLoad;
+        private volatile int _taskQueueLoad;
+        public int Load => _taskQueueLoad;
+
+        private volatile int _asyncFallBackLoad;
+        public int AsyncFallBackLoad => _asyncFallBackLoad;
+
+        private volatile int _asyncTaskWithContextLoad;
+        public int AsyncTaskWithContextLoad => _asyncTaskWithContextLoad;
+
+        private volatile int _asyncTaskLoad;
+        public int AsyncTaskLoad => _asyncTaskLoad;
+
+        private volatile int _asyncCallbackWithContextLoad;
+        public int AsyncCallbackWithContextLoad => _asyncCallbackWithContextLoad;
+
+        private volatile int _asyncForkLoad;
+        public int AsyncForkLoad => _asyncForkLoad;
+
         private volatile int _forkLoad;
         public int ForkLoad => _forkLoad;
-        public double QTime => (double)_taskQTime / _completedQItemCount;
-        public double AQTime => (double)_asyncQTime / _completedAsyncCount;
+
+        public double AQTime => (double)_asyncCallbackWithContextTime / _asyncTaskWithContextCount;
 
         private volatile int _lastWorkerSpawnedTime;
-        private volatile int _workerCount;
-        private volatile int _asyncCount;
-        private volatile int _asyncTaskWithContextCount;
-        private volatile int _syncCount;
-        private volatile int _forkCount;
-        private volatile int _asyncFallbackCount;
+
+        
+        private int _asyncTaskWithContextTime;
+        private int _asyncCallbackWithContextTime;
+        private int _asyncTaskTime;
+        
+        private int _taskQueueCapacity;
+        private int _asyncFallbackCapacity;
+
+        private int _asyncTaskWithContextCapacity;
+        private int _asyncTaskCapacity;
+        
+        private int _asyncCallbackWithContextCapacity;
+
+        private int _asyncForkCapacity;
+        private int _forkCapacity;
+        
         private int _disposed;
         public bool Zeroed => _disposed > 0;
-        private long _completedWorkItemCount;
-        private long _completedQItemCount;
-        private long _completedForkAsyncCount;
-        private long _completedAsyncCount;
-        private long _asyncQTime;
-        private long _taskQTime;
-        private long _completedForkCount;
-        //private long _callbackCount;
+
+        private long _taskEnqueueCount;
+        private long _taskDequeueCount;
+        public long TaskDequeueCount => _taskDequeueCount;
+
+        private long _asyncFallbackCount;
+        public long AsyncFallbackCount => _asyncFallbackCount;
+
+        
+        private long _asyncTaskWithContextCount;
+        public long AsyncTaskWithContextCount => _asyncTaskWithContextCount;
+
+        private long _asyncTaskCount;
+        public long AsyncTaskCount => _asyncTaskCount;
+        
+        private long _asyncCallbackWithContextCount;
+        public long AsyncCallbackCount => _asyncCallbackWithContextCount;
+        
+        private long _asyncForkCount;
+        public long AsyncForkCount => _asyncForkCount;
+        public long ForkCount => _forkCount;
+        private long _forkCount;
+        
         private readonly TaskScheduler _fallbackScheduler;
         private bool _native;
 
-        public int RLength => _taskChannel.ReadyCount;
 
-        public int QLength => _taskChannel.WaitCount;
-        public int ThreadCount => _workerCount;
-        public long CompletedWorkItemCount => _completedWorkItemCount;
-        public long CompletedQItemCount => _completedWorkItemCount;
-        public long CompletedAsyncCount => _completedAsyncCount;
-        public double LoadFactor => (double)Load / _workerCount;
-        public long Capacity => _workerCount;
+        public int RLength => _taskQueue.ReadyCount;
+        public int QLength => _taskQueue.WaitCount;
+        public int ThreadCount => _taskQueueCapacity;
+        public double LoadFactor => (double)Load / _taskQueueCapacity;
+        public long Capacity => _taskQueueCapacity;
+
+        private void InitQueues()
+        {
+            //tasks
+            for (var i = 0; i < _taskQueueCapacity; i++)
+            {
+                _ = Task.Factory.StartNew(static async state =>
+                {
+                    var (@this, i) = (ValueTuple<IoZeroScheduler, int>)state;
+                    await @this.HandleAsyncSchedulerTask(i).ConfigureAwait(false);
+                }, (this, i), CancellationToken.None, TaskCreationOptions.LongRunning | TaskCreationOptions.HideScheduler, Default);
+            }
+
+            //forks with context
+            for (var i = 0; i < _asyncFallbackCapacity; i++)
+            {
+                _ = Task.Factory.StartNew(static async state =>
+                {
+                    var (@this, i) = (ValueTuple<IoZeroScheduler, int>)state;
+                    await @this.HandleAsyncFallback(i).ConfigureAwait(false);
+                }, (this, i), CancellationToken.None, TaskCreationOptions.LongRunning | TaskCreationOptions.HideScheduler, Default);
+            }
+
+            //async value callbacks with context
+            for (var i = 0; i < _asyncTaskWithContextCapacity; i++)
+            {
+                _ = Task.Factory.StartNew(static async state =>
+                {
+                    var (@this, i) = (ValueTuple<IoZeroScheduler, int>)(state);
+                    await @this.HandleAsyncValueTaskWithContext(i).FastPath();
+                }, (this, i), CancellationToken.None, TaskCreationOptions.LongRunning, ZeroDefault);
+            }
+
+            //async value callbacks
+            for (var i = 0; i < _asyncTaskCapacity; i++)
+            {
+                _ = Task.Factory.StartNew(static async state =>
+                {
+                    var (@this, i) = (ValueTuple<IoZeroScheduler, int>)(state);
+                    await @this.HandleAsyncValueTask(i).FastPath();
+                }, (this, i), CancellationToken.None, TaskCreationOptions.LongRunning, ZeroDefault);
+            }
+
+            //async callbacks
+            for (var i = 0; i < _asyncCallbackWithContextCapacity; i++)
+            {
+                _ = Task.Factory.StartNew(static async state =>
+                {
+                    var (@this, i) = (ValueTuple<IoZeroScheduler, int>)(state);
+                    await @this.HandleAsyncCallback(i).FastPath();
+                }, (this, i), CancellationToken.None, TaskCreationOptions.LongRunning, ZeroDefault);
+            }
+
+            //async callbacks
+            for (var i = 0; i < _asyncForkCapacity; i++)
+            {
+                _ = Task.Factory.StartNew(static async state =>
+                {
+                    var (@this, i) = (ValueTuple<IoZeroScheduler, int>)state;
+                    await @this.ForkAsyncCallbacks(i).ConfigureAwait(false);
+                }, (this, i), CancellationToken.None, TaskCreationOptions.LongRunning, ZeroDefault);
+            }
+
+            //forks
+            for (var i = 0; i < _forkCapacity; i++)
+            {
+                _ = Task.Factory.StartNew(static async state =>
+                {
+                    var (@this, i) = (ValueTuple<IoZeroScheduler, int>)state;
+                    await @this.ForkCallbacks(i).FastPath();
+                }, (this, i), CancellationToken.None, TaskCreationOptions.LongRunning, ZeroDefault);
+            }
+        }
+
+        internal class ZeroContinuation
+        {
+            public Action<object> Callback;
+            public object State;
+            public int Timestamp;
+        }
+
+        internal class ZeroValueContinuation
+        {
+            public ValueTask ValueTask;
+            public Func<object, ValueTask> ValueFunc;
+            public object Context;
+            public int Timestamp;
+        }
+
+        private async ValueTask HandleAsyncSchedulerTask(int threadIndex)
+        {
+            while (!_asyncTasks.IsCancellationRequested)
+            {
+                var job = await _taskQueue.WaitAsync().FastPath().ConfigureAwait(false);
+                try
+                {
+                    Interlocked.Increment(ref _taskQueueLoad);
+
+                    if (!TryExecuteTask(job))
+                        LogManager.GetCurrentClassLogger().Fatal($"{nameof(HandleAsyncSchedulerTask)}: Unable to execute task, id = {job.Id}, state = {job.Status}, async-state = {job.AsyncState}, success = {job.IsCompletedSuccessfully}");
+                    else
+                        Interlocked.Increment(ref _taskDequeueCount);
+                }
+                catch when (Zeroed) { }
+                catch (Exception e) when (!Zeroed)
+                {
+                    LogManager.GetCurrentClassLogger().Error(e);
+                }
+                finally
+                {
+                    Interlocked.Decrement(ref _taskQueueLoad);
+                }
+            }
+        }
+
+        private async ValueTask HandleAsyncFallback(int threadIndex)
+        {
+            while (!_asyncTasks.IsCancellationRequested)
+            {
+                var job = await _asyncFallbackQueue.WaitAsync().FastPath().ConfigureAwait(false);
+                try
+                {
+                    Interlocked.Increment(ref _asyncFallBackLoad);
+                    job.Callback(job.State);
+                    Interlocked.Increment(ref _asyncFallbackCount);
+                }
+                catch when (Zeroed) { }
+                catch (Exception e) when (!Zeroed)
+                {
+                    LogManager.GetCurrentClassLogger().Error(e);
+                }
+                finally
+                {
+                    Interlocked.Decrement(ref _asyncFallBackLoad);
+                    if (!Zeroed)
+                    {
+                        if (Interlocked.CompareExchange(ref _fbQQuickSlot, job, null) != null)
+                            _callbackHeap.Return(job);
+                    }
+                }
+            }
+        }
+
+        private async ValueTask HandleAsyncValueTaskWithContext(int threadIndex)
+        {
+            while (!_asyncTasks.IsCancellationRequested)
+            {
+                var job = await _asyncTaskWithContextQueue.WaitAsync().FastPath().ConfigureAwait(_native);
+                try
+                {
+                    Interlocked.Increment(ref _asyncTaskWithContextLoad);
+                    await job.ValueFunc(job.Context).FastPath();
+                    Interlocked.Increment(ref _asyncTaskWithContextCount);
+                    Interlocked.Add(ref _asyncTaskWithContextTime, job.Timestamp.ElapsedMs());
+                }
+                catch when (Zeroed) { }
+                catch (Exception e) when (!Zeroed)
+                {
+                    LogManager.GetCurrentClassLogger().Error(e);
+                }
+                finally
+                {
+                    Interlocked.Decrement(ref _asyncTaskWithContextLoad);
+                    if (!Zeroed)
+                        _contextHeap.Return(job);
+                }
+            }
+        }
+
+        private async ValueTask HandleAsyncCallback(int threadIndex)
+        {
+            while(!_asyncTasks.IsCancellationRequested)
+            {
+                var job = await _asyncCallbackWithContextQueue.WaitAsync().FastPath().ConfigureAwait(_native);
+                try
+                {
+                    Interlocked.Increment(ref _asyncCallbackWithContextLoad);
+                    job.Callback(job.State);
+                    Interlocked.Increment(ref _asyncCallbackWithContextCount);
+                    Interlocked.Add(ref _asyncCallbackWithContextTime, job.Timestamp.ElapsedMs());
+                }
+                catch when (Zeroed) { }
+                catch (Exception e) when (!Zeroed)
+                {
+                    LogManager.GetCurrentClassLogger().Error(e);
+                }
+                finally
+                {
+                    Interlocked.Decrement(ref _asyncCallbackWithContextLoad);
+                    if (!Zeroed)
+                        _callbackHeap.Return(job);
+                }
+            }
+        }
+        private async ValueTask HandleAsyncValueTask(int threadIndex)
+        {
+            while(!_asyncTasks.IsCancellationRequested)
+            {
+                var job = await _asyncTaskQueue.WaitAsync().FastPath().ConfigureAwait(_native);
+                try
+                {
+                    Debug.Assert(TaskScheduler.Current.Id == IoZeroScheduler.Zero.Id);
+                    Interlocked.Increment(ref _asyncTaskLoad);
+                    await job.ValueTask.FastPath();
+                    Interlocked.Increment(ref _asyncTaskCount);
+                    Interlocked.Add(ref _asyncTaskTime, job.Timestamp.ElapsedMs());
+                }
+                catch when (Zeroed) { }
+                catch (Exception e) when (!Zeroed)
+                {
+                    LogManager.GetCurrentClassLogger().Error(e);
+                }
+                finally
+                {
+                    Interlocked.Decrement(ref _asyncTaskLoad);
+                    if (!Zeroed)
+                        _contextHeap.Return(job);
+                }
+            }
+        }
+
         private async ValueTask ForkAsyncCallbacks(int threadIndex)
         {
-            //await foreach (var job in _asyncForkQueue.BalanceOnConsumeAsync(threadIndex).ConfigureAwait(false))
-            while(!_asyncTasks.IsCancellationRequested)
+            while (!_asyncTasks.IsCancellationRequested)
             {
                 try
                 {
                     var job = await _asyncForkQueue.WaitAsync().FastPath().ConfigureAwait(false);
+                    Interlocked.Increment(ref _asyncForkLoad);
                     await job().FastPath();
-                    Interlocked.Increment(ref _completedForkAsyncCount);
+                    Interlocked.Increment(ref _asyncForkCount);
                 }
                 catch when (Zeroed) { }
                 catch (Exception e) when (!Zeroed)
                 {
                     LogManager.GetCurrentClassLogger().Trace(e);
                 }
+                finally
+                {
+                    Interlocked.Decrement(ref _asyncForkLoad);
+                }
             }
         }
 
         private async ValueTask ForkCallbacks(int threadIndex)
         {
-            //await foreach (var job in _forkQueue.BalanceOnConsumeAsync(threadIndex))
-            while(!_asyncTasks.IsCancellationRequested)
+            while (!_asyncTasks.IsCancellationRequested)
             {
                 var job = await _forkQueue.WaitAsync().FastPath();
                 try
                 {
                     Interlocked.Increment(ref _forkLoad);
                     job();
-                    Interlocked.Increment(ref _completedForkCount);
+                    Interlocked.Increment(ref _forkCount);
                 }
                 catch when (Zeroed) { }
                 catch (Exception e) when (!Zeroed)
@@ -311,183 +477,6 @@ namespace zero.core.runtime.scheduler
             }
         }
 
-        private async ValueTask AsyncFallbacks(int threadIndex)
-        {
-            //await foreach (var job in _asyncFallbackQueue.BalanceOnConsumeAsync(threadIndex).ConfigureAwait(false))
-            while(!_asyncTasks.IsCancellationRequested)
-            {
-                var job = await _asyncFallbackQueue.WaitAsync().FastPath().ConfigureAwait(false);
-                try
-                {
-                    job.Callback(job.State);
-                    Interlocked.Increment(ref _completedForkCount);
-                }
-                catch when (Zeroed) { }
-                catch (Exception e) when (!Zeroed)
-                {
-                    LogManager.GetCurrentClassLogger().Trace(e);
-                }
-                finally
-                {
-                    if (!Zeroed)
-                    {
-                        if( Interlocked.CompareExchange(ref _fbQQuickSlot, job, null) != null)
-                            _callbackHeap.Return(job);
-                    }
-                }
-            }
-        }
-
-        private async ValueTask HandleAsyncSchedulerTask(int threadIndex)
-        {
-            //await foreach (var job in _taskChannel.BalanceOnConsumeAsync(threadIndex).ConfigureAwait(false))
-            while(!_asyncTasks.IsCancellationRequested)
-            {
-                var job = await _taskChannel.WaitAsync().FastPath().ConfigureAwait(false);
-                //if (_taskChannel.TryDequeue(out var job))
-                {
-                    try
-                    {
-                        if (job.Status <= TaskStatus.WaitingToRun)
-                        {
-                            Interlocked.Increment(ref _workerLoad);
-                            try
-                            {
-                                if (!TryExecuteTask(job)) //&& job.Status <= TaskStatus.Running)
-                                    LogManager.GetCurrentClassLogger().Fatal($"{nameof(HandleAsyncSchedulerTask)}: Unable to execute task, id = {job.Id}, state = {job.Status}, async-state = {job.AsyncState}, success = {job.IsCompletedSuccessfully}");
-                                else
-                                    Interlocked.Increment(ref _completedWorkItemCount);
-
-                                //while (_taskChannel.TryDequeue(out var drain) && drain.Status <= TaskStatus.WaitingToRun)
-                                //{
-                                //    if (!TryExecuteTask(drain)) //&& job.Status <= TaskStatus.Running)
-                                //        LogManager.GetCurrentClassLogger().Fatal(
-                                //            $"{nameof(HandleAsyncSchedulerTask)}: Unable to execute task, id = {job.Id}, state = {job.Status}, async-state = {job.AsyncState}, success = {job.IsCompletedSuccessfully}");
-                                //    else
-                                //        Interlocked.Increment(ref _completedWorkItemCount);
-                                //}
-                            }
-                            finally
-                            {
-                                Interlocked.Decrement(ref _workerLoad);
-                            }
-                        }
-                    }
-                    catch when(Zeroed){}
-                    catch (Exception e) when(!Zeroed)
-                    {
-                        LogManager.GetCurrentClassLogger().Trace(e);
-                    }
-                }
-                //else
-                {
-                    //Thread.Sleep(_workerCount - _workerLoad);
-                    //Thread.Sleep(RandomNumberGenerator.GetInt32(1, 20000));
-                    //Console.Write(".");
-                }
-                    
-            }
-        }
-
-        private async ValueTask HandleAsyncCallback(int threadIndex)
-        {
-            //await foreach (var job in _asyncCallbackQueue.BalanceOnConsumeAsync(threadIndex).ConfigureAwait(_native))
-            while(!_asyncTasks.IsCancellationRequested)
-            {
-                var job = await _asyncCallbackQueue.WaitAsync().FastPath().ConfigureAwait(_native);
-                try
-                {
-                    job.Callback(job.State);
-                    Interlocked.Increment(ref _completedAsyncCount);
-                    Interlocked.Add(ref _asyncQTime, job.Timestamp.ElapsedMs());
-
-                    //while (_asyncCallbackQueue.TryDequeue(out var drain))
-                    //{
-                    //    drain.Callback(drain.State);
-                    //    Interlocked.Increment(ref _completedAsyncCount);
-                    //    Interlocked.Add(ref _asyncQTime, drain.Timestamp.ElapsedMs());
-                    //}
-                }
-                catch when (Zeroed) { }
-                catch (Exception e) when (!Zeroed)
-                {
-                    LogManager.GetCurrentClassLogger().Trace(e);
-                }
-                finally
-                {
-                    if(!Zeroed)
-                        _callbackHeap.Return(job);
-                }
-            }
-        }
-        private async ValueTask HandleAsyncValueTask(int threadIndex)
-        {
-            //await foreach (var job in _asyncValueTaskQueue.BalanceOnConsumeAsync(threadIndex).ConfigureAwait(_native))
-            while(!_asyncTasks.IsCancellationRequested)
-            {
-                var job = await _asyncValueTaskQueue.WaitAsync().FastPath().ConfigureAwait(_native);
-                try
-                {
-                    Debug.Assert(TaskScheduler.Current.Id == IoZeroScheduler.Zero.Id);
-                    await job.ValueTask.FastPath();
-                    Interlocked.Increment(ref _completedAsyncCount);
-                    Interlocked.Add(ref _asyncQTime, job.Timestamp.ElapsedMs());
-
-                    //while (_asyncValueTaskQueue.TryDequeue(out var drain))
-                    //{
-                    //    await job.ValueTask.FastPath();
-                    //    Interlocked.Increment(ref _completedAsyncCount);
-                    //    Interlocked.Add(ref _asyncQTime, drain.Timestamp.ElapsedMs());
-                    //}
-                }
-                catch when (Zeroed) { }
-                catch (Exception e) when (!Zeroed)
-                {
-                    LogManager.GetCurrentClassLogger().Trace(e);
-                }
-                finally
-                {
-                    if(!Zeroed)
-                        _contextHeap.Return(job);
-                }
-            }
-        }
-
-        private async ValueTask HandleAsyncValueTaskWithContext(int threadIndex)
-        {
-            //await foreach (var job in _asyncValueTaskWithContextQueue.BalanceOnConsumeAsync(threadIndex).ConfigureAwait(_native))
-            while(!_asyncTasks.IsCancellationRequested)
-            {
-                var job = await _asyncValueTaskWithContextQueue.WaitAsync().FastPath().ConfigureAwait(_native);
-                try
-                {
-                    Interlocked.Increment(ref _asyncLoad);
-                    //Debug.Assert(TaskScheduler.Current.Id == IoZeroScheduler.Zero.Id);
-                    await job.ValueFunc(job.Context).FastPath();
-                    Interlocked.Increment(ref _completedAsyncCount);
-                    Interlocked.Add(ref _asyncQTime, job.Timestamp.ElapsedMs());
-
-                    //while (_asyncValueTaskWithContextQueue.TryDequeue(out var drain))
-                    //{
-                    //    await job.ValueFunc(job.Context).FastPath();
-                    //    Interlocked.Increment(ref _completedAsyncCount);
-                    //    Interlocked.Add(ref _asyncQTime, drain.Timestamp.ElapsedMs());
-                    //}
-                }
-                catch when (Zeroed) { }
-                catch (Exception e) when (!Zeroed)
-                {
-                    LogManager.GetCurrentClassLogger().Trace(e);
-                }
-                finally
-                {
-                    Interlocked.Decrement(ref _asyncLoad);
-                    if(!Zeroed)
-                        _contextHeap.Return(job);
-                }
-            }
-        }
-
         /// <summary>
         /// Gets a list of tasks held by this scheduler
         /// </summary>
@@ -495,7 +484,7 @@ namespace zero.core.runtime.scheduler
         protected override IEnumerable<Task> GetScheduledTasks()
         {
             var l = new List<Task>();
-            //while (_taskChannel.)
+            //while (_taskQueue.)
             //{
             //    l.Add(item);
             //}
@@ -509,16 +498,13 @@ namespace zero.core.runtime.scheduler
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         protected override void QueueTask(Task task)
         {
-            //queue the work for processing
-            var ts = Environment.TickCount;
-            if (_taskChannel.Release(task, true) < 0)
-                throw new InternalBufferOverflowException($"{nameof(_taskChannel)}: {_taskChannel.Description}");
+            if (_taskQueue.Release(task, true) < 0)
+                throw new InternalBufferOverflowException($"{nameof(_taskQueue)}: {_taskQueue.Description}");
             
-            Interlocked.Add(ref _taskQTime, ts.ElapsedMs());
-            Interlocked.Increment(ref _completedQItemCount);
+            Interlocked.Increment(ref _taskEnqueueCount);
 
             //insane checks
-            if (LoadFactor > WorkerSpawnThreshold && _lastWorkerSpawnedTime.ElapsedMs() > WorkerSpawnBurstTimeMs && _workerCount < short.MaxValue / WorkerSpawnPassThrough || LoadFactor > 0.99)
+            if (LoadFactor > WorkerSpawnThreshold && _lastWorkerSpawnedTime.ElapsedMs() > WorkerSpawnBurstTimeMs && _taskQueueCapacity < short.MaxValue / WorkerSpawnPassThrough || LoadFactor > 0.99)
             {
                 FallbackContext(static state =>
                 {
@@ -529,14 +515,14 @@ namespace zero.core.runtime.scheduler
                             {
                                 var (@this, i) = (ValueTuple<IoZeroScheduler, int>)state;
                                 await @this.HandleAsyncSchedulerTask(i).ConfigureAwait(false);
-                            }, (@this, Interlocked.Increment(ref @this._workerCount) - 1), CancellationToken.None,
+                            }, (@this, Interlocked.Increment(ref @this._taskQueueCapacity) - 1), CancellationToken.None,
                             TaskCreationOptions.LongRunning, Default);
 
                         _ = Task.Factory.StartNew(static async state =>
                             {
                                 var (@this, i) = (ValueTuple<IoZeroScheduler, int>)state;
                                 await @this.HandleAsyncValueTaskWithContext(i).FastPath();
-                            }, (@this, Interlocked.Increment(ref @this._asyncTaskWithContextCount)),
+                            }, (@this, Interlocked.Increment(ref @this._asyncTaskWithContextCapacity)),
                             CancellationToken.None,
                             TaskCreationOptions.LongRunning, ZeroDefault);
 
@@ -546,7 +532,7 @@ namespace zero.core.runtime.scheduler
                         {
                             var (@this, i) = (ValueTuple<IoZeroScheduler, int>)(state);
                             await @this.HandleAsyncCallback(i).FastPath();
-                        }, (@this, Interlocked.Increment(ref @this._syncCount)), CancellationToken.None, TaskCreationOptions.LongRunning, ZeroDefault);
+                        }, (@this, Interlocked.Increment(ref @this._asyncCallbackWithContextCapacity)), CancellationToken.None, TaskCreationOptions.LongRunning, ZeroDefault);
                         
 
                         if (_workerSpawnBurstMax == 0)
@@ -555,7 +541,7 @@ namespace zero.core.runtime.scheduler
                         @this._lastWorkerSpawnedTime = Environment.TickCount;
                         Interlocked.MemoryBarrier();
                         Console.WriteLine(
-                            $"Adding zero thread {@this._workerCount}, load = {@this.LoadFactor * 100:0.0}%");
+                            $"Adding zero thread {@this._taskQueueCapacity}, load = {@this.LoadFactor * 100:0.0}%");
                     }
                 }, this);
             }
@@ -628,7 +614,7 @@ namespace zero.core.runtime.scheduler
 
                 handler.Callback = callback;
                 handler.State = state;
-                return _asyncCallbackQueue.Release(handler, true) >= 0;
+                return _asyncCallbackWithContextQueue.Release(handler, true) >= 0;
             }
             finally
             {
@@ -647,7 +633,7 @@ namespace zero.core.runtime.scheduler
             if (c == null) throw new OutOfMemoryException(nameof(LoadAsyncContext));
             c.ValueFunc = valueTask;
             c.Context = context;
-            return _asyncValueTaskWithContextQueue.Release(c, true) >= 0;
+            return _asyncTaskWithContextQueue.Release(c, true) >= 0;
         }
 
         //API
@@ -663,24 +649,15 @@ namespace zero.core.runtime.scheduler
             var c = _contextHeap.Take();
             if (c == null) throw new OutOfMemoryException(nameof(LoadAsyncCallback));
             c.ValueTask = task;
-            return _asyncValueTaskQueue.Release(c, true) >= 0;
+            return _asyncTaskQueue.Release(c, true) >= 0;
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public bool LoadAsyncCallback(Func<ValueTask> callback) => _asyncForkQueue.Release(callback, true) >= 0;
 
-        //[MethodImpl(MethodImplOptions.AggressiveInlining)]
-        //public bool LoadExclusiveZone(Func<object,ValueTask> callback, object state = null) => _exclusiveQueue.TryEnqueue(callback) > 0;
-
+        
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public bool Fork(Action callback)
-        {
-            if (Zeroed)
-                return false;
-            return _forkQueue.Release(callback, true) >= 0;
-        }
-
-        private ZeroContinuation _fbQQuickSlot;
+        public bool Fork(Action callback) => _forkQueue.Release(callback, true) >= 0;
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public bool FallbackContext(Action<object> callback, object context = null)
@@ -707,11 +684,16 @@ namespace zero.core.runtime.scheduler
             if (disposed)
             {
                 _asyncTasks.Cancel();
-                _asyncCallbackQueue.ZeroSem();
-                _asyncFallbackQueue.ZeroSem();
+
                 _asyncForkQueue.ZeroSem();
-                _asyncValueTaskQueue.ZeroSem();
-                _asyncValueTaskWithContextQueue.ZeroSem();
+                _asyncCallbackWithContextQueue.ZeroSem();
+
+                _asyncTaskQueue.ZeroSem();
+                _asyncTaskWithContextQueue.ZeroSem();
+                _asyncFallbackQueue.ZeroSem();
+                _taskQueue.ZeroSem();
+
+
                 _callbackHeap.ZeroManagedAsync<object>().AsTask().GetAwaiter().GetResult();
                 _contextHeap.ZeroManagedAsync<object>().AsTask().GetAwaiter().GetResult();
                 //_diagnosticsHeap.ZeroManagedAsync<object>().AsTask().GetAwaiter().GetResult();

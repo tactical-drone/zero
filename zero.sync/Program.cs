@@ -524,16 +524,16 @@ namespace zero.sync
 
             var LS = Environment.TickCount;
             var LSOrig = Environment.TickCount;
-            var LOrig = IoZeroScheduler.Zero.CompletedWorkItemCount;
-            var LC = IoZeroScheduler.Zero.CompletedWorkItemCount;
+            var LOrig = IoZeroScheduler.Zero.AsyncForkCount;
+            var LC = IoZeroScheduler.Zero.AsyncForkCount;
 
             var QS = Environment.TickCount;
             var QSOrig = Environment.TickCount;
-            var QOrig = IoZeroScheduler.Zero.CompletedQItemCount;
-            var QC = IoZeroScheduler.Zero.CompletedQItemCount;
+            var QOrig = IoZeroScheduler.Zero.TaskDequeueCount;
+            var QC = IoZeroScheduler.Zero.TaskDequeueCount;
 
             var AS = Environment.TickCount;
-            var AC = IoZeroScheduler.Zero.CompletedAsyncCount;
+            var AC = IoZeroScheduler.Zero.AsyncTaskWithContextCount;
 
             AppDomain.CurrentDomain.ProcessExit += (sender, eventArgs) =>
             {
@@ -577,14 +577,13 @@ namespace zero.sync
 
                     if (line == "L")
                     {
-                        Console.WriteLine($"ZERO SCHEDULER: load = {IoZeroScheduler.Zero.Load}({IoZeroScheduler.Zero.LoadFactor * 100:0.0}%), q time = {IoZeroScheduler.Zero.QLength / ((IoZeroScheduler.Zero.CompletedWorkItemCount - LC) / (double)LS.ElapsedMs()):0}ms, workers = {IoZeroScheduler.Zero.ThreadCount}, p = {IoZeroScheduler.Zero.QLength}, C = {IoZeroScheduler.Zero.CompletedWorkItemCount - LOrig}, {(IoZeroScheduler.Zero.CompletedWorkItemCount - LOrig) / (double)LSOrig.ElapsedMsToSec():0.0} ops, c = {IoZeroScheduler.Zero.CompletedWorkItemCount - LC}, {(IoZeroScheduler.Zero.CompletedWorkItemCount - LC) / (double)LS.ElapsedMsToSec():0.0} tps");
-                        Console.WriteLine($"[{IoZeroScheduler.Zero.Load}/{IoZeroScheduler.Zero.AsyncLoad}/{IoZeroScheduler.Zero.ForkLoad}/{IoZeroScheduler.Zero.Capacity}] load = {IoZeroScheduler.Zero.Load/ IoZeroScheduler.Zero.Capacity * 100:0.0}%, w time = {IoZeroScheduler.Zero.QTime:0.0}ms, aq time = {IoZeroScheduler.Zero.AQTime:0.0}ms, poll% = {((IoZeroScheduler.Zero.CompletedWorkItemCount - LOrig - LC) - (IoZeroScheduler.Zero.CompletedQItemCount - QC)) / (double)(IoZeroScheduler.Zero.CompletedWorkItemCount - LC) * 100.0:0.0}%, ({(IoZeroScheduler.Zero.CompletedWorkItemCount - LOrig - (IoZeroScheduler.Zero.CompletedQItemCount - QOrig)) / (double)(IoZeroScheduler.Zero.CompletedWorkItemCount - LOrig) * 100.0:0.00}%), p = {IoZeroScheduler.Zero.QLength},  r = {IoZeroScheduler.Zero.RLength}, F = {IoZeroScheduler.Zero.ForkLoad}, C = {IoZeroScheduler.Zero.CompletedQItemCount - QOrig}, {(IoZeroScheduler.Zero.CompletedWorkItemCount - QOrig) / (double)QSOrig.ElapsedMsToSec():0.0} ops, c = {IoZeroScheduler.Zero.CompletedQItemCount- QC}, {(IoZeroScheduler.Zero.CompletedQItemCount - QC) / (double)QS.ElapsedMsToSec():0.0} tps, {(IoZeroScheduler.Zero.CompletedAsyncCount - AC) / (double)AS.ElapsedMsToSec():0.0} async/s ({IoZeroScheduler.Zero.CompletedAsyncCount - AC})[{IoZeroScheduler.Zero.CompletedAsyncCount}]");
+                        Console.WriteLine($"[{IoZeroScheduler.Zero.Load}/{IoZeroScheduler.Zero.AsyncTaskWithContextLoad}/{IoZeroScheduler.Zero.ForkLoad}/{IoZeroScheduler.Zero.Capacity}] load = {IoZeroScheduler.Zero.Load/ IoZeroScheduler.Zero.Capacity * 100:0.0}%, aq time = {IoZeroScheduler.Zero.AQTime:0.0}ms, poll% = {((IoZeroScheduler.Zero.AsyncForkCount - LOrig - LC) - (IoZeroScheduler.Zero.TaskDequeueCount - QC)) / (double)(IoZeroScheduler.Zero.AsyncForkCount - LC) * 100.0:0.0}%, ({(IoZeroScheduler.Zero.AsyncForkCount - LOrig - (IoZeroScheduler.Zero.TaskDequeueCount - QOrig)) / (double)(IoZeroScheduler.Zero.AsyncForkCount - LOrig) * 100.0:0.00}%), p = {IoZeroScheduler.Zero.QLength},  r = {IoZeroScheduler.Zero.RLength}, F = {IoZeroScheduler.Zero.ForkLoad}, C = {IoZeroScheduler.Zero.TaskDequeueCount - QOrig}, {(IoZeroScheduler.Zero.AsyncForkCount - QOrig) / (double)QSOrig.ElapsedMsToSec():0.0} ops, c = {IoZeroScheduler.Zero.TaskDequeueCount- QC}, {(IoZeroScheduler.Zero.TaskDequeueCount - QC) / (double)QS.ElapsedMsToSec():0.0} tps, {(IoZeroScheduler.Zero.AsyncTaskWithContextCount - AC) / (double)AS.ElapsedMsToSec():0.0} async/s ({IoZeroScheduler.Zero.AsyncTaskWithContextCount - AC})[{IoZeroScheduler.Zero.AsyncTaskWithContextCount}]");
                         QS = Environment.TickCount;
                         AS = Environment.TickCount;
                         LS = Environment.TickCount;
-                        QC = IoZeroScheduler.Zero.CompletedQItemCount;
-                        LC = IoZeroScheduler.Zero.CompletedWorkItemCount;
-                        AC = IoZeroScheduler.Zero.CompletedAsyncCount;
+                        QC = IoZeroScheduler.Zero.TaskDequeueCount;
+                        LC = IoZeroScheduler.Zero.AsyncForkCount;
+                        AC = IoZeroScheduler.Zero.AsyncTaskWithContextCount;
                     }
 
                     
