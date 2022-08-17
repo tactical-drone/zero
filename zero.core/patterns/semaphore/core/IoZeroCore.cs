@@ -302,7 +302,7 @@ namespace zero.core.patterns.semaphore.core
             var spinWait = new SpinWait();
             while (_blockingCores.TryEnqueue(blockingCore) < 0)
             {
-                Debug.Assert(Zeroed() || WaitCount <= Capacity, Description);
+                Debug.Assert(Zeroed() || WaitCount <= Capacity);
 
                 if (Zeroed())
                     return false;
