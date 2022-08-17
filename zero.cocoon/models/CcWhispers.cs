@@ -543,14 +543,11 @@ namespace zero.cocoon.models
                             //best effort
                             if (CcCollective.DupChecker.TryGetValue(req, out dupEndpoints))
                                 dupEndpoints.Add(endpoint);
-
-                            continue;
                         }
                     }
                     else
                     {
                         dupEndpoints.Add(endpoint);
-                        continue;
                     }
 #endif
                     if (CcCollective.MaxReq > 1000 && req < 10)
@@ -565,7 +562,7 @@ namespace zero.cocoon.models
                     {
                         if (_logBatchNext.AtomicCas(batchSize + MaxLogBatchSize, batchSize) == batchSize)
                         {
-                            _logger.Info($"[{Id}]: lts = {req}, {req * 1000 / (_logBatchTime.ElapsedMs() + 1)} t/s; recover = {Source.Counters[(int)IoJobMeta.JobState.Synced]}/{Source.Counters[(int)IoJobMeta.JobState.ZeroRecovery]} ({Source.Counters[(int)IoJobMeta.JobState.Synced] / (double)Source.Counters[(int)IoJobMeta.JobState.ZeroRecovery] * 100:0.0}%), frag = {Source.Counters[(int)IoJobMeta.JobState.Fragmented]}, bad = {Source.Counters[(int)IoJobMeta.JobState.BadData]}, success = {Source.Counters[(int)IoJobMeta.JobState.Consumed]}, fail = {Source.Counters[(int)IoJobMeta.JobState.Queued] - Source.Counters[(int)IoJobMeta.JobState.Consumed]}");
+                            _logger.Info($"[{Id}]: lts = {req}, {(_logBatchNext - batchSize) * 1000 / (_logBatchTime.ElapsedMs() + 1)} t/s; recover = {Source.Counters[(int)IoJobMeta.JobState.Synced]}/{Source.Counters[(int)IoJobMeta.JobState.ZeroRecovery]} ({Source.Counters[(int)IoJobMeta.JobState.Synced] / (double)Source.Counters[(int)IoJobMeta.JobState.ZeroRecovery] * 100:0.0}%), frag = {Source.Counters[(int)IoJobMeta.JobState.Fragmented]}, bad = {Source.Counters[(int)IoJobMeta.JobState.BadData]}, success = {Source.Counters[(int)IoJobMeta.JobState.Consumed]}, fail = {Source.Counters[(int)IoJobMeta.JobState.Queued] - Source.Counters[(int)IoJobMeta.JobState.Consumed]}");
                             _logBatchTime = Environment.TickCount;
                         }
                     }
@@ -646,7 +643,7 @@ namespace zero.cocoon.models
                                         //Don't forward new messages to nodes from which we have received the msg in the mean time.
                                         //This trick has the added bonus of using congestion as a governor to catch more of those overlaps, 
                                         //which in turn lowers the traffic causing less congestion
-                                        if (dupEndpoints != null && dupEndpoints.Contains(source.IoNetSocket.Key))
+                                        if (dupEndpoints is { Count: > 1 } && dupEndpoints.Contains(source.IoNetSocket.Key))
                                             continue;
 #endif
                                         if (source == null || await source.IoNetSocket.SendAsync(socketBuf, 0, (int)compressed + sizeof(ulong)).FastPath() <= 0) continue;

@@ -996,7 +996,7 @@ namespace zero.cocoon
 
             if (Neighbors.Count > 0)
             {
-                await WhisperingDrones[_random.Next(1, WhisperingDrones.Count) - 1].EmitTestGossipMsgAsync(v).FastPath();
+                await WhisperingDrones[_random.Next(0, WhisperingDrones.Count)].EmitTestGossipMsgAsync(v).FastPath();
                 return true;
             }
             
