@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace zero.core.misc
@@ -12,7 +13,7 @@ namespace zero.core.misc
 	/// </summary>
 	public class IoInt32
 	{
-        readonly int _value;
+        int _value;
         public IoInt32(int value)
 		{
 			_value = value;
@@ -93,7 +94,16 @@ namespace zero.core.misc
             return one._value != two._value;
 		}
 
-		[MethodImpl(MethodImplOptions.AggressiveInlining)]
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public void AtomicAdd(int value)
+        {
+            Interlocked.Add(ref _value, value);
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public int AtomicCas(int value, int cmp) => Interlocked.CompareExchange(ref _value, value, cmp);
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
 		public override bool Equals(object obj)
         {
             if (obj == null)

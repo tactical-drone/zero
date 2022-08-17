@@ -33,6 +33,15 @@ namespace zero.cocoon.models
         {
             _m = new CcWhisperMsg { Data = UnsafeByteOperations.UnsafeWrap(new ReadOnlyMemory<byte>(_vb)) };
             _sendBuf = new IoHeap<byte[]>($"{nameof(_sendBuf)}: {Description}", 32, (_, _) => new byte[32], true);
+
+            retry:
+            if (Source.ObjectStorage.TryGetValue(Source.Serial.ToString(), out var nextBatch))
+            {
+                if (!Source.ObjectStorage.TryAdd(Source.Serial.ToString(), _logBatchNext))
+                {
+                    goto retry;
+                }
+            }
         }
 
         private IoHeap<byte[]> _sendBuf;
@@ -333,8 +342,8 @@ namespace zero.cocoon.models
         }*/
 
         private const int MaxLogBatchSize = 10000;
-        private volatile int _logBatchNext = MaxLogBatchSize;
-        private volatile int _logBatchTime = Environment.TickCount;
+        private IoInt32 _logBatchNext = MaxLogBatchSize;
+        private IoInt32 _logBatchTime = Environment.TickCount;
         private const int HeartbeatTime = 10000;
         public override async ValueTask<IoJobMeta.JobState> ConsumeAsync()
         {
@@ -550,11 +559,15 @@ namespace zero.cocoon.models
                         CcCollective.MaxReq = -1;
                     }
 
-                    if (req > _logBatchNext)
+
+                    int batchSize = _logBatchNext;
+                    if (req > batchSize)
                     {
-                        _logger.Info($"[{Id}]: lts = {req}, {req*1000/(_logBatchTime.ElapsedMs() + 1)} t/s; recover = {Source.Counters[(int)IoJobMeta.JobState.Synced]}/{Source.Counters[(int)IoJobMeta.JobState.ZeroRecovery]} ({Source.Counters[(int)IoJobMeta.JobState.Synced]/(double)Source.Counters[(int)IoJobMeta.JobState.ZeroRecovery]*100:0.0}%), frag = {Source.Counters[(int)IoJobMeta.JobState.Fragmented]}, bad = {Source.Counters[(int)IoJobMeta.JobState.BadData]}, success = {Source.Counters[(int)IoJobMeta.JobState.Consumed]}, fail = {Source.Counters[(int)IoJobMeta.JobState.Queued] - Source.Counters[(int)IoJobMeta.JobState.Consumed]}");
-                        Interlocked.Add(ref _logBatchNext, MaxLogBatchSize);
-                        _logBatchTime = Environment.TickCount;
+                        if (_logBatchNext.AtomicCas(batchSize + MaxLogBatchSize, batchSize) == batchSize)
+                        {
+                            _logger.Info($"[{Id}]: lts = {req}, {req * 1000 / (_logBatchTime.ElapsedMs() + 1)} t/s; recover = {Source.Counters[(int)IoJobMeta.JobState.Synced]}/{Source.Counters[(int)IoJobMeta.JobState.ZeroRecovery]} ({Source.Counters[(int)IoJobMeta.JobState.Synced] / (double)Source.Counters[(int)IoJobMeta.JobState.ZeroRecovery] * 100:0.0}%), frag = {Source.Counters[(int)IoJobMeta.JobState.Fragmented]}, bad = {Source.Counters[(int)IoJobMeta.JobState.BadData]}, success = {Source.Counters[(int)IoJobMeta.JobState.Consumed]}, fail = {Source.Counters[(int)IoJobMeta.JobState.Queued] - Source.Counters[(int)IoJobMeta.JobState.Consumed]}");
+                            _logBatchTime = Environment.TickCount;
+                        }
                     }
 
                     var l = CcCollective.MaxReq;
