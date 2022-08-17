@@ -130,6 +130,7 @@ namespace zero.core.network.ip
                             taskCore.SetResult(socket.EndAccept(result));
                         }
                         catch (ObjectDisposedException){}
+                        catch (SocketException e) when (e.SocketErrorCode == SocketError.OperationAborted) {}
                         catch (Exception e)
                         {
                             try

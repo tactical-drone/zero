@@ -55,8 +55,8 @@ namespace zero.core.patterns.misc
 
             //TODO: tuning
 #if DEBUG
-            _zeroHive = new IoQueue<IoZeroSub>($"{nameof(_zeroHive)} {description}", 2, _concurrencyLevel, IoQueue<IoZeroSub>.Mode.DynamicSize);
-            _zeroHiveMind = new IoQueue<IIoNanite>($"{nameof(_zeroHiveMind)} {description}", 2, _concurrencyLevel, IoQueue<IIoNanite>.Mode.DynamicSize);
+            _zeroHive = new IoQueue<IoZeroSub>($"{nameof(_zeroHive)} {description}", 4, _concurrencyLevel, IoQueue<IoZeroSub>.Mode.DynamicSize);
+            _zeroHiveMind = new IoQueue<IIoNanite>($"{nameof(_zeroHiveMind)} {description}", 4, _concurrencyLevel, IoQueue<IIoNanite>.Mode.DynamicSize);
 #else
             _zeroHive = new IoQueue<IoZeroSub>(string.Empty, 4, _concurrencyLevel, IoQueue<IoZeroSub>.Mode.DynamicSize);
             _zeroHiveMind = new IoQueue<IIoNanite>(string.Empty, 4, _concurrencyLevel, IoQueue<IIoNanite>.Mode.DynamicSize);

@@ -613,6 +613,9 @@ namespace zero.core.patterns.bushings
                 {
                     try
                     {
+                        if (Zeroed())
+                            return false;
+
                         if(curJob.State != IoJobMeta.JobState.ProdConnReset)
                             await curJob.SetStateAsync(IoJobMeta.JobState.Consuming).FastPath();
 
@@ -652,24 +655,28 @@ namespace zero.core.patterns.bushings
                     {
                         try
                         {
-                            //Consume success?
-                            await curJob.SetStateAsync(curJob.State is IoJobMeta.JobState.Consumed or IoJobMeta.JobState.Fragmented or IoJobMeta.JobState.BadData
-                                ? IoJobMeta.JobState.Accept
-                                : IoJobMeta.JobState.Reject).FastPath();
-
-                            if (curJob.Id % parm_stats_mod_count == 0 && curJob.Id >= 9999)
+                            if (!Zeroed())
                             {
-                                await ZeroAtomicAsync(static (_, @this, _) =>
+                                //Consume success?
+                                await curJob.SetStateAsync(curJob.State is IoJobMeta.JobState.Consumed
+                                    or IoJobMeta.JobState.Fragmented or IoJobMeta.JobState.BadData
+                                    ? IoJobMeta.JobState.Accept
+                                    : IoJobMeta.JobState.Reject).FastPath();
+
+                                if (curJob.Id % parm_stats_mod_count == 0 && curJob.Id >= 9999)
                                 {
-                                    @this.DumpStats();
-                                    return new ValueTask<bool>(true);
-                                }, this).FastPath();
+                                    await ZeroAtomicAsync(static (_, @this, _) =>
+                                    {
+                                        @this.DumpStats();
+                                        return new ValueTask<bool>(true);
+                                    }, this).FastPath();
+                                }
+
+                                await ZeroJobAsync(curJob, curJob.FinalState != IoJobMeta.JobState.Accept).FastPath();
+
+                                //back pressure
+                                Source.BackPressure(zeroAsync: true);
                             }
-
-                            await ZeroJobAsync(curJob, curJob.FinalState != IoJobMeta.JobState.Accept).FastPath();
-
-                            //back pressure
-                            Source.BackPressure(zeroAsync: true);
                         }
                         catch when (Zeroed())
                         {

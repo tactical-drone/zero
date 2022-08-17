@@ -2849,8 +2849,10 @@ namespace zero.cocoon.autopeer
                         return true;
                     }
 
+                    
                     await _fuseRequest.RemoveAsync(challenge).FastPath();
-                    _logger.Error($"-/> {nameof(CcDefuseRequest)}: [FAILED], {Description}, {MetaDesc}");
+                    if (!Zeroed())
+                        _logger.Error($"-/> {nameof(CcDefuseRequest)}: [FAILED], {Description}, {MetaDesc}");
                 }
                 catch when (Zeroed()) { }
                 catch (Exception e) when (!Zeroed())
@@ -2879,10 +2881,13 @@ namespace zero.cocoon.autopeer
                 var sent = await SendMessageAsync(dropRequest.ToByteArray(), CcDiscoveries.MessageTypes.Defuse, dest).FastPath();
 
 #if DEBUG
-                _logger.Trace(
-                    (sent) > 0
-                        ? $"-/> {nameof(CcDefuseRequest)}({sent}): Sent, {Description}"
-                        : $"-/> {nameof(CcDefuseRequest)}: [FAILED], {Description}, {MetaDesc}");
+                if (!Zeroed())
+                {
+                    _logger.Trace(
+                        (sent) > 0
+                            ? $"-/> {nameof(CcDefuseRequest)}({sent}): Sent, {Description}"
+                            : $"-/> {nameof(CcDefuseRequest)}: [FAILED], {Description}, {MetaDesc}");
+                }
 #endif
 
                 if (sent > 0)

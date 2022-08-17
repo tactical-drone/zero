@@ -199,9 +199,23 @@ namespace zero.core.patterns.heap
                             if (_refCount >= Capacity && !IsAutoScaling) //TODO: what is going on here? The same check insta fails with huge state differences;
                                 throw new OutOfMemoryException($"{nameof(_ioHeapBuf)}: Heap -> {Description}: Q -> _ioHeapBuf.Description");
                         }
-                        else if (_ioHeapBuf is Channel<TItem>)
+                        else
                         {
-                            Volatile.Write(ref _capacity, _refCount);
+                            _capacity *= 2;
+                            var prev = _ioHeapBuf;
+                            _ioHeapBuf = new IoBag<TItem>(Description, _capacity);
+                            IoZeroScheduler.Zero.LoadAsyncContext(static async state =>
+                            {
+                                try
+                                {
+                                    await ((IoHeap<TItem>)state).ZeroManagedAsync<object>();
+                                }
+                                catch
+                                {
+                                    // ignored
+                                }
+                            }, prev);
+                            
                         }
                     }
 
