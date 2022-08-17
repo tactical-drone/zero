@@ -220,7 +220,7 @@ namespace zero.core.feat.models.protobuffer
                 while (read < BytesLeftToProcess && (magic = MemoryMarshal.Read<ulong>(ReadOnlyMemory[(BufferOffset + read)..])) > (ulong)BytesLeftToProcess)
                     read++;
 
-                return (int)magic;
+                return (int)(magic & 0xFFFFFFFF); //TODO: investigate overflow errors
             }
             catch when(Zeroed()){}
             catch (Exception e)when (!Zeroed())
