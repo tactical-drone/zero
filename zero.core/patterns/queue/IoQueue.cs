@@ -610,14 +610,8 @@ namespace zero.core.patterns.queue
                 }
                 else
                 {
-                    Debug.Assert(_head == node || Zeroed);//TODO: BUG, something is broken here *
-                    //while (!(_head == node || Zeroed))
-                    //{
-                    //    Interlocked.MemoryBarrierProcessWide();
-                    //    LogManager.GetCurrentClassLogger().Error($"{Zeroed}-> qid = {node.Qid}, wanted = {qId}, last = {node.lastOp}, _insaneExclusive = {_insaneExclusive} node.Value = {node.Value}, n = {node.Next}, p = {node.Prev}, {Description}");
-                    //    //Debug.Assert(false);
-                    //}
-
+                    Debug.Assert(_head == node || Zeroed);
+                    
                     _head = _head.Next;
                     node.Next = null;
                     if (_head != null)

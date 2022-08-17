@@ -54,10 +54,6 @@ namespace zero.core.patterns.queue
                 _balanceSyncs = Enumerable.Repeat<AsyncDelegate>(BalanceOnConsumeAsync, concurrencyLevel).ToArray();
                 _zeroSyncs = Enumerable.Repeat<AsyncDelegate>(PumpOnConsumeAsync, concurrencyLevel).ToArray();
             }
-
-#if DEBUG
-            _auditLog = Channel.CreateBounded<long>(int.MaxValue);
-#endif
         }
 
         #region packed
@@ -86,10 +82,6 @@ namespace zero.core.patterns.queue
         private int _pumpingConsumers;
         private int _count;
         #endregion
-
-#if DEBUG
-        private readonly Channel<long> _auditLog;
-#endif
 
         public long Tail => _tail;
         public long Head => _head;
@@ -198,26 +190,12 @@ namespace zero.core.patterns.queue
                     {
                         this[next] = item;
                         Interlocked.Increment(ref _count);
-
-#if DEBUG
-                        _auditLog.Writer.TryWrite(next);
-#endif
-
                         var prev = Interlocked.Exchange(ref _bloom[next % Capacity], 2);
-                        Debug.Assert(prev == 1, $"next = {this[next]}, bloom = {_bloom[next % Capacity]}, h = {_head}, t = {_tail}, delta = {_tail - _head}, cap = {Capacity}");
+                        //Debug.Assert(prev == 1, $"next = {this[next]}, bloom = {_bloom[next % Capacity]}, h = {_head}, t = {_tail}, delta = {_tail - _head}, cap = {Capacity}");
+                        Debug.Assert(prev == 1);
                     }
                     else
                     {
-#if DEBUG
-                        var i = 0;
-                        var count = _auditLog.Reader.Count;
-                        while (_auditLog.Reader.TryRead(out var entry))
-                        {
-                            if(i++ < count - Environment.ProcessorCount * 2)
-                                continue;
-                            Console.WriteLine($"[{i%Capacity}] = {entry % Capacity}");
-                        }
-#endif
                         throw new InvalidOperationException($"{nameof(TryEnqueue)}: Control should never reach here; next = {next}({next%Capacity}), bloom = {prevBloom}, {Description}");
                     }
                         
@@ -341,9 +319,6 @@ namespace zero.core.patterns.queue
                     if ((prev = Interlocked.Exchange(ref _bloom[idx], 0)) == 2)
                     {
                         Interlocked.Decrement(ref _count);
-#if DEBUG
-                        _auditLog.Writer.TryWrite(-next);
-#endif
                         return true;
                     }
 

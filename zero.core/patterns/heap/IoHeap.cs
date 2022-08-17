@@ -28,7 +28,6 @@ namespace zero.core.patterns.heap
             _logger = LogManager.GetCurrentClassLogger();
         }
 
-        public volatile bool trollmode = false;
         /// <summary>
         /// Construct a heap with capacity
         /// </summary>
@@ -182,7 +181,7 @@ namespace zero.core.patterns.heap
             {
                 retry:
                 //If the heap is empty
-                if (trollmode || !_ioHeapBuf.TryDequeue(out var heapItem))
+                if (!_ioHeapBuf.TryDequeue(out var heapItem))
                 {
                     if (_ioHeapBuf.Count > 0)
                         goto retry; //TODO: hack
@@ -280,7 +279,7 @@ namespace zero.core.patterns.heap
 
             try
             {
-                if (!zero && !trollmode)
+                if (!zero)
                 {
                     if (_ioHeapBuf.TryEnqueue(item) < 0 && !Zeroed)
                         _logger.Warn($"{nameof(Return)}: Unable to return {item} to the heap, {Description}");
