@@ -180,7 +180,7 @@ namespace zero.core.feat.misc
                         if (response.Node == null)
                             _logger.Fatal($"{nameof(ChallengeAsync)}: unable to Q challange, {_lut.Description}");
 #if TRACE
-                        Console.WriteLine($"[{Thread.CurrentThread.ManagedThreadId}] CHALLENGE <<{key}>> {challenge.Hash.HashSig()}, -> {_lut.Description}");
+                        Console.WriteLine($"[{Environment.CurrentManagedThreadId}] CHALLENGE <<{key}>> {challenge.Hash.HashSig()}, -> {_lut.Description}");
 #endif
                     }
                 }
@@ -247,13 +247,13 @@ namespace zero.core.feat.misc
                 {
                     var qid = cur.Qid;
 #if TRACE
-                    Console.WriteLine($"[{Thread.CurrentThread.ManagedThreadId}] CHECKED <<{cur.Value.Key}>> -> {cur.Value.Hash.HashSig()}");
+                    Console.WriteLine($"[{Environment.CurrentManagedThreadId}] CHECKED <<{cur.Value.Key}>> -> {cur.Value.Hash.HashSig()}");
 #endif
                     if (cur.Value.TimestampMs.ElapsedUtcMs() <= _ttlMs && cur.Value.Key == key &&
                         cur.Value.Hash.ArrayEqual(reqHash.Span))
                     {
 #if TRACE
-                        Console.WriteLine($"[{Thread.CurrentThread.ManagedThreadId}] RESPONSE {cur.Value.Hash.HashSig()} <<{cur.Value.Key}>> -> {_lut.Description}");               
+                        Console.WriteLine($"[{Environment.CurrentManagedThreadId}] RESPONSE {cur.Value.Hash.HashSig()} <<{cur.Value.Key}>> -> {_lut.Description}");               
 #endif
                         var tmp = Volatile.Read(ref cur.Value);
                         await _lut.RemoveAsync(cur, qid).FastPath();
@@ -265,7 +265,7 @@ namespace zero.core.feat.misc
                     {
                         var value = Volatile.Read(ref cur.Value);
 #if TRACE
-                        Console.WriteLine($"[{Thread.CurrentThread.ManagedThreadId}] BURNED  {cur.Value.Hash.HashSig()} <<{cur.Value.Key}>> -> {_lut.Description}");
+                        Console.WriteLine($"[{Environment.CurrentManagedThreadId}] BURNED  {cur.Value.Hash.HashSig()} <<{cur.Value.Key}>> -> {_lut.Description}");
 #endif
                         await _lut.RemoveAsync(cur, qid).FastPath();
                         cur = _lut.Head;
@@ -284,7 +284,7 @@ namespace zero.core.feat.misc
             }
 
 #if TRACE
-            Console.WriteLine($"[{Thread.CurrentThread.ManagedThreadId}] RESPONSE FAILED for {reqHash.Memory.HashSig()}!!! -> {_lut.Description}");
+            Console.WriteLine($"[{Environment.CurrentManagedThreadId}] RESPONSE FAILED for {reqHash.Memory.HashSig()}!!! -> {_lut.Description}");
 #endif
 
             return false;

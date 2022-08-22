@@ -118,9 +118,7 @@ namespace zero.core.runtime.scheduler
         private static readonly double WorkerSpawnThreshold = 0.7;
 
 
-        private static volatile int _workerSpawnBurstMax = WorkerSpawnBurstMax; 
-        private static readonly int MaxWorker = short.MaxValue / 3;
-
+        private static volatile int _workerSpawnBurstMax = WorkerSpawnBurstMax;
         public static readonly TaskScheduler ZeroDefault;
         public static readonly IoZeroScheduler Zero;
         private readonly CancellationTokenSource _asyncTasks;

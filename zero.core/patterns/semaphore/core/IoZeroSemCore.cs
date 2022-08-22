@@ -155,7 +155,7 @@ namespace zero.core.patterns.semaphore.core
         //            }
         //            catch
         //            {
-        //                Console.WriteLine($"[{Thread.CurrentThread.ManagedThreadId}] --> Unblock {slot} [FAILED] - {Description}");
+        //                Console.WriteLine($"[{Environment.CurrentManagedThreadId}] --> Unblock {slot} [FAILED] - {Description}");
         //                goto retry_unblock;
         //            }
         //            finally
@@ -198,7 +198,7 @@ namespace zero.core.patterns.semaphore.core
         //            }
         //            catch
         //            {
-        //                Console.WriteLine($"[{Thread.CurrentThread.ManagedThreadId}] --> Reserving {slot} [FAILED] - {Description}");
+        //                Console.WriteLine($"[{Environment.CurrentManagedThreadId}] --> Reserving {slot} [FAILED] - {Description}");
         //            }
         //            finally
         //            {
@@ -338,7 +338,7 @@ namespace zero.core.patterns.semaphore.core
         //        }
         //        catch
         //        {
-        //            Console.WriteLine($"[{Thread.CurrentThread.ManagedThreadId}] --> Fastpath  {slotIdx} [RACE] - {Description}");
+        //            Console.WriteLine($"[{Environment.CurrentManagedThreadId}] --> Fastpath  {slotIdx} [RACE] - {Description}");
         //            //slowPath = true;
         //            //_manualResetValueTaskSourceCore[slotIdx] = core;
         //            goto retry;

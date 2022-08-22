@@ -256,7 +256,7 @@ namespace zero.cocoon.autopeer
         /// <summary>
         /// Holds all coded outputstreams used for sending messages
         /// </summary>
-        private IoHeap<Tuple<byte[],byte[]>> _sendBuf;
+        private readonly IoHeap<Tuple<byte[],byte[]>> _sendBuf;
 
         /// <summary>
         /// The udp routing table 
@@ -481,7 +481,7 @@ namespace zero.cocoon.autopeer
         /// <summary>
         /// Enable or disable EP caching while unpacking batches. (if adjuncts move around regularly disable, or always disable)
         /// </summary>
-        private bool _enableBatchEpCache = false;
+        private readonly bool _enableBatchEpCache = false;
 
         private int _scanAge;
         /// <summary>
@@ -1655,10 +1655,8 @@ namespace zero.cocoon.autopeer
             }
         }
 
-#pragma warning disable CA2211 // Non-constant fields should not be visible
         public static long ConnectionTime;
         public static long ConnectionCount;
-#pragma warning restore CA2211 // Non-constant fields should not be visible
 
         /// <summary>
         /// Sends a message to the neighbor

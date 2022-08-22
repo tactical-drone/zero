@@ -80,7 +80,7 @@ namespace zero.core.network.ip
                     return
                         $"{(Proxy ? "[proxy]" : "")}{Kind} socket({LocalNodeAddress}({NativeSocket?.LocalEndPoint}), {(Kind <= Connection.Listener ? "N/A" : RemoteNodeAddress?.ToString())}({NativeSocket?.RemoteEndPoint})";
                 }
-                catch (Exception e)
+                catch
                 {
                     return $"{(Proxy ? "[proxy]" : "")}{Kind} socket({LocalNodeAddress}, {(Kind <= Connection.Listener ? "N/A" : RemoteNodeAddress?.ToString())}";
                 }

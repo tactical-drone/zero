@@ -348,7 +348,7 @@ namespace zero.test.core.patterns.semaphore
                 for (var i = 0; i < count; i++)
                 {
 
-                    //_output.WriteLine($"s -> {v.GetStatus(v.Version)}[{v.Version}] \t- {DateTimeOffset.UtcNow.Ticks} - {i}/{count} - {Thread.CurrentThread.ManagedThreadId}");
+                    //_output.WriteLine($"s -> {v.GetStatus(v.Version)}[{v.Version}] \t- {DateTimeOffset.UtcNow.Ticks} - {i}/{count} - {Environment.CurrentManagedThreadId}");
 
                     while (v.Release(true) != 1)
                     {
@@ -356,7 +356,7 @@ namespace zero.test.core.patterns.semaphore
                         //_output.WriteLine(".");
                         Thread.Sleep(1);
                     }
-                    //_output.WriteLine($"s <- {v.GetStatus(v.Version)}[{v.Version}] \t- {DateTimeOffset.UtcNow.Ticks} - {i}/{count} - {Thread.CurrentThread.ManagedThreadId}");
+                    //_output.WriteLine($"s <- {v.GetStatus(v.Version)}[{v.Version}] \t- {DateTimeOffset.UtcNow.Ticks} - {i}/{count} - {Environment.CurrentManagedThreadId}");
                 }
                 
             }, CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Default);
@@ -412,14 +412,14 @@ namespace zero.test.core.patterns.semaphore
                 if ((await v.WaitAsync().FastPath()).ElapsedMs() > 0x7ffffff)
                 {
                     Assert.Equal(0, v.ReadyCount);
-                    _output.WriteLine($"FAIL[{Thread.CurrentThread.ManagedThreadId}] -> {i} -> {v.EgressCount}, r = {v.ReadyCount}");
+                    _output.WriteLine($"FAIL[{Environment.CurrentManagedThreadId}] -> {i} -> {v.EgressCount}, r = {v.ReadyCount}");
                     Assert.Fail("Expected true");
                 }
                 else
                     //if (i % 10 == 0)
                 {
                     Assert.Equal(0, v.ReadyCount);
-                    //_output.WriteLine($"DQ[{Thread.CurrentThread.ManagedThreadId}] -> {i} -> {v.EgressCount}, r = {v.ReadyCount}");
+                    //_output.WriteLine($"DQ[{Environment.CurrentManagedThreadId}] -> {i} -> {v.EgressCount}, r = {v.ReadyCount}");
                 }
                 Assert.InRange(ts.ElapsedMs(), minDelay / 2, minDelay * 2);
             }

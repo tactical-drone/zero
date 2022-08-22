@@ -113,7 +113,6 @@ namespace zero.sync
                         }.ToList(), queens);
                 }
                 else
-#pragma warning disable CS0162
                 {
                     StartCocoon(CoCoon(CcDesignation.Generate(true), $"tcp://127.0.0.1:{1234}",
                         $"udp://127.0.0.1:{1234}",
@@ -147,7 +146,6 @@ namespace zero.sync
                 Console.WriteLine($"starting udp://127.0.0.1:{localPort} -> {string.Join(", ", remotePort.Take(count).Select(port => $"udp://127.0.0.1:{port}"))}");
 
             }
-#pragma warning restore CS0162
 
             portOffset += 2;
             for (var i = 0; i < total; i++)
@@ -788,7 +786,7 @@ namespace zero.sync
                                     //nmax = nodes.Max(n => n.EventCount);
                                 }
                             
-                                Console.WriteLine($"zero liveness at {nodes.Count()/((double)_nodes.Count - 4)*100:0.00}%, {nodes.Count()}/{_nodes.Count-4}, min/max = [{min},{max}], ave = {ave:0.0}, err = {err:0.0}, r = {r}");
+                                Console.WriteLine($"zero liveness at {nodes.Count/((double)_nodes.Count - 4)*100:0.00}%, {nodes.Count}/{_nodes.Count-4}, min/max = [{min},{max}], ave = {ave:0.0}, err = {err:0.0}, r = {r}");
                             }
                             catch (Exception) { }
                         }
@@ -886,7 +884,7 @@ namespace zero.sync
                 }
 
                 Console.WriteLine("\nDQ mid");
-                q.RemoveAsync(five, five.Qid).FastPath().GetAwaiter();
+                _ = q.RemoveAsync(five, five.Qid).FastPath().GetAwaiter();
                 foreach (var ioZNode in q)
                 {
                     Console.Write(ioZNode.Value);
@@ -901,7 +899,7 @@ namespace zero.sync
                 }
 
                 Console.WriteLine("\nDQ head");
-                q.RemoveAsync(q.Head, q.Head.Qid).FastPath().GetAwaiter();
+                _ = q.RemoveAsync(q.Head, q.Head.Qid).FastPath().GetAwaiter();
                 foreach (var ioZNode in q)
                 {
                     Console.Write(ioZNode.Value);
@@ -932,10 +930,10 @@ namespace zero.sync
 
 
                 Console.WriteLine("\nDQ second last prime");
-                q.DequeueAsync().FastPath().GetAwaiter();
-                q.RemoveAsync(q.Head, q.Head.Qid).FastPath().GetAwaiter();
-                q.RemoveAsync(q.Head, q.Head.Qid).FastPath().GetAwaiter();
-                q.DequeueAsync().FastPath().GetAwaiter();
+                _ = q.DequeueAsync().FastPath().GetAwaiter();
+                _ = q.RemoveAsync(q.Head, q.Head.Qid).FastPath().GetAwaiter();
+                _ = q.RemoveAsync(q.Head, q.Head.Qid).FastPath().GetAwaiter();
+                _ = q.DequeueAsync().FastPath().GetAwaiter();
 
                 foreach (var ioZNode in q)
                 {
@@ -1077,7 +1075,7 @@ namespace zero.sync
                 Console.Write(".");
                 var i3 = i;
                 var maxDiff = rounds * 4;
-                _concurrentTasks.Add(Task.Factory.StartNew(async () =>
+                _concurrentTasks.Add(Task.Factory.StartNew(() =>
                 {
                     for (int j = 0; j < mult; j++)
                     {
@@ -1128,6 +1126,7 @@ namespace zero.sync
                         //Console.Write($"({i3}-{q.Count})");
                     }
                     Console.Write($"({i3}-{q.Count})");
+                    return Task.CompletedTask;
                 }, new CancellationToken(), TaskCreationOptions.DenyChildAttach, IoZeroScheduler.ZeroDefault).Unwrap());
             }
 
@@ -1166,7 +1165,7 @@ namespace zero.sync
                 Console.Write(".");
                 var i3 = i;
                 var maxDiff = rounds * 4;
-                _concurrentTasks.Add(Task.Factory.StartNew(async () =>
+                _concurrentTasks.Add(Task.Factory.StartNew(() =>
                 {
                     for (int j = 0; j < mult; j++)
                     {
@@ -1217,6 +1216,7 @@ namespace zero.sync
                         //Console.Write($"({i3}-{q.Count})");
                     }
                     Console.Write($"({i3}-{q.Count})");
+                    return Task.CompletedTask;
                 }, new CancellationToken(), TaskCreationOptions.DenyChildAttach, IoZeroScheduler.ZeroDefault).Unwrap());
             }
 
@@ -1337,7 +1337,7 @@ namespace zero.sync
                              if (Interlocked.Increment(ref c) % logSpam == 0)
                              {
                                  var totalEq = eQ.Aggregate((u, u1) => u + u1);
-                                 Console.WriteLine($"[{Thread.CurrentThread.ManagedThreadId}] T1:{mutex}({c}) t = {tt - targetSleep * targetSleepMult}ms, [{dq1_fps + dq2_fps + dq3_fps: 0}, ({dq1_fps: 0}, {dq2_fps: 0}, {dq3_fps: 0})], [{totalEq/delta: 0.0} ({eQ_fps[0]: 0}, {eQ_fps[1]: 0}, {eQ_fps[2]: 0}, {eQ_fps[3]: 0})], s = {semCount / (double)(semPollCount+1):0.0}, R = {mutex.ReadyCount}, W = {mutex.WaitCount}, D = {(int)(dq1 + dq2 + dq3) - (int)totalEq}");
+                                 Console.WriteLine($"[{Environment.CurrentManagedThreadId}] T1:{mutex}({c}) t = {tt - targetSleep * targetSleepMult}ms, [{dq1_fps + dq2_fps + dq3_fps: 0}, ({dq1_fps: 0}, {dq2_fps: 0}, {dq3_fps: 0})], [{totalEq/delta: 0.0} ({eQ_fps[0]: 0}, {eQ_fps[1]: 0}, {eQ_fps[2]: 0}, {eQ_fps[3]: 0})], s = {semCount / (double)(semPollCount+1):0.0}, R = {mutex.ReadyCount}, W = {mutex.WaitCount}, D = {(int)(dq1 + dq2 + dq3) - (int)totalEq}");
                                  Console.ResetColor();
                              }
                               
@@ -1346,7 +1346,7 @@ namespace zero.sync
                          }
                          else
                          {
-                             Console.WriteLine($"[{Thread.CurrentThread.ManagedThreadId}] T1: {qt.ElapsedMs()}ms");
+                             Console.WriteLine($"[{Environment.CurrentManagedThreadId}] T1: {qt.ElapsedMs()}ms");
                              //break;
                          }
 
@@ -1412,7 +1412,7 @@ namespace zero.sync
                             if (Interlocked.Increment(ref c) % logSpam == 0)
                             {
                                 var totalEq = eQ.Aggregate((u, u1) => u + u1);
-                                Console.WriteLine($"[{Thread.CurrentThread.ManagedThreadId}] T2:{mutex}({c}) t = {tt - targetSleep * targetSleepMult}ms, [{dq1_fps + dq2_fps + dq3_fps: 0}, ({dq1_fps: 0}, {dq2_fps: 0}, {dq3_fps: 0})], [{totalEq/delta: 0.0} ({eQ_fps[0]: 0}, {eQ_fps[1]: 0}, {eQ_fps[2]: 0}, {eQ_fps[3]: 0})], s = {semCount / (double)(semPollCount+1):0.0}, R = {mutex.ReadyCount}, W = {mutex.WaitCount}, D = {(int)(dq1 + dq2 + dq3) - (int)totalEq}");
+                                Console.WriteLine($"[{Environment.CurrentManagedThreadId}] T2:{mutex}({c}) t = {tt - targetSleep * targetSleepMult}ms, [{dq1_fps + dq2_fps + dq3_fps: 0}, ({dq1_fps: 0}, {dq2_fps: 0}, {dq3_fps: 0})], [{totalEq/delta: 0.0} ({eQ_fps[0]: 0}, {eQ_fps[1]: 0}, {eQ_fps[2]: 0}, {eQ_fps[3]: 0})], s = {semCount / (double)(semPollCount+1):0.0}, R = {mutex.ReadyCount}, W = {mutex.WaitCount}, D = {(int)(dq1 + dq2 + dq3) - (int)totalEq}");
                                 Console.ResetColor();
                             }
                              
@@ -1421,7 +1421,7 @@ namespace zero.sync
                        }
                        else
                        {
-                           Console.WriteLine($"[{Thread.CurrentThread.ManagedThreadId}] T2: {qt.ElapsedMs()}ms");
+                           Console.WriteLine($"[{Environment.CurrentManagedThreadId}] T2: {qt.ElapsedMs()}ms");
                            //break;
                        }
            
@@ -1473,13 +1473,13 @@ namespace zero.sync
                             if (Interlocked.Increment(ref c) % logSpam == 0)
                             {
                                 var totalEq = eQ.Aggregate((u, u1) => u + u1);
-                                Console.WriteLine($"[{Thread.CurrentThread.ManagedThreadId}] T3:{mutex}({c}) t = {tt - targetSleep * targetSleepMult}ms, [{dq1_fps + dq2_fps + dq3_fps: 0}, ({dq1_fps: 0}, {dq2_fps: 0}, {dq3_fps: 0})], [{totalEq/delta: 0.0} ({eQ_fps[0]: 0}, {eQ_fps[1]: 0}, {eQ_fps[2]: 0}, {eQ_fps[3]: 0})], s = {semCount / (double)(semPollCount+1):0.0}, R = {mutex.ReadyCount}, W = {mutex.WaitCount}, D = {(int)(dq1 + dq2 + dq3) - (int)totalEq}");
+                                Console.WriteLine($"[{Environment.CurrentManagedThreadId}] T3:{mutex}({c}) t = {tt - targetSleep * targetSleepMult}ms, [{dq1_fps + dq2_fps + dq3_fps: 0}, ({dq1_fps: 0}, {dq2_fps: 0}, {dq3_fps: 0})], [{totalEq/delta: 0.0} ({eQ_fps[0]: 0}, {eQ_fps[1]: 0}, {eQ_fps[2]: 0}, {eQ_fps[3]: 0})], s = {semCount / (double)(semPollCount+1):0.0}, R = {mutex.ReadyCount}, W = {mutex.WaitCount}, D = {(int)(dq1 + dq2 + dq3) - (int)totalEq}");
                                 Console.ResetColor();
                             }
                         }
                         else
                         {
-                           Console.WriteLine($"[{Thread.CurrentThread.ManagedThreadId}] T3: {qt.ElapsedMs()}ms");
+                           Console.WriteLine($"[{Environment.CurrentManagedThreadId}] T3: {qt.ElapsedMs()}ms");
                            //break;
                        }
 
@@ -1557,7 +1557,7 @@ namespace zero.sync
             Console.ReadLine();
         }
 
-        private static async ValueTask ZeroAsync(int total)
+        private static ValueTask ZeroAsync(int total)
         {
             _running = false;
             Console.WriteLine("#");
@@ -1593,6 +1593,7 @@ namespace zero.sync
 
             GC.Collect(GC.MaxGeneration);
             Console.WriteLine($"z = {_nodes?.Count(n => n.Zeroed())}/{total}");
+            return ValueTask.CompletedTask;
             //await AutoPeeringEventService.ClearAsync().FastPath();
         }
 

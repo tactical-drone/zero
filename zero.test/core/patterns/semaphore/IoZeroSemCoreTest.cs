@@ -244,7 +244,7 @@ namespace zero.test.core.patterns.semaphore
                 tests.Add(Task.Factory.StartNew(async () =>
                 {
                     await Task.Delay(Random.Shared.Next(realThreads));
-                    //_output.WriteLine($"Staring thread [{Thread.CurrentThread.ManagedThreadId}]");
+                    //_output.WriteLine($"Staring thread [{Environment.CurrentManagedThreadId}]");
                     var t = Environment.TickCount;
                     long x = 0;
                     for (int i = 0; i < spamFactor; i++)
@@ -254,7 +254,7 @@ namespace zero.test.core.patterns.semaphore
                             var qt = await m.WaitAsync().FastPath();
 
                             if(i% (spamFactor/2) == 0 && i > 0)
-                                _output.WriteLine($"[{Thread.CurrentThread.ManagedThreadId}] R => {i} , {qt.ElapsedMs()}ms, {(double)_exclusiveCount / t.ElapsedMsToSec():0.0} r/s");
+                                _output.WriteLine($"[{Environment.CurrentManagedThreadId}] R => {i} , {qt.ElapsedMs()}ms, {(double)_exclusiveCount / t.ElapsedMsToSec():0.0} r/s");
                             Assert.InRange(qt.ElapsedMs(), -ERR_T, delayTime + ERR_T);
                             var Q = qt.ElapsedMs();
                             if (Q < -ERR_T || Q > delayTime + ERR_T)

@@ -153,12 +153,6 @@ namespace zero.cocoon
         /// </summary>
         public volatile bool AccountingBit = true;
 
-
-        /// <summary>
-        /// Whether this drone ever formed part of a collective
-        /// </summary>
-        private bool _assimilated;
-
 #if DEBUG
         /// <summary>
         /// Grace time for sanity checks
@@ -243,7 +237,6 @@ namespace zero.cocoon
                 if (attached)
                 {
                     _logger?.Trace($"{nameof(AttachViaAdjunct)}: {direction} attach to adjunct {Adjunct.Description}");
-                    _assimilated = true;
                 }
                 else
                 {

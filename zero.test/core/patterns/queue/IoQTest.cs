@@ -376,14 +376,14 @@ namespace zero.test.core.patterns.queue
                                     if (@this._dequeueDone || Interlocked.Increment(ref @this.SpamTestAsyncThreadsDone) >=
                                         (threads) * InsertsPerThread)
                                     {
-                                        @this._output.WriteLine($"[{Thread.CurrentThread.ManagedThreadId}] [SUCCESS] {c} _dequeueDone!!!!!!!!!!! {@this.SpamTestAsyncThreadsDone} > {(threads) * InsertsPerThread}");
+                                        @this._output.WriteLine($"[{Environment.CurrentManagedThreadId}] [SUCCESS] {c} _dequeueDone!!!!!!!!!!! {@this.SpamTestAsyncThreadsDone} > {(threads) * InsertsPerThread}");
                                         @this._dequeueDone = true;
                                         break;
                                     }
 
                                     if (++c % 5000 == 0)
                                     {
-                                        @this._output.WriteLine($"[{Thread.CurrentThread.ManagedThreadId}] {c}/{@this.SpamTestAsyncThreadsDone} > {(threads) * InsertsPerThread} -->");
+                                        @this._output.WriteLine($"[{Environment.CurrentManagedThreadId}] {c}/{@this.SpamTestAsyncThreadsDone} > {(threads) * InsertsPerThread} -->");
                                     }
                                 }
                         }
@@ -391,7 +391,7 @@ namespace zero.test.core.patterns.queue
                         {
                             @this._output.WriteLine(e.Message);
                         }
-                        @this._output.WriteLine($"[{Thread.CurrentThread.ManagedThreadId}] [SUCCESS] DQ DONE!!!! {@this.SpamTestAsyncThreadsDone} > {(threads>>1) * InsertsPerThread}");
+                        @this._output.WriteLine($"[{Environment.CurrentManagedThreadId}] [SUCCESS] DQ DONE!!!! {@this.SpamTestAsyncThreadsDone} > {(threads>>1) * InsertsPerThread}");
                         Interlocked.Increment(ref @this._haltCount);
                     }, (this, bag, threads,i), CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Default).Unwrap());
 
@@ -414,7 +414,7 @@ namespace zero.test.core.patterns.queue
 
                     try
                     {
-                        @this._output.WriteLine($"[{Thread.CurrentThread.ManagedThreadId}] [SUCCESS] {c} eq done <--");
+                        @this._output.WriteLine($"[{Environment.CurrentManagedThreadId}] [SUCCESS] {c} eq done <--");
                     }
                     catch
                     {
@@ -574,7 +574,7 @@ namespace zero.test.core.patterns.queue
                         var (@this, bag, threads, i) = (ValueTuple<IoQTest, IoZeroQ<IoInt32>, int, int>)state!;
 
                         var c = 0;
-                        @this._output.WriteLine($" DQ at -> thread id {Thread.CurrentThread.ManagedThreadId}");
+                        @this._output.WriteLine($" DQ at -> thread id {Environment.CurrentManagedThreadId}");
                         //while(!@this._smokeTestDone)
                             await foreach (var item in bag.PumpOnConsumeAsync(i))
                             {
@@ -585,7 +585,7 @@ namespace zero.test.core.patterns.queue
                                     break;
                                 }
                                 if (c % 2500 == 0)
-                                    @this._output.WriteLine($"[{Thread.CurrentThread.ManagedThreadId}]dq {c}");
+                                    @this._output.WriteLine($"[{Environment.CurrentManagedThreadId}]dq {c}");
                                 c++;
                             }
                         @this._output.WriteLine($"{c} dq done");

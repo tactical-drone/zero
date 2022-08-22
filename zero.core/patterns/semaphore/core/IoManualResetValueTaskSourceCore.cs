@@ -221,10 +221,10 @@ namespace zero.core.patterns.semaphore.core
         {
 #if DEBUG
             if (_completed)
-                throw new InvalidOperationException($"[{Thread.CurrentThread.ManagedThreadId}]: set => v = [{_version}], primed = {Primed}, blocking = {Blocking}, burned = {Burned}, completed = {_completed}, {GetStatus((short)Version)}");   
+                throw new InvalidOperationException($"[{Environment.CurrentManagedThreadId}]: set => v = [{_version}], primed = {Primed}, blocking = {Blocking}, burned = {Burned}, completed = {_completed}, {GetStatus((short)Version)}");   
 #else
             if (_completed)
-                throw new InvalidOperationException($"[{Thread.CurrentThread.ManagedThreadId}]: set => v = [{_version}], primed = {Primed}, blocking = {Blocking}, completed = {_completed}, {GetStatus((short)Version)}");
+                throw new InvalidOperationException($"[{Environment.CurrentManagedThreadId}]: set => v = [{_version}], primed = {Primed}, blocking = {Blocking}, completed = {_completed}, {GetStatus((short)Version)}");
 #endif
 
             _result = result;
@@ -284,13 +284,13 @@ namespace zero.core.patterns.semaphore.core
         {
 #if DEBUG
             if (Interlocked.CompareExchange(ref _burned, 1, 0) != 0)
-                throw new InvalidOperationException($"[{Thread.CurrentThread.ManagedThreadId}] {nameof(GetResult)}: core #{_version} already burned completed {_completeTime.ElapsedMs()} ms ago, burned = {_burnTime.ElapsedMs()} ms ago");
+                throw new InvalidOperationException($"[{Environment.CurrentManagedThreadId}] {nameof(GetResult)}: core #{_version} already burned completed {_completeTime.ElapsedMs()} ms ago, burned = {_burnTime.ElapsedMs()} ms ago");
             //ValidateToken(token);
 #endif
             _burnTime = Environment.TickCount;
 
             if (!_completed)
-                throw new InvalidOperationException($"[{Thread.CurrentThread.ManagedThreadId}] {nameof(GetResult)}: core  #{_version} not completed {_completeTime.ElapsedMs()} ms, burned = {_burnTime.ElapsedMs()} ms ago");
+                throw new InvalidOperationException($"[{Environment.CurrentManagedThreadId}] {nameof(GetResult)}: core  #{_version} not completed {_completeTime.ElapsedMs()} ms, burned = {_burnTime.ElapsedMs()} ms ago");
             
             var r = _result;
 
@@ -369,10 +369,10 @@ namespace zero.core.patterns.semaphore.core
 #pragma warning disable CS0252 // Possible unintended reference comparison; left hand side needs cast
 #if DEBUG
                 if (oldContinuation != ManualResetValueTaskSourceCoreShared.SSentinel)
-                    throw new InvalidOperationException($"[{Thread.CurrentThread.ManagedThreadId}] // => had = {oldContinuation}, // => has = {continuation}, {state}, v = [{_version}], primed = {Primed}, blocking = {Blocking}, burned = {Burned}, completed = {_completed}, {GetStatus((short)Version)}");       
+                    throw new InvalidOperationException($"[{Environment.CurrentManagedThreadId}] // => had = {oldContinuation}, // => has = {continuation}, {state}, v = [{_version}], primed = {Primed}, blocking = {Blocking}, burned = {Burned}, completed = {_completed}, {GetStatus((short)Version)}");       
 #else
                 if (oldContinuation != ManualResetValueTaskSourceCoreShared.SSentinel)
-                    throw new InvalidOperationException($"[{Thread.CurrentThread.ManagedThreadId}] // => had = {oldContinuation}, // => has = {continuation}, {state}, v = [{_version}], primed = {Primed}, blocking = {Blocking}, completed = {_completed}, {GetStatus((short)Version)}");
+                    throw new InvalidOperationException($"[{Environment.CurrentManagedThreadId}] // => had = {oldContinuation}, // => has = {continuation}, {state}, v = [{_version}], primed = {Primed}, blocking = {Blocking}, completed = {_completed}, {GetStatus((short)Version)}");
 #endif
 
 #pragma warning restore CS0252 // Possible unintended reference comparison; left hand side needs cast
@@ -386,48 +386,25 @@ namespace zero.core.patterns.semaphore.core
                 //    // ignored
                 //}
 
-                WaitCallback proxy = static delegate (object context)
-                {
-                    var (continuation, state) = (ValueTuple<Action<object>, object>)context;
-                    continuation(state);
-                };
+                //WaitCallback proxy = static delegate (object context)
+                //{
+                //    var (continuation, state) = (ValueTuple<Action<object>, object>)context;
+                //    continuation(state);
+                //};
                 switch (_capturedContext)
                 {
                     case null:
                         if (RunContinuationsAsynchronously)
-#if !ZERO_CORE
                             _ = Task.Factory.StartNew(continuation, state, CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Default);
-#else
-                            if (!ThreadPool.UnsafeQueueUserWorkItem(static delegate (object s)
-                                {
-                                    var (callback, state) = (ValueTuple<Action<object>, object>)s;
-                                    try
-                                    {
-                                        callback(state);
-                                    }
-                                    catch (Exception e)
-                                    {
-                                        LogManager.GetCurrentClassLogger().Trace(e);
-                                    }
-                                }, (continuation, state)))
-                            {
-                                _ = Task.Factory.StartNew(continuation, state, CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Default);
-                            }
-                            //ThreadPool.UnsafeQueueUserWorkItem(proxy, (continuation,state));
-                            //IoZeroScheduler.Zero.QueueCallback(continuation, state);
-                            //IoZeroScheduler.Zero.FallbackContext(continuation, state);
-#endif
                         else
                             continuation(state);
                         break;
                     case SynchronizationContext sc:
-#pragma warning disable VSTHRD001 // Avoid legacy thread switching APIs
                         sc.Post(s =>
                         {
                             var tuple = ((Action<object>, object))s;
                             tuple.Item1(tuple.Item2);
                         }, (continuation, state));
-#pragma warning restore VSTHRD001 // Avoid legacy thread switching APIs
                         break;
                     case IoZeroScheduler when !RunContinuationsAsynchronously && TaskScheduler.Current is IoZeroScheduler:
                         continuation(state);
@@ -437,7 +414,6 @@ namespace zero.core.patterns.semaphore.core
                         break;
                 }
             }
-
 
             //try
             //{
@@ -474,13 +450,13 @@ namespace zero.core.patterns.semaphore.core
             if (_completed)
             {
                 if (_error == null)
-                    throw new InvalidOperationException($"[{Thread.CurrentThread.ManagedThreadId}]: set => v = [{_version}], primed = {Primed}, blocking = {Blocking}, completed = {_completed}, {GetStatus((short)Version)}");
+                    throw new InvalidOperationException($"[{Environment.CurrentManagedThreadId}]: set => v = [{_version}], primed = {Primed}, blocking = {Blocking}, completed = {_completed}, {GetStatus((short)Version)}");
                 Reset();
                 return;
             }
 #else
             if (_completed)
-                throw new InvalidOperationException($"[{Thread.CurrentThread.ManagedThreadId}]: set => v = [{_version}], primed = {Primed}, blocking = {Blocking}, completed = {_completed}, {GetStatus((short)Version)}");
+                throw new InvalidOperationException($"[{Environment.CurrentManagedThreadId}]: set => v = [{_version}], primed = {Primed}, blocking = {Blocking}, completed = {_completed}, {GetStatus((short)Version)}");
 #endif
             _completed = true;
 
@@ -535,13 +511,11 @@ namespace zero.core.patterns.semaphore.core
                         _continuation!(_continuationState);
                     break;
                 case SynchronizationContext sc:
-#pragma warning disable VSTHRD001 // Avoid legacy thread switching APIs
                     sc.Post(s =>
                     {
                         var state = ((Action<object>, object))s;
                         state.Item1(state.Item2);
                     }, (_continuation, _continuationState));
-#pragma warning restore VSTHRD001 // Avoid legacy thread switching APIs
                     break;
                 case IoZeroScheduler tz when !RunContinuationsAsynchronously && TaskScheduler.Current is IoZeroScheduler:
                     _continuation!(_continuationState);
@@ -559,7 +533,7 @@ namespace zero.core.patterns.semaphore.core
             {
                 if (_completed)
                     return $" {_version} - {_result}";
-                return $" {_version} - {GetStatus((short)_version).ToString()}";
+                return $" {_version} - {GetStatus((short)_version)}";
             }
             catch (Exception e)
             {
