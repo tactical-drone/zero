@@ -184,27 +184,28 @@ namespace zero.core.patterns.semaphore.core
 #endif
         private bool SetResult(T value, bool forceAsync = false)
         {
+            var unBanked = false;
+
             //insane checks
             if (_results.Count >= Capacity && _blockingCores.Count == 0) //TODO: if the semaphore is full, but there are waiters hanging around... unblock one. Seems legit
                 return false;
 
             //fast path
-            if (!(_results.Count == 0 && _racedResultSyncRoot == 0 && _blockingCores.Count <= 1 && Unblock(value, forceAsync)))
+            if (!(_results.Count == 0 && _racedResultSyncRoot == 0 && Unblock(value, forceAsync)))
             {
                 //slow path
-                var spinWait = new SpinWait();
-                
-                while (_results.TryEnqueue(value) < 0)
+                unBanked = _results.TryEnqueue(value) < 0;
+
+                if (unBanked)
                 {
                     if (Zeroed())
                         return false;
-                    
-                    spinWait.SpinOnce();
 
-                    if(_blockingCores.Count != Capacity) //if we are not bricked reject the incoming result on FULL, else ensure liveness by matching a waiter and a result
+                    if (_blockingCores.Count == 0)
                         return false;
                 }
 
+                var spinWait = new SpinWait();
                 var raced = false;
                 T nextResult = default;
                 if (_racedResultSyncRoot > 0)
@@ -230,7 +231,6 @@ namespace zero.core.patterns.semaphore.core
                     }
 
                     raced = false;
-                    break;
                 }
 
                 //did we race and loose?
@@ -249,7 +249,7 @@ namespace zero.core.patterns.semaphore.core
                 }
             }
             
-            return true;
+            return !unBanked;
         }
 
         /// <summary>
@@ -298,6 +298,8 @@ namespace zero.core.patterns.semaphore.core
 
             blockingCore.SyncRoot = _ensureCriticalRegion? SyncWait : SyncReady;
 
+            slowTaskCore = new ValueTask<T>(blockingCore, 0);
+
             //prepare to synchronize with release
             var spinWait = new SpinWait();
             while (_blockingCores.TryEnqueue(blockingCore) < 0)
@@ -309,23 +311,23 @@ namespace zero.core.patterns.semaphore.core
 
                 spinWait.SpinOnce();
             }
-            
-            //prepare the task core, but don't block just yet
-            slowTaskCore = new ValueTask<T>(blockingCore, 0);
 
-            //ensure critical region - last ditched attempt to access the fast path on racing result
-            if (_ensureCriticalRegion && _results.Count <= 1 && _results.TryDequeue(out var racedResult))
+            if (_ensureCriticalRegion)
             {
-                blockingCore.SyncRoot = SyncRace;
-                slowTaskCore = new ValueTask<T>(racedResult);
-                return true;
+                //ensure critical region - last ditched attempt to access the fast path on racing result
+                if ((_results.Count <= 1 || _results.Count == Capacity) && _results.TryDequeue(out var racedResult))
+                {
+                    blockingCore.SyncRoot = SyncRace;
+                    slowTaskCore = new ValueTask<T>(racedResult);
+                    return true;
+                }
+
+                //important critical region insane checks
+                //Debug.Assert(!_ensureCriticalRegion || _results.Count < 1 || Zeroed(), Description);
+
+                //block the core by synchronizing with release
+                blockingCore.SyncRoot = SyncReady;
             }
-
-            //important critical region insane checks
-            //Debug.Assert(!_ensureCriticalRegion || _results.Count < 1 || Zeroed(), Description);
-
-            //block the core by synchronizing with release
-            blockingCore.SyncRoot = SyncReady;
 
             return true;
         }

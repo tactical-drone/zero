@@ -25,6 +25,7 @@ namespace zero.core.runtime.scheduler
             ZeroDefault = Zero;
             //ZeroDefault = Default; //TODO: Uncomment to enable native .net scheduler...
             Zero.InitQueues();
+
         }
 
         public IoZeroScheduler(TaskScheduler fallback, CancellationTokenSource asyncTasks = null, bool native = false)
@@ -40,11 +41,11 @@ namespace zero.core.runtime.scheduler
             //_asyncCallbackWithContextCapacity = _asyncTaskCapacity = _asyncTaskWithContextCapacity = _taskQueueCapacity * 2;
             //_asyncFallbackCapacity = _forkCapacity = _asyncCallbackWithContextCapacity * 2;
 
-            _taskQueueCapacity = Environment.ProcessorCount * 4 * 5;
+            _taskQueueCapacity = Environment.ProcessorCount * 4 * 10;
             _asyncFallbackCapacity = _taskQueueCapacity;
 
-            _asyncTaskWithContextCapacity = _taskQueueCapacity / 5;
-            _asyncTaskCapacity = _taskQueueCapacity / 5;
+            _asyncTaskWithContextCapacity = _taskQueueCapacity / 2;
+            _asyncTaskCapacity = _taskQueueCapacity / 2;
 
             _asyncCallbackWithContextCapacity = _taskQueueCapacity / 5;
 
@@ -99,6 +100,11 @@ namespace zero.core.runtime.scheduler
             Worker = 1,
             Queen = 1 << 1
         }
+
+
+        private const int InitExpected = 7;
+        private int _initCount = 0;
+        private int _intialized = 0;
 
         //TODO: <<--- these values need more research. It is not at all clear why
         //TODO: thread lockups happen when you change these values.Too high and you get CPU flat-lining without any work being done. To little, deadlock! How to tune is unclear?
@@ -299,8 +305,15 @@ namespace zero.core.runtime.scheduler
             public int Timestamp;
         }
 
+        private void TrackInit()
+        {
+            if (Interlocked.Increment(ref _initCount) == InitExpected)
+                Interlocked.Exchange(ref _intialized, 1);
+        }
+
         private async ValueTask HandleAsyncSchedulerTask(int threadIndex)
         {
+            TrackInit();
             while (!_asyncTasks.IsCancellationRequested)
             {
                 var job = await _taskQueue.WaitAsync().FastPath().ConfigureAwait(false);
@@ -327,6 +340,7 @@ namespace zero.core.runtime.scheduler
 
         private async ValueTask HandleAsyncFallback(int threadIndex)
         {
+            TrackInit();
             while (!_asyncTasks.IsCancellationRequested)
             {
                 var job = await _asyncFallbackQueue.WaitAsync().FastPath().ConfigureAwait(false);
@@ -355,6 +369,7 @@ namespace zero.core.runtime.scheduler
 
         private async ValueTask HandleAsyncValueTaskWithContext(int threadIndex)
         {
+            TrackInit();
             while (!_asyncTasks.IsCancellationRequested)
             {
                 var job = await _asyncTaskWithContextQueue.WaitAsync().FastPath().ConfigureAwait(_native);
@@ -381,7 +396,8 @@ namespace zero.core.runtime.scheduler
 
         private async ValueTask HandleAsyncCallback(int threadIndex)
         {
-            while(!_asyncTasks.IsCancellationRequested)
+            TrackInit();
+            while (!_asyncTasks.IsCancellationRequested)
             {
                 var job = await _asyncCallbackWithContextQueue.WaitAsync().FastPath().ConfigureAwait(_native);
                 try
@@ -406,7 +422,8 @@ namespace zero.core.runtime.scheduler
         }
         private async ValueTask HandleAsyncValueTask(int threadIndex)
         {
-            while(!_asyncTasks.IsCancellationRequested)
+            TrackInit();
+            while (!_asyncTasks.IsCancellationRequested)
             {
                 var job = await _asyncTaskQueue.WaitAsync().FastPath().ConfigureAwait(_native);
                 try
@@ -433,6 +450,7 @@ namespace zero.core.runtime.scheduler
 
         private async ValueTask ForkAsyncCallbacks(int threadIndex)
         {
+            TrackInit();
             while (!_asyncTasks.IsCancellationRequested)
             {
                 try
@@ -456,6 +474,7 @@ namespace zero.core.runtime.scheduler
 
         private async ValueTask ForkCallbacks(int threadIndex)
         {
+            TrackInit();
             while (!_asyncTasks.IsCancellationRequested)
             {
                 var job = await _forkQueue.WaitAsync().FastPath();
@@ -491,6 +510,16 @@ namespace zero.core.runtime.scheduler
             return l;
         }
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private void EnsureInit()
+        {
+            if (_intialized != 0) return;
+
+            var spinWait = new SpinWait();
+            while(_intialized == 0 && !Zeroed)
+                spinWait.SpinOnce();
+        }
+
         /// <summary>
         /// Queue this task to the scheduler
         /// </summary>
@@ -498,6 +527,9 @@ namespace zero.core.runtime.scheduler
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         protected override void QueueTask(Task task)
         {
+
+            EnsureInit();
+
             if (_taskQueue.Release(task, true) < 0)
                 throw new InternalBufferOverflowException($"{nameof(_taskQueue)}: {_taskQueue.Description}");
             

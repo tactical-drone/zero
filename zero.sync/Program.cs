@@ -179,7 +179,7 @@ namespace zero.sync
             {
                 Console.WriteLine($"Starting auto peering...  {bag.Count}");
                 var c = 0;
-                var rateLimit = 5000;
+                var rateLimit = 4000;
                 var injectionCount = Math.Max(1, bag.Count / 20);
                 var rampDelay = 50;
                 foreach (var cocoon in bag.OrderBy(e => e.Serial))
@@ -391,7 +391,7 @@ namespace zero.sync
             {
                 var t = j.RunAsync(async () =>
                 {
-                    //await SemTestAsync();
+                    await SemTestAsync();
                     await QueueTestAsync();
                     //await ZeroQTestAsync();
                     //await BagTestAsync();
@@ -465,14 +465,15 @@ namespace zero.sync
         /// <param name="args"></param>
         static void Main(string[] args)
         {
+            Console.WriteLine($"zero ({Environment.OSVersion}: {Environment.MachineName} - dotnet v{Environment.Version}, CPUs = {Environment.ProcessorCount})");
+
             var prime = IoZeroScheduler.ZeroDefault; //TODO: how do we prime the scheduler automagically?
             if (prime.Id > 1)
                 Console.WriteLine("using IoZeroScheduler");
 
-            
             LogManager.LoadConfiguration("nlog.config");
 
-            Console.WriteLine($"zero ({Environment.OSVersion}: {Environment.MachineName} - dotnet v{Environment.Version}, CPUs = {Environment.ProcessorCount})");
+            Console.WriteLine("Type 'help' for a list of test commands");
             
             //Tune dotnet for large tests
             //ThreadPool.GetMinThreads(out var wt, out var cp);
@@ -506,11 +507,12 @@ namespace zero.sync
                 LogManager.ReconfigExistingLoggers();
             }
 
-            Console.WriteLine($"local = {localPort}, remote = {remotePort}");
+            //Console.WriteLine($"local = {localPort}, remote = {remotePort}");
             
             StartGRPC(localPort);
 
-            Bootstrap(out var tasks, total, 0, localPort, remotePort);
+            ConcurrentBag<CcCollective> tasks = new ConcurrentBag<CcCollective>();
+            //Bootstrap(out tasks, total, 0, localPort, remotePort);
 
             //Continue to print some stats while tests are running... 
             long C = 0;
@@ -545,6 +547,7 @@ namespace zero.sync
                 args.Cancel = true;
                 ZeroAsync(total).AsTask().GetAwaiter();
             };
+
 
             while ((line = Console.ReadLine()) != null && !line.StartsWith("quit"))
             {
@@ -812,6 +815,20 @@ namespace zero.sync
                                 Console.WriteLine($"z = {_nodes.Count(n => n.Zeroed())}/{total}");
                             }
                         });
+                    }
+
+                    if (line.StartsWith("help"))
+                    {
+                        Console.WriteLine("\n               -- ZERO CORE TEST SUITE --\n");
+                        Console.WriteLine("test usage:\n");
+                        Console.WriteLine("boot <n>       - boot a new cluster with 'n' nodes");
+                        Console.WriteLine("loadTest       - start cluster Lamport timestamp test (preferred after cluster bootstrap is complete or near 100%)");
+                        Console.WriteLine("zero           - destroys the current cluster");
+                        Console.WriteLine("log [level]    - set log level to 'info', 'debug', 'trace'");
+                        Console.WriteLine("gc             - Force a full generation garbage collect");
+                        Console.WriteLine("L              - Display zero scheduler stats");
+                        Console.WriteLine("t              - Display runtime scheduler stats");
+                        Console.WriteLine("q              - quit");
                     }
                 }
                 catch (Exception e)

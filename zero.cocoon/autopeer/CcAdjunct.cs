@@ -2703,12 +2703,9 @@ namespace zero.cocoon.autopeer
                 //insane checks for proxy scanning only
                 if (IsProxy)
                 {
-                    if (!Assimilating || !Probed && !CcCollective.ZeroDrone)
+                    if (!Assimilating)
                     {
-                        if (!Probed && UpTime.ElapsedMs() > parm_min_uptime_ms)
-                            await DisposeAsync(this, "Adjunct not responsive");
-                        else if(!Zeroed())
-                            _logger.Trace($"{nameof(ScanAsync)}: [ABORTED], {Description}, s = {State}, a = {Assimilating}");
+                        _logger.Trace($"{nameof(ScanAsync)}: [ABORTED], {Description}, s = {State}, a = {Assimilating}");
                         return false;
                     }
 

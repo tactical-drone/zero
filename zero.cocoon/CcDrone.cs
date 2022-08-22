@@ -94,12 +94,12 @@ namespace zero.cocoon
                 try
                 {
                     if(!Zeroed())
-                        return _description = $"`drone({(!Zeroed()? "Active":"Zombie")} {(_assimilated? "Participant" : "Bystander")} [{Adjunct?.Hub.Designation.IdString()}, {Adjunct?.Designation.IdString()}], {Adjunct?.Direction},{MessageService.IoNetSocket.LocalAddress} ~> {MessageService.IoNetSocket.RemoteAddress}, up = {TimeSpan.FromMilliseconds(UpTime.ElapsedUtcMs())}'";
-                    return _description = $"`drone({(!Zeroed()? "Active" : "Zombie")} {(_assimilated ? "Participant" : "Bystander")}, [{Adjunct?.Hub?.Designation?.IdString()}, {Adjunct?.Designation?.IdString()}], {MessageService?.IoNetSocket?.LocalAddress} ~> {MessageService?.IoNetSocket?.RemoteAddress}, up = {TimeSpan.FromMilliseconds(UpTime.ElapsedUtcMs())}'";
+                        return _description = $"`drone [{Adjunct?.Hub.Designation.IdString()}, {Adjunct?.Designation.IdString()}], {Adjunct?.Direction},{MessageService.IoNetSocket.LocalAddress} ~> {MessageService.IoNetSocket.RemoteAddress}, up = {TimeSpan.FromMilliseconds(UpTime.ElapsedUtcMs())}'";
+                    return _description = $"`drone [{Adjunct?.Hub?.Designation?.IdString()}, {Adjunct?.Designation?.IdString()}], {MessageService?.IoNetSocket?.LocalAddress} ~> {MessageService?.IoNetSocket?.RemoteAddress}, up = {TimeSpan.FromMilliseconds(UpTime.ElapsedUtcMs())}'";
                 }
                 catch
                 {
-                    return _description = $"`drone({(!Zeroed()? "Active":"Zombie")} {(_assimilated ? "Participant" : "Bystander")}, [{Adjunct?.Hub?.Designation?.IdString()}, {Adjunct?.Designation?.IdString()}], {MessageService?.IoNetSocket?.LocalAddress} ~> {MessageService?.IoNetSocket?.RemoteAddress}, up = {TimeSpan.FromMilliseconds(UpTime.ElapsedUtcMs())}'";
+                    return _description = $"`drone [{Adjunct?.Hub?.Designation?.IdString()}, {Adjunct?.Designation?.IdString()}], {MessageService?.IoNetSocket?.LocalAddress} ~> {MessageService?.IoNetSocket?.RemoteAddress}, up = {TimeSpan.FromMilliseconds(UpTime.ElapsedUtcMs())}'";
                 }
             }
         }
