@@ -186,7 +186,6 @@ namespace zero.sync
                     if (rampDelay > 50)
                         rampDelay -= 1;
 
-                    Console.WriteLine($"addeding {c}/{bag.Count}");
                     StartCocoon(cocoon);
                     Console.WriteLine($"added {++c}/{bag.Count}");
 

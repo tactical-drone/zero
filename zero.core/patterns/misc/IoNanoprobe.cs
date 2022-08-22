@@ -14,7 +14,11 @@ using zero.core.runtime.scheduler;
 namespace zero.core.patterns.misc
 {
     /// <summary>
-    /// ZeroDisposeAsync teardown
+    /// Base class for async/await only frameworks (useful for example if you need to call async/await code from a critical section)
+    /// 
+    /// Adds memory management dependency framework options to any object. Allows objects build hierarchies that cascade teardown etc.
+    ///
+    /// Additionally, contains useful debug stuff like descriptions & uptime etc.
     /// </summary>
     public class IoNanoprobe : IIoNanite, IDisposable
     {
@@ -40,15 +44,15 @@ namespace zero.core.patterns.misc
         /// Constructs a nano probe
         /// </summary>
         /// <param name="description">A description</param>
-        /// <param name="concurrencyLevel">Maximum blockers allowed. Consumption: 128 bits per tick.</param>
+        /// <param name="concurrencyLevel">Maximum blockers allowed</param>
         protected IoNanoprobe(string description, int concurrencyLevel)
         {
             _zId = Interlocked.Increment(ref _uidSeed);
             AsyncTasks = new CancellationTokenSource();
 #if DEBUG
             Description = description ?? GetType().Name;
-#else 
-            Description = "";
+#else
+            Description = string.Empty;
 #endif
 
             _concurrencyLevel = concurrencyLevel <= 0 ? 1 : concurrencyLevel;
@@ -72,7 +76,6 @@ namespace zero.core.patterns.misc
         /// </summary>
         ~IoNanoprobe()
         {
-#pragma warning disable 4014
             try
             {
                 ZeroDisposeAsync(false).AsTask().GetAwaiter();
@@ -81,7 +84,6 @@ namespace zero.core.patterns.misc
             {
                 _logger.Fatal(e);
             }
-#pragma warning restore 4014
         }
 
         /// <summary>
@@ -148,7 +150,7 @@ namespace zero.core.patterns.misc
         /// <summary>
         /// Are we zeroed?
         /// </summary>
-        private volatile int _zeroedSec;
+        private volatile int _disposed;
 
 #if DEBUG
         /// <summary>
@@ -225,9 +227,7 @@ namespace zero.core.patterns.misc
 #else
             ZeroReason = $"{methodName}:{lineNumber} - reason = {reason ?? "N/A"}";
 #endif
-            //Console.WriteLine(ZeroReason);
 
-#pragma warning disable CS4014
             IoZeroScheduler.Zero.LoadAsyncContext(static async state =>
             {
                 var @this = (IoNanoprobe)state;
@@ -246,7 +246,6 @@ namespace zero.core.patterns.misc
                 //collect memory
                 await @this.ZeroDisposeAsync(true).FastPath();
             }, this);
-#pragma warning restore CS4014
 
             if (Interlocked.Increment(ref _zCount) % 100000 == 0)
             {
@@ -417,15 +416,12 @@ namespace zero.core.patterns.misc
         private async ValueTask ZeroDisposeAsync(bool disposing)
         {
             // Only once
-            if (_zeroedSec > 0 || Interlocked.CompareExchange(ref _zeroedSec, 1, 0) != 0)
+            if (_disposed > 0 || Interlocked.CompareExchange(ref _disposed, 1, 0) != 0)
                 return;
 
             CascadeTime = Environment.TickCount;
-
             var desc = Description;
-#if DEBUG
-            var reason = ZeroReason;
-#endif
+
             //Dispose managed
             if (disposing)
             {
@@ -631,13 +627,9 @@ namespace zero.core.patterns.misc
         /// </summary>
         /// <param name="continuation">The continuation</param>
         /// <param name="state">user state</param>
-        /// <param name="asyncToken">The async cancellation token</param>
         /// <param name="options">Task options</param>
         /// <param name="unwrap">If the task awaited should be unwrapped, effectively making this a blocking call</param>
         /// <param name="scheduler">The scheduler</param>
-        /// <param name="filePath"></param>
-        /// <param name="methodName"></param>
-        /// <param name="lineNumber"></param>
         /// <returns>A ValueTask</returns>
         protected async ValueTask ZeroAsync<T>(Func<T, ValueTask> continuation, T state, TaskCreationOptions options = TaskCreationOptions.DenyChildAttach, TaskScheduler scheduler = null, bool unwrap = false)
         {
@@ -694,11 +686,12 @@ namespace zero.core.patterns.misc
             }
 
             /// <summary>
-            /// Create a new exceptions
+            /// Create a new exception
             /// </summary>
             /// <param name="state">Extra info</param>
             /// <param name="message">The error message</param>
             /// <param name="exception">The inner Exception</param>
+            /// <param name="filePath">The calling method file name</param>
             /// <param name="methodName">The calling method name</param>
             /// <param name="lineNumber">The calling method line number</param>
             /// <returns>The new exception</returns>
