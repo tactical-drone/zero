@@ -69,8 +69,7 @@ namespace zero.cocoon.events.services
                     await Task.Delay(1000);
 
                 c = 0;
-                AutoPeerEvent cur;
-                while (c++ < EventBatchSize && curQ.TryDequeue(out cur))
+                while (c++ < EventBatchSize && curQ.TryDequeue(out var cur))
                 {
                     response.Events.Add(cur);
                 }
@@ -136,8 +135,10 @@ namespace zero.cocoon.events.services
                 CreateNoWindow = true
             };
 
-            var proc = new Process();
-            proc.StartInfo = procStartInfo;
+            var proc = new Process
+            {
+                StartInfo = procStartInfo
+            };
             proc.Start();
         }
 
@@ -181,8 +182,11 @@ namespace zero.cocoon.events.services
                             CreateNoWindow = true
                         };
 
-                        var proc = new Process();
-                        proc.StartInfo = procStartInfo;
+                        var proc = new Process
+                        {
+                            StartInfo = procStartInfo
+                        };
+                        
                         proc.Start();
 
                         if (!Processes.TryAdd(request.Uid, proc))
@@ -203,7 +207,7 @@ namespace zero.cocoon.events.services
                         {
                             const int bufSize = 384;
                             char [] buffer = new char[bufSize];
-                            StringBuilder sb = new StringBuilder();
+                            StringBuilder sb = new ();
                             int read = -1;
                             var lines = 0;
                             bool hasData;

@@ -16,14 +16,6 @@ namespace zero.cocoon.identity
     public class CcDesignation
     {
 
-        //static CcDesignation()
-        //{
-        //    SecureRandom = SecureRandom.GetInstance("SHA512PRNG", false);
-        //    //SecureRandom.SetSeed(SecureRandom.GenerateSeed(256));
-        //}
-
-        private const int PubKeySize = 256;
-
         [ThreadStatic]
         private static SHA256 _sha256;
         public static SHA256 Sha256 => _sha256 ??= SHA256.Create();

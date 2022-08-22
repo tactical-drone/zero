@@ -218,8 +218,8 @@ namespace zero.core.network.ip
                     var protoIdx = Url.IndexOf(':') + 3;
                     var portIdx = Url.LastIndexOf(':') + 1;
 
-                    ProtocolDesc = Url.Substring(0, protoIdx);
-                    Port = int.Parse(Url.Substring(portIdx, Url.Length - portIdx));
+                    ProtocolDesc = Url[..protoIdx];
+                    Port = int.Parse(Url[portIdx..]);
                     Ip = Url.Substring(protoIdx, Url.Length - protoIdx - Url.Length + portIdx - 1);
                     IpPort = $"{Ip}:{Port}";
                     Validated = true;

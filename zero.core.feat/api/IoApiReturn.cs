@@ -1,7 +1,4 @@
-﻿using System.Threading.Tasks;
-using Microsoft.AspNetCore.Mvc;
-
-namespace zero.core.feat.api
+﻿namespace zero.core.feat.api
 {
     public class IoApiReturn //: IActionResult
     {
@@ -14,10 +11,5 @@ namespace zero.core.feat.api
         public string Message;
         public long Time;
         public object Rows;
-
-        public Task ExecuteResultAsync(ActionContext context)
-        {
-            return Task.FromResult(Task.CompletedTask);
-        }
     }
 }

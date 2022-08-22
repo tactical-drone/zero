@@ -14,11 +14,6 @@ namespace zero.core.network.ip
 
     {
         /// <summary>
-        /// The logger
-        /// </summary>
-        private Logger _logger;
-
-        /// <summary>
         /// Initializes a new instance of the <see cref="IoTcpClient{TJob}"/> class.
         /// </summary>
         /// <param name="description">Description</param>
@@ -27,7 +22,7 @@ namespace zero.core.network.ip
         /// <param name="concurrencyLevel">Concurrency level</param>
         public IoTcpClient(string description, IoNetSocket remote, int prefetchSize = 1,  int concurrencyLevel = 1) : base(description, remote, prefetchSize,  concurrencyLevel, false)
         {
-            _logger = LogManager.GetCurrentClassLogger();
+            LogManager.GetCurrentClassLogger();
         }
 
         /// <summary>
@@ -38,7 +33,7 @@ namespace zero.core.network.ip
         /// <param name="concurrencyLevel">Concurrency level</param>
         public IoTcpClient(string description, int prefetchSize,  int concurrencyLevel) : base(description, prefetchSize,  concurrencyLevel)
         {
-            _logger = LogManager.GetCurrentClassLogger();
+            LogManager.GetCurrentClassLogger();
         }
         
         /// <summary>
@@ -61,7 +56,6 @@ namespace zero.core.network.ip
             base.ZeroUnmanaged();
 
 #if SAFE_RELEASE
-            _logger = null;
 #endif
         }
     }

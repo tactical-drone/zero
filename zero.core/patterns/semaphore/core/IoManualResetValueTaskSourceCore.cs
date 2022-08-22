@@ -187,12 +187,6 @@ namespace zero.core.patterns.semaphore.core
             //_version = version;
         }
 
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public void Prime(int version)
-        {
-            //_version = version;
-        }
-
         /// <summary>
         /// If this primitive is blocking
         /// </summary>

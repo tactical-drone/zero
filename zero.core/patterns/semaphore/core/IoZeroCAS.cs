@@ -26,9 +26,9 @@ namespace zero.core.patterns.semaphore.core
 
             return latch;
         }
-        static volatile object _syncroot = new object();
-        private static int _redundency = 3;
-        static volatile int _cheapMonitor = _redundency;
+
+        private const int Redundancy = 3;
+        private static volatile int _cheapMonitor = Redundancy;
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static long ZeroNextHard(this ref long val, long cap)
@@ -47,7 +47,7 @@ namespace zero.core.patterns.semaphore.core
                     try
                     {
                         retry:
-                        var curLevel = _redundency;
+                        var curLevel = Redundancy;
                         while (curLevel > 0)
                         {
                             while (Interlocked.CompareExchange(ref _cheapMonitor, curLevel - 1, curLevel) != curLevel)
@@ -66,7 +66,7 @@ namespace zero.core.patterns.semaphore.core
                     finally
                     {
                         
-                        Interlocked.Exchange(ref _cheapMonitor, _redundency);
+                        Interlocked.Exchange(ref _cheapMonitor, Redundancy);
                     }
 
                     //Interlocked.MemoryBarrier();

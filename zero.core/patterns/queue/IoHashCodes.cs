@@ -19,7 +19,7 @@ namespace zero.core.patterns.queue
         /// <summary>
         /// Constructor
         /// </summary>
-        public IoHashCodes(string description, int capacity, bool hotReload = false)
+        public IoHashCodes(string description, int capacity)
         {
             if(capacity<=0)
                 throw new ArgumentOutOfRangeException(nameof(capacity));

@@ -18,7 +18,7 @@ namespace zero.core.patterns.bushings.contracts
         /// <summary>
         /// The time it takes to manufacture this production
         /// </summary>
-        private int _constructionDelay;
+        private readonly int _constructionDelay;
 
         public bool Produced => _produced;
         public bool Consumed => _consumed;

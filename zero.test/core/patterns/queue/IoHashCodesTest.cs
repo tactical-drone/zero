@@ -15,7 +15,7 @@ namespace zero.test.core.patterns.queue
         [Fact]
         void InsertTest()
         {
-            var bag = new IoHashCodes("test", 11, true);
+            var bag = new IoHashCodes("test", 11);
 
             for (int i = 0; i < bag.Capacity-1; i++)
             {
@@ -50,7 +50,7 @@ namespace zero.test.core.patterns.queue
         {
             var threads = 100;
 
-            var bag = new IoHashCodes("test", threads, true);
+            var bag = new IoHashCodes("test", threads);
             await Task.Yield();
             var c = 0;
             foreach (var ioInt32 in bag)

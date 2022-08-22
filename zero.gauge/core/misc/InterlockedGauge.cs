@@ -7,6 +7,7 @@ using BenchmarkDotNet.Attributes;
 
 namespace zero.gauge.core.misc
 {
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("CodeQuality", "IDE0051:Remove unused private members", Justification = "<Pending>")]
     public class InterlockedGauge
     {
         private int _nonVolatile;
@@ -15,49 +16,49 @@ namespace zero.gauge.core.misc
         private long _nonVolatile64;
 
         [Benchmark]
-        void SingleThreadedNonVolatileInt32()
+        private void SingleThreadedNonVolatileInt32()
         {
             _nonVolatile++;
         }
 
         [Benchmark]
-        void SingleThreadedVolatileInt32_interlocked()
+        private void SingleThreadedVolatileInt32_interlocked()
         {
             Interlocked.Increment(ref _volatile);
         }
 
         [Benchmark]
-        void SingleThreadedNonVolatileInt32_interlocked()
+        private void SingleThreadedNonVolatileInt32_interlocked()
         {
             Interlocked.Increment(ref _nonVolatile);
         }
 
         [Benchmark]
-        void SingleThreadedNonVolatileInt64()
+        private void SingleThreadedNonVolatileInt64()
         {
             _nonVolatile64++;
         }
 
         [Benchmark]
-        void SingleThreadedVolatileInt64_interlocked()
+        private void SingleThreadedVolatileInt64_interlocked()
         {
             Interlocked.Increment(ref _nonVolatile64);
         }
 
         [Benchmark]
-        void SingleThreadedNonVolatileInt64_interlocked()
+        private void SingleThreadedNonVolatileInt64_interlocked()
         {
             Interlocked.Increment(ref _nonVolatile64);
         }
 
-        void StNvCompareInt32()
+        private void StNvCompareInt32()
         {
             var c = 100000000;
             while(c--> 0)
                 Interlocked.CompareExchange(ref _nonVolatile, 1, 0);
         }
 
-        void MtNvCompareInt32()
+        private void MtNvCompareInt32()
         {
             var c = 100000000;
 
@@ -72,7 +73,7 @@ namespace zero.gauge.core.misc
                 Interlocked.CompareExchange(ref _nonVolatile, 0, 1);
         }
 
-        void StNvCompareInt64()
+        private void StNvCompareInt64()
         {
             var c = 100000000;
             while (c-- > 0)
@@ -82,10 +83,9 @@ namespace zero.gauge.core.misc
                 else
                     Interlocked.CompareExchange(ref _nonVolatile64, 0, 1);
             }
-                
         }
 
-        void MtNvCompareInt64()
+        private void MtNvCompareInt64()
         {
             var c = 100000000;
 

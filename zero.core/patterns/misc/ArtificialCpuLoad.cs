@@ -7,7 +7,7 @@ namespace zero.core.patterns.misc
     /// </summary>
     class ArtificialCpuLoad
     {
-        private static Random _random = new Random((int) DateTime.Now.Ticks);
+        private static readonly Random Random = new((int) DateTime.Now.Ticks);
 
         /// <summary>
         /// Randoms the load.
@@ -16,7 +16,7 @@ namespace zero.core.patterns.misc
         /// <param name="ms">The time the load lasts.</param>
         public static void RandomLoad(int probability, int ms)
         {
-            if( _random.Next(1000) < probability )
+            if( Random.Next(1000) < probability )
                 Load(ms);
         }
 

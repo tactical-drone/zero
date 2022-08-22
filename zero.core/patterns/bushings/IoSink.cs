@@ -28,13 +28,17 @@ namespace zero.core.patterns.bushings
         /// </summary>
         protected IoSink(string sinkDesc, string jobDesc, IoSource<TJob> source, int concurrencyLevel = 1) : base(jobDesc, source, concurrencyLevel)
         {
-            _sinkDesc = sinkDesc;
+#if DEBUG
+            _sinkDesc = sinkDesc;   
+#endif
         }
 
+#if DEBUG
         /// <summary>
         /// A description of the load
         /// </summary>
         private readonly string _sinkDesc;
+#endif
 
         /// <inheritdoc />
         /// <summary>

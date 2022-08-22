@@ -18,6 +18,8 @@ namespace zero.core.patterns.misc
     /// 
     /// Adds memory management dependency framework options to any object. Allows objects build hierarchies that cascade teardown etc.
     ///
+    /// Tracks concurrency level supported, because this async/await framework bakes load balancing parameters into every object that is super useful.
+    ///
     /// Additionally, contains useful debug stuff like descriptions & uptime etc.
     /// </summary>
     public class IoNanoprobe : IIoNanite, IDisposable
@@ -136,9 +138,9 @@ namespace zero.core.patterns.misc
         /// UpTime
         /// </summary>
         public readonly long UpTime;
-        
+
         /// <summary>
-        /// Are we zero primed?
+        /// Are we zero primed? Before we disposed of a hierarchy, we prime it with a light weight signal (so that thread spinners can start unwinding, etc)
         /// </summary>
         private volatile int _zeroPrimed;
 
@@ -148,7 +150,7 @@ namespace zero.core.patterns.misc
         private volatile int _zeroed;
 
         /// <summary>
-        /// Are we zeroed?
+        /// Are we disposed?
         /// </summary>
         private volatile int _disposed;
 
@@ -160,19 +162,17 @@ namespace zero.core.patterns.misc
 #endif
 
         /// <summary>
-        /// All subscriptions
+        /// All subscriptions to be called on teardown
         /// </summary>
-        //private IoQueue<IoZeroSub> _zeroHive;
         private IoQueue<IoZeroSub> _zeroHive;
 
         /// <summary>
-        /// All subscriptions
+        /// Contains teardown hierarchies. When this object is zeroed, so will be the objects in this queue;
         /// </summary>
-        //private IoQueue<IIoNanite> _zeroHiveMind;
         private IoQueue<IIoNanite> _zeroHiveMind;
 
         /// <summary>
-        /// Max number of blockers
+        /// Concurrency level supported by this object, if applicable.
         /// </summary>
         private readonly int _concurrencyLevel;
 
@@ -190,7 +190,7 @@ namespace zero.core.patterns.misc
         }
 
         /// <summary>
-        /// ZeroDisposeAsync pattern
+        /// Dispose pattern from non async contexts, else use <see cref="DisposeAsync"/>
         /// </summary>
         public void Dispose()
         {
@@ -208,7 +208,7 @@ namespace zero.core.patterns.misc
         private static long _zCount;
 
         /// <summary>
-        /// root sync
+        /// root sync, used to generate critical regions for async contexts
         /// </summary>
         private static readonly IIoZeroSemaphoreBase<int> ZeroRoot;
 
@@ -265,21 +265,7 @@ namespace zero.core.patterns.misc
                 return;
 
             if (_zeroHiveMind == null) return;
-            //using var en = _zeroHiveMind.GetEnumerator();
-            //while (en.MoveNext())
-            //{
-            //    try
-            //    {
-            //        if (en.Current!.Value != null && !en.Current.Value.Zeroed())
-            //            IoZeroScheduler.Zero.Fork(en.Current.Value.ZeroPrime);
-            //    }
-            //    catch
-            //    {
-            //        if (en.Current == null)
-            //            break;
-            //    }
-            //}
-
+            
             foreach (var ioZNode in _zeroHiveMind)
             {
                 try
@@ -313,7 +299,7 @@ namespace zero.core.patterns.misc
         }
 
         /// <summary>
-        /// Indicate zero status
+        /// Indicate zero status, the best feature of this base class.
         /// </summary>
         /// <returns>True if zeroed out, false otherwise</returns>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -547,9 +533,6 @@ namespace zero.core.patterns.misc
         /// </summary>
         public virtual ValueTask ZeroManagedAsync()
         {
-            //await _zeroHive.ZeroManagedAsync<object>(zero:true).FastPath();
-            //await _zeroHiveMind.ZeroManagedAsync<object>(zero: true).FastPath();
-            //ZeroRoot.ZeroSem();
 #if DEBUG
             Interlocked.Increment(ref _extracted);
 #endif
@@ -574,7 +557,7 @@ namespace zero.core.patterns.misc
         /// <param name="userData">context</param>
         /// <param name="disposing">if we are disposing</param>
         /// <param name="force">Force execution even if zeroed</param>
-        /// <returns></returns>
+        /// <returns>Ownership action result, true if success false otherwise</returns>
         public async ValueTask<bool> ZeroAtomicAsync<T>(Func<IIoNanite, T, bool, ValueTask<bool>> ownershipAction,
             T userData = default, bool disposing = false, bool force = false)
         {
@@ -623,7 +606,7 @@ namespace zero.core.patterns.misc
         }
 
         /// <summary>
-        /// Async execution options. <see cref="DisposeAsync"/> needs trust, but verify...
+        /// Executes a async continuation in a critical section
         /// </summary>
         /// <param name="continuation">The continuation</param>
         /// <param name="state">user state</param>
@@ -677,6 +660,9 @@ namespace zero.core.patterns.misc
             }
         }
 
+        /// <summary>
+        /// Base exception, not really used atm. 
+        /// </summary>
         public class ZeroException:ApplicationException
         {
             private ZeroException(string message, Exception innerException)
@@ -711,7 +697,7 @@ namespace zero.core.patterns.misc
 
 
         /// <summary>
-        /// Returns the hive mind
+        /// Returns the hive mind subscriptions
         /// </summary>
         /// <returns>The hive</returns>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -721,7 +707,7 @@ namespace zero.core.patterns.misc
         }
 
         /// <summary>
-        /// Returns the hive
+        /// Returns the hive mind targets to be zeroed when this object is zeroed
         /// </summary>
         /// <returns>The hive</returns>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -731,7 +717,7 @@ namespace zero.core.patterns.misc
         }
         
         /// <summary>
-        /// Equals
+        /// Equals, useful for debugging
         /// </summary>
         /// <param name="other"></param>
         /// <returns>True if equal, false otherwise</returns>

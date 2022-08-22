@@ -29,7 +29,7 @@ namespace zero.core.feat.data.market
         }
 
         private static readonly Logger Logger;
-        private static readonly HttpClient HttpClient = new HttpClient();
+        private static readonly HttpClient HttpClient = new();
         private static DateTime _lastFetchTime = DateTime.Now;
         public static double BundleSize = 1000000.0;
 

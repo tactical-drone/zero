@@ -224,7 +224,7 @@ namespace zero.core.patterns.queue
 
                 //Only allow scaling to happen only when the Q dips under 50% capacity & some other factors, otherwise the indexes will corrupt.
                 if (_primedForScale == 1 &&
-                    _storage[_virility][0] == null && _storage[_virility][_storage[_virility].Length - 1] == null
+                    _storage[_virility][0] == null && _storage[_virility][^1] == null
                     && Interlocked.CompareExchange(ref _primedForScale, 2, 1) == 1 || force)
                 {
                     var hwm = 1 << (_virility + 1);

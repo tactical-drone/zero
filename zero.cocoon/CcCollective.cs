@@ -59,9 +59,9 @@ namespace zero.cocoon
                 NeighborTasks = new ConcurrentDictionary<string, Task>();
             }
 
-            Services.CcRecord.Endpoints.TryAdd(CcService.Keys.peering, _peerAddress);
-            Services.CcRecord.Endpoints.TryAdd(CcService.Keys.gossip, _gossipAddress);
-            Services.CcRecord.Endpoints.TryAdd(CcService.Keys.fpc, fpcAddress);
+            Services.CcRecord.Endpoints.TryAdd(CcService.Keys.Peering, _peerAddress);
+            Services.CcRecord.Endpoints.TryAdd(CcService.Keys.Gossip, _gossipAddress);
+            Services.CcRecord.Endpoints.TryAdd(CcService.Keys.Fpc, fpcAddress);
 
             _ = StartHubAsync(udpPrefetch, udpConcurrencyLevel);
             //IoZeroScheduler.AsyncBridge.Run(async () =>
@@ -323,8 +323,8 @@ namespace zero.cocoon
         public IoZeroSemaphoreSlim DupSyncRoot { get; protected set; }
         public ConcurrentDictionary<long, List<string>> DupChecker { get; private set; } = new();
         public IoHeap<List<string>, CcCollective> DupHeap { get; protected set; }
-        private volatile int _dupPoolFpsTarget;
-        public int DupPoolFPSTarget => _dupPoolFpsTarget;
+        private readonly int _dupPoolFpsTarget;
+        public int DupPoolFpsTarget => _dupPoolFpsTarget;
 
         private long _eventCounter;
         public long EventCount => Interlocked.Read(ref _eventCounter);

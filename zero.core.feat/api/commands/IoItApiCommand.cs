@@ -6,15 +6,11 @@ using NLog;
 
 namespace zero.core.feat.api.commands
 {
-    [SuppressMessage("ReSharper", "ObjectCreationAsStatement")]
-    [SuppressMessage("ReSharper", "InconsistentNaming")]
     public class IoItApiCommand
     {
-        private static readonly ConcurrentDictionary<string, IoItApiCommand> ApiLookup =
-            new ConcurrentDictionary<string, IoItApiCommand>();
+        private static readonly ConcurrentDictionary<string, IoItApiCommand> ApiLookup = new();
 
         private static readonly Logger Logger;
-        public string command;
 
         static IoItApiCommand()
         {            

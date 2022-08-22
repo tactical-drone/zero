@@ -134,23 +134,6 @@ namespace zero.core.patterns.heap
             if (Interlocked.CompareExchange(ref _zeroed, 1, 0) != 0 )
                 return;
 
-            //_ioHeapBuf.Writer.Complete();
-
-            //if (zeroAction != null)
-            //{
-            //    await foreach (var item in _ioHeapBuf.Reader.ReadAllAsync())
-            //    {
-            //        try
-            //        {
-            //            await zeroAction(item, context).FastPath();
-            //        }
-            //        catch (Exception e)
-            //        {
-            //            _logger.Error(e, Description);
-            //        }
-            //    }
-            //}
-
             await _ioHeapBuf.ZeroManagedAsync<object>(zero: true).FastPath();
 
             _refCount = 0;

@@ -40,7 +40,7 @@ namespace zero.core.network.ip
         /// <param name="remoteEndPoint">The remote endpoint</param>
         /// <param name="concurrencyLevel"></param>
         /// <param name="clone">Operator overloaded, parm not used</param>
-        public IoUdpSocket(Socket nativeSocket, IPEndPoint remoteEndPoint, int concurrencyLevel, bool clone) : base(nativeSocket, remoteEndPoint, concurrencyLevel)
+        public IoUdpSocket(Socket nativeSocket, IPEndPoint remoteEndPoint, int concurrencyLevel, bool clone = false) : base(nativeSocket, remoteEndPoint, concurrencyLevel)
         {
             try
             {
@@ -114,7 +114,8 @@ namespace zero.core.network.ip
                         if (@this == null)
                             return new SocketAsyncEventArgs();
 
-                        var args = new SocketAsyncEventArgs { RemoteEndPoint = new IPEndPoint(0, 0) };
+                        var args = new SocketAsyncEventArgs();
+                        args.RemoteEndPoint = new IPEndPoint(0, 0);
                         args.UserToken = new IoManualResetValueTaskSourceCore<bool> { AutoReset = true };
                         args.Completed += @this.ZeroCompletion;
                         args.RemoteEndPoint = new IPEndPoint(IPAddress.Any, 53);
@@ -237,7 +238,7 @@ namespace zero.core.network.ip
         {
 
             //TODO sec
-            NativeSocket.IOControl(
+            _ = NativeSocket.IOControl(
                 (IOControlCode)SIO_UDP_CONNRESET,
                 new byte[] { 0, 0, 0, 0 },
                 null

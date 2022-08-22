@@ -12,6 +12,7 @@ using zero.core.patterns.misc;
 
 namespace zero.test.core.feat
 {
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("CodeQuality", "IDE0051:Remove unused private members", Justification = "<Pending>")]
     public class IoZeroMatcherTest
     {
         [ThreadStatic]
@@ -104,7 +105,7 @@ namespace zero.test.core.feat
 
         }
 
-        int _delayTime = 15 * 30;
+        readonly int _delayTime = 15 * 30;
 
         [Fact]
         async Task TimeoutAsync()

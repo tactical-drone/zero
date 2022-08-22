@@ -1,13 +1,10 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using Xunit;
 using zero.core.patterns.bushings;
 
 namespace zero.test.core.patterns.bushings
 {
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("CodeQuality", "IDE0051:Remove unused private members", Justification = "<Pending>")]
     public class IoStateTransitionTest
     {
         private readonly int _count;
@@ -37,7 +34,7 @@ namespace zero.test.core.patterns.bushings
         }
 
         [Fact]
-        void EventChain()
+        private void EventChain()
         {
             var state = new IoStateTransition<TestStates>((int)TestStates.State1);
 

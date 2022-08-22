@@ -694,7 +694,6 @@ namespace zero.core.patterns.semaphore.core
 
                     break;
                 case SynchronizationContext sc:
-#pragma warning disable VSTHRD001 // Avoid legacy thread switching APIs
                     sc.Post(static s =>
                     {
                         var tuple = ((Action<object>, object))s!;
@@ -707,7 +706,6 @@ namespace zero.core.patterns.semaphore.core
                             LogManager.GetCurrentClassLogger().Error(e, $"InvokeContinuation.callback(): {tuple.Item2} ");
                         }
                     }, (callback, state));
-#pragma warning restore VSTHRD001 // Avoid legacy thread switching APIs
                     break;
                 //case IoZeroScheduler zs:
                 //    //async

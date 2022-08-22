@@ -8,6 +8,6 @@ namespace zero.cocoon.models.services
     /// </summary>
     public class CcRecord
     {
-        public ConcurrentDictionary<CcService.Keys, IoNodeAddress> Endpoints = new ConcurrentDictionary<CcService.Keys, IoNodeAddress>();
+        public ConcurrentDictionary<CcService.Keys, IoNodeAddress> Endpoints = new();
     }
 }

@@ -44,8 +44,8 @@ namespace zero.core.patterns.queue
             DynamicSize = 1 << 2,
         }
 
-        private const int Q_E = 16 << 2;
-        private int Q_C = -1;
+        private const int Qe = 16 << 2;
+
         /// <summary>
         /// constructor
         /// </summary>
@@ -57,7 +57,6 @@ namespace zero.core.patterns.queue
 #else
             var desc = _description = string.Empty;
 #endif
-            Q_C = capacity / 2;
             _configuration = configuration;
             
             var backPressure = concurrencyLevel;
@@ -288,7 +287,7 @@ namespace zero.core.patterns.queue
                                 {
                                     var ts = Environment.TickCount;
                                     await onAtomicAdd.Invoke(context).FastPath();
-                                    if (ts.ElapsedMs() > Q_E)
+                                    if (ts.ElapsedMs() > Qe)
                                         LogManager.GetCurrentClassLogger().Warn($"q onAtomicAdd; t = {ts.ElapsedMs()}ms");
                                 }
                                     
@@ -308,7 +307,7 @@ namespace zero.core.patterns.queue
                                 var async = true; //TRUE because first come first serve
                                 var ts = Environment.TickCount;
                                 _syncRoot.Release(Environment.TickCount, async);
-                                if (ts.ElapsedMs() > Q_E)
+                                if (ts.ElapsedMs() > Qe)
                                     LogManager.GetCurrentClassLogger().Warn($"q _syncRoot async = {async}; t = {ts.ElapsedMs()}ms");
                             }
                         }
@@ -326,7 +325,7 @@ namespace zero.core.patterns.queue
                         var ts = Environment.TickCount;
                         //LogManager.GetCurrentClassLogger().Warn($"R");
                         _pressure.Release(ts, async);
-                        if(ts.ElapsedMs() > Q_E)
+                        if(ts.ElapsedMs() > Qe)
                             LogManager.GetCurrentClassLogger().Warn($"q _pressure async = {async}, t = {ts.ElapsedMs()}ms");
                     }
                     else if(_backPressure != null) //something went wrong
@@ -335,7 +334,7 @@ namespace zero.core.patterns.queue
                         var async = true;
                         var ts = Environment.TickCount;
                         _backPressure.Release(ts, async);
-                        if (ts.ElapsedMs() > Q_E)
+                        if (ts.ElapsedMs() > Qe)
                             LogManager.GetCurrentClassLogger().Warn($"q _backPressure async = {async}, t = {ts.ElapsedMs()}ms");
                     }
                         
@@ -411,7 +410,7 @@ namespace zero.core.patterns.queue
                         var async = true;
                         var ts = Environment.TickCount;
                         _syncRoot.Release(Environment.TickCount, async);
-                        if (ts.ElapsedMs() > Q_E)
+                        if (ts.ElapsedMs() > Qe)
                             LogManager.GetCurrentClassLogger().Warn($"pb _syncRoot async = {async}, t = {ts.ElapsedMs()}ms");
                     }
 
@@ -421,7 +420,7 @@ namespace zero.core.patterns.queue
                         var async = true; //TRUE because 
                         var ts = Environment.TickCount;
                         _pressure.Release(ts, async);
-                        if (ts.ElapsedMs() > Q_E)
+                        if (ts.ElapsedMs() > Qe)
                             LogManager.GetCurrentClassLogger().Warn($"pb _pressure async = {async}, t = {ts.ElapsedMs()}ms");
                     }
                     else if(_backPressure != null)
@@ -430,7 +429,7 @@ namespace zero.core.patterns.queue
                         var async = true; //TRUE because 
                         var ts = Environment.TickCount;
                         _backPressure.Release(ts, async);
-                        if (ts.ElapsedMs() > Q_E)
+                        if (ts.ElapsedMs() > Qe)
                             LogManager.GetCurrentClassLogger().Warn($"pb _pressure async = {async}, t = {ts.ElapsedMs()}ms");
                     }
                 }
@@ -507,7 +506,7 @@ namespace zero.core.patterns.queue
                     var ts = Environment.TickCount;
                     bool async; //no deadlocks allowed
                     _syncRoot.Release(Environment.TickCount, async = true);
-                    if (ts.ElapsedMs() > Q_E)
+                    if (ts.ElapsedMs() > Qe)
                         LogManager.GetCurrentClassLogger().Warn($"dq _syncRoot async = {async}, t = {ts.ElapsedMs()}ms");
                 }
 
@@ -534,7 +533,7 @@ namespace zero.core.patterns.queue
                         var async = true; //TRUE, because FIFO!!!
                         var ts = Environment.TickCount;
                         _backPressure?.Release(ts, async);
-                        if (ts.ElapsedMs() > Q_E)
+                        if (ts.ElapsedMs() > Qe)
                             LogManager.GetCurrentClassLogger().Warn($"pb _backPressure async = {async}, t = {ts.ElapsedMs()}ms");
                     }
                 }

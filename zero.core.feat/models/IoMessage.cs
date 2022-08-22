@@ -165,7 +165,7 @@ namespace zero.core.feat.models
 
                     Interlocked.Add(ref BufferOffset, -bytesLeft);
 
-                    p.MemoryBuffer.Slice(p.BufferOffset, bytesLeft).CopyTo(MemoryBuffer.Slice(BufferOffset, MemoryBuffer.Length - BufferOffset));
+                    p.MemoryBuffer.Slice(p.BufferOffset, bytesLeft).CopyTo(MemoryBuffer[BufferOffset..]);
                 }
                 else
                 {

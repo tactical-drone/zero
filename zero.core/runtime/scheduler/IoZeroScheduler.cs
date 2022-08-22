@@ -170,16 +170,16 @@ namespace zero.core.runtime.scheduler
         private int _asyncTaskTime;
         
         private int _taskQueueCapacity;
-        private int _asyncFallbackCapacity;
+        private readonly int _asyncFallbackCapacity; //TODO: Autogrow
 
         private int _asyncTaskWithContextCapacity;
-        private int _asyncTaskCapacity;
-        
+        private readonly int _asyncTaskCapacity;//TODO: Autogrow
+
         private int _asyncCallbackWithContextCapacity;
 
-        private int _asyncForkCapacity;
-        private int _forkCapacity;
-        
+        private readonly int _asyncForkCapacity;//TODO: Autogrow
+        private readonly int _forkCapacity;//TODO: Autogrow
+
         private int _disposed;
         public bool Zeroed => _disposed > 0;
 
@@ -206,7 +206,7 @@ namespace zero.core.runtime.scheduler
         private long _forkCount;
         
         private readonly TaskScheduler _fallbackScheduler;
-        private bool _native;
+        private readonly bool _native;
 
 
         public int RLength => _taskQueue.ReadyCount;
@@ -233,7 +233,7 @@ namespace zero.core.runtime.scheduler
                 _ = Task.Factory.StartNew(static async state =>
                 {
                     var (@this, i) = (ValueTuple<IoZeroScheduler, int>)state;
-                    await @this.HandleAsyncFallback(i).ConfigureAwait(false);
+                    await @this.HandleAsyncFallback().ConfigureAwait(false);
                 }, (this, i), CancellationToken.None, TaskCreationOptions.LongRunning | TaskCreationOptions.HideScheduler, Default);
             }
 
@@ -243,7 +243,7 @@ namespace zero.core.runtime.scheduler
                 _ = Task.Factory.StartNew(static async state =>
                 {
                     var (@this, i) = (ValueTuple<IoZeroScheduler, int>)(state);
-                    await @this.HandleAsyncValueTaskWithContext(i).FastPath();
+                    await @this.HandleAsyncValueTaskWithContext().FastPath();
                 }, (this, i), CancellationToken.None, TaskCreationOptions.LongRunning, ZeroDefault);
             }
 
@@ -253,7 +253,7 @@ namespace zero.core.runtime.scheduler
                 _ = Task.Factory.StartNew(static async state =>
                 {
                     var (@this, i) = (ValueTuple<IoZeroScheduler, int>)(state);
-                    await @this.HandleAsyncValueTask(i).FastPath();
+                    await @this.HandleAsyncValueTask().FastPath();
                 }, (this, i), CancellationToken.None, TaskCreationOptions.LongRunning, ZeroDefault);
             }
 
@@ -263,7 +263,7 @@ namespace zero.core.runtime.scheduler
                 _ = Task.Factory.StartNew(static async state =>
                 {
                     var (@this, i) = (ValueTuple<IoZeroScheduler, int>)(state);
-                    await @this.HandleAsyncCallback(i).FastPath();
+                    await @this.HandleAsyncCallback().FastPath();
                 }, (this, i), CancellationToken.None, TaskCreationOptions.LongRunning, ZeroDefault);
             }
 
@@ -273,7 +273,7 @@ namespace zero.core.runtime.scheduler
                 _ = Task.Factory.StartNew(static async state =>
                 {
                     var (@this, i) = (ValueTuple<IoZeroScheduler, int>)state;
-                    await @this.ForkAsyncCallbacks(i).ConfigureAwait(false);
+                    await @this.ForkAsyncCallbacks().ConfigureAwait(false);
                 }, (this, i), CancellationToken.None, TaskCreationOptions.LongRunning, ZeroDefault);
             }
 
@@ -283,7 +283,7 @@ namespace zero.core.runtime.scheduler
                 _ = Task.Factory.StartNew(static async state =>
                 {
                     var (@this, i) = (ValueTuple<IoZeroScheduler, int>)state;
-                    await @this.ForkCallbacks(i).FastPath();
+                    await @this.ForkCallbacks().FastPath();
                 }, (this, i), CancellationToken.None, TaskCreationOptions.LongRunning, ZeroDefault);
             }
         }
@@ -336,7 +336,7 @@ namespace zero.core.runtime.scheduler
             }
         }
 
-        private async ValueTask HandleAsyncFallback(int threadIndex)
+        private async ValueTask HandleAsyncFallback()
         {
             TrackInit();
             while (!_asyncTasks.IsCancellationRequested)
@@ -365,7 +365,7 @@ namespace zero.core.runtime.scheduler
             }
         }
 
-        private async ValueTask HandleAsyncValueTaskWithContext(int threadIndex)
+        private async ValueTask HandleAsyncValueTaskWithContext()
         {
             TrackInit();
             while (!_asyncTasks.IsCancellationRequested)
@@ -381,7 +381,7 @@ namespace zero.core.runtime.scheduler
                 catch when (Zeroed) { }
                 catch (Exception e) when (!Zeroed)
                 {
-                    LogManager.GetCurrentClassLogger().Error(e);
+                    LogManager.GetCurrentClassLogger().Trace(e);
                 }
                 finally
                 {
@@ -392,7 +392,7 @@ namespace zero.core.runtime.scheduler
             }
         }
 
-        private async ValueTask HandleAsyncCallback(int threadIndex)
+        private async ValueTask HandleAsyncCallback()
         {
             TrackInit();
             while (!_asyncTasks.IsCancellationRequested)
@@ -418,7 +418,7 @@ namespace zero.core.runtime.scheduler
                 }
             }
         }
-        private async ValueTask HandleAsyncValueTask(int threadIndex)
+        private async ValueTask HandleAsyncValueTask()
         {
             TrackInit();
             while (!_asyncTasks.IsCancellationRequested)
@@ -446,7 +446,7 @@ namespace zero.core.runtime.scheduler
             }
         }
 
-        private async ValueTask ForkAsyncCallbacks(int threadIndex)
+        private async ValueTask ForkAsyncCallbacks()
         {
             TrackInit();
             while (!_asyncTasks.IsCancellationRequested)
@@ -470,7 +470,7 @@ namespace zero.core.runtime.scheduler
             }
         }
 
-        private async ValueTask ForkCallbacks(int threadIndex)
+        private async ValueTask ForkCallbacks()
         {
             TrackInit();
             while (!_asyncTasks.IsCancellationRequested)
@@ -551,7 +551,7 @@ namespace zero.core.runtime.scheduler
                         _ = Task.Factory.StartNew(static async state =>
                             {
                                 var (@this, i) = (ValueTuple<IoZeroScheduler, int>)state;
-                                await @this.HandleAsyncValueTaskWithContext(i).FastPath();
+                                await @this.HandleAsyncValueTaskWithContext().FastPath();
                             }, (@this, Interlocked.Increment(ref @this._asyncTaskWithContextCapacity)),
                             CancellationToken.None,
                             TaskCreationOptions.LongRunning, ZeroDefault);
@@ -561,7 +561,7 @@ namespace zero.core.runtime.scheduler
                         _ = Task.Factory.StartNew(static async state =>
                         {
                             var (@this, i) = (ValueTuple<IoZeroScheduler, int>)(state);
-                            await @this.HandleAsyncCallback(i).FastPath();
+                            await @this.HandleAsyncCallback().FastPath();
                         }, (@this, Interlocked.Increment(ref @this._asyncCallbackWithContextCapacity)), CancellationToken.None, TaskCreationOptions.LongRunning, ZeroDefault);
                         
 
@@ -607,9 +607,7 @@ namespace zero.core.runtime.scheduler
             try
             {
                 t.RunSynchronously(target);
-#pragma warning disable VSTHRD002 // Avoid problematic synchronous waits
                 return t.Result;
-#pragma warning restore VSTHRD002 // Avoid problematic synchronous waits
             }
             catch
             {
@@ -619,16 +617,16 @@ namespace zero.core.runtime.scheduler
             finally { t.Dispose(); }
         }
 
-        /// <summary>
-        /// returns a diagnostic result back into the heap
-        /// </summary>
-        /// <param name="value"></param>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public void Return(List<int> value)
-        {
-            //if(!Zeroed) 
-            //    _diagnosticsHeap.Return(value);
-        }
+        ///// <summary>
+        ///// returns a diagnostic result back into the heap
+        ///// </summary>
+        ///// <param name="value"></param>
+        //[MethodImpl(MethodImplOptions.AggressiveInlining)]
+        //public void Return(List<int> value)
+        //{
+        //    if(!Zeroed) 
+        //        _diagnosticsHeap.Return(value);
+        //}
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public bool QueueCallback(Action<object> callback, object state)

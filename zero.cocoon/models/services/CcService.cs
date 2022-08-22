@@ -5,17 +5,13 @@
     /// </summary>
     public class CcService
     {
-        public CcRecord CcRecord = new CcRecord();
-        public CcService()
-        {
-            
-        }
+        public CcRecord CcRecord = new ();
 
         public enum Keys
         {
-            peering,
-            fpc,
-            gossip
+            Peering,
+            Fpc,
+            Gossip
         }
     }
 }

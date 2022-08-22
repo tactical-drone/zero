@@ -38,11 +38,7 @@ namespace zero.core.patterns.misc
         /// <param name="task">The value task to be fast pathed</param>
         /// <returns>The result of the async op</returns>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-#pragma warning disable VSTHRD200 // Use "Async" suffix for async methods
-#pragma warning disable VSTHRD103 // Call async methods when in an async method
         public static ValueTask<T> FastPath<T>(this ValueTask<T> task) => task.IsCompletedSuccessfully ? new ValueTask<T>(task.Result) : task;
-#pragma warning restore VSTHRD103 // Call async methods when in an async method
-#pragma warning restore VSTHRD200 // Use "Async" suffix for async methods
 
         /// <summary>
         /// Fast path for value tasks
@@ -51,9 +47,7 @@ namespace zero.core.patterns.misc
         /// <param name="task">The value task to be fast pathed</param>
         /// <returns>The result of the async op</returns>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-#pragma warning disable VSTHRD200 // Use "Async" suffix for async methods
         public static ValueTask FastPath(this ValueTask task) => task.IsCompletedSuccessfully ? default : task;
-#pragma warning restore VSTHRD200 // Use "Async" suffix for async methods
 
         /// <summary>
         /// Block on a token until cancelled (wait one causes problems)

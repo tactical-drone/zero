@@ -57,7 +57,7 @@ namespace zero.core.misc
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		public static bool operator ==(long one, IoInt64 two)
 		{
-            if ((object)two == null)
+            if (two == null)
                 return false;
 
 			return one == two._value;
@@ -66,7 +66,7 @@ namespace zero.core.misc
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		public static bool operator !=(long one, IoInt64 two)
         {
-            if ((object)two == null)
+            if (two == null)
                 return false;
 
 			return one != two._value;
@@ -75,10 +75,10 @@ namespace zero.core.misc
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		public static bool operator ==(IoInt64 one, IoInt64 two)
 		{
-            if ((object)one == null || (object)two == null)
-                return (object)one == (object)two;
+            if (one == null || two == null)
+                return one == two;
 
-            if ((object)one == (object)two)
+            if (one == two)
                 return true;
 
 			return one._value == two._value;
@@ -87,7 +87,7 @@ namespace zero.core.misc
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		public static bool operator !=(IoInt64 one, IoInt64 two)
         {
-            if ((object)one == null || (object)two == null)
+            if (one == null || two == null)
                 return false;
             
             return one._value != two._value;

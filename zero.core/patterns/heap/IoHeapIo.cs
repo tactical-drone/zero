@@ -38,13 +38,13 @@ namespace zero.core.patterns.heap
         public async ValueTask<TItem> TakeAsync<TLocalContext>(Func<TItem, TLocalContext, ValueTask<TItem>> localReuse = null, TLocalContext userData = default)
         {
             TItem next = null;
-            var heapItem = Make(userData);
+            var (item, malloc) = Make(userData);
             try
             {
-                if ((next = heapItem.item) == null) 
+                if ((next = item) == null) 
                     return null;
 
-                if (heapItem.malloc && await next.HeapConstructAsync(userData).FastPath() == null)
+                if (malloc && await next.HeapConstructAsync(userData).FastPath() == null)
                 {
                     throw new InvalidOperationException($"{nameof(next.HeapConstructAsync)} FAILED: ");
                 }

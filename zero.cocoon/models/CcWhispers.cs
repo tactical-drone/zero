@@ -471,7 +471,7 @@ namespace zero.cocoon.models
 
                         if (CcCollective.DupChecker.Count > CcCollective.DupHeap.Capacity * 4 / 5)
                         {
-                            var culled = CcCollective.DupChecker.Keys.Where(k => k < req - CcCollective.DupPoolFPSTarget / 3).ToList();
+                            var culled = CcCollective.DupChecker.Keys.Where(k => k < req - CcCollective.DupPoolFpsTarget / 3).ToList();
                             foreach (var mId in culled)
                             {
                                 if (CcCollective.DupChecker.TryRemove(mId, out var del))

@@ -334,8 +334,7 @@ namespace zero.cocoon.autopeer
             private set => Interlocked.Exchange(ref _attachTimestamp, value);
         }
 
-
-        private volatile IoNodeAddress _remoteAddress;
+        private readonly IoNodeAddress _remoteAddress;
         /// <summary>
         /// The adjunct address
         /// </summary>
