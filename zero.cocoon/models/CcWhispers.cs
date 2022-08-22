@@ -35,7 +35,7 @@ namespace zero.cocoon.models
             _sendBuf = new IoHeap<byte[]>($"{nameof(_sendBuf)}: {Description}", 32, (_, _) => new byte[32], true);
 
             retry:
-            if (Source.ObjectStorage.TryGetValue(Source.Serial.ToString(), out var nextBatch))
+            if (Source?.ObjectStorage?.TryGetValue(Source.Serial.ToString(), out var nextBatch)??false)
             {
                 if (!Source.ObjectStorage.TryAdd(Source.Serial.ToString(), _logBatchNext))
                 {

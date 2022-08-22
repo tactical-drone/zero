@@ -5,27 +5,21 @@ using System.Threading;
 
 namespace zero.core.patterns.queue.enumerator
 {
-    public class IoQEnumerator<T>: IoEnumBase<T> 
-        //where T : class
+    public class IoBagEnumerator<T>: IoEnumBase<T>
     {
-        private IoZeroQ<T> ZeroQ => (IoZeroQ<T>)Collection;
+        private IoBag<T> ZeroQ => (IoBag<T>)Collection;
         private long _cur = -1;
         //private long _iteratorCount;
 
-        public IoQEnumerator(IoZeroQ<T> zeroQ):base(zeroQ)
+        public IoBagEnumerator(IoBag<T> bag):base(bag)
         {
             Reset();
         }
 
-        public IoQEnumerator(IoBag<T> zeroQ) : base(zeroQ)
-        {
-            
-        }
-
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public IoQEnumerator<T> Reuse(IoZeroQ<T> zeroQ)
+        public IoBagEnumerator<T> Reuse(IoBag<T> bag)
         {
-            return Interlocked.CompareExchange(ref Disposed, 0, 1) != 1 ? new IoQEnumerator<T>(zeroQ) : this;
+            return Interlocked.CompareExchange(ref Disposed, 0, 1) != 1 ? new IoBagEnumerator<T>(bag) : this;
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]

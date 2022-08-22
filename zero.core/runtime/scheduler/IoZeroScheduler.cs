@@ -41,10 +41,10 @@ namespace zero.core.runtime.scheduler
             //_asyncCallbackWithContextCapacity = _asyncTaskCapacity = _asyncTaskWithContextCapacity = _taskQueueCapacity * 2;
             //_asyncFallbackCapacity = _forkCapacity = _asyncCallbackWithContextCapacity * 2;
 
-            _taskQueueCapacity = Environment.ProcessorCount * 4 * 10;
+            _taskQueueCapacity = Environment.ProcessorCount * 4 * 5;
             _asyncFallbackCapacity = _taskQueueCapacity;
 
-            _asyncTaskWithContextCapacity = _taskQueueCapacity / 2;
+            _asyncTaskWithContextCapacity = _taskQueueCapacity;
             _asyncTaskCapacity = _taskQueueCapacity / 2;
 
             _asyncCallbackWithContextCapacity = _taskQueueCapacity / 5;

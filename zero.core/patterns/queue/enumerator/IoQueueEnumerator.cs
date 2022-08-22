@@ -46,7 +46,7 @@ namespace zero.core.patterns.queue.enumerator
         public sealed override void Reset()
         {
             var node = new IoQueue<T>.IoZNode { Next = Q.Head };
-            Interlocked.Exchange<IoQueue<T>.IoZNode>(ref _iteratorIoZNode, node);
+            Interlocked.Exchange(ref _iteratorIoZNode, node);
         }
 
         public override IoQueue<T>.IoZNode Current => _iteratorIoZNode;

@@ -24,7 +24,7 @@ namespace zero.core.patterns.semaphore.core
     /// Because this core is supposed to be interchangeable with <see cref="IoZeroSemaphore{T}"/> that does need it, the interface is derived from here.
     /// This should be a standalone struct with no derivations
     /// </summary>
-    /// <typeparam name="T">The type that this primitive marshals</typeparam>
+    /// <typeparam name="T">The type that this semaphore marshals</typeparam>
     [StructLayout(LayoutKind.Auto)]
     public struct IoZeroCore<T>:IIoZeroSemaphoreBase<T>
     {
@@ -48,7 +48,7 @@ namespace zero.core.patterns.semaphore.core
             _primeContext = null;
             _asyncTasks = asyncTasks;
             
-            _ensureCriticalRegion = (_ready = ready) == 1; //a mutex will always have a 1 here
+            _ensureMutex = (_ready = ready) == 1; //a mutex will always have a 1 here
         }
 
         public IIoZeroSemaphoreBase<T> ZeroRef(ref IIoZeroSemaphoreBase<T> @ref, Func<object, T> primeResult = default,
@@ -96,7 +96,7 @@ namespace zero.core.patterns.semaphore.core
         private readonly IoZeroQ<IIoManualResetValueTaskSourceCore<T>> _blockingCores;
         private readonly IoZeroQ<T> _results;
         private int _racedResultSyncRoot;
-        private T _racedResult;
+        private T _lifoQ;
         private readonly IoBag<IIoManualResetValueTaskSourceCore<T>> _heapCore;
         private readonly CancellationTokenSource _asyncTasks;
         private Func<object, T> _primeReady;
@@ -105,7 +105,7 @@ namespace zero.core.patterns.semaphore.core
         private readonly int _capacity;
         private volatile int _zeroed;
         private readonly int _ready;
-        private readonly bool _ensureCriticalRegion;
+        private readonly bool _ensureMutex;
         #endregion
 
         #region Properties
@@ -151,7 +151,7 @@ namespace zero.core.patterns.semaphore.core
                 spinWait.SpinOnce();
             }
 
-            //wait for the blocking core to synchronize with release
+            //wait for the blocking core to synchronize
             while (blockingCore.SyncRoot == SyncWait)
             {
                 if (Zeroed())
@@ -165,7 +165,7 @@ namespace zero.core.patterns.semaphore.core
                     blockingCore.RunContinuationsAsynchronously = forceAsync;
                     blockingCore.SetResult(value);
                     return true;
-                case SyncRace://discard the core
+                case SyncRace://discard the core (also from the heap)
                     goto retry;
             }
 
@@ -190,24 +190,27 @@ namespace zero.core.patterns.semaphore.core
             if (_results.Count >= Capacity && _blockingCores.Count == 0) //TODO: if the semaphore is full, but there are waiters hanging around... unblock one. Seems legit
                 return false;
 
-            //fast path
+            //try fast path
             if (!(_results.Count == 0 && _racedResultSyncRoot == 0 && Unblock(value, forceAsync)))
             {
                 //slow path
                 unBanked = _results.TryEnqueue(value) < 0;
 
+                //track overflow
                 if (unBanked)
                 {
                     if (Zeroed())
                         return false;
 
                     if (_blockingCores.Count == 0)
-                        return false;
+                        return false; //TODO: Overflow should we throw instead?
                 }
 
                 var spinWait = new SpinWait();
-                var raced = false;
+                var lifo = false;
                 T nextResult = default;
+
+                //poll LIFO Q - This Q allows us to split the result and blocking queues in 2, lessening the lock contention rates
                 if (_racedResultSyncRoot > 0)
                 {
                     while (Interlocked.CompareExchange(ref _racedResultSyncRoot, 0, 2) != 2)
@@ -217,24 +220,25 @@ namespace zero.core.patterns.semaphore.core
 
                         spinWait.SpinOnce();
                     }
-                    raced = true;
-                    nextResult = _racedResult;
+                    lifo = true;
+                    nextResult = _lifoQ;
                 }
 
-                //drain the Q
-                while (_blockingCores.Count > 0 && (raced || _results.TryDequeue(out nextResult)))
+                //Attempt to unblock a waiter (using possible lifo Q result)
+                retryOnRace:
+                if (_blockingCores.Count > 0 && (lifo || _results.TryDequeue(out nextResult)))
                 {
                     if (!Unblock(nextResult, forceAsync))
                     {
-                        raced = true;
-                        continue;
+                        lifo = true;
+                        goto retryOnRace;
                     }
 
-                    raced = false;
+                    lifo = false;
                 }
 
-                //did we race and loose?
-                if (raced)
+                //did we race and loose? Our main Q cannot LIFO, so we create a small (size 1) LIFO Q here. 
+                if (lifo)
                 {
                     while (Interlocked.CompareExchange(ref _racedResultSyncRoot, 1, 0) != 0)
                     {
@@ -244,7 +248,7 @@ namespace zero.core.patterns.semaphore.core
                     }
 
                     //fast track next result
-                    _racedResult = nextResult;
+                    _lifoQ = nextResult;
                     Interlocked.Exchange(ref _racedResultSyncRoot, 2);
                 }
             }
@@ -273,7 +277,7 @@ namespace zero.core.patterns.semaphore.core
                 return true;
             }
 
-            //fetch a core from the heap
+            //prepare a core from the heap
             if (!_heapCore.TryDequeue(out var blockingCore))
             {
                 blockingCore = new IoManualResetValueTaskSourceCore<T> { AutoReset = true, RunContinuationsAsynchronouslyAlways = ZeroAsyncMode};
@@ -287,18 +291,7 @@ namespace zero.core.patterns.semaphore.core
 
             Debug.Assert(blockingCore != null);
 
-            //fast jit, in case a result came in while we were preparing to block
-            if (_blockingCores.Count == 0 && _results.TryDequeue(out var jitCore))
-            {
-                slowTaskCore = new ValueTask<T>(jitCore);
-                //TODO: Maybe free some memory every now and again so we don't return the racing core to the heap?
-                //_heapCore.TryEnqueue(blockingCore); 
-                return true;
-            }
-
-            blockingCore.SyncRoot = _ensureCriticalRegion? SyncWait : SyncReady;
-
-            slowTaskCore = new ValueTask<T>(blockingCore, 0);
+            blockingCore.SyncRoot = _ensureMutex? SyncWait : SyncReady;
 
             //prepare to synchronize with release
             var spinWait = new SpinWait();
@@ -312,7 +305,7 @@ namespace zero.core.patterns.semaphore.core
                 spinWait.SpinOnce();
             }
 
-            if (_ensureCriticalRegion)
+            if (_ensureMutex)
             {
                 //ensure critical region - last ditched attempt to access the fast path on racing result
                 if ((_results.Count <= 1 || _results.Count == Capacity) && _results.TryDequeue(out var racedResult))
@@ -322,13 +315,18 @@ namespace zero.core.patterns.semaphore.core
                     return true;
                 }
 
-                //important critical region insane checks
-                //Debug.Assert(!_ensureCriticalRegion || _results.Count < 1 || Zeroed(), Description);
-
                 //block the core by synchronizing with release
                 blockingCore.SyncRoot = SyncReady;
             }
-
+            else if(_results.Count == Capacity && _blockingCores.Count == Capacity && _results.TryDequeue(out var saturatedResult)) //unstuck full semaphore
+            {
+                blockingCore.SyncRoot = SyncRace;
+                slowTaskCore = new ValueTask<T>(saturatedResult);
+                return true;
+            }
+            
+            //No results pending, we block
+            slowTaskCore = new ValueTask<T>(blockingCore, 0);
             return true;
         }
 #endregion

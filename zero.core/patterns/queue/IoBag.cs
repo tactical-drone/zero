@@ -432,7 +432,7 @@ namespace zero.core.patterns.queue
             //_curEnumerator = (IoQEnumerator<T>)_curEnumerator.Reuse(this, b => new IoQEnumerator<T>((IoZeroQ<T>)b));
             //return _curEnumerator;
             //return _curEnumerator = new IoQEnumerator<T>(this);
-            return new IoQEnumerator<T>(this);
+            return new IoBagEnumerator<T>(this);
         }
 
         /// <summary>

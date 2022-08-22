@@ -82,7 +82,7 @@ namespace zero.core.patterns.bushings
         {
             _description = description;
             Source = source;
-            var capacity = (Source.PrefetchSize + Source.ZeroConcurrencyLevel()) + 1;
+            var capacity = Source.PrefetchSize + Source.ZeroConcurrencyLevel() + 1;
 
             //These numbers were numerically established
             if (ZeroRecoveryEnabled)
@@ -91,15 +91,9 @@ namespace zero.core.patterns.bushings
             try
             {
                 //TODO tuning
-                //_queue = new IoZeroQ<IoSink<TJob>>($"zero Q: {_description}", capacity, asyncTasks:AsyncTasks, concurrencyLevel: capacity, zeroAsyncMode:false);
+                
                 _queue = new IoZeroSemaphoreChannel<IoSink<TJob>>($"zero Q: {_description}",capacity, zeroAsyncMode:false);//FALSE
-                //_queue = Channel.CreateBounded<IoSink<TJob>>(new BoundedChannelOptions(capacity * 2)
-                //{
-                //    SingleWriter = false,
-                //    SingleReader = false,
-                //    AllowSynchronousContinuations = false,
-                //    FullMode = BoundedChannelFullMode.DropNewest
-                //});
+                
 
                 JobHeap = new IoHeapIo<IoSink<TJob>>($"{nameof(JobHeap)}: {_description}", capacity, jobMalloc) {
                     Constructor = (sink, zero) =>
@@ -310,16 +304,19 @@ namespace zero.core.patterns.bushings
         {
             await base.ZeroManagedAsync().FastPath();
 
-            await Source.DisposeAsync(this, $"{nameof(ZeroManagedAsync)}: teardown").FastPath();
+            if(Source != null) //TODO: how can this be?
+                await Source.DisposeAsync(this, $"{nameof(ZeroManagedAsync)}: teardown").FastPath();
 
-            //await _queue.ZeroManagedAsync(static async (sink, @this) => await sink.DisposeAsync(@this, $"{nameof(ZeroManagedAsync)}: teardown").FastPath(), this,zero: true).FastPath();
-            _queue.ZeroSem();
+            _queue?.ZeroSem();
 
-            await JobHeap.ZeroManagedAsync(static async (sink, @this) =>
+            if (JobHeap != null)
             {
-                await sink.DisposeAsync(@this, $"{nameof(ZeroManagedAsync)}: teardown").FastPath();
-            },this).FastPath();
-
+                await JobHeap.ZeroManagedAsync(static async (sink, @this) =>
+                {
+                    await sink.DisposeAsync(@this, $"{nameof(ZeroManagedAsync)}: teardown").FastPath();
+                }, this).FastPath();
+            }
+            
             if (_previousJobFragment != null)
             {
                 await _previousJobFragment.ZeroManagedAsync(static (sink, @this) => sink.Value.DisposeAsync(@this, $"{nameof(ZeroManagedAsync)}: teardown").FastPath(), this, zero: true).FastPath();
@@ -449,7 +446,6 @@ namespace zero.core.patterns.bushings
                     else //produce job returned with errors or nothing...
                     {
                         //how long did this failure take?
-                        ts = ts.ElapsedMs();
                         IsArbitrating = false;
 
                         if (nextJob.State == IoJobMeta.JobState.ProdSkipped)
@@ -466,11 +462,6 @@ namespace zero.core.patterns.bushings
 
                         //signal back pressure
                         Source.BackPressure(zeroAsync: true);
-
-                        ////Is the producer spinning? Slow it down
-                        //int throttleTime;
-                        //if((throttleTime = parm_min_failed_production_time - ts) > 0)
-                        //    await Task.Delay(throttleTime, AsyncTasks.Token);
 
                         // prefetch pressure
                         Source.PrefetchPressure(zeroAsync: false);

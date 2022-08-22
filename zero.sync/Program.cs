@@ -391,10 +391,10 @@ namespace zero.sync
             {
                 var t = j.RunAsync(async () =>
                 {
-                    await SemTestAsync();
-                    await QueueTestAsync();
+                    //await SemTestAsync();
+                    //await QueueTestAsync();
                     //await ZeroQTestAsync();
-                    //await BagTestAsync();
+                    await BagTestAsync();
                 });
                 t.Join();
             }
@@ -476,8 +476,8 @@ namespace zero.sync
             Console.WriteLine("Type 'help' for a list of test commands");
             
             //Tune dotnet for large tests
-            //ThreadPool.GetMinThreads(out var wt, out var cp);
-            //ThreadPool.SetMinThreads(wt * 3, cp * 2);
+            ThreadPool.GetMinThreads(out var wt, out var cp);
+            ThreadPool.SetMinThreads(wt * 3, cp * 2);
 
             //run tests
             //CoreTest();
@@ -828,7 +828,7 @@ namespace zero.sync
                         Console.WriteLine("gc             - Force a full generation garbage collect");
                         Console.WriteLine("L              - Display zero scheduler stats");
                         Console.WriteLine("t              - Display runtime scheduler stats");
-                        Console.WriteLine("q              - quit");
+                        Console.WriteLine("quit           - quit");
                     }
                 }
                 catch (Exception e)

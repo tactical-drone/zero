@@ -8,13 +8,13 @@ namespace zero.core.patterns.queue.enumerator
 {
     public abstract class IoEnumBase<T>: IEnumerator<T>
     {
-        protected volatile IEnumerable<T> Collection;
-        protected int Disposed = 0;
-        protected private int InUse = 0;
-        
+        protected IEnumerable<T> Collection;
+        protected int Disposed;
+
         protected IoEnumBase(IEnumerable<T> collection)
         {
             Collection = collection;
+            Interlocked.MemoryBarrier();
         }
 
         public bool Zeroed => Disposed > 0;
