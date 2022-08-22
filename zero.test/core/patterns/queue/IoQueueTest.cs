@@ -174,7 +174,9 @@ namespace zero.test.core.patterns.queue{
         }
 
         [Fact]
-        async Task SpamTestAsync()
+#pragma warning disable IDE0051 // Remove unused private members
+        private async Task SpamTestAsync()
+#pragma warning restore IDE0051 // Remove unused private members
         {
             var concurrentTasks = new List<Task>();
 #if DEBUG
@@ -327,31 +329,33 @@ namespace zero.test.core.patterns.queue{
         }
 
         //[Fact]
-        async Task AutoScaleAsync()
-        {
-            await Task.Yield();
-            var q = new IoQueue<int>("test Q", 2, 1, IoQueue<int>.Mode.DynamicSize);
-            await q.EnqueueAsync(0);
-            await q.EnqueueAsync(1);
-            await q.EnqueueAsync(2);
-            await q.EnqueueAsync(3);
-            await q.EnqueueAsync(4);
+        //async Task AutoScaleAsync()
+        //{
+        //    await Task.Yield();
+        //    var q = new IoQueue<int>("test Q", 2, 1, IoQueue<int>.Mode.DynamicSize);
+        //    await q.EnqueueAsync(0);
+        //    await q.EnqueueAsync(1);
+        //    await q.EnqueueAsync(2);
+        //    await q.EnqueueAsync(3);
+        //    await q.EnqueueAsync(4);
 
-            await q.DequeueAsync();
-            await q.DequeueAsync();
-            await q.DequeueAsync();
-            await q.DequeueAsync();
-            await q.DequeueAsync();
+        //    await q.DequeueAsync();
+        //    await q.DequeueAsync();
+        //    await q.DequeueAsync();
+        //    await q.DequeueAsync();
+        //    await q.DequeueAsync();
 
-            Assert.Equal(15, q.Capacity);
-        }
+        //    Assert.Equal(15, q.Capacity);
+        //}
 
         private IoQueue<IoInt32> _queuePressure = null!;
         private Task _queueNoBlockingTask = null!;
         private CancellationTokenSource _blockCancellationSignal = null!;
 
         [Fact]
-        async Task NoQueuePressureAsync()
+#pragma warning disable IDE0051 // Remove unused private members
+        private async Task NoQueuePressureAsync()
+#pragma warning restore IDE0051 // Remove unused private members
         {
             
             _blockCancellationSignal = new CancellationTokenSource();
@@ -400,7 +404,9 @@ namespace zero.test.core.patterns.queue{
         }
 
         [Fact]
-        async Task QueuePressureAsync()
+#pragma warning disable IDE0051 // Remove unused private members
+        private async Task QueuePressureAsync()
+#pragma warning restore IDE0051 // Remove unused private members
         {
             _blockCancellationSignal = new CancellationTokenSource();
             _queuePressure = new IoQueue<IoInt32>("test Q", 1, 2, IoQueue<IoInt32>.Mode.Pressure);
@@ -458,7 +464,9 @@ namespace zero.test.core.patterns.queue{
         }
 
         [Fact]
-        async Task QueueBackPressureAsync()
+#pragma warning disable IDE0051 // Remove unused private members
+        private async Task QueueBackPressureAsync()
+#pragma warning restore IDE0051 // Remove unused private members
         {
             _blockCancellationSignal = new CancellationTokenSource();
             _queuePressure = new IoQueue<IoInt32>("test Q", 10, 1, IoQueue<IoInt32>.Mode.BackPressure | IoQueue<IoInt32>.Mode.Pressure);
@@ -485,7 +493,6 @@ namespace zero.test.core.patterns.queue{
                 s = Environment.TickCount;
                 item = await @this._queuePressure.DequeueAsync().FastPath();
                 Assert.InRange(s.ElapsedMs(), 100 - 16, 2000);
-                Assert.NotNull(item);
 
                 await Task.Delay(100);
 
@@ -512,8 +519,8 @@ namespace zero.test.core.patterns.queue{
                 var @this = (IoQueueTest)state!;
                 var s = Environment.TickCount;
                 await Task.Delay(100, @this._blockCancellationSignal.Token);
-                _ = @this._queuePressure.EnqueueAsync(1).FastPath();
-                Assert.InRange(s.ElapsedMs(),  100- 16, 10000);
+                await @this._queuePressure.EnqueueAsync(1).FastPath();
+                Assert.InRange(s.ElapsedMs(),  100 - 16, 10000);
                 //blocking
                 //_ = @this._queuePressure.EnqueueAsync(1).FastPath();
 
@@ -543,7 +550,9 @@ namespace zero.test.core.patterns.queue{
         const int Concurrency = 10;
         const int NrOfItems = Concurrency * 10;
         [Fact]
-        async Task QueueBackPressureBlockingAsync()
+#pragma warning disable IDE0051 // Remove unused private members
+        private async Task QueueBackPressureBlockingAsync()
+#pragma warning restore IDE0051 // Remove unused private members
         {
             
             _blockCancellationSignal = new CancellationTokenSource();
@@ -639,11 +648,6 @@ namespace zero.test.core.patterns.queue{
                     .WithTimeout(TimeSpan.FromMilliseconds(BlockDelay * NrOfItems / Concurrency * 4));
             }
             catch(TaskCanceledException){}
-            catch(Exception e)
-            {
-                throw e;
-            }
-
         }
 
         public class Context : IDisposable

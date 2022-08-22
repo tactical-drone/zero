@@ -2130,13 +2130,6 @@ namespace zero.cocoon.autopeer
             Drone = 1 << 0,
         }
 
-#if DEBUG
-        /// <summary>
-        /// dbg info
-        /// </summary>
-        private CcAdjunct _sibling;
-
-#endif
         private volatile bool _eventStreamAdded;
 
         /// <summary>
@@ -2596,12 +2589,7 @@ namespace zero.cocoon.autopeer
                 {
                     if (ZeroProbes > parm_zombie_max_connection_attempts)
                     {
-#if DEBUG
-                        await DisposeAsync(this, $"drone left, T = {TimeSpan.FromMilliseconds(UpTime.ElapsedMs()).TotalMinutes:0.0}min ~ {_sibling?.UpTime.ElapsedMsToSec()/60.0:0.0}min, {_sibling?.Description}").FastPath();
-#else
                         await DisposeAsync(this, $"wd: s = {SecondsSincePat}, probed = {ZeroProbes} << {parm_zombie_max_connection_attempts}, T = {TimeSpan.FromMilliseconds(UpTime.ElapsedMs()).TotalMinutes:0.0}min");
-#endif
-
                         return false;
                     }
 
