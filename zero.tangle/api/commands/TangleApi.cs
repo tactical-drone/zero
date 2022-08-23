@@ -1,4 +1,4 @@
-﻿using zero.core.api.commands;
+﻿
 // ReSharper disable ObjectCreationAsStatement
 
 namespace zero.tangle.api.commands

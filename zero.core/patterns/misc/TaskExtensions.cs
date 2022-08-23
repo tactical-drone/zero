@@ -1,7 +1,9 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
+using zero.core.patterns.semaphore.core;
 
 namespace zero.core.patterns.misc
 {
@@ -11,40 +13,58 @@ namespace zero.core.patterns.misc
     public static class TaskExtensions
     {
         /// <summary>
-        /// Executes a task but interrupts it manually if cancellation is requested
+        /// Foreach async
         /// </summary>
-        /// <typeparam name="TResult">The type of the result.</typeparam>
-        /// <param name="asyncTask">The asynchronous task.</param>
-        /// <param name="cancellationToken">The cancellation token.</param>
-        /// <returns>The original task, or the cancellation task if this task was canceled</returns>
-        public static async Task<TResult> HandleCancellation<TResult>(
-            this Task<TResult> asyncTask,
-            CancellationToken cancellationToken)
-        {
-            var tcs = new TaskCompletionSource<TResult>();
-            var registration = cancellationToken.Register(() =>
-                tcs.TrySetCanceled(), false);
-            var cancellationTask = tcs.Task;
-
-            var readyTask = await Task.WhenAny(asyncTask, cancellationTask);
-            if (readyTask == cancellationTask)
-#pragma warning disable 4014
-
-            //TODO, what happens here?
-                asyncTask.ContinueWith(_ => asyncTask.Exception,
-#pragma warning restore 4014
-                    TaskContinuationOptions.OnlyOnFaulted |
-                    TaskContinuationOptions.ExecuteSynchronously);
-
-            registration.Dispose();
-
-            return await readyTask;
-        }
-
-        public static async Task ForEachAsync<T>(this List<T> enumerable, Action<T> action)
+        /// <param name="enumerable"></param>
+        /// <param name="action"></param>
+        /// <param name="nanite"></param>
+        /// <typeparam name="T"></typeparam>
+        /// <typeparam name="TN"></typeparam>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static async ValueTask ForEachAsync<T,TN>(this List<T> enumerable, Func<T, TN, ValueTask> action, TN nanite = default)
         {
             foreach (var item in enumerable)                
-                await Task.Run(() => { action(item); }).ConfigureAwait(false);
+                await Task.Factory.StartNew(static async state =>
+                {
+                    var (action, item, nanite) = (ValueTuple<Func<T,TN, ValueTask>, T, TN>)state;
+                    await action(item,nanite).FastPath();
+                }, ValueTuple.Create(action, item,nanite), CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Default);
         }
+
+        /// <summary>
+        /// Fast path for value tasks
+        /// </summary>
+        /// <typeparam name="T">The return type</typeparam>
+        /// <param name="task">The value task to be fast pathed</param>
+        /// <returns>The result of the async op</returns>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static ValueTask<T> FastPath<T>(this ValueTask<T> task) => task.IsCompletedSuccessfully ? new ValueTask<T>(task.Result) : task;
+
+        /// <summary>
+        /// Fast path for value tasks
+        /// </summary>
+        /// <typeparam name="T">The return type</typeparam>
+        /// <param name="task">The value task to be fast pathed</param>
+        /// <returns>The result of the async op</returns>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static ValueTask FastPath(this ValueTask task) => task.IsCompletedSuccessfully ? default : task;
+
+        /// <summary>
+        /// Block on a token until cancelled (wait one causes problems)
+        /// </summary>
+        /// <param name="token">The token to block on</param>
+        /// <returns>A ValueTask</returns>
+        public static async ValueTask BlockOnNotCanceledAsync(this CancellationToken token)
+        {
+            IIoManualResetValueTaskSourceCore<bool> source = new IoManualResetValueTaskSourceCore<bool>();
+            var waitForCancellation = new ValueTask<bool>(source, 0);
+            var reg = token.Register(static s =>
+            {
+                ((IIoManualResetValueTaskSourceCore<bool>)s).SetResult(true);
+            }, source);
+
+            await waitForCancellation.FastPath();
+            await reg.DisposeAsync().FastPath();
+        }        
     }    
 }

@@ -1,14 +1,13 @@
 ﻿using Microsoft.AspNetCore.Cors;
 using Microsoft.AspNetCore.Mvc;
-using zero.core.api;
-using zero.interop.entangled;
+using zero.core.feat.api;
+using zero.tangle.entangled;
 
 namespace zero.tangle.api.controllers.bootstrap
 {
-    [EnableCors("ApiCorsPolicy")]    
-    [ApiController]
+    [EnableCors("ApiCorsPolicy")]
     [Route("bootstrap")]
-    public class IoBootstrapController:Controller
+    public class IoBootstrapController: Controller
     {
         public IoBootstrapController()
         {
@@ -19,7 +18,7 @@ namespace zero.tangle.api.controllers.bootstrap
         [Route("kind")]
         public IoApiReturn Kind()
         {
-            if (IoEntangled<string>.Optimized)
+            if (Entangled<string>.Optimized)
                 return IoApiReturn.Result(true,"Using interop decoders", "");
             else
                 return IoApiReturn.Result(true, "Using native decoders", "/native");

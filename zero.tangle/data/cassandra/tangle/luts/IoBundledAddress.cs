@@ -3,12 +3,12 @@
     /// <summary>
     /// Gets the bundle from address
     /// </summary>
-    /// <typeparam name="TBlob"></typeparam>
-    public class IoBundledAddress<TBlob>
+    /// <typeparam name="TKey"></typeparam>
+    public class IoBundledAddress<TKey>
     {                
-        public TBlob Address { get; set; }
+        public TKey Address { get; set; }
         
-        public TBlob Bundle { get; set; }
+        public TKey Bundle { get; set; }
 
         public long Timestamp { get; set; }
     }

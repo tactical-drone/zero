@@ -1,13 +1,14 @@
 ﻿using System;
-using System.Text;
 using System.Threading.Tasks;
 using NLog;
 using zero.core.conf;
 using zero.core.core;
-using zero.core.models;
 using zero.core.network.ip;
-using zero.core.patterns.bushes.contracts;
+using zero.core.patterns.bushings.contracts;
+using zero.core.patterns.misc;
 using zero.tangle.data.redis.configurations.tangle;
+using zero.tangle.models;
+using zero.tangle.utils;
 
 namespace zero.tangle
 {
@@ -15,13 +16,14 @@ namespace zero.tangle
     /// Tangle Node type
     /// </summary>
     /// <typeparam name="TJob">Message job types</typeparam>
-    /// <typeparam name="TBlob">Type of the blob field</typeparam>
-    public class TangleNode<TJob,TBlob>:IoNode<TJob> 
-        where TJob : IIoWorker
+    /// <typeparam name="TKey">Type of the key field</typeparam>
+    public class TangleNode<TJob,TKey>:IoNode<TJob> 
+        where TJob : IIoJob
     {        
-        public TangleNode(IoNodeAddress address, Func<IoNode<TJob>, IoNetClient<TJob>, IoNeighbor<TJob>> mallocNeighbor, int tcpReadAhead) : base(address, mallocNeighbor, tcpReadAhead)
+        public TangleNode(IoNodeAddress address, Func<IoNode<TJob>, IoNetClient<TJob>, object, IoNeighbor<TJob>> mallocNeighbor, int tcpPrefetch) : base(address, mallocNeighbor, tcpPrefetch, 1, 16)
         {
-            _logger = LogManager.GetCurrentClassLogger();
+            _logger = LogManager.GetCurrentClassLogger();            
+            Milestones = new Milestone<TKey>(AsyncTasks.Token);
         }
 
         private readonly Logger _logger;
@@ -29,7 +31,9 @@ namespace zero.tangle
         /// <summary>
         /// The latest milestone seen
         /// </summary>
-        public IIoTransactionModel<TBlob> MilestoneTransaction { get; set; }
+        public IIoTransactionModel<TKey> LatestMilestoneTransaction { get; set; }
+
+        public Milestone<TKey> Milestones { get; protected set; }
 
         [IoParameter]
         public string parm_coo_address = "KPWCHICGJZXKE9GSUDXZYUAPLHAKAHYHDXNPHENTERYMMBQOPSQIDENXKLKCEYCPVTZQLEEJVYJZV9BWU";
@@ -38,15 +42,15 @@ namespace zero.tangle
         /// Start listener and connect back to any new connections
         /// </summary>
         /// <returns>Task</returns>
-        protected override Task SpawnListenerAsync(Action<IoNeighbor<TJob>> connectionReceivedAction = null)
-        {            
-            //PeerConnected += async (sender, ioNeighbor) => { await ConnectBackAsync(ioNeighbor); };
+        protected override async ValueTask SpawnListenerAsync<T>(Func<IoNeighbor<TJob>, T, ValueTask<bool>> connectionReceivedAction = null, T context = default, Func<ValueTask> bootstrapAsync = null)
+        {
+            //ConnectedEvent += async (sender, ioNeighbor) => { await ConnectBackAsync(ioNeighbor); };
 
-            return base.SpawnListenerAsync(async ioNeighbor =>
+            await base.SpawnListenerAsync(static async (ioNeighbor,@this) =>
             {
-                await ConnectBackAsync(ioNeighbor);
+                await @this.ConnectBackAsync(ioNeighbor);
 
-                var connectTask = IoTangleTransactionHashCache.Default();
+                var connectTask = IoTangleTransactionHashCache.DefaultAsync();
                 await connectTask.ContinueWith(r =>
                 {
                     switch (r.Status)
@@ -55,11 +59,12 @@ namespace zero.tangle
                         case TaskStatus.Faulted:
                             break;
                         case TaskStatus.RanToCompletion:
-                            ioNeighbor.PrimaryProducer.RecentlyProcessed = r.Result;
+                            ioNeighbor.Source.RecentlyProcessed = r.Result;
                             break;
                     }
                 });
-            });
+                return true;
+            },this, bootstrapAsync);
         }
 
         /// <summary>
@@ -71,47 +76,37 @@ namespace zero.tangle
         {            
             //TangleNode<TJob> node = (TangleNode<TJob>) sender;
             //TODO fix
-            var connectBackAddress = IoNodeAddress.Create(
-                $"tcp://{((IoNetClient<TJob>) ioNeighbor.PrimaryProducer).RemoteAddress.HostStr}:{((IoNetClient<TJob>) ioNeighbor.PrimaryProducer).ListenerAddress.Port}");
+            var connectBackAddress = IoNodeAddress.Create($"{((IoNetClient<TJob>) ioNeighbor.Source).IoNetSocket.RemoteNodeAddress}");
 #pragma warning disable 4014
-
+            
             if (!Neighbors.ContainsKey(connectBackAddress.Key))
             {
-                await SpawnConnectionAsync(connectBackAddress).ContinueWith(async newNeighbor =>
+                var newNeighbor = await ConnectAsync(connectBackAddress).FastPath().ConfigureAwait(false);
+                if (newNeighbor!= null)
                 {
-                    if (newNeighbor.Status == TaskStatus.RanToCompletion)
+                    await ((IoNetClient<TJob>) ioNeighbor.Source).ZeroSubAsync<object>(static (from, newNeighbor) =>
                     {
-                        if (newNeighbor.Result != null)
-                        {
-                            ((IoNetClient<TJob>) ioNeighbor.PrimaryProducer).Disconnected += (s, e) =>
-                            {
-                                newNeighbor.Result.Close();
-                            };
+                        ((IIoNanite)newNeighbor).Zero(@from, string.Empty).AsTask().GetAwaiter().GetResult();
+                        return new ValueTask<bool>(true);
+                    }, newNeighbor).FastPath().ConfigureAwait(false);
 
-                            if (newNeighbor.Result.PrimaryProducer.IsOperational)
-
-                                await newNeighbor.Result.PrimaryProducer.ProduceAsync(client =>
-                                {
-                                    //TODO
-                                    ((IoNetSocket) client)?.SendAsync(Encoding.ASCII.GetBytes("0000015600"), 0,
-                                        Encoding.ASCII.GetBytes("0000015600").Length);
-                                    return Task.FromResult(true);
-                                });
-                        }
-                        else
+                    if (newNeighbor.Source.IsOperational())
+                        await newNeighbor.Source.ProduceAsync<object>((client,_, _, _) =>
                         {
-                            _logger.Error($"Unable to connect back to `{connectBackAddress}'");
-                        }
-                    }
-                    else
-                    {
-                        _logger.Error(newNeighbor.Exception,
-                            $"Connect back to neighbor `{connectBackAddress}' returned with errors:");
-                    }
-                });
+                            //TODO
+                            // await ((IoNetSocket) client)?.SendAsync(Encoding.ASCII.GetBytes("0000015600"), 0,
+                            //     Encoding.ASCII.GetBytes("0000015600").Length).FastPath().ConfigureAwait(false);
+                            return new ValueTask<bool>(true);
+                        }, null, null, default).FastPath().ConfigureAwait(false);
+                }
+                else
+                {
+                    _logger.Error($"Unable to connect back to `{connectBackAddress}'");
+                }
             }
             else
             {
+
             }
 #pragma warning restore 4014
         }

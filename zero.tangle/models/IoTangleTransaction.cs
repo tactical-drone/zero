@@ -1,8 +1,8 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using System.Threading.Tasks;
-using NLog;
-using zero.core.models;
-using zero.core.patterns.bushes;
+using zero.core.patterns.bushings;
+using zero.core.patterns.bushings.contracts;
 using zero.tangle.models.sources;
 
 namespace zero.tangle.models
@@ -10,26 +10,24 @@ namespace zero.tangle.models
     /// <summary>
     /// Stores meta data used when consuming jobs of this kind
     /// </summary>    
-    /// <seealso cref="zero.core.patterns.bushes.contracts.IIoProducer" />
-    public class IoTangleTransaction<TBlob> : IoConsumable<IoTangleTransaction<TBlob>> 
+    /// <seealso cref="IIoSource" />
+    public class IoTangleTransaction<TKey> : IoSink<IoTangleTransaction<TKey>> 
     {
         /// <summary>
-        /// Initializes a new instance of the <see cref="IoTangleTransaction{TBlob}"/> class.
+        /// Initializes a new instance of the <see cref="IoTangleTransaction{TKey}"/> class.
         /// </summary>
-        /// <param name="source">The producer of these jobs</param>
-        /// <param name="waitForConsumerTimeout">The time we wait for the producer before reporting it</param>
-        public IoTangleTransaction(IoProducer<IoTangleTransaction<TBlob>> source, int waitForConsumerTimeout = 0) : base("forward", $"tangle transaction from: `{source.Description}'", source)
+        /// <param name="originatingSource">The originatingSource of these jobs</param>
+        /// <param name="waitForConsumerTimeout">The time we wait for the originatingSource before reporting it</param>
+        public IoTangleTransaction(IoSource<IoTangleTransaction<TKey>> originatingSource, int waitForConsumerTimeout = 0) 
+            : base("forward", $"{nameof(IoTangleTransaction<TKey>)}", originatingSource)
         {
-            _waitForConsumerTimeout = waitForConsumerTimeout;            
-            _logger = LogManager.GetCurrentClassLogger();            
+            _waitForConsumerTimeout = waitForConsumerTimeout;
         }
-
-        private readonly Logger _logger;
 
         /// <summary>
         /// The transaction that is ultimately consumed
         /// </summary>
-        public List<IIoTransactionModel<TBlob>> Transactions;
+        public List<IIoTransactionModel<TKey>> Transactions;
 
         /// <summary>
         /// How long to wait the consumer before logging it
@@ -42,51 +40,48 @@ namespace zero.tangle.models
         /// <returns>
         /// The state to indicated failure or success
         /// </returns>
-        public override async Task<State> ProduceAsync()
-        {
-            ProcessState = State.Producing;
-            await Producer.ProduceAsync(async producer =>
+        public override async ValueTask<IoJobMeta.JobState> ProduceAsync<T>(IIoSource.IoZeroCongestion<T> barrier,
+            T ioZero)
+        {            
+            await Source.ProduceAsync(static async (producer, consumeSync, ioZero, ioJob) =>
             {
-                if (Producer.ProducerBarrier == null)
-                {
-                    ProcessState = State.ProdCancel;
-                    return false;                    
-                }
-
-                if (!await Producer.ProducerBarrier.WaitAsync(_waitForConsumerTimeout, Producer.Spinners.Token))
-                {
-                    ProcessState = !Producer.Spinners.IsCancellationRequested ? State.ProduceTo : State.ProdCancel;
+                if (!await consumeSync(ioJob, ioZero))
                     return false;
-                }
-
-                if (Producer.Spinners.IsCancellationRequested)
-                {
-                    ProcessState = State.ProdCancel;
-                    return false;
-                }
                 
-                Transactions = ((IoTangleTransactionProducer<TBlob>)Producer).TxQueue.Take();
+                
+                ((IoTangleTransaction<TKey>)ioJob).Transactions = ((IoTangleTransactionSource<TKey>)ioJob.Source).TxQueue.Take();
 
-                ProcessState = State.Produced;
+                ((IoTangleTransaction<TKey>)ioJob).State = IoJobMeta.JobState.Produced;
 
                 return true;
-            });
+            }, this, barrier, ioZero);
 
-            //If the producer gave us nothing, mark this production to be skipped            
-            return ProcessState;
+            //If the originatingSource gave us nothing, mark this production to be skipped            
+            return State;
         }
 
         /// <summary>
         /// Consumes the job
         /// </summary>
+        /// <param name="zeroRecovery"></param>
         /// <returns>
         /// The state of the consumption
         /// </returns>
-        public override Task<State> ConsumeAsync()
+        public override ValueTask<IoJobMeta.JobState> ConsumeAsync()
         {
             //No work is needed, we just mark the job as consumed. 
-            ProcessState = State.ConInlined;
-            return Task.FromResult(ProcessState);
+            State = IoJobMeta.JobState.ConInlined;
+            return ValueTask.FromResult(State);
+        }
+
+        protected override void AddRecoveryBits()
+        {
+            throw new NotImplementedException();
+        }
+
+        protected override bool ZeroEnsureRecovery()
+        {
+            throw new NotImplementedException();
         }
     }    
 }

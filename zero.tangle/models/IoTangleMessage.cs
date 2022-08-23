@@ -2,24 +2,23 @@
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Diagnostics;
+using System.Runtime.CompilerServices;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
-using NLog;
 using zero.core.conf;
-using zero.core.core;
+using zero.core.feat.models;
 using zero.core.misc;
-using zero.core.models;
-using zero.core.models.generic;
 using zero.core.network.ip;
-using zero.core.patterns.bushes;
-using zero.interop.entangled;
+using zero.core.patterns.bushings;
+using zero.core.patterns.bushings.contracts;
+using zero.core.patterns.misc;
 using zero.interop.entangled.common.model;
-using zero.interop.entangled.common.model.interop;
 using zero.interop.entangled.interfaces;
-using zero.interop.entangled.mock;
+using zero.interop.entangled.native;
 using zero.tangle.api.controllers.generic;
+using zero.tangle.entangled;
 using zero.tangle.models.sources;
-using Logger = NLog.Logger;
 
 namespace zero.tangle.models
 {
@@ -27,69 +26,68 @@ namespace zero.tangle.models
     /// Specializes a generic <see cref="IoMessage{TProducer}"/> into a specific one for the tangle. This class contains details of how a message is to be 
     /// extracted from <see cref="IoMessage{TProducer}"/>
     /// </summary>
-    public sealed class IoTangleMessage<TBlob> : IoMessage<IoTangleMessage<TBlob>>        
+    public sealed class IoTangleMessage<TKey> : IoMessage<IoTangleMessage<TKey>>        
     {
         /// <summary>
         /// Constructs buffers that hold tangle message information
         /// </summary>
         /// <param name="jobDescription">A description of the job needed to do the work</param>
-        /// <param name="workDescription">A description of the work that needs to be done</param>
-        /// <param name="producer">The upstream producer where messages are coming from</param>
-        public IoTangleMessage(string jobDescription, string workDescription, IoProducer<IoTangleMessage<TBlob>> producer):base(jobDescription, workDescription, producer)
+        /// <param name="jobDescriptionn">A description of the work that needs to be done</param>
+        /// <param name="source">The upstream source where messages are coming from</param>
+        public IoTangleMessage(string jobDescription, string sinkDesc, IoSource<IoTangleMessage<TKey>> source):base(sinkDesc, sinkDesc, source)
         {
-            _logger = LogManager.GetCurrentClassLogger();
-
-            _entangled = IoEntangled<TBlob>.Default;            
+            _entangled = Entangled<TKey>.Default;            
 
             //Set some tangle specific protocol constants
-            DatumSize = Codec.MessageSize + ((Producer is IoTcpClient<IoTangleMessage<TBlob>>) ? Codec.MessageCrcSize : 0);
+            DatumSize = Codec.MessageSize + ((Source is IoTcpClient<IoTangleMessage<TKey>>) ? Codec.MessageCrcSize : 0);
             
             //Init buffers
             BufferSize = DatumSize * parm_datums_per_buffer;
-            DatumProvisionLengthMax = BufferSize * parm_datums_per_buffer;
-            DatumProvisionLength = DatumProvisionLengthMax;
-            Buffer = new sbyte[BufferSize + DatumProvisionLength];
-
-            //forward to node services
-            if (!Producer.ObjectStorage.ContainsKey(nameof(_nodeServicesProxy)))
-            {
-                _nodeServicesProxy = new IoTangleTransactionProducer<TBlob>($"{nameof(_nodeServicesProxy)}", parm_forward_queue_length);
-                if (!Producer.ObjectStorage.TryAdd(nameof(_nodeServicesProxy), _nodeServicesProxy))
-                {
-                    _nodeServicesProxy = (IoTangleTransactionProducer<TBlob>)Producer.ObjectStorage[nameof(_nodeServicesProxy)];
-                }
-            }
-
-            NodeServicesArbiter = producer.CreateDownstreamArbiter(nameof(IoNodeServices<TBlob>), _nodeServicesProxy, userData => new IoTangleTransaction<TBlob>(_nodeServicesProxy));            
-
-
-            NodeServicesArbiter.parm_consumer_wait_for_producer_timeout = 0; 
-            NodeServicesArbiter.parm_producer_start_retry_time = 0;
-
-            //forward to neighbor
-            if (!Producer.ObjectStorage.ContainsKey(nameof(_neighborProxy)))
-            {
-                _neighborProxy = new IoTangleTransactionProducer<TBlob>($"{nameof(_neighborProxy)}", parm_forward_queue_length);
-                if (!Producer.ObjectStorage.TryAdd(nameof(_neighborProxy), _neighborProxy))
-                {
-                    _neighborProxy = (IoTangleTransactionProducer<TBlob>)Producer.ObjectStorage[nameof(_neighborProxy)];
-                }
-            }
-
-            NeighborServicesArbiter = producer.CreateDownstreamArbiter(nameof(IoNeighbor<IoTangleTransaction<TBlob>>), _neighborProxy, userData => new IoTangleTransaction<TBlob>(_neighborProxy, -1 /*We block to control congestion*/));                        
-            NeighborServicesArbiter.parm_consumer_wait_for_producer_timeout = -1; //We block and never report slow production
-            NeighborServicesArbiter.parm_producer_start_retry_time = 0;
+            DatumProvisionLengthMax = DatumSize - 1;
+            //DatumProvisionLength = DatumProvisionLengthMax;
+            Buffer = new byte[BufferSize + DatumProvisionLengthMax];
+            ArraySegment = new ArraySegment<byte>(Buffer);
         }
-        
-        /// <summary>
-        /// logger
-        /// </summary>
-        private readonly Logger _logger;
+
+        //public async ValueTask<bool> ReuseAsync(object localContext)
+        //{
+        //    //forward to node services
+        //    if (!Source.ObjectStorage.ContainsKey(nameof(_nodeServicesProxy)))
+        //    {
+        //        _nodeServicesProxy = new IoTangleTransactionSource<TKey>($"{nameof(_nodeServicesProxy)}", parm_forward_queue_length);
+        //        if (!Source.ObjectStorage.TryAdd(nameof(_nodeServicesProxy), _nodeServicesProxy))
+        //        {
+        //            _nodeServicesProxy = (IoTangleTransactionSource<TKey>)Source.ObjectStorage[nameof(_nodeServicesProxy)];
+        //        }
+        //    }
+
+        //    NodeServicesArbiter = await Source.CreateConduitOnceAsync(nameof(IoNodeServices<TKey>),_nodeServicesProxy, (_,_) => new IoTangleTransaction<TKey>(_nodeServicesProxy), 1).ConfigureAwait(false);
+
+        //    NodeServicesArbiter.parm_consumer_wait_for_producer_timeout = 0;
+        //    NodeServicesArbiter.parm_producer_start_retry_time = 0;
+
+        //    //forward to neighbor
+        //    if (!Source.ObjectStorage.ContainsKey(nameof(_neighborProducer)))
+        //    {
+        //        _neighborProducer = new IoTangleTransactionSource<TKey>($"{nameof(_neighborProducer)}", parm_forward_queue_length);
+        //        if (!Source.ObjectStorage.TryAdd(nameof(_neighborProducer), _neighborProducer))
+        //        {
+        //            _neighborProducer = (IoTangleTransactionSource<TKey>)Source.ObjectStorage[nameof(_neighborProducer)];
+        //        }
+        //    }
+
+        //    NeighborServicesArbiter = await Source.CreateConduitOnceAsync(nameof(TanglePeer<IoTangleTransaction<TKey>>),_neighborProducer, (o,s) => new IoTangleTransaction<TKey>(_neighborProducer, -1 /*We block to control congestion*/), 1).ConfigureAwait(false);
+        //    NeighborServicesArbiter.parm_consumer_wait_for_producer_timeout = -1; //We block and never report slow production
+        //    NeighborServicesArbiter.parm_producer_start_retry_time = 0;
+
+        //    return true;
+        //}
+
         
         /// <summary>
         /// The entangled libs
         /// </summary>
-        private readonly IIoEntangled<TBlob> _entangled;
+        private readonly IIoEntangled<TKey> _entangled;
 
         /// <summary>
         /// Used to store one datum's worth of decoded trits
@@ -97,34 +95,29 @@ namespace zero.tangle.models
         public sbyte[] TritBuffer = new sbyte[IoTransaction.NUM_TRITS_SERIALIZED_TRANSACTION + IoTransaction.NUM_TRITS_HASH];
         
         /// <summary>
-        /// The number of bytes left to process in this buffer
-        /// </summary>
-        public int BytesLeftToProcess => BytesRead - (BufferOffset - DatumProvisionLengthMax);
-
-        /// <summary>
-        /// Used to control how long we wait for the producer before we report it
+        /// Used to control how long we wait for the source before we report it
         /// </summary>
         private readonly Stopwatch _producerStopwatch = new Stopwatch();
 
         /// <summary>
         /// The decoded tangle transaction
         /// </summary>
-        private static IoTangleTransactionProducer<TBlob> _nodeServicesProxy;
+        private static IoTangleTransactionSource<TKey> _nodeServicesProxy;
 
         /// <summary>
         /// The decoded tangle transaction
         /// </summary>
-        private static IoTangleTransactionProducer<TBlob> _neighborProxy;
+        private static IoTangleTransactionSource<TKey> _neighborProducer;
 
         /// <summary>
         /// The transaction broadcaster
         /// </summary>
-        public IoForward<IoTangleTransaction<TBlob>> NodeServicesArbiter;
+        public IoConduit<IoTangleTransaction<TKey>> NodeServicesArbiter;
 
         /// <summary>
         /// The transaction broadcaster
         /// </summary>
-        public IoForward<IoTangleTransaction<TBlob>> NeighborServicesArbiter;
+        public IoConduit<IoTangleTransaction<TKey>> NeighborServicesArbiter;
 
         /// <summary>
         /// Crc checker
@@ -134,22 +127,22 @@ namespace zero.tangle.models
         /// <summary>
         /// tps counter
         /// </summary>
-        private static readonly IoFpsCounter TotalTpsCounter = new IoFpsCounter(); //TODO send this to the producer handle
+        private static readonly IoFpsCounter TotalTpsCounter = new IoFpsCounter(); //TODO send this to the source handle
 
         /// <summary>
         /// tps counter
         /// </summary>
-        private static readonly IoFpsCounter ValueTpsCounter = new IoFpsCounter(10); //TODO send this to the producer handle
+        private static readonly IoFpsCounter ValueTpsCounter = new IoFpsCounter(10); //TODO send this to the source handle
 
         /// <summary>
         /// Maximum number of datums this buffer can hold
         /// </summary>
         [IoParameter]
         // ReSharper disable once InconsistentNaming
-        public int parm_datums_per_buffer = 10;
+        public int parm_datums_per_buffer = 250;
 
         /// <summary>
-        /// The time a consumer will wait for a producer to release it before aborting in ms
+        /// The time a consumer will wait for a source to release it before aborting in ms
         /// </summary>
         [IoParameter]
         // ReSharper disable once InconsistentNaming
@@ -159,22 +152,21 @@ namespace zero.tangle.models
         /// The amount of items that can be ready for production before blocking
         /// </summary>
         [IoParameter]
-        public int parm_forward_queue_length = 10;
+        public int parm_forward_queue_length = 4;
 
         /// <summary>
         /// Processes a iri datum
         /// </summary>
-        private async Task<State> ProcessProtocolMessage() //TODO error cases
+        private async Task<IoJobMeta.JobState> ProcessProtocolMessageAsync() //TODO error cases
         {
-            var newInteropTransactions = new List<IIoTransactionModel<TBlob>>();
-            var s = new Stopwatch();
-            s.Start();
-            
+            var newInteropTransactions = new List<IIoTransactionModel<TKey>>();
+            var s = Stopwatch.StartNew();
+            var t = Stopwatch.StartNew();
             try
             {
-                if (!Producer.Synced && !Sync())
+                if (!Source.Synced && RequiredSync() && !Source.Synced)
                 {
-                    return ProcessState;
+                    return State;
                 }
 
                 var localSync = true;
@@ -182,41 +174,44 @@ namespace zero.tangle.models
                 var syncFailureThreshold = 2;
                 var curSyncFailureCount = syncFailureThreshold;
                 
+                _logger.Trace($"{TraceDescription} Processing {DatumCount} messages...");
                 for (var i = 0; i < DatumCount; i++)
                 {                    
                     try
                     {
                         s.Restart();
-                        var requiredSync = !localSync && Sync();
-                        if (!Producer.Synced)
-                            return ProcessState;
+                        if (State == IoJobMeta.JobState.RSync)
+                            State = IoJobMeta.JobState.Consuming;
+
+                        var requiredSync = !localSync && RequiredSync();
+                        if (!Source.Synced)
+                            return State;
                         else if (requiredSync)
                         {
-                            i = 0;                            
+                            i = 0;
+                            State = IoJobMeta.JobState.RSync;
                             continue;
                         }
                             
-                        var interopTx = _entangled.ModelDecoder.GetTransaction(Buffer, BufferOffset, TritBuffer);
-                        interopTx.Uri = Producer.SourceUri;
+                        var interopTx = (IIoTransactionModel<TKey>)_entangled.ModelDecoder.GetTransaction(Unsafe.As<sbyte[]>(Buffer), (int)BufferOffset, TritBuffer);
+                        interopTx.Uri = Source.Key; //TODO breaking
 
                         //check for pow
-                        if (interopTx.Pow < TanglePeer<TBlob>.MWM && interopTx.Pow > -TanglePeer<TBlob>.MWM)
+                        if (interopTx.Pow < TanglePeer<TKey>.MWM && interopTx.Pow > -TanglePeer<TKey>.MWM)
                         {                                                           
-                            ProcessState = State.NoPow;                            
+                            State = IoJobMeta.JobState.NoPow;                            
 
                             if (interopTx.Value < -2779530283277761 || interopTx.Value > 2779530283277761)
                             //|| interopTx.Timestamp <= 0 || interopTx.Timestamp > (interopTx.Timestamp.ToString().Length > 11 ? new DateTimeOffset(DateTime.Now + TimeSpan.FromHours(2)).ToUnixTimeMilliseconds() : new DateTimeOffset(DateTime.Now + TimeSpan.FromHours(2)).ToUnixTimeSeconds())) //TODO config
                             {
                                 try
                                 {
-                                    _logger.Trace($"Possible garbage tx detected: ({Id}.{i + 1}/{DatumCount}) pow = `{interopTx.Pow}', " +
-                                                  $"imported = `{((IoTangleMessage<TBlob>)Previous).DatumFragmentLength}', " +
+                                    _logger.Trace($"{TraceDescription} Possible garbage tx detected: ({Id}.{i + 1}/{DatumCount}) pow = `{interopTx.Pow}', " +
+                                                  $"imported = `{((IoTangleMessage<TKey>)PreviousJob).DatumFragmentLength}', " +
                                                   $"BytesRead = `{BytesRead}', " +
-                                                  $"BufferOffset = `{BufferOffset - DatumProvisionLength}', " +
+                                                  $"BufferOffset = `{BufferOffset - DatumProvisionLengthMax}', " +
                                                   $"BytesLeftToProcess = `{BytesLeftToProcess}', " +
-                                                  $"DatumFragmentLength = `{DatumFragmentLength}', " +                                                  
-                                                  $"PB = `{Producer.ProducerBarrier.CurrentCount}', " +
-                                                  $"CB = `{Producer.ConsumerBarrier.CurrentCount}'");
+                                                  $"DatumFragmentLength = `{DatumFragmentLength}'");
                                     //_logger.Trace($"({Id}.{DatumCount}) value = `{interopTx.Value}'");
                                     //_logger.Trace($"({Id}.{DatumCount}) pow = `{interopTx.Pow}'");
                                     //_logger.Trace($"({Id}.{DatumCount}) time = `{interopTx.Timestamp}'");
@@ -228,7 +223,7 @@ namespace zero.tangle.models
 
                                 if (--curSyncFailureCount == 0)
                                 {
-                                    Producer.Synced = false;
+                                    Source.Synced = false;
                                     localSync = false;
                                     BufferOffset -= (syncFailureThreshold - 1) * DatumSize;
                                     curSyncFailureCount = syncFailureThreshold;                                    
@@ -240,37 +235,35 @@ namespace zero.tangle.models
                         curSyncFailureCount = syncFailureThreshold;
 
                         //Cheap dup checker
-                        if (Producer.RecentlyProcessed != null) //TODO, dupchecker should always be available, maybe mock it
+                        if (Source.RecentlyProcessed != null) //TODO, dupchecker should always be available, maybe mock it
                         {
-                            var stopwatch = new Stopwatch();
-                            stopwatch.Restart();
-                            var oldTxCutOffValue = new DateTimeOffset(DateTime.Now - Producer.RecentlyProcessed.DupCheckWindow).ToUnixTimeSeconds(); //TODO update to allow older tx if we are not in sync or we requested this tx etc.                            
-                            if (await WasProcessedRecentlyAsync(interopTx.AsTrytes(interopTx.HashBuffer)))
+                            var stopwatch = Stopwatch.StartNew();                                                        
+                            if (await WasProcessedRecentlyAsync(interopTx.AsTrytes(interopTx.HashBuffer)).ConfigureAwait(false))
                             {
                                 stopwatch.Stop();
-                                ProcessState = State.FastDup;                                
-                                _logger.Trace($"({Id}) Fast duplicate tx dropped: [{interopTx.AsTrytes(interopTx.HashBuffer)}], t = `{stopwatch.ElapsedMilliseconds}ms'");
+                                State = IoJobMeta.JobState.FastDup;                                
+                                _logger.Trace($"{TraceDescription} Fast duplicate tx dropped: [{interopTx.AsTrytes(interopTx.HashBuffer)}], t = `{stopwatch.ElapsedMilliseconds}ms'");
                                 continue;
                             }                            
-                        }
-
-                            //Add tx to be processed
+                        } 
+                        
+                        //Add tx to be processed
                         newInteropTransactions.Add(interopTx);
 
-                        TotalTpsCounter.Tick();
+                        await TotalTpsCounter.TickAsync().FastPath().ConfigureAwait(false);
                         if (interopTx.AddressBuffer.Length != 0 && interopTx.Value != 0)
                         {         
-                            ValueTpsCounter.Tick();
-                            _logger.Info($"({Id}) {interopTx.AsTrytes(interopTx.AddressBuffer, IoTransaction.NUM_TRITS_ADDRESS).PadRight(IoTransaction.NUM_TRYTES_ADDRESS)}, {(interopTx.Value / 1000000).ToString().PadLeft(13, ' ')} Mi, " +
+                            await ValueTpsCounter.TickAsync().FastPath().ConfigureAwait(false);
+                            _logger.Info($"{interopTx.AsTrytes(interopTx.AddressBuffer)}, {(interopTx.Value / 1000000).ToString().PadLeft(13, ' ')} Mi, " +
                                          $"[{interopTx.Pow}w, {s.ElapsedMilliseconds}ms, {DatumCount}f, {ValueTpsCounter.Total}/{TotalTpsCounter.Total}tx, {TotalTpsCounter.Fps():#####}/{ValueTpsCounter.Fps():F1} tps]");                            
                         }                                                
                     }
                     finally
                     {
-                        if (Producer.Synced && ( 
-                                    ProcessState == State.Consuming 
-                                 || ProcessState == State.NoPow 
-                                 || ProcessState == State.FastDup))                            
+                        if (Source.Synced && ( 
+                                    State == IoJobMeta.JobState.Consuming 
+                                 || State == IoJobMeta.JobState.NoPow 
+                                 || State == IoJobMeta.JobState.FastDup))                            
                             BufferOffset += DatumSize;                        
                     }                    
                 }
@@ -282,50 +275,44 @@ namespace zero.tangle.models
                     await ForwardToNodeServicesAsync(newInteropTransactions);
                 }                
 
-                ProcessState = State.Consumed;
+                State = IoJobMeta.JobState.Consumed;
             }
             finally
             {
-                if (ProcessState != State.Consumed && ProcessState != State.Syncing)
-                    ProcessState = State.ConsumeErr;
+                if (State != IoJobMeta.JobState.Consumed && State != IoJobMeta.JobState.ZeroRecovery)
+                    State = IoJobMeta.JobState.ConsumeErr;
+                t.Stop();
+                _logger.Trace($"{TraceDescription} Deserializing `{DatumCount}' messages took `{t.ElapsedMilliseconds}ms', `{DatumCount*1000/(t.ElapsedMilliseconds+1)} m/s'");
             }
 
-            return ProcessState;
+            return State;
         }
 
-        private async Task ForwardToNodeServicesAsync(List<IIoTransactionModel<TBlob>> newInteropTransactions)
+        private async Task ForwardToNodeServicesAsync(List<IIoTransactionModel<TKey>> newInteropTransactions)
         {
             //cog the source
-            await _nodeServicesProxy.ProduceAsync(source =>
+            await _nodeServicesProxy.ProduceAsync<object>((source, _,_,_) =>
             {                
-                ((IoTangleTransactionProducer<TBlob>) source).TxQueue.TryAdd(newInteropTransactions);
-                return Task.FromResult(true);
-            });
+                ((IoTangleTransactionSource<TKey>) source).TxQueue.TryAdd(newInteropTransactions);
+                return new ValueTask<bool>(true);
+            }, null, null, default);
 
             //forward transactions
-            if (!await NodeServicesArbiter.ProduceAsync(Producer.Spinners.Token, sleepOnConsumerLag: false))
+            if (!await NodeServicesArbiter.ProduceAsync( enablePrefetchOption: false))
             {
-                _logger.Warn($"Failed to forward to `{NodeServicesArbiter.PrimaryProducer.Description}'");
+                _logger.Warn($"{TraceDescription} Failed to forward to `{NodeServicesArbiter.UpstreamSource.Description}'");
             }
         }
 
-        private async Task ForwardToNeighborAsync(List<IIoTransactionModel<TBlob>> newInteropTransactions)
+        private async Task ForwardToNeighborAsync(List<IIoTransactionModel<TKey>> newInteropTransactions)
         {
             //cog the source
-            await _neighborProxy.ProduceAsync(source =>
-            {
-                if (_neighborProxy.Arbiter.IsArbitrating) //TODO: For now, We don't want to block when neighbors cant process transactions
-                    ((IoTangleTransactionProducer<TBlob>)source).TxQueue.Add(newInteropTransactions);
-                else
-                    ((IoTangleTransactionProducer<TBlob>)source).TxQueue.TryAdd(newInteropTransactions);
-
-                return Task.FromResult(true);
-            });
+            await _neighborProducer.ProduceAsync<object>((source,_, _, _) => ValueTask.FromResult(true), null, null, default);
 
             //forward transactions
-            if (!await NeighborServicesArbiter.ProduceAsync(Producer.Spinners.Token))
+            if (!await NeighborServicesArbiter.ProduceAsync())
             {
-                _logger.Warn($"Failed to forward to `{NeighborServicesArbiter.PrimaryProducer.Description}'");
+                _logger.Warn($"{TraceDescription} Failed to forward to `{NeighborServicesArbiter.UpstreamSource.Description}'");
             }
         }
 
@@ -333,22 +320,21 @@ namespace zero.tangle.models
         /// Attempts to synchronize with the protocol byte stream
         /// </summary>
         /// <returns>True if synced achieved, false otherwise</returns>
-        private bool Sync()
+        private bool RequiredSync()
         {            
             var offset = 0;
             var stopwatch = new Stopwatch();
             var requiredSync = false;
             stopwatch.Start();
 
-            if (!Producer.Synced)
+            if (!Source.Synced)
             {                
                 
-                _logger.Debug($"({Id}) Synchronizing `{Producer.Description}'...");
-                ProcessState = State.Syncing;
+                _logger.Debug($"{TraceDescription} Synchronizing `{Source.Description}'...");
+                State = IoJobMeta.JobState.ZeroRecovery;
 
                 for (var i = 0; i < DatumCount; i++)
-                {
-                    requiredSync |= requiredSync;
+                {                    
                     var bytesProcessed = 0;
                     var synced = false;
                     while (bytesProcessed < DatumSize)
@@ -356,7 +342,7 @@ namespace zero.tangle.models
                         synced = true;
                         try
                         {
-                            var crc = _crc32.Get(new ArraySegment<byte>((byte[])(Array)Buffer, BufferOffset, Codec.MessageSize)).ToString("x").PadLeft(16, '0');
+                            var crc = _crc32.Get(new ArraySegment<byte>((byte[])(Array)Buffer, (int)BufferOffset, Codec.MessageSize)).ToString("x").PadLeft(16, '0');
 
                             for (var j = Codec.MessageCrcSize; j-- > 0;)
                             {
@@ -370,7 +356,7 @@ namespace zero.tangle.models
                                 }
                                 catch (Exception)
                                 {
-                                    _logger.Error($"({Id}) length = `{Buffer.Length}', msgSize = `{Codec.MessageSize}', j = `{j}', t = {BufferOffset + Codec.MessageSize + j}");
+                                    _logger.Error($"{TraceDescription} length = `{Buffer.Length}', msgSize = `{Codec.MessageSize}', j = `{j}', t = {BufferOffset + Codec.MessageSize + j}");
                                     synced = false;
                                     break;
                                 }
@@ -386,14 +372,14 @@ namespace zero.tangle.models
                             else
                             {
                                 stopwatch.Stop();
-                                _logger.Trace($"({Id}) Synchronized stream `{Producer.Description}', crc32 = `{crc}', offset = `{offset}, time = `{stopwatch.ElapsedMilliseconds}ms', cps = `{offset/(stopwatch.ElapsedMilliseconds+1)}'");
-                                Producer.Synced = synced = true;
+                                _logger.Trace($"{TraceDescription} Synchronized stream `{Source.Description}', crc32 = `{crc}', offset = `{offset}, time = `{stopwatch.ElapsedMilliseconds}ms', cps = `{offset/(stopwatch.ElapsedMilliseconds+1)}'");
+                                Source.Synced = synced = true;
                                 break;
                             }
                         }
                         catch (Exception e)
                         {
-                            _logger.Error(e, $"({Id}) Error while trying to sync BufferOffset = `{BufferOffset}', DatumCount = `{DatumCount}', DatumFragmentLength = `{DatumFragmentLength}' , BytesLeftToProcess = `{BytesLeftToProcess}', BytesRead = `{BytesRead}'");                            
+                            _logger.Error(e, $"{TraceDescription} Error while trying to sync BufferOffset = `{BufferOffset}', DatumCount = `{DatumCount}', DatumFragmentLength = `{DatumFragmentLength}' , BytesLeftToProcess = `{BytesLeftToProcess}', BytesRead = `{BytesRead}'");                            
                         }
                     }
                     
@@ -409,70 +395,32 @@ namespace zero.tangle.models
                     DatumCount = BytesLeftToProcess / DatumSize;
                     DatumFragmentLength = BytesLeftToProcess % DatumSize;
 
-                    //Mark this job so that it does not go back into the heap until the remaining fragment has been picked up
-                    StillHasUnprocessedFragments = DatumFragmentLength > 0;                 
                 }
 
                 stopwatch.Stop();
             } 
             
-            if (!Producer.Synced)
+            if (!Source.Synced)
             {
-                _logger.Warn($"({Id}) Unable to sync stream `{Producer.Description}', scanned = `{offset}', time = `{stopwatch.ElapsedMilliseconds}ms'");
+                _logger.Warn($"{TraceDescription} Unable to sync stream `{Source.Description}', scanned = `{offset}', time = `{stopwatch.ElapsedMilliseconds}ms'");
             }
-            else if(Producer.Synced)
+            else if(Source.Synced)
             {
-                ProcessState = State.Consuming;
+                State = IoJobMeta.JobState.Consuming;
             }
             
             return requiredSync;
         }
 
-        private void TransferPreviousBits()
-        {
-            if (Previous?.StillHasUnprocessedFragments ?? false)
-            {
-                var previousJobFragment = (IoMessage<IoTangleMessage<TBlob>>)Previous;
-                try
-                {
-                    var bytesToTransfer = Math.Min(previousJobFragment.DatumFragmentLength, DatumProvisionLength);
-                    var remainingBytes =  Math.Abs(Math.Min(DatumProvisionLength - previousJobFragment.DatumFragmentLength , 0));
-                    BufferOffset -= bytesToTransfer;                    
-                    DatumProvisionLength -= bytesToTransfer;
-                    DatumCount = BytesLeftToProcess / DatumSize;
-                    DatumFragmentLength = BytesLeftToProcess % DatumSize;
-                    StillHasUnprocessedFragments = DatumFragmentLength > 0;
-
-                    Array.Copy(previousJobFragment.Buffer, previousJobFragment.BufferOffset + remainingBytes, Buffer, BufferOffset, bytesToTransfer);
-                }
-                catch (Exception e) // we de-synced 
-                {
-                    _logger.Warn(e, "We desynced!:");
-
-                    Producer.Synced = false;
-                    DatumCount = 0;
-                    BytesRead = 0;
-                    ProcessState = State.Consumed;
-                    DatumFragmentLength = 0;
-                    StillHasUnprocessedFragments = false;                    
-                }
-            }
-            
-        }
 
         /// <inheritdoc />
         /// <summary>
-        /// Manages the barrier between the consumer and the producer
+        /// Manages the barrier between the consumer and the source
         /// </summary>
-        /// <returns>The <see cref="F:zero.core.patterns.bushes.IoWorkStateTransition`1.State" /> of the barrier's outcome</returns>
-        public override async Task<State> ConsumeAsync()
+        /// <returns>The <see cref="F:zero.core.patterns.bushes.IoStateTransition`1.IoJobMeta.CurrentState" /> of the barrier's outcome</returns>
+        public override async ValueTask<IoJobMeta.JobState> ConsumeAsync()
         {
-            TransferPreviousBits();
-            
-            return await ProcessProtocolMessage();
-
-            //_logger.Info($"Processed `{message.DatumCount}' datums, remainder = `{message.DatumFragmentLength}', message.BytesRead = `{message.BytesRead}'," +
-            //             $" prevJob.BytesLeftToProcess =`{previousJobFragment?.BytesLeftToProcess}'");            
+            return await ProcessProtocolMessageAsync(); 
         }
 
         /// <inheritdoc />
@@ -480,14 +428,13 @@ namespace zero.tangle.models
         /// Prepares the work to be done from the <see cref="F:erebros.core.patterns.bushes.IoProducable`1.Source" />
         /// </summary>
         /// <returns>The resulting status</returns>
-        public override async Task<State> ProduceAsync()
+        public override async ValueTask<IoJobMeta.JobState> ProduceAsync<T>(IIoSource.IoZeroCongestion<T> barrier,
+            T zeroClosure)
         {
-            ProcessState = State.Producing;
-            
             try
             {
                 // We run this piece of code inside this callback so that the source can do some error detections on itself on our behalf
-                var sourceTaskSuccess = await Producer.ProduceAsync(async ioSocket =>
+                var sourceTaskSuccess = await Source.ProduceAsync(async (ioSocket, consumeSync, ioZero, ioJob) =>
                 {
                     //----------------------------------------------------------------------------
                     // BARRIER
@@ -495,123 +442,97 @@ namespace zero.tangle.models
                     // amount of steps. Instead of say just filling up memory buffers.
                     // This allows us some kind of (anti DOS?) congestion control
                     //----------------------------------------------------------------------------
-                    _producerStopwatch.Restart();
-                    if (!await Producer.ProducerBarrier.WaitAsync(parm_producer_wait_for_consumer_timeout, Producer.Spinners.Token))
-                    {
-                        if (!Producer.Spinners.IsCancellationRequested)
-                        {
-                            ProcessState = State.ProduceTo;
-                            _producerStopwatch.Stop();
-                            _logger.Warn($"`{ProductionDescription}' timed out waiting for CONSUMER to release, Waited = `{_producerStopwatch.ElapsedMilliseconds}ms', Willing = `{parm_producer_wait_for_consumer_timeout}ms', " +
-                                         $"CB = `{Producer.ConsumerBarrier.CurrentCount}'");
-
-                            //TODO finish when config is fixed
-                            //LocalConfigBus.AddOrUpdate(nameof(parm_consumer_wait_for_producer_timeout), a=>0, 
-                            //    (k,v) => Interlocked.Read(ref Source.ServiceTimes[(int) State.Consumed]) /
-                            //         (Interlocked.Read(ref Source.Counters[(int) State.Consumed]) * 2 + 1));                                                                    
-                        }
-                        else
-                            ProcessState = State.ProdCancel;
-                        return true;
-                    }
-
-                    if (Producer.Spinners.IsCancellationRequested)
-                    {
-                        ProcessState = State.ProdCancel;
+                    if (!await consumeSync(ioJob, ioZero))
                         return false;
-                    }
 
                     //Async read the message from the message stream
-                    if (Producer.IsOperational)
+                    if (Source.IsOperational())
                     {                                                
-                        await ((IoSocket)ioSocket).ReadAsync((byte[])(Array)Buffer, BufferOffset, BufferSize).ContinueWith(
-                            rx =>
-                            {                                                                    
-                                switch (rx.Status)
-                                {
-                                    //Canceled
-                                    case TaskStatus.Canceled:
-                                    case TaskStatus.Faulted:
-                                        ProcessState = rx.Status == TaskStatus.Canceled ? State.ProdCancel : State.ProduceErr;
-                                        Producer.Spinners.Cancel();
-                                        Producer.Close();
-                                        _logger.Error(rx.Exception?.InnerException, $"ReadAsync from stream `{ProductionDescription}' returned with errors:");
-                                        break;
-                                    //Success
-                                    case TaskStatus.RanToCompletion:
-                                        var bytesRead = rx.Result;
-                                        BytesRead = bytesRead;
+                        await ((IoSocket)ioSocket).ReadAsync(ArraySegment, (int)BufferOffset, (int)BufferSize).AsTask().ContinueWith(async rx =>
+                        {                                                                    
+                            switch (rx.Status)
+                            {
+                                //Canceled
+                                case TaskStatus.Canceled:
+                                case TaskStatus.Faulted:
+                                    State = rx.Status == TaskStatus.Canceled ? IoJobMeta.JobState.ProdCancel : IoJobMeta.JobState.ProduceErr;
+                                    await Source.Zero(this, "");
+                                    _logger.Error(rx.Exception?.InnerException, $"{TraceDescription} ReadAsync from stream returned with errors:");
+                                    break;
+                                //Success
+                                case TaskStatus.RanToCompletion:
+                                    var bytesRead = rx.Result;
+                                    BytesRead = bytesRead;
 
-                                        //TODO double check this hack
-                                        if (BytesRead == 0)
+                                    //TODO double check this hack
+                                    if (BytesRead == 0)
+                                    {
+                                        State = IoJobMeta.JobState.ProStarting;
+                                        DatumFragmentLength = 0;
+                                        break;
+                                    }
+
+                                    if (Id == 0 && Source is IoTcpClient<IoTangleMessage<TKey>>)
+                                    {                                                                  
+                                        _logger.Info($"{TraceDescription} Got receiver port as: `{Encoding.ASCII.GetString((byte[])(Array)Buffer).Substring((int)BufferOffset, 10)}'");
+                                        Interlocked.Add(ref BufferOffset, 10);
+                                        bytesRead -= 10;
+                                        if (BytesLeftToProcess == 0)
                                         {
-                                            ProcessState = State.ProStarting;
+                                            State = IoJobMeta.JobState.Produced;
                                             DatumFragmentLength = 0;
                                             break;
                                         }
-
-                                        if (Id == 0 && Producer is IoTcpClient<IoTangleMessage<TBlob>>)
-                                        {                                                                  
-                                            _logger.Info($"Got receiver port as: `{Encoding.ASCII.GetString((byte[])(Array)Buffer).Substring(BufferOffset, 10)}'");
-                                            BufferOffset += 10;
-                                            bytesRead -= 10;
-                                            if (BytesLeftToProcess == 0)
-                                            {
-                                                ProcessState = State.Produced;
-                                                DatumFragmentLength = 0;
-                                                break;
-                                            }
-                                        }
+                                    }
                                         
-                                        //Set how many datums we have available to process
-                                        DatumCount = BytesLeftToProcess / DatumSize;
-                                        DatumFragmentLength = BytesLeftToProcess % DatumSize;
+                                    //Set how many datums we have available to process
+                                    DatumCount = BytesLeftToProcess / DatumSize;
+                                    DatumFragmentLength = BytesLeftToProcess % DatumSize;
 
-                                        //Mark this job so that it does not go back into the heap until the remaining fragment has been picked up
-                                        StillHasUnprocessedFragments = DatumFragmentLength > 0;
+                                    State = IoJobMeta.JobState.Produced;
 
-                                        ProcessState = State.Produced;
+                                    //_logger.Trace($"{TraceDescription} RX=> read=`{bytesRead}', ready=`{BytesLeftToProcess}', datumcount=`{DatumCount}', datumsize=`{DatumSize}', fragment=`{DatumFragmentLength}', buffer = `{BytesLeftToProcess}/{BufferSize + DatumProvisionLengthMax}', buf = `{(int)(BytesLeftToProcess / (double)(BufferSize + DatumProvisionLengthMax) * 100)}%'");
 
-                                        //_logger.Trace($"({Id}) RX=> fragment=`{previousJobFragment?.DatumFragmentLength ?? 0}', read=`{bytesRead}', ready=`{BytesLeftToProcess}', datumcount=`{DatumCount}', datumsize=`{DatumSize}', fragment=`{DatumFragmentLength}', buffer = `{BytesLeftToProcess}/{BufferSize + DatumProvisionLength}', buf = `{(int)(BytesLeftToProcess / (double)(BufferSize + DatumProvisionLength) * 100)}%'");
-
-                                        break;
-                                    default:
-                                        ProcessState = State.ProduceErr;
-                                        throw new InvalidAsynchronousStateException($"Job =`{ProductionDescription}', State={rx.Status}");
-                                }
-                            }, Producer.Spinners.Token);
+                                    break;
+                                default:
+                                    State = IoJobMeta.JobState.ProduceErr;
+                                    throw new InvalidAsynchronousStateException($"Job =`{Description}', IoJobMeta.CurrentState={rx.Status}");
+                            }
+                        }, AsyncTasks.Token);
                     }
                     else
                     {
-                        Producer.Close();
+#pragma warning disable 4014
+                        Source.Zero(this, "");
+#pragma warning restore 4014
                     }
 
-                    if (Producer.Spinners.IsCancellationRequested)
+                    if (Zeroed())
                     {
-                        ProcessState = State.Cancelled;
+                        State = IoJobMeta.JobState.Cancelled;
                         return false;
                     }
                     return true;
-                });
+                }, this, barrier, zeroClosure);
 
                 if (!sourceTaskSuccess)
                 {
-                    _logger.Trace($"Failed to source job from `{Producer.Description}' for `{ProductionDescription}'");
+                    _logger.Trace($"{TraceDescription} Failed to source job");
                 }
             }
             catch (Exception e)
             {
-                _logger.Warn(e, $"Producing job `{ProductionDescription}' returned with errors:");
+                _logger.Warn(e, $"{TraceDescription} Producing job returned with errors:");
             }
             finally
             {
-                if (ProcessState == State.Producing)
+                if (State == IoJobMeta.JobState.Producing)
                 {
                     // Set the state to ProduceErr so that the consumer knows to abort consumption
-                    ProcessState = State.ProduceErr;
+                    State = IoJobMeta.JobState.ProduceErr;
                 }
             }
-            return ProcessState;
-        }        
+            return State;
+        }
     }
 }

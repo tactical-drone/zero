@@ -1,11 +1,12 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk.Web">
 
   <PropertyGroup>
-    <TargetFramework>netcoreapp3.0</TargetFramework>    
+    <TargetFramework>net6.0</TargetFramework>    
     <TypeScriptToolsVersion>Latest</TypeScriptToolsVersion>
     <typescriptcompileblocked>true</typescriptcompileblocked>       
-    <TargetLatestRuntimePatch>true</TargetLatestRuntimePatch>
-    <LangVersion>latest</LangVersion>
+    <TargetLatestRuntimePatch>true</TargetLatestRuntimePatch>    
+    <!--<LangVersion>latest</LangVersion>-->
+    <LangVersion>preview</LangVersion>
   </PropertyGroup>
 
   <ItemGroup>
@@ -16,7 +17,8 @@
   </ItemGroup>
 
   <ItemGroup>        
-    <PackageReference Include="Microsoft.AspNetCore.SpaServices" Version="3.0.0-preview-19075-0444" />                
+    <PackageReference Include="Microsoft.AspNetCore.SpaServices" Version="5.0.0-preview.8.20414.8" />        
+    <PackageReference Include="Microsoft.AspNetCore.SpaServices.Extensions" Version="6.0.0-rc.1.21452.15" />                
   </ItemGroup>
 
   <ItemGroup>

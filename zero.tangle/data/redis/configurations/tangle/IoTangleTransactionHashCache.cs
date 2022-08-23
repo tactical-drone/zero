@@ -5,8 +5,9 @@ using System.Threading.Tasks;
 using StackExchange.Redis;
 using zero.core.conf;
 using zero.core.data.contracts;
-using zero.core.data.providers.redis;
+using zero.core.feat.data.providers.redis;
 using zero.core.network.ip;
+using zero.core.patterns.misc;
 
 namespace zero.tangle.data.redis.configurations.tangle
 {
@@ -24,15 +25,13 @@ namespace zero.tangle.data.redis.configurations.tangle
         /// Returns single thread safe connection
         /// </summary>
         /// <returns></returns>
-        public static async Task<IoTangleTransactionHashCache> Default()
+        public static async Task<IoTangleTransactionHashCache> DefaultAsync()
         {
             var hosts = new List<IoNodeAddress>();
             _default.parm_redis_tangle_tx_hash_cache_url.Split(',').ToList().ForEach(address=>hosts.Add(IoNodeAddress.Create(address)));
 
             if (!_default.IsConnected)
-#pragma warning disable 4014
-                _default.ConnectAsync(hosts);
-#pragma warning restore 4014
+                await _default.ConnectAsync(hosts);
 
             return _default;
         }
@@ -50,10 +49,10 @@ namespace zero.tangle.data.redis.configurations.tangle
         /// </summary>
         /// <param name="key">The key</param>
         /// <returns>true if it exists, false otherwise</returns>
-        public async Task<bool> KeyExistsAsync(string key)
+        public async ValueTask<bool> KeyExistsAsync(string key)
         {
-            if( await EnsureConnectionAsync() )
-                return !await _db.StringSetAsync(key, 0, TimeSpan.FromHours(DupCheckWindowInHours), When.NotExists);
+            if( await EnsureConnectionAsync().FastPath().ConfigureAwait(false) )
+                return !await _db.StringSetAsync(key, 0, TimeSpan.FromHours(DupCheckWindowInHours), When.NotExists).ConfigureAwait(false);
             return false;
         }
 

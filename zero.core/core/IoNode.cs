@@ -1,40 +1,43 @@
 ﻿using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
-using System.Data;
 using System.Linq;
+using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
 using NLog;
 using zero.core.conf;
-using zero.core.data.market;
+using zero.core.misc;
 using zero.core.network.ip;
-using zero.core.patterns.bushes.contracts;
+using zero.core.patterns.bushings.contracts;
+using zero.core.patterns.misc;
+using zero.core.patterns.queue;
+using zero.core.runtime.scheduler;
 
 namespace zero.core.core
 {
     /// <summary>
     /// A p2p node
     /// </summary>
-    public class IoNode<TJob> : IoConfigurable        
-    where TJob:IIoWorker    
+    public class IoNode<TJob> : IoNanoprobe
+    where TJob : IIoJob
     {
         /// <summary>
         /// Constructor
         /// </summary>
-        public IoNode(IoNodeAddress address, Func<IoNode<TJob>, IoNetClient<TJob>, IoNeighbor<TJob>> mallocNeighbor, int tcpReadAhead)
+        public IoNode(IoNodeAddress address, Func<IoNode<TJob>, IoNetClient<TJob>, object, IoNeighbor<TJob>> mallocNeighbor, int prefetch, int concurrencyLevel, int maxNeighbors) : base($"{nameof(IoNode<TJob>)}", concurrencyLevel)
         {
             _address = address;
-            _mallocNeighbor = mallocNeighbor;
-            parm_tcp_readahead = tcpReadAhead;            
+            MallocNeighbor = mallocNeighbor;
+            _preFetch = prefetch;
             _logger = LogManager.GetCurrentClassLogger();
-            var q = IoMarketDataClient.Quality;//prime market data            
+            NeighborTasks = new ConcurrentDictionary<string, Task>(concurrencyLevel, new KeyValuePair<string, Task>[]{}, null!);
         }
 
         /// <summary>
         /// logger
         /// </summary>
-        private readonly Logger _logger;
+        private Logger _logger;
 
         /// <summary>
         /// The listening address of this node
@@ -42,205 +45,377 @@ namespace zero.core.core
         private readonly IoNodeAddress _address;
 
         /// <summary>
-        /// Used to allocate peers when connections are made
+        /// The listening address of this node
         /// </summary>
-        private readonly Func<IoNode<TJob>, IoNetClient<TJob>, IoNeighbor<TJob>> _mallocNeighbor;
+        public IoNodeAddress Address => _address;
 
         /// <summary>
-        /// The wrapper for <see cref="IoNetServer"/>
+        /// Used to allocate peers when connections are made
+        /// </summary>
+        public Func<IoNode<TJob>, IoNetClient<TJob>, object, IoNeighbor<TJob>> MallocNeighbor { get; protected set; }
+
+        /// <summary>
+        /// The wrapper for <see cref="IoNetServer{TJob}"/>
         /// </summary>
         private IoNetServer<TJob> _netServer;
 
         /// <summary>
+        /// The server
+        /// </summary>
+        public IoNetServer<TJob> Server => _netServer;
+
+        /// <summary>
         /// All the neighbors connected to this node
         /// </summary>
-        public readonly ConcurrentDictionary<string, IoNeighbor<TJob>> Neighbors = new ConcurrentDictionary<string, IoNeighbor<TJob>>();
+        public ConcurrentDictionary<string, IoNeighbor<TJob>> Neighbors { get; protected set; } = new();
 
         /// <summary>
         /// Allowed clients
         /// </summary>
-        private readonly ConcurrentDictionary<string, IoNodeAddress> _whiteList = new ConcurrentDictionary<string, IoNodeAddress>();
-
-        /// <summary>
-        /// Used to cancel downstream processes
-        /// </summary>
-        private readonly CancellationTokenSource _spinners = new CancellationTokenSource();
+        private ConcurrentDictionary<string, IoNodeAddress> _whiteList = new();
 
         /// <summary>
         /// On Connected
         /// </summary>
-        public EventHandler<IoNeighbor<TJob>> PeerConnected;
+        //protected EventHandler<IoNeighbor<TJob>> ConnectedEvent;
 
         /// <summary>
         /// 
         /// </summary>
-        public EventHandler<IoNeighbor<TJob>> PeerDisconnected;
-
+        //protected EventHandler<IoNeighbor<TJob>> DisconnectedEvent;
 
         /// <summary>
         /// Threads per neighbor
         /// </summary>
         [IoParameter]
         // ReSharper disable once InconsistentNaming
-        protected int parm_max_neighbor_pc_threads = 3;
+        protected int parm_max_neighbor_pc_threads = 1;
 
         /// <summary>
-        /// TCP read ahead
+        /// Threads per neighbor
         /// </summary>
         [IoParameter]
         // ReSharper disable once InconsistentNaming
-        protected int parm_tcp_readahead = 2;
+        protected int parm_zombie_connect_time_threshold_s = 4; //currently takes 2 seconds to up
+
+        /// <summary>
+        /// Threads per neighbor
+        /// </summary>
+        [IoParameter]
+        // ReSharper disable once InconsistentNaming
+        protected int parm_nb_teardown_timeout_s  = 60; //currently takes 2 seconds to up
+
+        /// <summary>
+        /// Read ahead
+        /// </summary>
+        private readonly int _preFetch;
+
+        /// <summary>
+        /// Read ahead
+        /// </summary>
+        public int PreFetch => _preFetch;
+
+        /// <summary>
+        /// A set of all node tasks that are currently running
+        /// </summary>
+        protected ConcurrentDictionary<string,Task> NeighborTasks;
+
+
+        /// <summary>
+        /// zero unmanaged
+        /// </summary>
+        public override void ZeroUnmanaged()
+        {
+            base.ZeroUnmanaged();
+
+#if SAFE_RELEASE
+            _logger = null;
+            Neighbors = null;
+            NeighborTasks = default;
+            _netServer = null;
+            _whiteList = null;
+#endif
+        }
+
+        /// <summary>
+        /// zero managed
+        /// </summary>
+        public override async ValueTask ZeroManagedAsync()
+        {
+            await base.ZeroManagedAsync().FastPath();
+
+            foreach (var ioNeighbor in Neighbors.Values)
+            {
+                await ioNeighbor.DisposeAsync(this, $"{nameof(ZeroManagedAsync)}: teardown").FastPath();
+            }
+
+            Neighbors.Clear();
+
+            _netServer?.DisposeAsync(this, $"{nameof(ZeroManagedAsync)}: teardown");
+
+            //await NeighborTasks.ZeroManagedAsync(static (neighborTask, @this) =>
+            //{
+            //    neighborTask.Value?.Wait(TimeSpan.FromSeconds(@this.parm_nb_teardown_timeout_s));
+            //    return default;
+            //}, this, zero: true).FastPath();
+        }
+
+        /// <summary>
+        /// Primes for DisposeAsync
+        /// </summary>
+        /// <returns>The task</returns>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public override void ZeroPrime()
+        {
+            base.ZeroPrime();
+
+            if (Neighbors != null)
+            {
+                foreach (var ioNeighbor in Neighbors.Values)
+                    ioNeighbor.ZeroPrime();
+            }
+        }
 
         /// <summary>
         /// Starts the node's listener
         /// </summary>
-        protected virtual async Task SpawnListenerAsync(Action<IoNeighbor<TJob>> connectionReceivedAction = null)
+        protected virtual async ValueTask BlockOnListenerAsync<T,TBoot>(Func<IoNeighbor<TJob>, T, ValueTask<bool>> handshake = null, T context = default, Func<TBoot, ValueTask> bootFunc = null, TBoot bootData = default)
         {
+            //clear previous attempts
             if (_netServer != null)
-                throw new ConstraintException("The network has already been started");
-
-            _netServer = IoNetServer<TJob>.GetKindFromUrl(_address, _spinners.Token, parm_tcp_readahead);
-
-            await _netServer.StartListenerAsync(remoteClient =>
             {
-                var newNeighbor = _mallocNeighbor(this, remoteClient);
+                await _netServer.DisposeAsync(this, "Recycled").FastPath();
+                _netServer = null;
+                return;
+            }
 
-                // Register close hooks
-                var cancelRegistration = _spinners.Token.Register(() =>
+#if DEBUG
+            _logger.Trace($"Starting lisener, {Description}");
+#endif
+            //start the listener
+            _netServer = IoNetServer<TJob>.GetKindFromUrl(_address, _preFetch, ZeroConcurrencyLevel());
+            await _netServer.ZeroHiveAsync(this).FastPath();
+
+            await _netServer.BlockOnListenAsync(static async (state, newSocket) =>
+            {
+                var (@this, listenerContext, handshake) = state;
+                await @this.ZeroAsync(static async state =>
                 {
-                    newNeighbor.Close();
-                });
-
-                //Close neighbor when connection closes
-                remoteClient.Disconnected += (s, e) =>
-                {
-                    newNeighbor.Close();
-                };
-
-                // Remove from lists if closed
-                newNeighbor.Closed += (s, e) =>
-                {
-                    cancelRegistration.Dispose();
-                    PeerDisconnected?.Invoke(this, newNeighbor);
-                    Neighbors.TryRemove(((IoNeighbor<TJob>)s).PrimaryProducer.Key, out var _);
-                };
-
-                // Add new neighbor
-                if (!Neighbors.TryAdd(remoteClient.Key, newNeighbor))
-                {
-                    newNeighbor.Close();
-                    _logger.Warn($"Neighbor `{remoteClient.ListenerAddress}' already connected. Possible spoof investigate!");
-                }
-
-                //New peer connection event
-                PeerConnected?.Invoke(this, newNeighbor);
-
-                //super class specific mutations
-                connectionReceivedAction?.Invoke(newNeighbor);
-
-                //start redis                
-
-                //Start the producer consumer on the neighbor scheduler
-                try
-                {
-#pragma warning disable 4014
-                    Task.Factory.StartNew(() => newNeighbor.SpawnProcessingAsync(_spinners.Token), _spinners.Token, TaskCreationOptions.LongRunning, TaskScheduler.Current);
-#pragma warning restore 4014
-                }
-                catch (Exception e)
-                {
-                    _logger.Error(e, $"Neighbor `{newNeighbor.PrimaryProducer.Description}' processing thread returned with errors:");
-                }
-            }, parm_tcp_readahead);
+                    var (@this, newSocket,listenerContext, handshake) = state;
+                    IoNeighbor<TJob> n;
+                    if (!await ZeroEnsureConnAsync(@this, n = @this.MallocNeighbor(@this, newSocket, null), handshake, listenerContext).FastPath())
+                    {
+                        @this._logger.Trace($"{nameof(ZeroEnsureConnAsync)}: Accepted connection; {n.Description}");
+                    }
+                    else
+                    {
+                        @this._logger.Trace($"{nameof(ZeroEnsureConnAsync)}: Rejected connection from {newSocket}; {n.Description}");
+                    }
+                }, (@this, newSocket, listenerContext, handshake));
+            }, (this, context, handshake), bootFunc, bootData).FastPath();
         }
 
         /// <summary>
-        /// Make sure a connection stays up
-        /// </summary>        
-        /// <param name="address">The remote node address</param>
-        /// <param name="retry">Retry on failure</param>
-        /// <param name="retryTimeoutMs">Retry timeout in ms</param>
-        /// <returns>The async task</returns>
-        public async Task<IoNeighbor<TJob>> SpawnConnectionAsync(IoNodeAddress address, bool retry = false, int retryTimeoutMs = 10000)
+        /// Ensure the connection and perform handshake
+        /// </summary>
+        /// <typeparam name="T"></typeparam>
+        /// <param name="this"></param>
+        /// <param name="newNeighbor"></param>
+        /// <param name="handshake"></param>
+        /// <param name="listenerContext"></param>
+        /// <returns>ValueTask</returns>
+        private static async ValueTask<bool> ZeroEnsureConnAsync<T>(IoNode<TJob> @this, IoNeighbor<TJob> newNeighbor, Func<IoNeighbor<TJob>, T, ValueTask<bool>> handshake, T listenerContext)
         {
-            IoNeighbor<TJob> newNeighbor = null;
-            bool connectedAtLeastOnce = false;
-
-            while (!_spinners.IsCancellationRequested && !connectedAtLeastOnce)
+            var ioNetClient = newNeighbor.Source;
+            try
             {
-                if (newNeighbor == null && !connectedAtLeastOnce)
-                {
-                    var newClient = await _netServer.ConnectAsync(address);
-
-                    if (newClient != null && newClient.IsOperational)
+                if (await @this.ZeroAtomicAsync(static async (_, state, _) =>
                     {
-                        var neighbor = newNeighbor = _mallocNeighbor(this, newClient);
-                        _spinners.Token.Register(() => neighbor.Spinners.Cancel());
-
-                        if (Neighbors.TryAdd(newNeighbor.PrimaryProducer.Key, newNeighbor))
+                        var (@this, newNeighbor) = state;
+                        try
                         {
-                            neighbor.parm_producer_start_retry_time = 60000;
-                            neighbor.parm_consumer_wait_for_producer_timeout = 60000;
-
-                            newNeighbor.Closed += (s, e) =>
+                            bool success;
+                            // Does this neighbor already exist?
+                            while (!(success = @this.Neighbors.TryAdd(newNeighbor.Key, newNeighbor)))
                             {
-                                if (!Neighbors.TryRemove(((IoNeighbor<TJob>)s).PrimaryProducer.Key, out _))
+                                //Drop incoming //TODO? Drop existing? No because of race.
+                                if (@this.Neighbors.TryGetValue(newNeighbor.Key, out var existingNeighbor))
                                 {
-                                    _logger.Fatal($"Neighbor metadata expected for key `{newNeighbor.PrimaryProducer.Key}'");
+                                    try
+                                    {
+                                        if (!existingNeighbor.Zeroed() &&
+                                            !existingNeighbor.Source.IsOperational() &&
+                                            existingNeighbor.UpTime.ElapsedMsToSec() >
+                                            @this.parm_zombie_connect_time_threshold_s)
+                                        {
+                                            var errMsg = $"{nameof(BlockOnListenerAsync)}: Connection {newNeighbor.Key} [REPLACED], existing {existingNeighbor.Key} with uptime {existingNeighbor.UpTime.ElapsedMs()}ms [DC]";
+                                            @this._logger.Warn(errMsg);
+
+                                            //We remove the key here or async race conditions with the listener...
+                                            @this.Neighbors.Remove(existingNeighbor.Key, out _);
+                                            await existingNeighbor.DisposeAsync(@this, errMsg).FastPath();
+                                            continue;
+                                        }
+
+                                        @this._logger.Warn($"{nameof(BlockOnListenerAsync)}: {newNeighbor.IoSource.Direction} Connection {newNeighbor.Source.Key} [DROPPED], existing [OK]; {existingNeighbor}");
+                                        return false;
+
+                                        ////Only drop incoming if the existing one is working and originating
+                                        //if (existingNeighbor.Source.IsOriginating && existingNeighbor.Source.IsOperational)
+                                        //{
+                                        //    @this._logger.Warn($"Connection {newNeighbor.Key} [DROPPED], existing {existingNeighbor.Key} [OK]");
+                                        //    return new ValueTask<bool>(false);
+                                        //}
+
+                                        //else  //else drop existing
+                                        //{
+                                        //    @this._logger.Warn($"New Connection {newNeighbor.Key} [DROPPED], [DC]");
+                                        //    return new ValueTask<bool>(false);
+                                        //}
+                                    }
+                                    catch when (@this.Zeroed() || existingNeighbor.Zeroed())
+                                    {
+                                    }
+                                    catch (Exception e) when (!@this.Zeroed() && !existingNeighbor.Zeroed())
+                                    {
+                                        @this._logger.Trace(e,
+                                            $"existingNeighbor {existingNeighbor.Description} from {@this.Description}, had errors");
+                                    }
+
+                                    break;
                                 }
-                            };
-                            
-                            return newNeighbor;
+                            }
+
+                            return success;
                         }
-                        else //strange case
+                        catch when (@this.Zeroed() || newNeighbor.Zeroed())
                         {
-                            newNeighbor.Close();
-                            newNeighbor = null;
+                        }
+                        catch (Exception e) when (!@this.Zeroed() && !newNeighbor.Zeroed())
+                        {
+                            @this._logger.Error(e, $"Adding new node failed! {@this.Description}");
                         }
 
-                        connectedAtLeastOnce = true;
+                        return false;
+                    }, (@this, newNeighbor)).FastPath())
+                {
+                    //async accept...
+                    if (!await handshake(newNeighbor, listenerContext).FastPath())
+                    {
+                        @this._logger.Trace($"{nameof(handshake)}: {((IoNetClient<TJob>)newNeighbor.IoSource).Direction} connection {ioNetClient.Key} rejected.");
+                        await newNeighbor.DisposeAsync(@this, $"{nameof(handshake)}: {((IoNetClient<TJob>)newNeighbor.IoSource).Direction} connection {ioNetClient.Key} not accepted").FastPath();
+                        return false;
                     }
+
+                    //Start processing
+                    await @this.ZeroAsync(@this.BlockOnAssimilateAsync, newNeighbor).FastPath();
                 }
                 else
                 {
-                    //TODO param
-                    await Task.Delay(retryTimeoutMs);
-                }                
+                    await newNeighbor.DisposeAsync(@this, $"Failed to add new node... {@this.Description}").FastPath();
+                }
+            }
+            catch (Exception e)
+            {
+                await newNeighbor.DisposeAsync(@this, $"{nameof(handshake)} Exception: {e.Message}").FastPath();
 
-                if(!retry)
-                    break;
+                @this._logger.Error(e, $"Accepting connection {ioNetClient.Key} returned with errors");
+            }
+
+            return false;
+        }
+
+        /// <summary>
+        /// Assimilate neighbor
+        /// </summary>
+        /// <param name="newNeighbor"></param>
+        protected internal async ValueTask BlockOnAssimilateAsync(IoNeighbor<TJob> newNeighbor)
+        {
+            try
+            {
+                while(!newNeighbor.Zeroed() && !Zeroed())
+                    await newNeighbor.BlockOnReplicateAsync().FastPath();
+            }
+            catch when(!Zeroed() || newNeighbor.Zeroed()){}
+            catch (Exception e) when (!Zeroed() && !newNeighbor.Zeroed())
+            {
+                _logger.Error(e, $"{nameof(newNeighbor.BlockOnReplicateAsync)}: [FAILED]... restarting");
+            }
+
+            if(!Zeroed() && !newNeighbor.Zeroed())
+                _logger.Warn($"{nameof(newNeighbor.BlockOnReplicateAsync)}: [FAILED]... restarting");
+        }
+
+        protected ValueTask<IoNeighbor<TJob>> ConnectAsync<T>(Func<IoNeighbor<TJob>, T, ValueTask<bool>> handshake,
+            T context, IoNodeAddress remoteAddress, object extraData = null, bool retry = false, int timeout = 0) =>
+            ConnectAndBootAsync<T, object>(handshake, context, remoteAddress, extraData, retry, timeout);
+
+        /// <summary>
+        /// Make sure a connection and execute boot function
+        /// </summary>
+        /// <param name="handshake"></param>
+        /// <param name="context"></param>
+        /// <param name="remoteAddress">The remote node address</param>
+        /// <param name="extraData">Any extra data you want to send to the neighbor constructor</param>
+        /// <param name="retry">Retry on failure</param>
+        /// <param name="timeout">Retry timeout in ms</param>
+        /// <param name="bootFunc"></param>
+        /// <param name="bootData"></param>
+        /// <returns>The async task</returns>
+        protected async ValueTask<IoNeighbor<TJob>> ConnectAndBootAsync<T, TBoot>(
+            Func<IoNeighbor<TJob>, T, ValueTask<bool>> handshake, T context, IoNodeAddress remoteAddress,
+            object extraData = null, bool retry = false, int timeout = 0,
+            Func<TBoot, ValueTask> bootFunc = null,
+            TBoot bootData = default)
+        {
+            try
+            {
+                IoNetClient<TJob> newClient;
+                IoNeighbor<TJob> newAdjunct = null;
+                if ((newClient = await _netServer.ConnectAsync(remoteAddress, timeout: timeout).FastPath()) != null &&
+                    !await ZeroEnsureConnAsync(this, newAdjunct = MallocNeighbor(this, newClient, extraData), handshake, context).FastPath())
+                {
+                    return null;
+                }
+
+                return newAdjunct;
+            }
+            catch when (Zeroed()){}
+            catch (Exception e) when (!Zeroed())
+            {
+                _logger.Error(e,$"{nameof(ConnectAsync)}:");
             }
 
             return null;
         }
 
+        private int _activated;
         /// <summary>
         /// Start the node
         /// </summary>
-        public async Task StartAsync()
+        public virtual async ValueTask StartAsync<TBoot>(Func<TBoot,ValueTask> bootFunc = null, TBoot bootData = default, TaskScheduler customScheduler = null)
         {
-            _logger.Info("Unimatrix Zero");
-            try
+            await ZeroAsync(static async state =>
             {
-                await SpawnListenerAsync().ContinueWith(_=> _logger.Info("You will be assimilated!"));
-            }
-            catch (Exception e)
-            {
-                _logger.Error(e, "Unimatrix Zero returned with errors: ");
-            }
+                var (@this, bootFunc, bootData) = state;
+                var retry = 3;
+                if (Interlocked.CompareExchange(ref @this._activated, 1, 0) != 0)
+                    return;
+
+                @this._logger.Trace($"unimatrix zero: {@this.Description}");
+                while (!@this.Zeroed() && retry-- > 0)
+                {
+                    await @this.BlockOnListenerAsync<object,TBoot>(bootFunc: bootFunc, bootData: bootData).FastPath();
+                    if (!@this.Zeroed())
+                        @this._logger.Warn($"Listener restart {retry}...; {@this.Description}");
+                    else
+                        await @this.DisposeAsync(@this, "clean exit").FastPath();
+                }
+
+                Interlocked.Exchange(ref @this._activated, 0);
+            },(this, bootFunc, bootData), TaskCreationOptions.DenyChildAttach, customScheduler??IoZeroScheduler.ZeroDefault, true).FastPath();
         }
 
-        /// <summary>
-        /// Stop the node
-        /// </summary>
-        public void Stop()
-        {
-            _spinners.Cancel();
-            Neighbors.ToList().ForEach(n => n.Value.Close());
-            Neighbors.Clear();
-            _logger.Info("Resistance is futile");
-        }
-        
         public bool WhiteList(IoNodeAddress address)
         {
             if (_whiteList.TryAdd(address.ToString(), address))
@@ -257,17 +432,19 @@ namespace zero.core.core
         /// </summary>
         /// <param name="address">The address of the neighbor</param>
         /// <returns>The blacklisted neighbor if it was connected</returns>
-        public IoNeighbor<TJob> BlackList(IoNodeAddress address)
+        public async Task<IoNeighbor<TJob>> BlackListAsync(IoNodeAddress address)
         {
             if (_whiteList.TryRemove(address.ToString(), out var ioNodeAddress))
             {
                 var keys = new List<string>();
-                Neighbors.Values.Where(n=>n.PrimaryProducer.Key.Contains(address.ProtocolDesc)).ToList().ForEach(n =>
-                {                    
-                    keys.Add(n.PrimaryProducer.Key);
-                });
+                Neighbors.Values.Where(n => n.Source.Key.Contains(address.ProtocolDesc)).ToList().ForEach(n =>
+                  {
+                      keys.Add(n.Source.Key);
+                  });
 
-                Neighbors[address.ToString()].Close();
+
+                await Neighbors[address.ToString()].DisposeAsync(this, "blacklisted").FastPath();
+
                 Neighbors.TryRemove(address.ToString(), out var ioNeighbor);
                 return ioNeighbor;
             }

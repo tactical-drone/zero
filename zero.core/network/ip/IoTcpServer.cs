@@ -1,8 +1,8 @@
 ﻿using System;
-using System.Threading;
 using System.Threading.Tasks;
 using NLog;
-using zero.core.patterns.bushes.contracts;
+using zero.core.patterns.bushings.contracts;
+using zero.core.patterns.misc;
 
 namespace zero.core.network.ip
 {
@@ -11,19 +11,19 @@ namespace zero.core.network.ip
     /// </summary>
     /// <seealso cref="zero.core.network.ip.IoNetServer{TJob}" />
     public class IoTcpServer<TJob> : IoNetServer<TJob>
-        where TJob : IIoWorker
-        
+        where TJob : IIoJob
+
     {
         /// <summary>
         /// Initializes a new instance of the <see cref="IoTcpServer{TJob}"/> class.
         /// </summary>
         /// <param name="listeningAddress">The listening address</param>
-        /// <param name="cancellationToken">Cancellation hooks</param>
+        /// <param name="prefetchBuffer"></param>
+        /// <param name="concurrencyLevel"></param>
         /// <inheritdoc />
-        public IoTcpServer(IoNodeAddress listeningAddress, CancellationToken cancellationToken, int readAheadBuffer) : base(listeningAddress, cancellationToken)
+        public IoTcpServer(IoNodeAddress listeningAddress, int prefetchBuffer = 2,  int concurrencyLevel = 1) : base(listeningAddress, prefetchBuffer, concurrencyLevel)
         {
             _logger = LogManager.GetCurrentClassLogger();
-            parm_read_ahead = readAheadBuffer;
         }
 
         /// <summary>
@@ -35,39 +35,56 @@ namespace zero.core.network.ip
         /// Start the listener
         /// </summary>
         /// <param name="connectionReceivedAction">Action to execute when an incoming connection was made</param>
-        /// <param name="readAhead">Tcp readahead</param>
+        /// <param name="context"></param>
+        /// <param name="bootFunc"></param>
         /// <returns>True on success, false otherwise</returns>
-        public override async Task<bool> StartListenerAsync(Action<IoNetClient<TJob>> connectionReceivedAction, int readAhead)
+        public override async ValueTask BlockOnListenAsync<T,TContext>(Func<T, IoNetClient<TJob>, ValueTask> connectionReceivedAction, T context = default, Func<TContext,ValueTask> bootFunc = null, TContext bootData = default)
         {
-            if (!await base.StartListenerAsync(connectionReceivedAction, readAhead))
-                return false;
+            await base.BlockOnListenAsync(connectionReceivedAction, context, bootFunc, bootData).FastPath();
 
-            IoListenSocket = new IoTcpSocket(Spinners.Token);
+            IoListenSocket = (await ZeroHiveAsync(new IoTcpSocket(ZeroConcurrencyLevel()), true).FastPath()).target;
 
-            return await IoListenSocket.ListenAsync(ListeningAddress, ioSocket =>
+            await IoListenSocket.BlockOnListenAsync(ListeningAddress, static async (newConnectionSocket, state) =>
             {
+                var (@this, nanite,connectionReceivedAction) = state;
                 try
                 {
-                    connectionReceivedAction?.Invoke(new IoTcpClient<TJob>(ioSocket, parm_read_ahead));
+                    await connectionReceivedAction(
+                        nanite,
+                        (
+                            await @this.ZeroHiveAsync(
+                                new IoTcpClient<TJob>(
+                                    $"{nameof(IoTcpClient<TJob>)} ~> {@this.Description}", 
+                                    (IoNetSocket) newConnectionSocket, 
+                                    @this.Prefetch,
+                                    @this.ConcurrencyLevel)).FastPath()
+                            ).target
+                        ).FastPath();
                 }
                 catch (Exception e)
                 {
-                    _logger.Error(e, $"Connection received handler returned with errors:");
-                    ioSocket.Close();
+                    var errMsg = $"{@this.Description} Connection received handler returned with errors:";
+                    @this._logger.Error(e, errMsg);
+                    await newConnectionSocket.DisposeAsync(@this, errMsg).FastPath();
                 }
-            });
+            }, ValueTuple.Create(this, context, connectionReceivedAction), bootFunc, bootData).FastPath();
         }
 
         /// <summary>
-        /// Connects the asynchronous.
+        /// Connect to remote.
         /// </summary>
-        /// <param name="address">The address.</param>
+        /// <param name="remoteAddress">The address.</param>
         /// <param name="_">The .</param>
-        /// <returns>The tcp client object managing this socket connection</returns>
-        public override async Task<IoNetClient<TJob>> ConnectAsync(IoNodeAddress address, IoNetClient<TJob> _)
+        /// <param name="timeout"></param>
+        /// <returns>The tcp client object managing this dotNetSocket connection</returns>
+        public override ValueTask<IoNetClient<TJob>> ConnectAsync(IoNodeAddress remoteAddress,
+            IoNetClient<TJob> _, int timeout = 0)
         {
-            var ioTcpclient = new IoTcpClient<TJob>(address, parm_read_ahead);
-            return await base.ConnectAsync(address, ioTcpclient);
+            if (!remoteAddress.Validated)
+                return new ValueTask<IoNetClient<TJob>>();
+
+            //ZEROd later on inside net server once we know the connection succeeded 
+            return base.ConnectAsync(remoteAddress, new IoTcpClient<TJob>($"{nameof(IoTcpClient<TJob>)} ~> {Description}", Prefetch, ConcurrencyLevel), timeout);
         }
     }
 }

@@ -4,18 +4,17 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
 using System.Threading;
-using System.Threading.Tasks;
 using Microsoft.AspNetCore.Cors;
 using Microsoft.AspNetCore.Mvc;
 using NLog;
 using NLog.Targets;
-using zero.core.api;
-using zero.core.api.models;
 using zero.core.core;
-using zero.core.models;
+using zero.core.feat.api;
+using zero.core.feat.api.models;
 using zero.core.network.ip;
-using zero.core.patterns.bushes;
-using zero.interop.entangled.common.model.interop;
+using zero.core.patterns.bushings.contracts;
+using zero.core.patterns.misc;
+using zero.interop.entangled.common.model;
 using zero.tangle.api.interfaces;
 using zero.tangle.models;
 
@@ -24,15 +23,15 @@ namespace zero.tangle.api.controllers.generic
     /// <summary>
     /// Node services
     /// </summary>
-    /// <seealso cref="Microsoft.AspNetCore.Mvc.Controller" />
+    /// <seealso cref="Controller" />
     /// <seealso cref="IIoNodeController" />
     [EnableCors("ApiCorsPolicy")]
-    [ApiController]
+
     //[Authorize(AuthenticationSchemes = JwtBearerDefaults.AuthenticationScheme)]    
-    public class IoNodeServices<TBlob> : Controller, IIoNodeController
+    public class IoNodeServices<TKey> : Controller, IIoNodeController
     {
         /// <summary>
-        /// Initializes a new instance of the <see cref="IoNodeServices{TBlob}"/> class.
+        /// Initializes a new instance of the <see cref="IoNodeServices{TKey}"/> class.
         /// </summary>
         public IoNodeServices()
         {
@@ -55,7 +54,7 @@ namespace zero.tangle.api.controllers.generic
         /// <summary>
         /// The nodes managed by this service
         /// </summary>
-        private static readonly ConcurrentDictionary<int, IoNode<IoTangleMessage<TBlob>>> Nodes = new ConcurrentDictionary<int, IoNode<IoTangleMessage<TBlob>>>();
+        private static readonly ConcurrentDictionary<int, IoNode<IoTangleMessage<TKey>>> Nodes = new();
         /// <summary>
         /// Posts the specified address.
         /// </summary>
@@ -67,7 +66,7 @@ namespace zero.tangle.api.controllers.generic
             if (!address.Validated)
                 return IoApiReturn.Result(false, address.ValidationErrorString);
 
-            if (!Nodes.TryAdd(address.Port, new IoNode<IoTangleMessage<TBlob>>(address, (node, ioNetClient) => new TanglePeer<TBlob>((TangleNode<IoTangleMessage<TBlob>, TBlob>) node, ioNetClient), TanglePeer<TBlob>.TcpReadAhead)))
+            if (!Nodes.TryAdd(address.Port, new IoNode<IoTangleMessage<TKey>>(address, (node, ioNetClient, extraData) => new TanglePeer<TKey>((TangleNode<IoTangleMessage<TKey>, TKey>) node, ioNetClient), TanglePeer<TKey>.TcpReadAhead, 2, 16)))
             {
                 var errStr = $"Cannot create node `${address.Url}', a node with that id already exists";
                 _logger.Warn(errStr);
@@ -78,7 +77,7 @@ namespace zero.tangle.api.controllers.generic
             var dbgStr = $"Added listener at `{address.Url}'";
 
 #pragma warning disable 4014
-            Nodes[address.Port].StartAsync();
+            var task = Nodes[address.Port].StartAsync();
 #pragma warning restore 4014
 
             _logger.Debug(dbgStr);
@@ -103,44 +102,43 @@ namespace zero.tangle.api.controllers.generic
             {
                 if (!Nodes.ContainsKey(id))
                     return IoApiReturn.Result(false, $"Could not find listener with id=`{id}'");
-                var transactions = new List<IIoTransactionModel<TBlob>>();
+                var transactions = new List<IIoTransactionModel<TKey>>();
 
                 int count = 0;
                 long outstanding = 0;
                 long freeBufferSpace = 0;
 
                 Stopwatch stopwatch = new Stopwatch();
-#pragma warning disable 4014 //TODO figure out what is going on with async
-                Nodes.SelectMany(n => n.Value.Neighbors).Select(n => n.Value).ToList()
-                    .ForEach(async n =>
-#pragma warning restore 4014
+                var task = Nodes.SelectMany(n => n.Value.Neighbors).Select(n => n.Value).ToList()
+                    .ForEachAsync(static async (n,state) =>
                     {
-                        var relaySource = n.PrimaryProducer.CreateDownstreamArbiter<IoTangleTransaction<TBlob>>(nameof(IoNodeServices<TBlob>));
+                        var (@this, stopwatch,count,tagQuery,transactions,outstanding,freeBufferSpace) =state;
+                        var relaySource = await n.Source.CreateConduitOnceAsync<IoTangleTransaction<TKey>>(nameof(IoNodeServices<TKey>)).ConfigureAwait(false);
 
                         if (relaySource != null)
                         {
                             stopwatch.Start();
-                            count = 0;
-                            while (Interlocked.Read(ref relaySource.JobHeap.ReferenceCount) > 0)
+                            Interlocked.Exchange(ref count, 0);
+                            while (relaySource.JobHeap.ReferenceCount > 0)
                             {
-                                await relaySource.ConsumeAsync(message =>
+                                await relaySource.ConsumeAsync<object>((message,_) =>
                                 {
                                     if (message == null)
-                                        return Task.CompletedTask;
+                                        return default;
 
 
-                                    var msg = ((IoTangleTransaction<TBlob>)message);
+                                    var msg = ((IoTangleTransaction<TKey>)message);
 
-                                    if (count > 50)
-                                        return Task.CompletedTask;
+                                    if (Volatile.Read(ref count) > 50)
+                                        return default;
 
                                     if (msg.Transactions == null)
-                                        return Task.CompletedTask;
+                                        return default;
                                     try
                                     {
                                         foreach (var t in msg.Transactions)
                                         {
-                                            var tagStr = t.AsTrytes(t.TagBuffer);
+                                            var tagStr = t.AsTrytes(t.TagBuffer, IoTransaction.NUM_TRITS_OBSOLETE_TAG, IoTransaction.NUM_TRYTES_OBSOLETE_TAG);
 
                                             if (tagQuery == null)
                                                 transactions.Add(t);
@@ -150,28 +148,28 @@ namespace zero.tangle.api.controllers.generic
                                             {
                                                 transactions.Add(t);
                                             }
-                                            if (++count > 50)
+                                            if (Interlocked.Increment(ref count) > 50)
                                                 break;
                                         }
 
-                                        msg.ProcessState = IoProducible<IoTangleTransaction<TBlob>>.State.Consumed;
+                                        msg.State = IoJobMeta.JobState.Consumed;
                                     }
                                     finally
                                     {
-                                        if (msg.ProcessState == IoProducible<IoTangleTransaction<TBlob>>.State.Consuming)
-                                            msg.ProcessState = IoProducible<IoTangleTransaction<TBlob>>.State.ConsumeErr;
+                                        if (msg.State == IoJobMeta.JobState.Consuming)
+                                            msg.State = IoJobMeta.JobState.ConsumeErr;
                                     }
 
-                                    return Task.CompletedTask;                                    
-                                }, sleepOnProducerLag: false);
+                                    return default;                                    
+                                }).FastPath().ConfigureAwait(false);
                             }
                             stopwatch.Stop();
-                            outstanding = relaySource.JobHeap.ReferenceCount;
-                            freeBufferSpace = relaySource.JobHeap.FreeCapacity();
+                            Interlocked.Exchange(ref outstanding, relaySource.JobHeap.ReferenceCount);
+                            Interlocked.Exchange(ref freeBufferSpace, relaySource.JobHeap.AvailableCapacity);
                         }
                         else
-                            _logger.Warn($"Waiting for multicast producer `{n.PrimaryProducer.Description}' to initialize...");
-                    });
+                            @this._logger.Warn($"Waiting for multicast source `{n.Source.Description}' to initialize...");
+                    }, ValueTuple.Create(this,stopwatch,count,tagQuery,transactions,outstanding,freeBufferSpace));
                 return IoApiReturn.Result(true, $"Queried listener at port `{id}', found `{transactions.Count}' transactions, scanned= `{count}', backlog= `{outstanding}', free= `{freeBufferSpace}', t= `{stopwatch.ElapsedMilliseconds} ms'", transactions, stopwatch.ElapsedMilliseconds);
             }
             catch (Exception e)
@@ -189,7 +187,7 @@ namespace zero.tangle.api.controllers.generic
             if (!Nodes.ContainsKey(id))
                 return IoApiReturn.Result(false, $"Neighbor with listener port `{id}' does not exist");
 
-            Nodes[id].Stop();
+            Nodes[id].Zero(null, "MAIN TEARDOWN").AsTask().GetAwaiter().GetResult();
             Nodes.TryRemove(id, out _);
 
             return IoApiReturn.Result(true, $"Successfully stopped neighbor `{id}'");

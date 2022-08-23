@@ -2,7 +2,32 @@
 
   <PropertyGroup>
     <OutputType>Exe</OutputType>
-    <TargetFramework>netcoreapp3.0</TargetFramework>    
+    <TargetFramework>net7.0</TargetFramework>
+    <LangVersion>preview</LangVersion>
+    <Configurations>Debug;Release;Trace</Configurations>
+	  <!--<ServerGarbageCollection>true</ServerGarbageCollection>
+	  <ConcurrentGarbageCollection>true</ConcurrentGarbageCollection>
+	  <GCHeapCount>16</GCHeapCount>
+	  <GCCpuGroup>0</GCCpuGroup>
+	  <GCNoAffinitize>false</GCNoAffinitize>
+	  <GCLOHThreshold>120000</GCLOHThreshold>
+	  <GCConserveMemory>7</GCConserveMemory>-->
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
+    <GenerateSerializationAssemblies>Off</GenerateSerializationAssemblies>
+    <DefineConstants>SAFE_RELEASE;GOOGLE_PROTOBUF_SUPPORT_SYSTEM_MEMORY;DEBUG</DefineConstants>
+	  <Optimize>False</Optimize>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|AnyCPU'">
+	  <DefineConstants>SAFE_RELEASE;GOOGLE_PROTOBUF_SUPPORT_SYSTEM_MEMORY</DefineConstants>
+	  <Optimize>True</Optimize>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Trace|AnyCPU'">
+    <DefineConstants>SAFE_RELEASE;GOOGLE_PROTOBUF_SUPPORT_SYSTEM_MEMORY; TRACE</DefineConstants>
+	  <Optimize>False</Optimize>
   </PropertyGroup>
 
   <ItemGroup>
@@ -18,17 +43,24 @@
 
   <ItemGroup>
     <None Include="..\.gitlab-ci.yml" Link=".gitlab-ci.yml" />
+    <None Include="..\azure-pipelines.yml" Link="azure-pipelines.yml" />
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="NLog" Version="4.5.11" />
-    <PackageReference Include="NLog.Extensions.Logging" Version="1.4.0" />
+    <PackageReference Include="Grpc.AspNetCore" Version="2.48.0-pre1" />
+    <PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" Version="7.0.0-rc.1.22422.12" />
+    <PackageReference Include="NLog" Version="5.0.2" />
+    <PackageReference Include="NLog.Extensions.Logging" Version="5.0.2" />
+    <PackageReference Include="NLog.Web.AspNetCore" Version="5.1.1" />
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\deps\tangle.net\Tangle.Net.Standard\Tangle.Net.Standard\Tangle.Net.Standard.csproj" />
+	  <ProjectReference Include="..\zero.cocoon\zero.cocoon.csproj" />
     <ProjectReference Include="..\zero.core\zero.core.csproj" />
-    <ProjectReference Include="..\zero.tangle\zero.tangle.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Folder Include="headers\" />
   </ItemGroup>
   
 </Project>

@@ -1,0 +1,36 @@
+﻿syntax = "proto3";
+
+package zero.models.protobuf;
+
+message net_protocol {
+	string kind = 1;
+	int32  port = 2;
+}
+
+message z_header {
+	oneof header{
+		net_header ip = 1;
+		tachyon cell = 2;
+	}
+}
+
+message net_header {
+	int64 twc = 1;
+	int32 flags = 2;
+	bytes src = 3; //TODO cd: dbg only
+	bytes dst = 4;	
+	repeated int64 lsp = 5;
+	bytes opt = 6;
+}
+
+message tachyon {
+	int64 twc = 1;
+	repeated int64 lsp = 2;
+}
+
+message tachyon_re {
+	net_header ingress = 1;
+	net_header egress = 2;
+	int64 src_label = 3;
+	int64 dst_label = 4;
+}

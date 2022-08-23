@@ -1,7 +1,7 @@
-﻿using System.Net.Sockets;
-using System.Threading;
-using zero.core.data.contracts;
-using zero.core.patterns.bushes.contracts;
+﻿using System.Net;
+using System.Net.Sockets;
+using zero.core.conf;
+using zero.core.patterns.bushings.contracts;
 
 namespace zero.core.network.ip
 {
@@ -9,20 +9,116 @@ namespace zero.core.network.ip
     /// Marks the more generic <see cref="IoSocket"/> for use in our abstraction
     /// </summary>
     /// <seealso cref="zero.core.network.ip.IoSocket" />
-    /// <seealso cref="IIoProducer" />
-    public abstract class IoNetSocket : IoSocket, IIoProducer
+    /// <seealso cref="IIoSource" />
+    public abstract class IoNetSocket : IoSocket
     {
-        protected IoNetSocket(SocketType socketType, ProtocolType protocolType, CancellationToken cancellationToken) : base(socketType, protocolType, cancellationToken)
+        /// <summary>
+        /// TCP and UDP connections
+        /// </summary>
+        /// <param name="socketType"></param>
+        /// <param name="protocolType"></param>
+        /// <param name="concurrencyLevel"></param>
+        protected IoNetSocket(SocketType socketType, ProtocolType protocolType, int concurrencyLevel) : base(socketType, protocolType, concurrencyLevel)
         {
+
         }
 
-        protected IoNetSocket(Socket socket, IoNodeAddress listenerAddress, CancellationToken cancellationToken) : base(socket, listenerAddress, cancellationToken)
+        /// <summary>
+        /// Used by listeners
+        /// </summary>
+        /// <param name="nativeSocket">The socket to wrap</param>
+        /// <param name="remoteEndPoint">Optional remote endpoint specification</param>
+        /// <param name="concurrencyLevel"></param>
+        protected IoNetSocket(Socket nativeSocket, EndPoint remoteEndPoint = null, int concurrencyLevel = 1) : base(nativeSocket, concurrencyLevel,remoteEndPoint)
         {
+
         }
 
-        public string Description => $"{this.GetType().Name} `{base.LocalAddress}'";
-        public string SourceUri => $"{base.ListenerAddress}";
-        public bool IsOperational => NativeSocket.Connected;
-        public IIoDupChecker RecentlyProcessed { get; set; }
+        /// <summary>
+        /// Enable TCP keep alive
+        /// </summary>
+        [IoParameter]
+        private bool parm_enable_tcp_keep_alive = false;
+
+#if NET6_0
+        [IoParameter]
+        private int parm_enable_tcp_keep_alive_time = 120;
+        [IoParameter]
+        private int parm_enable_tcp_keep_alive_retry_interval_sec = 2;
+        [IoParameter]
+        private int parm_enable_tcp_keep_alive_retry_count = 2;
+#endif
+
+        /// <summary>
+        /// Configure Socket
+        /// </summary>
+        protected override void ConfigureSocket()
+        {
+            if (NativeSocket.IsBound || NativeSocket.Connected)
+            {
+                return;
+            }
+
+            //NativeSocket.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.DontLinger, true);
+
+            NativeSocket.DontFragment = true;
+
+            NativeSocket.Blocking = true;
+
+            // Don't allow another socket to bind to this port.
+            NativeSocket.ExclusiveAddressUse = true;
+
+            // The socket will linger for 10 seconds after
+            // Socket.Close is called.
+            NativeSocket.LingerState = new LingerOption(false, 0);
+
+            // Disable the Nagle Algorithm for this tcp socket.
+            NativeSocket.NoDelay = true;
+
+            // Set the receive buffer size to MTU times
+            NativeSocket.ReceiveBufferSize = 1492 * ZeroConcurrencyLevel() * 4;
+
+            // Set the send buffer size to MTU times
+            NativeSocket.SendBufferSize = 1492 * ZeroConcurrencyLevel() * 4;
+
+            // Set the timeout for synchronous receive methods to
+            // 1 second (1000 milliseconds.)
+            NativeSocket.ReceiveTimeout = 1000;
+
+            // Set the timeout for synchronous send methods
+            // to 1 second (1000 milliseconds.)
+            NativeSocket.SendTimeout = 1000;
+
+            // Set the Time To Live (TTL) to 64 router hops.
+            NativeSocket.Ttl = 64;
+
+            //var v = new uint[] {1, 1000, 2000}.SelectMany(BitConverter.GetBytes).ToArray();
+            //var r = NativeSocket.IOControl(
+            //    IOControlCode.KeepAliveValues,
+            //    v,
+            //    null
+            //);
+
+            if(NativeSocket.ProtocolType  == ProtocolType.Tcp && parm_enable_tcp_keep_alive)
+            {
+                NativeSocket.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.KeepAlive, true);
+#if NET6_0
+                NativeSocket.SetSocketOption(SocketOptionLevel.Tcp, SocketOptionName.TcpKeepAliveInterval, parm_enable_tcp_keep_alive_retry_interval_sec);
+                NativeSocket.SetSocketOption(SocketOptionLevel.Tcp, SocketOptionName.TcpKeepAliveTime, parm_enable_tcp_keep_alive_time);
+                NativeSocket.SetSocketOption(SocketOptionLevel.Tcp, SocketOptionName.TcpKeepAliveRetryCount, parm_enable_tcp_keep_alive_retry_count);
+#endif
+            }
+
+            //_logger.Trace($"Tcp Socket configured: {Description}:" +
+            //              $"  ExclusiveAddressUse {socket.ExclusiveAddressUse}" +
+            //              $"  LingerState {socket.LingerState.Enabled}, {socket.LingerState.LingerTime}" +
+            //              $"  NoDelay {socket.NoDelay}" +
+            //              $"  ReceiveBufferSize {socket.ReceiveBufferSize}" +
+            //              $"  ReceiveTimeout {socket.ReceiveTimeout}" +
+            //              $"  SendBufferSize {socket.SendBufferSize}" +
+            //              $"  SendTimeout {socket.SendTimeout}" +
+            //              $"  Ttl {socket.Ttl}" +
+            //              $"  IsBound {socket.IsBound}");
+        }
     }
 }

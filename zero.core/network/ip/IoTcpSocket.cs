@@ -1,195 +1,379 @@
 ﻿using System;
+using System.Diagnostics;
+using System.Net;
 using System.Net.Sockets;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Threading.Tasks.Sources;
 using zero.core.patterns.misc;
 using NLog;
+using zero.core.conf;
+using zero.core.patterns.heap;
+using zero.core.patterns.semaphore.core;
+using zero.core.runtime.scheduler;
 
 namespace zero.core.network.ip
 {
     /// <summary>
     /// The TCP flavor of <see cref="IoSocket"/>
     /// </summary>
-    class IoTcpSocket : IoNetSocket
+    sealed class IoTcpSocket : IoNetSocket
     {
         /// <summary>
-        /// Constructs a new TCP socket
+        /// Constructs a new TCP socket from connection
         /// </summary>
-        /// <param name="cancellationToken">Token used to send cancellation signals</param>
-        public IoTcpSocket(CancellationToken cancellationToken) : base(SocketType.Stream, ProtocolType.Tcp, cancellationToken)
+        public IoTcpSocket(int concurrencyLevel) : base(SocketType.Stream, ProtocolType.Tcp, concurrencyLevel)
         {
             _logger = LogManager.GetCurrentClassLogger();
+            ConfigureSocket();
+            _listenerSourceCore = new IoHeap<IIoManualResetValueTaskSourceCore<Socket>>($"{nameof(_listenerSourceCore)}: tcp", concurrencyLevel * 2, (_, _) => new IoManualResetValueTaskSourceCore<Socket> { AutoReset = true });
+            _connectSourceCore= new IoHeap<IIoManualResetValueTaskSourceCore<bool>>($"{nameof(_listenerSourceCore)}: tcp", concurrencyLevel * 2, (_, _) => new IoManualResetValueTaskSourceCore<bool> { AutoReset = true });
         }
 
         /// <summary>
-        /// A copy constructor used by the listener to spawn new TCP connection handlers
+        /// A copy constructor used by the listener to spawn new TCP connections
         /// </summary>
-        /// <param name="socket">The connecting socket</param>
-        /// <param name="listenerAddress">The address that was listened on where this socket was spawned</param>
-        /// <param name="cancellationToken">Token used to send cancellation signals</param>
-        public IoTcpSocket(Socket socket, IoNodeAddress listenerAddress, CancellationToken cancellationToken) : base(socket, listenerAddress, cancellationToken)
+        /// <param name="nativeSocket">The connecting socket</param>
+        public IoTcpSocket(Socket nativeSocket) : base(nativeSocket)
         {
             _logger = LogManager.GetCurrentClassLogger();
-            RemoteAddress = IoNodeAddress.CreateFromRemoteSocket(socket);
-            IsListeningSocket = true;
+            ConfigureSocket();
+        }
+
+
+        public override async ValueTask ZeroManagedAsync()
+        {
+            await base.ZeroManagedAsync();
+
+            if(_listenerSourceCore!=null)
+                await _listenerSourceCore.ZeroManagedAsync<object>();
+            
+            if(_connectSourceCore != null)
+                await _connectSourceCore.ZeroManagedAsync<object>();
+        }
+
+        /// <summary>
+        /// zero unmanaged
+        /// </summary>
+        public override void ZeroUnmanaged()
+        {
+            base.ZeroUnmanaged();
+
+#if SAFE_RELEASE
+            _logger = null;
+#endif
         }
 
         /// <summary>
         /// The logger
         /// </summary>
-        private readonly Logger _logger;
+        private Logger _logger;
 
-        public sealed override IoNodeAddress RemoteAddress { get; protected set; }
+        private readonly IoHeap<IIoManualResetValueTaskSourceCore<Socket>> _listenerSourceCore;
+        private readonly IoHeap<IIoManualResetValueTaskSourceCore<bool>> _connectSourceCore;
+
+        [IoParameter]
+        // ReSharper disable once InconsistentNaming
+        public int parm_socket_poll_wait_ms = 250;
 
         /// <summary>
         /// Starts a TCP listener
         /// </summary>
-        /// <param name="address">The <see cref="IoNodeAddress"/> that this socket listener will initialize with</param>
-        /// <param name="connectionHandler">A handler that is called once a new connection was formed</param>
+        /// <param name="listeningAddress">The <see cref="IoNodeAddress"/> that this socket listener will initialize with</param>
+        /// <param name="acceptConnectionHandler">A handler that is called once a new connection was formed</param>
+        /// <param name="context">handler context</param>
+        /// <param name="bootFunc">Optional bootstrap function called after connect</param>
         /// <returns></returns>
-        public override async Task<bool> ListenAsync(IoNodeAddress address, Action<IoSocket> connectionHandler)
+        public override async ValueTask BlockOnListenAsync<T, TContext>(IoNodeAddress listeningAddress,
+            Func<IoSocket, T,ValueTask> acceptConnectionHandler, T context,
+            Func<TContext,ValueTask> bootFunc = null, TContext bootData = default)
         {
-            if (!await base.ListenAsync(address, connectionHandler))
-                return false;
-
+            //base
+            await base.BlockOnListenAsync(listeningAddress, acceptConnectionHandler, context, bootFunc, bootData).FastPath();
+            
+            //Put the socket in listen mode
             try
             {
-                Socket.Listen(parm_socket_listen_backlog);
+                NativeSocket.Listen(parm_socket_listen_backlog);
             }
             catch (Exception e)
             {
-                _logger.Error(e, $"Socket listener `{ListenerAddress}' returned with errors:");
-                return false;
+                _logger.Error(e, $" listener `{LocalNodeAddress}' returned with errors:");
+                return;
             }
 
+            //Execute bootstrap
+            if (bootFunc != null)
+                await bootFunc(bootData).FastPath();
+
+            var description = Description;
             // Accept incoming connections
-            while (!Spinners.Token.IsCancellationRequested)
+            while (!Zeroed())
             {
-                _logger.Debug($"Listening for a new connection at `{ListenerAddress}'");
-                await Socket.AcceptAsync().ContinueWith(t =>
+#if DEBUG
+                _logger.Trace($"Waiting for a new connection to `{LocalNodeAddress}...'");
+#endif
+                IIoManualResetValueTaskSourceCore<Socket> taskCore = null;
+                try
                 {
-                    switch (t.Status)
+                    //ZERO control passed to connection handler
+                    taskCore = _listenerSourceCore.Take();
+                    if (taskCore == null)
+                        throw new OutOfMemoryException(nameof(_listenerSourceCore));
+
+                    NativeSocket.BeginAccept(static result =>
                     {
-                        case TaskStatus.Canceled:
-                        case TaskStatus.Faulted:
-                            _logger.Error(t.Exception, $"Listener `{ListenerAddress}' returned with status `{t.Status}':");
-                            break;
-                        case TaskStatus.RanToCompletion:
-
-                            var newSocket = new IoTcpSocket(t.Result, ListenerAddress, Spinners.Token);                            
-
-                            //Do some pointless sanity checking
-                            if (newSocket.LocalAddress != ListenerAddress.HostStr || newSocket.LocalPort != ListenerAddress.Port)
-                            {
-                                _logger.Fatal($"New connection to `tcp://{newSocket.LocalIpAndPort}' should have been to `tcp://{ListenerAddress.IpAndPort}'! Possible hackery! Investigate immediately!");
-                                newSocket.Close();
-                                break;
-                            }
-
-                            _logger.Debug($"New connection from `tcp://{newSocket.RemoteIpAndPort}' to `{ListenerAddress}'");
-
+                        var (socket, taskCore) =
+                            (ValueTuple<Socket, IIoManualResetValueTaskSourceCore<Socket>>)result.AsyncState;
+                        try
+                        {
+                            taskCore.SetResult(socket.EndAccept(result));
+                        }
+                        catch (ObjectDisposedException){}
+                        catch (SocketException e) when (e.SocketErrorCode == SocketError.OperationAborted) {}
+                        catch (Exception e)
+                        {
                             try
                             {
-                                connectionHandler(newSocket);
+                                LogManager.GetCurrentClassLogger().Trace(e, $"{nameof(NativeSocket.BeginConnect)}");
+                                taskCore.Reset();
                             }
-                            catch (Exception e)
+                            catch
                             {
-                                _logger.Error(e, $"There was an error handling a new connection from `tcp://{newSocket.RemoteIpAndPort}' to `{newSocket.ListenerAddress}'");
+                                // ignored
                             }
-                            break;
-                        default:
-                            _logger.Error($"Listener for `{ListenerAddress}' went into unknown state `{t.Status}'");
-                            break;
+                        }
+                    }, (NativeSocket, taskCore));
+
+
+                    Socket socket;
+                    IoTcpSocket newSocket;
+                    var connected = new ValueTask<Socket>(taskCore, 0);
+
+                    if ((socket = await connected.FastPath()) != null)
+                    {
+                        if (socket.Connected && socket.IsBound)
+                            newSocket = new IoTcpSocket(socket);
+                        else
+                        {
+                            socket.Dispose();
+                            continue;
+                        }
                     }
-                }, Spinners.Token);
+                    else
+                    {
+                        continue;
+                    }
+
+                    _logger.Trace($"Connection Received: from = `{newSocket.RemoteNodeAddress}', ({Description})");
+
+                    try
+                    {
+                        //ZERO
+                        await acceptConnectionHandler(newSocket, context).FastPath();
+                    }
+                    catch (Exception e)
+                    {
+                        await newSocket.DisposeAsync(this, $"{nameof(acceptConnectionHandler)} returned with errors")
+                            .FastPath();
+                        _logger.Error(e,
+                            $"There was an error handling a new connection from {newSocket.RemoteNodeAddress} to `{newSocket.LocalNodeAddress}'");
+                    }
+                }
+                catch (ObjectDisposedException) { }
+                catch when (Zeroed())
+                {
+                }
+                catch (Exception e) when (!Zeroed())
+                {
+                    _logger.Error(e, $"Listener at `{LocalNodeAddress}' returned with errors");
+                }
+                finally
+                {
+                    _listenerSourceCore.Return(taskCore);
+                }
             }
 
-            _logger.Debug($"Listener at `{ListenerAddress}' exited");
-            return true;
+            _logger?.Trace($"Listener {description} exited");
         }
+
+#if NET6_0
+        private int WSAEWOULDBLOCK = 10035;
+#endif
 
         /// <summary>
         /// Connect to a remote endpoint
         /// </summary>
-        /// <param name="address">The address to connect to</param>
+        /// <param name="remoteAddress">The address to connect to</param>
+        /// <param name="timeout">Connection timeout in ms</param>
         /// <returns>True on success, false otherwise</returns>
-        public override async Task<bool> ConnectAsync(IoNodeAddress address)
+        public override async ValueTask<bool> ConnectAsync(IoNodeAddress remoteAddress, int timeout = 0)
         {
-            if (!await base.ConnectAsync(address))
+            if (!await base.ConnectAsync(remoteAddress, timeout).FastPath())
                 return false;
 
-            return await Socket.ConnectAsync(ListenerAddress.HostStr, ListenerAddress.Port).ContinueWith(r =>
+            IIoManualResetValueTaskSourceCore<bool> taskCore = null;
+            try
             {
-                switch (r.Status)
+                NativeSocket.Blocking = false;
+                NativeSocket.SendTimeout = timeout;
+                NativeSocket.ReceiveTimeout = timeout;
+                taskCore = _connectSourceCore.Take();
+                if (taskCore == null)
+                    throw new OutOfMemoryException(nameof(_listenerSourceCore));
+
+                var connectAsync = NativeSocket.BeginConnect(remoteAddress.IpEndPoint, static result =>
                 {
-                    case TaskStatus.Canceled:
-                    case TaskStatus.Faulted:
-                        //_logger.Error(r.Exception, $"Connecting to `{Address}' failed:");
-                        Socket.Close();
-                        return Task.FromResult(false);
-                    case TaskStatus.RanToCompletion:
-                        //Do some pointless sanity checking
-                        if (ListenerAddress.IpEndPoint.Address.ToString() != Socket.RemoteAddress().ToString() || ListenerAddress.IpEndPoint.Port != Socket.RemotePort())
+                    var (socket, taskCore) = (ValueTuple<Socket, IIoManualResetValueTaskSourceCore<bool>>)result.AsyncState;
+                    try
+                    {
+                        socket.EndConnect(result);
+                        taskCore.SetResult(socket.Connected && socket.IsBound);
+                    }
+                    catch (Exception e)
+                    {
+                        try
                         {
-                            _logger.Fatal($"Connection to `tcp://{ListenerAddress.IpAndPort}' established, but the OS reports it as `tcp://{Socket.RemoteAddress()}:{Socket.RemotePort()}'. Possible hackery! Investigate immediately!");
-                            Socket.Close();
-                            return Task.FromResult(false);
+                            if (taskCore.Blocking)
+                                taskCore.SetResult(false);
+                            LogManager.GetCurrentClassLogger().Trace(e, $"{nameof(NativeSocket.BeginConnect)}");
+                        }
+                        catch
+                        {
+                            // ignored
+                        }
+                    }
+                }, (NativeSocket, taskCore));
+
+                if (timeout > 0)
+                {
+                    IoZeroScheduler.Zero.LoadAsyncContext(static async state =>
+                    {
+                        var (@this, taskCore, connectAsync, timeout) = (ValueTuple<IoTcpSocket, IIoManualResetValueTaskSourceCore<bool>, IAsyncResult, int>)state;
+
+                        try
+                        {
+                            await Task.Delay(timeout, @this.AsyncTasks.Token);
+                        }
+                        catch
+                        {
+                            // ignored
                         }
 
-                        RemoteAddress = IoNodeAddress.CreateFromRemoteSocket(Socket);
-
-                        _logger.Info($"Connected to `{ListenerAddress}'");
-                        break;
-                    default:
-                        _logger.Error($"Connecting to `{ListenerAddress}' returned with unknown state `{r.Status}'");
-                        Socket.Close();
-                        return Task.FromResult(false);
+                        try
+                        {
+                            if (@this.NativeSocket != null)
+                            {
+                                @this.NativeSocket.EndConnect(connectAsync);
+                                taskCore.SetResult(@this.NativeSocket.Connected && @this.NativeSocket.IsBound);
+                            }
+                        }
+                        catch
+                        {
+                            // ignored
+                        }
+                    }, (this, taskCore, connectAsync, timeout));
                 }
-                return Task.FromResult(true);
-            }, Spinners.Token).Unwrap();
+
+                var connected = new ValueTask<bool>(taskCore, 0);
+                if (!await connected.FastPath())
+                {
+                    try
+                    {
+                        NativeSocket.Close();
+                    }
+                    catch
+                    {
+                        // ignored
+                    }
+
+                    return false;
+                }
+
+
+                LocalNodeAddress = IoNodeAddress.CreateFromEndpoint("tcp", (IPEndPoint)NativeSocket.LocalEndPoint);
+                RemoteNodeAddress = remoteAddress;
+
+                _logger.Trace($"Connected to {RemoteNodeAddress}, {Description}");
+                return true;
+            }
+            catch (ObjectDisposedException)
+            {
+            }
+            catch (TaskCanceledException)
+            {
+            }
+            catch (OperationCanceledException)
+            {
+            }
+            catch (SocketException e)
+            {
+                _logger.Trace(e, $"[FAILED] connecting to {RemoteNodeAddress}: ({Description})");
+            }
+            catch when (Zeroed())
+            {
+            }
+            catch (Exception e) when (!Zeroed())
+            {
+                _logger.Error(e, $"[FAILED ] Connecting to {remoteAddress}: {Description}");
+            }
+            finally
+            {
+                _connectSourceCore.Return(taskCore);
+                try
+                {
+                    NativeSocket.Blocking = true;
+                }
+                catch
+                {
+                    // ignored
+                }
+            }
+
+            return false;
         }
+
 
         /// <summary>
         /// Sends data over TCP async
         /// </summary>
-        /// <param name="getBytes">The buffer containing the data</param>
+        /// <param name="buffer">The buffer containing the data</param>
         /// <param name="offset">The offset into the buffer to start reading from</param>
         /// <param name="length">The length of the data to be sent</param>
+        /// <param name="endPoint">not used</param>
+        /// <param name="timeout"></param>
         /// <returns>The amount of bytes sent</returns>
-        public override async Task<int> SendAsync(byte[] getBytes, int offset, int length)
+        public override async ValueTask<int> SendAsync(ReadOnlyMemory<byte> buffer, int offset, int length,
+            EndPoint endPoint = null, int timeout = 0)
         {
             try
             {
-                var task = Task.Factory
-                    .FromAsync<int>(Socket.BeginSend(getBytes, offset, length, SocketFlags.None, null, null),
-                        Socket.EndSend).HandleCancellation(Spinners.Token);                
-                await task.ContinueWith(t =>
-                {
-                    switch (t.Status)
-                    {
-                        case TaskStatus.Canceled:
-                        case TaskStatus.Faulted:
-                            _logger.Error(t.Exception, $"Sending to `tcp://{RemoteIpAndPort}' failed:");
-                            Close();
-                            break;
-                        case TaskStatus.RanToCompletion:
-                            _logger.Trace($"TX => `{length}' bytes to `tpc://{RemoteIpAndPort}'");
-                            break;
-                    }
-                }, Spinners.Token);
+                if (!NativeSocket.Poll(parm_socket_poll_wait_ms, SelectMode.SelectWrite))
+                    return 0;
 
-                return task.Result;
+                return await NativeSocket.SendAsync(buffer.Slice(offset, length), SocketFlags.None, timeout >0? new CancellationTokenSource(timeout).Token: AsyncTasks.Token).FastPath();
             }
-            catch (Exception e)
+            catch (SocketException e)
             {
-                _logger.Error(e, $"Unable to send bytes to socket `tcp://{RemoteIpAndPort}' :");
-                Close();
-                return 0;
+                _logger.Trace($"{nameof(SendAsync)}: err = {e.SocketErrorCode}, {Description}");
+                if (e.SocketErrorCode != SocketError.TimedOut)
+                    await DisposeAsync(this, e.Message).FastPath();
             }
-            finally
+            catch (OperationCanceledException) { }
+            catch (ObjectDisposedException)
             {
-                
             }
+            catch (Exception) when (Zeroed())
+            {
+            }
+            catch (Exception e) when (!Zeroed())
+            {
+                var errMsg = $"{nameof(SendAsync)}: [FAILED], {Description}, l = {length}, o = {offset}: {e.Message}";
+                _logger.Trace(e, errMsg);
+                await DisposeAsync(this, errMsg).FastPath();
+            }
+
+            return 0;
         }
 
         /// <inheritdoc />
@@ -198,25 +382,32 @@ namespace zero.core.network.ip
         /// </summary>
         /// <param name="buffer">The buffer to read into</param>
         /// <param name="offset">The offset into the buffer</param>
-        /// <param name="length">The maximum bytes to read into the buffer</param>        
+        /// <param name="length">The maximum bytes to read into the buffer</param>
+        /// <param name="remoteEp"></param>
+        /// <param name="timeout">A timeout</param>
         /// <returns>The number of bytes read</returns>
-        public override async Task<int> ReadAsync(byte[] buffer, int offset, int length) //TODO can we go back to array buffers?
+        public override async ValueTask<int> ReadAsync(Memory<byte> buffer, int offset, int length, byte[] remoteEp = null, int timeout = 0)
         {
             try
-            {                
-                return await Task.Factory.FromAsync(
-                    Socket.BeginReceive(buffer, offset, length, SocketFlags.None, null, null),
-                    Socket.EndReceive).HandleCancellation(Spinners.Token);                
-            }
-            catch (Exception)
             {
-                //_logger.Trace(e, $"Unable to read from socket `tcp://{Address.ResolvedIpAndPort}', length = `{length}', offset = `{offset}' :");
-                return 0;
+                return await NativeSocket.ReceiveAsync(buffer.Slice(offset, length), SocketFlags.None, timeout > 0? new CancellationTokenSource(timeout).Token: AsyncTasks.Token).FastPath();
             }
-            finally
+            catch (ObjectDisposedException) { }
+            catch (OperationCanceledException) { }
+            catch (SocketException e) when (!Zeroed())
             {
-                
+                var errMsg = $"{nameof(ReadAsync)}: {e.Message} - {Description}";
+                _logger?.Debug(errMsg);
+                await DisposeAsync(this, errMsg).FastPath();
             }
+            catch (Exception) when (Zeroed()){}
+            catch (Exception e) when(!Zeroed())
+            {
+                var errMsg = $"{nameof(ReadAsync)}: [FAILED], {Description}, l = {length}, o = {offset}: {e.Message}";
+                _logger?.Error(e, errMsg);
+                await DisposeAsync(this, errMsg).FastPath();
+            }
+            return 0;
         }
 
         /// <inheritdoc />
@@ -226,7 +417,22 @@ namespace zero.core.network.ip
         /// <returns>True if the connection is up, false otherwise</returns>
         public override bool IsConnected()
         {
-            return (Socket?.IsBound??false) && (Socket?.Connected??false);
+            try
+            {
+                return !Zeroed() && NativeSocket is { IsBound: true, Connected: true };//&& (_expensiveCheck++ % 10000 == 0 && NativeSocket.Send(_sentinelBuf, SocketFlags.None) == 0  || true);
+
+                //||
+                // IoNetSocket.NativeSocket.Poll(-1, SelectMode.SelectError) ||
+                // !IoNetSocket.NativeSocket.Poll(-1, SelectMode.SelectRead) ||
+                // !IoNetSocket.NativeSocket.Poll(-1, SelectMode.SelectWrite)
+            }
+            catch (ObjectDisposedException){}
+            catch when(Zeroed()){}
+            catch (Exception e) when (!Zeroed())
+            {                
+                _logger.Error(e, Description);
+            }
+            return false;
         }
     }
 }

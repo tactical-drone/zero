@@ -1,0 +1,11 @@
+﻿syntax = "proto3";
+
+package zero.models.protobuf;
+
+message CcWhisperMsg {
+    bytes data = 1;
+}
+
+message CcWhisperReq {
+    bytes id = 1;
+}

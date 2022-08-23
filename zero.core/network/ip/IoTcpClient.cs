@@ -1,6 +1,7 @@
 ﻿using System.Threading.Tasks;
 using NLog;
-using zero.core.patterns.bushes.contracts;
+using zero.core.patterns.bushings.contracts;
+using zero.core.patterns.misc;
 
 namespace zero.core.network.ip
 {
@@ -9,32 +10,31 @@ namespace zero.core.network.ip
     /// </summary>
     /// <seealso cref="IoNetClient{TJob}" />
     public class IoTcpClient<TJob> : IoNetClient<TJob>
-        where TJob : IIoWorker
-        
+        where TJob : IIoJob
+
     {
         /// <summary>
         /// Initializes a new instance of the <see cref="IoTcpClient{TJob}"/> class.
         /// </summary>
-        public IoTcpClient()
+        /// <param name="description">Description</param>
+        /// <param name="remote">The tcp client to be wrapped</param>
+        /// <param name="prefetchSize">The amount of socket reads the source is allowed to lead the consumer</param>
+        /// <param name="concurrencyLevel">Concurrency level</param>
+        public IoTcpClient(string description, IoNetSocket remote, int prefetchSize = 1,  int concurrencyLevel = 1) : base(description, remote, prefetchSize,  concurrencyLevel, false)
         {
-            _logger = LogManager.CreateNullLogger();            
+            LogManager.GetCurrentClassLogger();
         }
 
-        private readonly Logger _logger;
-
         /// <summary>
-        /// Initializes a new instance of the <see cref="IoTcpClient{TJob}"/> class.
+        /// Initializes a new instance of the <see cref="IoTcpClient{TJob}"/> class. Used in combination with <see cref="ConnectAsync"/>
         /// </summary>
-        /// <param name="remote">The tcpclient to be wrapped</param>
-        /// <param name="readAheadBufferSize">The amount of socket reads the producer is allowed to lead the consumer</param>
-        public IoTcpClient(IoSocket remote, int readAheadBufferSize) : base((IoNetSocket)remote, readAheadBufferSize) { }
-
-        /// <summary>
-        /// Initializes a new instance of the <see cref="IoTcpClient{TJob}"/> class.
-        /// </summary>
-        /// <param name="listenerAddress">The address associated with this network client</param>
-        /// <param name="readAheadBufferSize">The amount of socket reads the producer is allowed to lead the consumer</param>
-        public IoTcpClient(IoNodeAddress listenerAddress, int readAheadBufferSize) : base(listenerAddress, readAheadBufferSize) { }
+        /// <param name="description">Description</param>
+        /// <param name="prefetchSize">The amount of socket reads the source is allowed to lead the consumer</param>
+        /// <param name="concurrencyLevel">Concurrency level</param>
+        public IoTcpClient(string description, int prefetchSize,  int concurrencyLevel) : base(description, prefetchSize,  concurrencyLevel)
+        {
+            LogManager.GetCurrentClassLogger();
+        }
         
         /// <summary>
         /// Connects to a remote listener
@@ -42,10 +42,21 @@ namespace zero.core.network.ip
         /// <returns>
         /// True if succeeded, false otherwise
         /// </returns>
-        public override async Task<bool> ConnectAsync()
+        public override async ValueTask<bool> ConnectAsync(IoNodeAddress remoteAddress, int timeout)
         {
-            IoSocket = new IoTcpSocket(Spinners.Token);
-            return await base.ConnectAsync();
-        }        
+            IoNetSocket = (await ZeroHiveAsync(new IoTcpSocket(ZeroConcurrencyLevel()), true).FastPath()).target;
+            return await base.ConnectAsync(remoteAddress, timeout).FastPath();
+        }
+
+        /// <summary>
+        /// zero managed
+        /// </summary>
+        public override void ZeroUnmanaged()
+        {
+            base.ZeroUnmanaged();
+
+#if SAFE_RELEASE
+#endif
+        }
     }
 }

@@ -1,5 +1,6 @@
 ﻿using System.Runtime.InteropServices;
 using zero.interop.entangled.common.model.interop;
+using zero.interop.entangled.common.model.interop.transaction;
 
 // ReSharper disable InconsistentNaming
 
@@ -47,6 +48,6 @@ namespace zero.interop.entangled.common.model
         public const int NUM_TRYTES_HASH = 81;
 
         [DllImport("interop", CallingConvention = CallingConvention.Cdecl)]
-        public static extern int transaction_deserialize_from_trits(out IoMarshalledTransaction transaction, sbyte* trits);
+        public static extern int transaction_deserialize_from_trits(out IoMarshalledTransaction transaction, sbyte* trits, bool compute_hash);
     }
 }

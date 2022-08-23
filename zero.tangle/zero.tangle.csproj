@@ -1,25 +1,33 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>netcoreapp3.0</TargetFramework>
+    <TargetFramework>net6.0</TargetFramework>
+    <LangVersion>preview</LangVersion>
+    <Configurations>Debug;Release;Trace</Configurations>
   </PropertyGroup>
 
   <ItemGroup>
     <Folder Include="data\redis\" />
-    <Folder Include="models\" />
+    <Folder Include="entangled\common\model\native\" />
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="CassandraCSharpDriver" Version="3.7.0" />
-    <PackageReference Include="Microsoft.AspNetCore.App" Version="3.0.0-preview-19075-0444" />
+    <PackageReference Include="CassandraCSharpDriver" Version="3.17.1" />
+    <PackageReference Include="MathNet.Numerics" Version="5.0.0" />
     <PackageReference Include="Microsoft.Extensions.Caching.Redis" Version="2.2.0" />
-    <PackageReference Include="Newtonsoft.Json" Version="12.0.1" />
-    <PackageReference Include="NLog" Version="4.5.11" />
+    <PackageReference Include="Microsoft.Extensions.Logging" Version="7.0.0-preview.4.22215.7" />
+    <PackageReference Include="Microsoft.Extensions.Options" Version="7.0.0-preview.4.22215.7" />
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.1" />
+    <PackageReference Include="NLog" Version="5.0.0-rc2" />
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\zero.core.feat\zero.core.feat.csproj" />
     <ProjectReference Include="..\zero.core\zero.core.csproj" />
     <ProjectReference Include="..\zero.interop\zero.interop.csproj" />
   </ItemGroup>
-
+	
+	<ItemGroup>
+		<FrameworkReference Include="Microsoft.AspNetCore.App" />
+	</ItemGroup>
 </Project>

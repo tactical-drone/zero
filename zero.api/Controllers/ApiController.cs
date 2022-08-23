@@ -1,9 +1,10 @@
 ﻿using System.Threading.Tasks;
 using Microsoft.AspNetCore.Cors;
 using Microsoft.AspNetCore.Mvc;
-using zero.core.api.commands;
 using Microsoft.Extensions.Logging;
 using Newtonsoft.Json.Linq;
+using System.Text.Json;
+using zero.core.feat.api.commands;
 
 namespace zero.api.Controllers
 {
@@ -27,9 +28,9 @@ namespace zero.api.Controllers
         }                
 
         [HttpPost]
-        public async Task<JsonResult> Post([FromBody]JObject command)
+        public async Task<JsonResult> PostAsync([FromBody]JsonDocument command)
         {
-            var commandTask = IoItApiCommand.Process(command);
+            var commandTask = IoItApiCommand.ProcessAsync(command);
 
             try
             {

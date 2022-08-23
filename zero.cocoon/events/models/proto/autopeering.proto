@@ -1,0 +1,107 @@
+﻿syntax = "proto3";
+
+service autopeering {
+	rpc Next(NullMsg) returns (EventResponse);
+	rpc Shell(ShellCommand) returns (Response);
+}
+
+message NullMsg{
+	
+}
+
+message ShellCommand{
+	int32 seq = 1;
+	int32 uid = 2;
+	string id = 3;
+	string command = 4;
+	string response = 5;
+	string result = 6;
+	int32 time = 7;
+	bool done = 8;
+}
+
+enum AutoPeerEventType{
+	AddCollective = 0;
+	RemoveCollective = 1;
+	AddAdjunct = 2;
+	RemoveAdjunct = 3;
+	AddDrone = 4;
+	RemoveDrone = 5;
+	SendProtoMsg = 6;
+	ShellMsg = 7;
+} 
+
+message AutoPeerEvent{
+	AutoPeerEventType eventType = 1;	
+	int64 seq = 2;
+	int64 timestamp = 3;	
+	oneof event {
+		Collective collective = 4;
+		Adjunct adjunct = 5;
+		Drone drone = 6;
+		ProtoMsg msg = 7;
+		ShellCommand shell = 8;
+	};
+}
+
+message Response{	
+	int32 status = 1;
+	string message = 2;
+}
+
+message EventResponse{	
+	repeated AutoPeerEvent events = 1;
+}
+
+enum OSKind{
+	unix = 0;
+	windows = 1;
+	osx = 2;
+	os2 = 3;
+	linux = 4;
+	android = 5;
+	xbox = 6;
+	ps = 7;
+}
+
+message OsInfo{
+	int64 upSince = 1;
+	string version = 2;
+	OSKind kind = 3;
+	bool x64 = 4;
+	bool vm = 5;
+	int32 processors = 6;
+	int64 memory = 7;
+}
+
+message RuntimeInfo{	
+	string version = 1;
+	string machine = 2;
+	int64 memory = 3;
+}
+
+message Collective{	
+	string id = 1;
+	string ip = 2;
+	OsInfo os = 3;
+	RuntimeInfo rt = 4;
+}
+
+message Adjunct {	
+	string collectiveId = 1;		
+	string id = 2;		
+	string ip = 3;
+	int32 animatorPort = 4;
+}
+
+message ProtoMsg {	
+	string type = 1;
+	string collectiveId = 2;		
+	string id = 3;			
+}
+
+message Drone {		
+	string collectiveId = 1;
+	string id = 2;
+	string direction = 3;			
+}

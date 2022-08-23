@@ -3,11 +3,11 @@
     /// <summary>
     /// Stores where transactions are probably coming from
     /// </summary>
-    /// <typeparam name="TBlob"></typeparam>
-    public class IoDraggedTransaction<TBlob>
+    /// <typeparam name="TKey"></typeparam>
+    public class IoDraggedTransaction<TKey>
     {                
-        public TBlob Address { get; set; }
-        public TBlob Bundle { get; set; }
+        public TKey Address { get; set; }
+        public TKey Bundle { get; set; }
         
         public long Timestamp;
         public long LocalTimestamp;

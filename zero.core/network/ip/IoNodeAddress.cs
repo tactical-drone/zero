@@ -13,38 +13,43 @@ namespace zero.core.network.ip
     public class IoNodeAddress
     {
         /// <summary>
+        /// private constructor
+        /// </summary>
+        private IoNodeAddress()
+        {
+
+        }
+        /// <summary>
         /// Constructs a new node address
         /// </summary>
         /// <param name="url">The node url in the form tcp://HOST:port or udp://HOST:port</param>
-        public IoNodeAddress(string url)
+        /// <param name="lookup">Whether to perform a dns lookup on <see cref="Ip"/></param>
+        public IoNodeAddress(string url, bool lookup = false)
         {
-            try
-            {
-                Url = url;
-
-                var uriAndIpAndPort = Url.Split(":");
-                var uriAndIp = uriAndIpAndPort[0] + ":" + uriAndIpAndPort[1];
-
-                Port = int.Parse(uriAndIpAndPort[2]);
-                HostStr = StripIpFromUrlString(uriAndIp);                
-            }
-            catch (Exception e)
-            {
-                Validated = false;
-                ValidationErrorString = $"Unable to parse {url}, must be in the form tcp://IP:port or udp://IP:port. ({e.Message})";
-                return;
-            }
-
-            _logger = LogManager.GetCurrentClassLogger();
+            _performDns = lookup;
+            Init(url);
+            IpEndPoint = new IPEndPoint(IPAddress.Parse(Ip),Port);
         }
 
-        private Logger _logger;
+        /// <summary>
+        /// Constructor from endpoint
+        /// </summary>
+        /// <param name="url">The url</param>
+        /// <param name="endpoint">The endpoint</param>
+        private IoNodeAddress(string url, IPEndPoint endpoint):this(url)
+        {
+            IpEndPoint = endpoint;
+        }
+
+        /// <summary>
+        /// The logger
+        /// </summary>
+        private static readonly Logger Logger = LogManager.GetCurrentClassLogger();
 
         [DataMember]
-        public string Url { get; }
+        public string Url { get; set; }
 
-        [DataMember]
-        public string Key => $"{HostStr}:{Port}";
+        [DataMember] public string Key => $"{ProtocolDesc}{IpEndPoint}";
 
         [DataMember]
         public IPAddress ResolvedIpAddress { get; protected set; }
@@ -59,16 +64,21 @@ namespace zero.core.network.ip
         /// <see cref="IoNodeAddress"/> wrapped as <see cref="System.Net.IPEndPoint"/>
         /// </summary>
         [IgnoreDataMember]
-        public IPEndPoint IpEndPoint { get; protected set; }
+        public IPEndPoint IpEndPoint { get; private set; }
 
         [DataMember]
         public IPEndPoint ResolvedIpEndPoint { get; protected set; }
 
         /// <summary>
+        /// Whether to perform a DNS lookup
+        /// </summary>
+        private readonly bool _performDns;
+
+        /// <summary>
         /// The Ip
         /// </summary>
         [IgnoreDataMember]
-        public string HostStr { get; protected set; }
+        public string Ip { get; protected set; }
 
         [IgnoreDataMember]
         public string ProtocolDesc { get; protected set; }
@@ -101,24 +111,52 @@ namespace zero.core.network.ip
         /// Returns the address as ip:port
         /// </summary>
         [IgnoreDataMember]
-        public string IpAndPort => $"{HostStr}:{Port}";
+        public string IpPort { get; private set; }
 
         [IgnoreDataMember]
-        public string ResolvedIpAndPort => $"{IpEndPoint?.Address}:{IpEndPoint?.Port}";
+        public string EndpointIpPort => $"{IpEndPoint?.Address}:{IpEndPoint?.Port}";
+
+        /// <summary>
+        /// Initializes the data from a url string
+        /// </summary>
+        /// <param name="url">The url</param>
+        private void Init(string url)
+        {
+            Url = url;
+            Parse();
+
+            if(_performDns)
+                Resolve();
+        }
         
         /// <summary>
         /// Creates a new node address descriptor
         /// </summary>
         /// <param name="url">The node url in the form tcp:// or udp://</param>
-        /// <param name="port">The node listening port</param>
         /// <returns></returns>
         public static IoNodeAddress Create(string url)
         {
-            var address = new IoNodeAddress(url);
-            address.Validate(); //TODO move this closer to where it is needed
-            return address;
+            return new IoNodeAddress(url);
         }
 
+        /// <summary>
+        /// Mutate the state, UDP needs this
+        /// </summary>
+        /// <param name="endpoint">The new endpoint</param>
+        /// <returns>The modified address</returns>
+        public IoNodeAddress Update(IPEndPoint endpoint)
+        {
+            if (endpoint.Address.Equals(IpEndPoint.Address) && endpoint.Port == Port)
+                return this;
+
+            Ip = endpoint.Address.ToString();
+            Port = endpoint.Port;
+            IpEndPoint = endpoint;
+            Url = $"{ProtocolDesc}{IpPort}";
+
+            return this;
+        }
+        
         /// <summary>
         /// The Url string in form url://ip:port
         /// </summary>
@@ -159,7 +197,8 @@ namespace zero.core.network.ip
                 ProtocolDesc = "udp://";
                 return ProtocolType.Udp;
             }
-                
+
+            ProtocolDesc = "zero://";
             return ProtocolType.Unknown;
         }
 
@@ -167,31 +206,33 @@ namespace zero.core.network.ip
         /// Validates syntax and DNS
         /// </summary>
         /// <returns>True on validated</returns>
-        public bool Validate()
+        public bool Parse()
         {
             try
             {
-                if (string.IsNullOrEmpty(HostStr))
+                Validated = false;
+
+                //"tcp://0.0.0.0:1"
+                if (!string.IsNullOrEmpty(Url))
                 {
-                    var uriAndIpAndPort = Url.Split(":");
-                    var uriAndIp = uriAndIpAndPort[0] + ":" + uriAndIpAndPort[1];
+                    var protoIdx = Url.IndexOf(':') + 3;
+                    var portIdx = Url.LastIndexOf(':') + 1;
 
-                    Port = int.Parse(uriAndIpAndPort[2]);
-                    HostStr = StripIpFromUrlString(uriAndIp);
+                    ProtocolDesc = Url[..protoIdx];
+                    Port = int.Parse(Url[portIdx..]);
+                    Ip = Url.Substring(protoIdx, Url.Length - protoIdx - Url.Length + portIdx - 1);
+                    IpPort = $"{Ip}:{Port}";
+                    Validated = true;
                 }
-
-                Validated = true;
-
                 Resolve();
             }
             catch (Exception e)
             {
-                Validated = false;
                 ValidationErrorString = $"Unable to parse {Url}, must be in the form tcp://IP:port or udp://IP:port. ({e.Message})";
                 return false;
             }
 
-            return Validated || !DnsResolutionChanged;
+            return Validated;
         }
 
         /// <summary>
@@ -201,7 +242,26 @@ namespace zero.core.network.ip
         {
             try
             {
-                var resolvedIpAddress = Dns.GetHostAddresses(HostStr)[0];
+                if (Ip == "0.0.0.0" || string.IsNullOrEmpty(Ip))
+                {
+                    DnsResolutionChanged = false;
+                    DnsValidated = true;
+                    return;
+                }
+
+                if (!Validated)
+                {
+                    return;
+                }
+
+                if (!_performDns)
+                {
+                    DnsResolutionChanged = false;
+                    DnsValidated = false;
+                    return;
+                }
+
+                var resolvedIpAddress = Dns.GetHostAddresses(IpPort)[0];
                 if (!IpEndPoint?.Address.Equals(resolvedIpAddress) ?? false)
                 {
                     ResolvedIpEndPoint = IpEndPoint;
@@ -219,25 +279,45 @@ namespace zero.core.network.ip
             {
                 Validated = false;
                 DnsValidated = false;
-                _logger.Error(e,$"Unable to resolve host name for `{Url}':");
+                Logger.Error(e,$"Unable to resolve host name for `{Url}':");
             }
         }
 
-        public static IoNodeAddress CreateFromRemoteSocket(Socket socket)
+        public static IoNodeAddress CreateFromEndpoint(string protocol, IPEndPoint endpoint)
         {
-            if (socket.ProtocolType == ProtocolType.Tcp)
-            {
-                return new IoNodeAddress($"tcp://{socket.RemoteAddress()}:{socket.RemotePort()}");
-            }
-            else
-            {
-                throw new NotSupportedException("Only TCP supports IoNodeAddress from remote sockets!");
-            }            
+            if (endpoint == null)
+                throw new ArgumentNullException(nameof(endpoint));
+
+            return new IoNodeAddress($"{protocol}://{endpoint.Address}:{endpoint.Port}", endpoint);
         }
 
-        public static IoNodeAddress CreateFromEndpoint(EndPoint udpRemoteEndpointInfo)
+        public override bool Equals(object obj)
         {
-            return new IoNodeAddress($"udp://{((IPEndPoint)udpRemoteEndpointInfo).Address}:{((IPEndPoint)udpRemoteEndpointInfo).Port}");
+            return obj != null && Equals((IoNodeAddress) obj);
+        }
+
+        /// <summary>
+        /// Determines equality based on IP:Port
+        /// </summary>
+        /// <param name="other">The comparator</param>
+        /// <returns>True if the IPs are the same, false otherwise</returns>
+        protected bool Equals(IoNodeAddress other)
+        {
+            return Port == other.Port && Ip == other.Ip;
+        }
+
+        /// <summary>
+        /// Hash function
+        /// </summary>
+        /// <returns>The hash</returns>
+        public override int GetHashCode()
+        {
+            return Key.GetHashCode();
+        }
+
+        public IoNodeAddress Copy()
+        {
+            return (IoNodeAddress)MemberwiseClone();
         }
     }
 }

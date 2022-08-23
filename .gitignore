@@ -262,3 +262,7 @@ __pycache__/
 /zero.api/internal-nlog.txt
 /zero.web/Views/Shared/_Layout.cshtml
 /zero.web/.cache-loader
+*.DotSettings
+/zero.core/zero.key
+/zero.gauge/BenchmarkDotNet.Artifacts/results
+/zero.core/runtime/scheduler/IoZeroScheduler - Copy.cs

@@ -1,278 +1,395 @@
 ﻿using System;
+using System.Net;
 using System.Net.Sockets;
+using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
 using NLog;
 using zero.core.conf;
+using zero.core.patterns.misc;
 
 namespace zero.core.network.ip
 {
     /// <summary>
     /// Abstracts TCP and UDP
     /// </summary>
-    public abstract class 
-        IoSocket
+    public abstract class IoSocket : IoNanoprobe
     {
         /// <inheritdoc />
         /// <summary>
-        /// Constructor
+        /// Constructor, used to create local clients
         /// </summary>
         /// <param name="socketType">The socket type</param>
         /// <param name="protocolType">The protocol type, <see cref="F:System.Net.Sockets.ProtocolType.Tcp" /> or <see cref="F:System.Net.Sockets.ProtocolType.Udp" /></param>
-        /// <param name="cancellationToken">Signals all blockers to cancel</param>
-        protected IoSocket(SocketType socketType, ProtocolType protocolType, CancellationToken cancellationToken)
+        /// <param name="concurrencyLevel">Concurrency level</param>
+        protected IoSocket(SocketType socketType, ProtocolType protocolType, int concurrencyLevel) : base($"{nameof(IoSocket)}", concurrencyLevel)
         {
             _logger = LogManager.GetCurrentClassLogger();
-            Socket = new Socket(AddressFamily.InterNetwork, socketType, protocolType);
-
-            _cancellationTokenRegistration = cancellationToken.Register(() => Spinners.Cancel());
+            NativeSocket = new Socket(AddressFamily.InterNetwork, socketType, protocolType);
         }
 
         /// <inheritdoc />
         /// <summary>
-        /// A copy constructor used by listeners
+        /// Used by (UDP) listeners to create ingress proxy
         /// </summary>
-        /// <param name="socket">The listening socket</param>
-        /// <param name="listenerAddress">The address listened on</param>
-        /// <param name="cancellationToken">Signals all blockers to cancel</param>
-        protected IoSocket(Socket socket, IoNodeAddress listenerAddress, CancellationToken cancellationToken)
+        /// <param name="nativeSocket">The socket to proxy to</param>
+        /// <param name="concurrencyLevel">The hub concurrency level</param>
+        /// <param name="remoteEndPoint">The remote endpoint of this connection in the case of a UDP. TCP unused.</param>
+        protected IoSocket(Socket nativeSocket, int concurrencyLevel, EndPoint remoteEndPoint = null) : base($"{nameof(IoSocket)}", concurrencyLevel)
         {
-            _logger = LogManager.GetCurrentClassLogger();
-            Socket = socket;
-            ListenerAddress = listenerAddress;            
+            NativeSocket = nativeSocket ?? throw new ArgumentNullException($"{nameof(nativeSocket)}");
 
-            _cancellationTokenRegistration = cancellationToken.Register(Close);
+            _logger = LogManager.GetCurrentClassLogger();
+
+            try
+            {
+                LocalNodeAddress = IoNodeAddress.CreateFromEndpoint(NativeSocket.ProtocolType.ToString().ToLower(),
+                    (IPEndPoint)NativeSocket.LocalEndPoint);
+                RemoteNodeAddress = IoNodeAddress.CreateFromEndpoint(NativeSocket.ProtocolType.ToString().ToLower(),
+                    (IPEndPoint)(NativeSocket.RemoteEndPoint ?? remoteEndPoint));
+
+                Key = NativeSocket.RemoteEndPoint != null ? RemoteNodeAddress.Key : $"{NativeSocket.ProtocolType.ToString().ToLower()}://{remoteEndPoint}";
+            }
+            catch (ObjectDisposedException)
+            {
+                _ = Task.Factory.StartNew(@this => ((IoSocket)@this).DisposeAsync((IoSocket)@this, "RACE"),this, CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Default);
+                return;
+            }
+            catch (Exception e)
+            {
+                _logger.Error(e, $"{nameof(IoSocket)}: ");
+            }
+
+            Kind = Connection.Ingress;
+
         }
 
         /// <summary>
         /// logger
         /// </summary>
-        private readonly Logger _logger;
+        private Logger _logger;
+
+
+        //Socket description 
+        public override string Description
+        {
+            get
+            {
+                try
+                {
+                    return
+                        $"{(Proxy ? "[proxy]" : "")}{Kind} socket({LocalNodeAddress}({NativeSocket?.LocalEndPoint}), {(Kind <= Connection.Listener ? "N/A" : RemoteNodeAddress?.ToString())}({NativeSocket?.RemoteEndPoint})";
+                }
+                catch
+                {
+                    return $"{(Proxy ? "[proxy]" : "")}{Kind} socket({LocalNodeAddress}, {(Kind <= Connection.Listener ? "N/A" : RemoteNodeAddress?.ToString())}";
+                }
+            }
+        }
 
         /// <summary>
         /// The underlying .net socket that is abstracted
         /// </summary>
-        protected volatile Socket Socket;
+        public Socket NativeSocket { get; internal set; }
+
+        /// <summary>
+        /// If this socket is a (udp) proxy
+        /// </summary>
+        public bool Proxy { get; protected set; }
 
         /// <summary>
         /// Keys this socket
         /// </summary>
-        public string Key => RemoteAddress.Key;
+        public string Key { get; private set; }
 
         /// <summary>
-        /// The original node address this socket is supposed to work with
+        /// The local address
         /// </summary>
-        public IoNodeAddress ListenerAddress { get; protected set; }
+        public IoNodeAddress LocalNodeAddress { get; protected set; }
+
+        //Local Address string
+        public string LocalAddress => Kind < Connection.Listener || LocalNodeAddress == null ? "(zero)" : LocalNodeAddress.ToString();
 
         /// <summary>
-        /// The original node address this socket is supposed to work with
+        ///
         /// </summary>
-        public abstract IoNodeAddress RemoteAddress { get; protected set; }
+        public IoNodeAddress RemoteNodeAddress { get; protected set; }
 
         /// <summary>
-        /// An indication that this socket is a listening socket
+        /// remote address string
         /// </summary>
-        protected bool IsListeningSocket = false;
+        public string RemoteAddress => Kind <= Connection.Listener || RemoteNodeAddress == null ? "(zero)" : RemoteNodeAddress.ToString();
 
         /// <summary>
-        /// An indication that this socket is a connecting socket
+        /// Socket 
         /// </summary>
-        protected bool IsConnectingSocket = false;
+        public enum Connection
+        {
+            Undefined,
+            Listener,
+            Ingress,
+            Egress,
+        }
 
         /// <summary>
-        /// Cancellation sources.
+        /// The socket initiative
         /// </summary>
-        public readonly CancellationTokenSource Spinners = new CancellationTokenSource();
+        public Connection Kind { get; private set; } = Connection.Undefined;
 
         /// <summary>
-        /// Public access to remote address (used for logging)
+        /// Ingress connection
         /// </summary>
-        public string RemoteAddressFallback => Socket?.RemoteAddress()?.ToString() ?? ListenerAddress.IpEndPoint?.Address?.ToString() ?? ListenerAddress.Url;
+        public bool IsIngress => Kind == Connection.Ingress;
 
         /// <summary>
-        /// Public access to remote port (used for logging)
+        /// Egress connection
         /// </summary>
-        public int RemotePort => Socket?.RemotePort() ?? ListenerAddress.IpEndPoint?.Port ?? ListenerAddress.Port;
-
-        /// <summary>
-        /// Returns the remote address as a string ip:port
-        /// </summary>
-        public string RemoteIpAndPort => $"{RemoteAddressFallback}:{RemotePort}";
-
-        /// <summary>
-        /// Public access to local address (used for logging)
-        /// </summary>
-        public string LocalAddress => Socket.LocalAddress().ToString();
-
-        /// <summary>
-        /// Public access to local port (used for logging)
-        /// </summary>
-        public int LocalPort => Socket.LocalPort();
-
-        /// <summary>
-        /// Returns the remote address as a string ip:port
-        /// </summary>
-        public string LocalIpAndPort => $"{LocalAddress}:{LocalPort}";
-
-        /// <summary>
-        /// Public access to the underlying socket 
-        /// </summary>
-        public Socket NativeSocket => Socket;
-
-        /// <summary>
-        /// A handle to dispose upstream cancellation hooks
-        /// </summary>
-        private CancellationTokenRegistration _cancellationTokenRegistration;
+        public bool IsEgress => Kind == Connection.Egress;
 
         /// <summary>
         /// Returns true if this is a TCP socket
         /// </summary>
-        public bool IsTcpSocket => Socket.ProtocolType == ProtocolType.Tcp;
-
-
-        public bool _closed = false;
+        public bool IsTcpSocket => NativeSocket?.ProtocolType == ProtocolType.Tcp;
 
         [IoParameter]
         // ReSharper disable once InconsistentNaming
-        protected int parm_socket_listen_backlog = 20;
-
+        protected int parm_socket_listen_backlog = 16;
 
         /// <summary>
-        /// Parses the url string and returns either a TCP or UDP <see cref="IoSocket"/>
+        /// zero unmanaged
         /// </summary>
-        /// <param name="url">The url</param>
-        /// <param name="spinner">A hook to cancel blockers</param>
-        /// <returns></returns>
-        public static IoSocket GetKindFromUrl(string url, CancellationToken spinner)
+        public override void ZeroUnmanaged()
         {
-            if (url.Contains("tcp://"))
-                return new IoTcpSocket(spinner);
-            else if (url.Contains("udp://"))
-                return new IoUdpSocket(spinner);
-            else
+            base.ZeroUnmanaged();
+
+            try
             {
-                throw new UriFormatException($"URI string `{url}' must be in the format tcp://ip:port or udp://ip");
+                if (!Proxy)
+                    NativeSocket.Dispose();
+            }
+            catch
+            {
+                // ignored
+            }
+
+#if SAFE_RELEASE
+            _logger = null;
+            LocalNodeAddress = null;
+            RemoteNodeAddress = null;
+            NativeSocket = null;
+#endif
+        }
+
+        /// <summary>
+        /// zero managed
+        /// </summary>
+        public override async ValueTask ZeroManagedAsync()
+        {
+            await base.ZeroManagedAsync().FastPath();
+
+            Close();
+#if DEBUG
+            _logger.Trace($"Closed {Description}");
+#endif
+        }
+
+        /// <summary>
+        /// prime for zero
+        /// </summary>
+        /// <returns>The task</returns>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public override void ZeroPrime()
+        {
+            base.ZeroPrime();
+            if (!Proxy)
+            {
+                try
+                {
+                    if (NativeSocket != null)
+                    {
+                        NativeSocket.Shutdown(SocketShutdown.Both);
+                        NativeSocket.Disconnect(false);
+                    }
+                }
+                catch when (Zeroed()) { }
+                catch (Exception e) when (!Zeroed())
+                {
+                    _logger.Error(e, $"Socket shutdown returned with errors: {Description}");
+                }
             }
         }
 
         /// <summary>
         /// Listen for TCP or UDP data depending on the URL scheme used. udp://address:port or tcp://address:port
         /// </summary>
-        /// <param name="address">Address to listen on</param>
-        /// <param name="connectionHandler">The callback that handles a new connection</param>
+        /// <param name="listeningAddress">Address to listen on</param>
+        /// <param name="acceptConnectionHandler">The callback that handles a new connection</param>
+        /// <param name="context"></param>
+        /// <param name="bootFunc"></param>
         /// <returns>True on success, false otherwise</returns>
-        public virtual Task<bool> ListenAsync(IoNodeAddress address, Action<IoSocket> connectionHandler)
+        public virtual ValueTask BlockOnListenAsync<T,TContext>(IoNodeAddress listeningAddress,
+            Func<IoSocket, T, ValueTask> acceptConnectionHandler,
+            T context,
+            Func<TContext, ValueTask> bootFunc = null, TContext bootData = default)
         {
             //If there was a coding mistake throw
-            if (Socket.IsBound)
-                throw new InvalidOperationException($"Starting listener failed, socket `{address}' is already bound!");
+            if (NativeSocket.IsBound)
+                throw new InvalidOperationException($"Starting listener failed, socket `{listeningAddress}' is already bound!");
 
-            if (IsConnectingSocket)
-                throw new InvalidOperationException($"This socket was already used to connect to `{ListenerAddress}'. Make a new one!");
-
-            IsListeningSocket = true;
-
-            ListenerAddress = address;
+            if (Kind != Connection.Undefined)
+                throw new InvalidOperationException($"This socket was already used to connect to `{listeningAddress}'. Make a new one!");
 
             try
             {
-                Socket.Bind(ListenerAddress.IpEndPoint);
+                NativeSocket.Bind(listeningAddress.IpEndPoint);
+                LocalNodeAddress = IoNodeAddress.CreateFromEndpoint(listeningAddress.Protocol().ToString().ToLower(),(IPEndPoint) NativeSocket.LocalEndPoint);
+                RemoteNodeAddress = IoNodeAddress.Create($"{listeningAddress.ProtocolDesc}0.0.0.0:709");
+
+                Key = LocalNodeAddress.Key;
+
+                Kind = Connection.Listener;
+
+                _logger.Trace($"Bound port {LocalNodeAddress}: {Description}");
             }
-            catch (Exception e)
+            catch (Exception e) when (Zeroed())
             {
-                _logger.Error(e, $"Unable to bind socket at `{ListenerAddress}':");
-                return Task.FromResult(false);
+                return new ValueTask(Task.FromException(e));                
+            }
+            catch (Exception e) when(!Zeroed())
+            {
+                _logger.Error(e, $"Unable to bind socket at {listeningAddress}: {Description}");
+                return new ValueTask(Task.FromException(e));
             }
 
-            return Task.FromResult(true);
+            return default;
         }
 
         /// <summary>
         /// Connect to a remote endpoint
         /// </summary>
-        /// <param name="address">The address to connect to</param>
+        /// <param name="remoteAddress">The address to connect to</param>
+        /// <param name="timeout"></param>
         /// <returns>True on success, false otherwise</returns>
 #pragma warning disable 1998
-        public virtual async Task<bool> ConnectAsync(IoNodeAddress address)
+        public virtual async ValueTask<bool> ConnectAsync(IoNodeAddress remoteAddress, int timeout = 0)
 #pragma warning restore 1998
         {
-            if (Socket.IsBound)
+            if (NativeSocket == null)
+                throw new ArgumentNullException(nameof(NativeSocket));
+
+            if (NativeSocket.IsBound)
                 throw new InvalidOperationException("Cannot connect, socket is already bound!");
 
-            if (IsListeningSocket)
-                throw new InvalidOperationException($"This socket was already used to listen at `{ListenerAddress}'. Make a new one!");
+            if (Kind != Connection.Undefined)
+                throw new InvalidOperationException($"This socket was already used to listen at `{LocalNodeAddress}'. Make a new one ore reset this one!");
 
-            IsConnectingSocket = true;
+            Key = remoteAddress.Key;
 
-            ListenerAddress = address;
+            Kind = Connection.Egress;
 
             return true;
         }
 
         /// <summary>
-        /// Close this socket
-        /// </summary>
-        public virtual void Close()
-        {
-            lock (this)
-            {
-                if (_closed) return;
-                _closed = true;
-            }
-
-            _logger.Debug($"Closing connection to `{RemoteAddress}'");
-
-            //This has to be at the top or we might recurse
-            _cancellationTokenRegistration.Dispose();
-
-            //Cancel everything that is running
-            Spinners.Cancel();
-
-            //Signal to users that we are disconnecting
-            OnDisconnected();
-
-            //Close the socket
-            //Socket.Shutdown(SocketShutdown.Both);
-            Socket?.Close();
-            Socket?.Dispose();
-            Socket = null;
-        }
-
-        /// <summary>
-        /// Signals remote endpoint disconnections
-        /// </summary>
-        public event EventHandler Disconnected;
-
-        /// <summary>
-        /// Disconnect event hander boilerplate
-        /// </summary>
-        protected virtual void OnDisconnected()
-        {
-            Disconnected?.Invoke(this, new EventArgs());
-        }
-
-        /// <summary>
         /// Send bytes to remote socket
         /// </summary>
-        /// <param name="getBytes">The array if bytes to send</param>
+        /// <param name="buffer">The array if bytes to send</param>
         /// <param name="offset">Start at offset</param>
         /// <param name="length">The number of bytes to send</param>
+        /// <param name="endPoint">endpoint when required by the socket</param>
+        /// <param name="timeout">Send timeout</param>
         /// <returns></returns>
-        public abstract Task<int> SendAsync(byte[] getBytes, int offset, int length);
+        public abstract ValueTask<int> SendAsync(ReadOnlyMemory<byte> buffer, int offset, int length, EndPoint endPoint = null, int timeout = 0);
 
         /// <summary>
         /// Reads a message from the socket
         /// </summary>
         /// <param name="buffer">The buffer to read into</param>
         /// <param name="offset">The offset into the buffer</param>
-        /// <param name="length">The maximum bytes to read into the buffer</param>        
+        /// <param name="length">The maximum bytes to read into the buffer</param>
+        /// <param name="remoteEp"></param>
+        /// <param name="timeout">Sync read with timeout</param>
         /// <returns>The amounts of bytes read</returns>
-        public abstract Task<int> ReadAsync(byte[] buffer, int offset, int length);
+        public abstract ValueTask<int> ReadAsync(Memory<byte> buffer, int offset, int length, byte[] remoteEp = null,
+            int timeout = 0);
 
         /// <summary>
         /// Connection status
         /// </summary>
         /// <returns>True if the connection is up, false otherwise</returns>
         public abstract bool IsConnected();
+
+        /// <summary>
+        /// Closes a socket
+        /// </summary>
+        /// <returns>A task</returns>
+        protected void Close()
+        {
+            try
+            {
+                if (Proxy || NativeSocket == null) return;
+
+                if (NativeSocket.IsBound || NativeSocket.Connected)
+                {
+                    try
+                    {
+                        NativeSocket.Shutdown(SocketShutdown.Both);
+                        NativeSocket.Disconnect(false);
+                    }
+                    catch
+                    {
+                        // ignored
+                    }
+                }
+
+                try
+                {
+                    NativeSocket.Close();
+                    NativeSocket.Dispose();
+                }
+                catch
+                {
+                    // ignored
+                }
+            }
+            catch (ObjectDisposedException)
+            {
+            }
+            catch when (Zeroed())
+            {
+            }
+            catch (Exception e) when (!Zeroed())
+            {
+                _logger.Error(e, $"Socket shutdown returned with errors: {Description}");
+            }
+            finally
+            {
+                if(!Proxy)
+                    NativeSocket?.Dispose();
+            }
+        }
+
+        protected abstract void ConfigureSocket();
+
+        /// <summary>
+        /// Resets the socket for re-use
+        /// </summary>
+        private void ResetSocket()
+        {
+            Close();
+            NativeSocket = new Socket(NativeSocket.AddressFamily, NativeSocket.SocketType, NativeSocket.ProtocolType);
+            Kind = Connection.Undefined;
+            ConfigureSocket();
+        }
+
+        /// <summary>
+        /// Attempts to reconnect the socket
+        /// </summary>
+        /// <returns></returns>
+        public ValueTask<bool> ReconnectAsync()
+        {
+            ResetSocket();
+            return ConnectAsync(RemoteNodeAddress);
+        }
     }
 }

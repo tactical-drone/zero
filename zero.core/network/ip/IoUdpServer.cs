@@ -1,8 +1,8 @@
 ﻿using System;
-using System.Threading;
 using System.Threading.Tasks;
 using NLog;
-using zero.core.patterns.bushes.contracts;
+using zero.core.patterns.bushings.contracts;
+using zero.core.patterns.misc;
 
 namespace zero.core.network.ip
 {
@@ -11,16 +11,17 @@ namespace zero.core.network.ip
     /// </summary>
     /// <seealso cref="zero.core.network.ip.IoNetServer{TJob}" />
     class IoUdpServer<TJob> : IoNetServer<TJob>
-        where TJob : IIoWorker
-        
+        where TJob : IIoJob
+
     {
         /// <summary>
         /// Initializes a new instance of the <see cref="IoUdpServer{TJob}"/> class.
         /// </summary>
         /// <param name="listeningAddress">The listening address</param>
-        /// <param name="cancellationToken">Cancellation hooks</param>
+        /// <param name="prefetch">Nr of reads that can lead consumption of them</param>
+        /// <param name="concurrencyLevel">The Nr of concurrent consumers</param>
         /// <inheritdoc />
-        public IoUdpServer(IoNodeAddress listeningAddress, CancellationToken cancellationToken) : base(listeningAddress, cancellationToken)
+        public IoUdpServer(IoNodeAddress listeningAddress, int prefetch, int concurrencyLevel) : base(listeningAddress, prefetch, concurrencyLevel)
         {
             _logger = LogManager.GetCurrentClassLogger();
         }
@@ -35,42 +36,74 @@ namespace zero.core.network.ip
         /// Start the listener
         /// </summary>
         /// <param name="connectionReceivedAction">Action to execute when an incoming connection was made</param>
-        /// <param name="readAheadBufferSize"></param>
+        /// <param name="context"></param>
+        /// <param name="bootFunc"></param>
+        /// <param name="bootData"></param>
         /// <returns>
         /// True on success, false otherwise
         /// </returns>
-        public override async Task<bool> StartListenerAsync(Action<IoNetClient<TJob>> connectionReceivedAction, int readAheadBufferSize)
+        public override async ValueTask BlockOnListenAsync<T,TContext>(Func<T, IoNetClient<TJob>, ValueTask> connectionReceivedAction, T context = default, Func<TContext,ValueTask> bootFunc = null, TContext bootData = default)
         {
-            if (!await base.StartListenerAsync(connectionReceivedAction, readAheadBufferSize))
-                return false;
+            await base.BlockOnListenAsync(connectionReceivedAction, context,bootFunc,bootData).FastPath();
 
-            IoListenSocket = new IoUdpSocket(Spinners.Token);
-
-            return await IoListenSocket.ListenAsync(ListeningAddress, ioSocket =>
+            while (!Zeroed())
             {
+                //Creates a listening socket
                 try
                 {
-                    connectionReceivedAction?.Invoke(new IoUdpClient<TJob>(ioSocket, parm_read_ahead));
+                    IoListenSocket = (await ZeroHiveAsync(new IoUdpSocket(Prefetch), true).FastPath()).target;
+
+                    await IoListenSocket.BlockOnListenAsync(ListeningAddress, static async (ioSocket,state) =>
+                    {
+                        var (@this, nanite, connectionReceivedAction) = state;
+                        try
+                        {
+                            //creates a new udp client
+                            await connectionReceivedAction(nanite,
+                                (await @this
+                                    .ZeroHiveAsync(new IoUdpClient<TJob>(
+                                        $"{nameof(IoUdpClient<TJob>)} ~> {@this.Description}", ioSocket,
+                                        @this.Prefetch, @this.ConcurrencyLevel)).FastPath()
+                                ).target).FastPath();
+                        }
+                        catch (Exception e)
+                        {
+                            @this._logger.Error(e, $"Accept udp connection failed: {@this.Description}");
+
+                            await ioSocket.DisposeAsync(@this, $"{nameof(ZeroManagedAsync)}: teardown").FastPath();
+                        }
+                    },ValueTuple.Create(this,context, connectionReceivedAction), bootFunc, bootData).FastPath();
+
+                    if (!Zeroed())
+                    {
+                        _logger.Warn($"Listener stopped, restarting: {Description}");
+                        await Task.Delay(parm_connection_timeout);
+                    }
+                    
+                    if(IoListenSocket != null)
+                        await IoListenSocket.DisposeAsync(this, $"{nameof(ZeroManagedAsync)}: teardown").FastPath();
                 }
-                catch (Exception e)
+                catch when (Zeroed()){}
+                catch (Exception e) when (!Zeroed())
                 {
-                    _logger.Error(e, $"Connection received handler returned with errors:");
-                    ioSocket.Close();
+                    _logger.Error(e,$"{nameof(BlockOnListenAsync)}: ");
                 }
-            });
+            }
         }
 
         /// <inheritdoc />
         /// <summary>
-        /// Connects the asynchronous.
+        /// Opens a client.
         /// </summary>
-        /// <param name="address">The address.</param>
+        /// <param name="remoteAddress">The address.</param>
         /// <param name="_">The .</param>
+        /// <param name="timeout"></param>
         /// <returns>The udp client object managing this socket connection</returns>
-        public override async Task<IoNetClient<TJob>> ConnectAsync(IoNodeAddress address, IoNetClient<TJob> _)
+        public override ValueTask<IoNetClient<TJob>> ConnectAsync(IoNodeAddress remoteAddress, IoNetClient<TJob> _, int timeout = 0)
         {
-            var ioUdpClient = new IoUdpClient<TJob>(address, parm_read_ahead);
-            return await base.ConnectAsync(address, ioUdpClient);
+            //ZEROd later on inside net server once we know the connection succeeded
+            var ioUdpClient = new IoUdpClient<TJob>($"{nameof(IoUdpServer<TJob>)} ~> {Description}",Prefetch, ConcurrencyLevel);
+            return base.ConnectAsync(remoteAddress, ioUdpClient, timeout);
         }
 
     }

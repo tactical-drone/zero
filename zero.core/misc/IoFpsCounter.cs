@@ -1,5 +1,9 @@
 ﻿using System;
+using System.Runtime.CompilerServices;
 using System.Threading;
+using System.Threading.Tasks;
+using zero.core.patterns.misc;
+using zero.core.patterns.semaphore.core;
 
 namespace zero.core.misc
 {
@@ -9,52 +13,81 @@ namespace zero.core.misc
     public class IoFpsCounter
     {
         /// <summary>
-        /// Construct
+        /// ConstructAsync
         /// </summary>
         /// <param name="range">The initial range hysteresis</param>
         /// <param name="time">The time in ms hysteresis</param>
-        public IoFpsCounter(int range = 250, int time = 5000)
+        public IoFpsCounter(int range = 250, int time = 5000, int maxConcurrency = 3, bool disabled = false)
         {
             _range = new[] {range, range};
+            _disabled = disabled;
             _time = time;
+            _count = new int[2];
+            _timeStamp = new []{ DateTime.Now, DateTime.Now };
+            _index = 0;
+            _total = 0;
+            _asyncTasks = new CancellationTokenSource();
+
+            if (!_disabled)
+            {
+                _mutex = new IoZeroSemaphore<bool>($"{nameof(IoFpsCounter)}", maxConcurrency, 1, cancellationTokenSource: _asyncTasks);
+                _mutex.ZeroRef(ref _mutex, _ => true);
+            }
+            else
+            {
+                _mutex = default;
+            }
         }
 
-        private readonly int[] _count = new int[2];
-        private readonly DateTime[] _timeStamp = { DateTime.Now, DateTime.Now };
-        private volatile int _index = 0;
+        private readonly int[] _count;
+        private readonly bool _disabled;
+        private readonly DateTime[] _timeStamp;
+        private volatile int _index;
         private readonly int[] _range;
         private long _total;
         private readonly int _time;
+        private readonly IIoZeroSemaphoreBase<bool> _mutex;
+        private readonly CancellationTokenSource _asyncTasks;
 
         /// <summary>
         /// Increment count
         /// </summary>
-        public void Tick()
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public async ValueTask TickAsync()
         {
+            if(_disabled)
+                return;
+            
             Interlocked.Increment(ref _count[_index]);
             Interlocked.Increment(ref _total);
 
             if (Volatile.Read(ref _count[_index]) < Volatile.Read(ref _range[_index])) return;
-            
-            lock (this)
+
+            var m = _mutex.WaitAsync();
+            if(await m.FastPath())
             {
                 _range[_index] = (int)(_time * _time * Fps() / 1000000);
                 Interlocked.Increment(ref _index);
                 _index %= 2;
                 Volatile.Write(ref _count[_index], 0);
                 _timeStamp[_index] = DateTime.Now;
+                _mutex.Release(true);
             }            
         }
 
         /// <summary>
-        /// Return current fps
+        /// ReturnAsync current fps
         /// </summary>
         /// <returns></returns>
         public double Fps()
         {
-            lock(this)
-                return  Volatile.Read(ref _count[_index]) / (DateTime.Now - _timeStamp[_index]).TotalSeconds * Volatile.Read(ref _count[_index]) / (Volatile.Read(ref _count[_index]) + Volatile.Read(ref _count[(_index + 1) % 2]))
-                      + Volatile.Read(ref _count[(_index + 1) % 2]) / (DateTime.Now - _timeStamp[(_index + 1) % 2]).TotalSeconds * Volatile.Read(ref _count[(_index + 1) % 2]) / (Volatile.Read(ref _count[_index]) + Volatile.Read(ref _count[(_index + 1) % 2]));
+            if (_disabled)
+                return 99;
+            var fps =  Volatile.Read(ref _count[_index]) / (DateTime.Now - _timeStamp[_index]).TotalSeconds * Volatile.Read(ref _count[_index]) / (Volatile.Read(ref _count[_index]) + Volatile.Read(ref _count[(_index + 1) % 2]))
+                       + Volatile.Read(ref _count[(_index + 1) % 2]) / (DateTime.Now - _timeStamp[(_index + 1) % 2]).TotalSeconds * Volatile.Read(ref _count[(_index + 1) % 2]) / (Volatile.Read(ref _count[_index]) + Volatile.Read(ref _count[(_index + 1) % 2]));
+                if (double.IsNaN(fps))
+                    return 0;
+                return fps;
         }
 
         /// <summary>
@@ -62,5 +95,9 @@ namespace zero.core.misc
         /// </summary>
         public long Total => _total;
 
+        public void Dispose()
+        {
+            _asyncTasks.Cancel();
+        }
     }
 }

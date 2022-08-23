@@ -1,8 +1,8 @@
 ﻿using System;
 using System.Diagnostics.CodeAnalysis;
+using System.Text.Json;
 using System.Threading.Tasks;
-using Newtonsoft.Json.Linq;
-using zero.core.api.commands;
+using zero.core.feat.api.commands;
 
 namespace zero.tangle.api.commands
 {
@@ -14,7 +14,7 @@ namespace zero.tangle.api.commands
         }
 
 #pragma warning disable 1998
-        public override async Task<ResponseBase> ProcessCommand(JObject jsonCommandobJObject)
+        public override async Task<ResponseBase> ProcessCommandAsync(JsonDocument jsonCommandobJObject)
 #pragma warning restore 1998
         {
             var response = new Response

@@ -1,8 +1,9 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>netcoreapp3.0</TargetFramework>
+    <TargetFramework>net6.0</TargetFramework>
     <LangVersion>latest</LangVersion>
+    <Configurations>Debug;Release;Trace</Configurations>
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
@@ -10,16 +11,21 @@
     <DefineConstants>TRACE;FLEX_TRIT_ENCODING_5_TRITS_PER_BYTE</DefineConstants>
   </PropertyGroup>
 
-  <ItemGroup>
-    <PackageReference Include="CassandraCSharpDriver" Version="3.7.0" />
-    <PackageReference Include="NLog" Version="4.5.11" />
-  </ItemGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|AnyCPU'">
+    <DefineConstants>TRACE;FLEX_TRIT_ENCODING_5_TRITS_PER_BYTE</DefineConstants>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Trace|AnyCPU'">
+    <DefineConstants>TRACE;FLEX_TRIT_ENCODING_5_TRITS_PER_BYTE</DefineConstants>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+  </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\deps\tangle.net\Tangle.Net.Standard\Tangle.Net.Standard\Tangle.Net.Standard.csproj" />
+    <PackageReference Include="NLog" Version="5.0.0-rc2" />
   </ItemGroup>
 
-  <ItemGroup>
+	<ItemGroup>
     <ProjectReference Include="..\zero.core\zero.core.csproj" />
   </ItemGroup>
 

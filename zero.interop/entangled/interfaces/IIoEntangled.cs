@@ -6,10 +6,10 @@ namespace zero.interop.entangled.interfaces
     /// <summary>
     /// Main interface when decoding transaction data
     /// </summary>
-    /// <typeparam name="TBlob"></typeparam>
-    public interface IIoEntangled<TBlob>
+    /// <typeparam name="TKey"></typeparam>
+    public interface IIoEntangled<TKey>
     {
         IIoTrinary Ternary { get; }
-        IIoModelDecoder<TBlob> ModelDecoder { get; }
+        IIoModelDecoder<TKey> ModelDecoder { get; }
     }
 }

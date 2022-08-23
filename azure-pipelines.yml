@@ -1,33 +1,82 @@
 # .NET Desktop
+
 # Build and run tests for .NET Desktop or Windows classic desktop solutions.
 # Add steps that publish symbols, save build artifacts, and more:
 # https://docs.microsoft.com/azure/devops/pipelines/apps/windows/dot-net
 
 trigger:
-- master
+- net-standard
 
 pool:
-  vmImage: 'windows-latest'
+  vmImage: 'windows-2022'
 
-variables:
-  solution: '**/*.sln'
+variables:  
+  restore: ''
+  solution: './zero.sync'
+  core-solution: './zero.core'
+  cocoon-solution: './zero.cocoon'
+  test-solution: './zero.test'
   buildPlatform: 'Any CPU'
   buildConfiguration: 'Release'
 
 steps:
-- task: NuGetToolInstaller@1
-
-- task: NuGetCommand@2
+- task: UseDotNet@2
   inputs:
-    restoreSolution: '$(solution)'
+    packageType: 'sdk'
+    version: '7.0.x'
+    includePreviewVersions: true
 
-- task: VSBuild@1
+- task: DotNetCoreCLI@2
+  displayName: Nuget Restore '$(solution)'
   inputs:
-    solution: '$(solution)'
-    platform: '$(buildPlatform)'
-    configuration: '$(buildConfiguration)'
+    command: 'restore'
+    projects: '$(restore)'
+    feedsToUse: 'config'
+    nugetConfigPath: nuget.config
+    
+- task: DotNetCoreCLI@2
+  displayName: debug build '$(solution)'
+  inputs:
+    command: 'build'
+    arguments: -c Debug
+    projects: '$(solution)'
+    
+- task: DotNetCoreCLI@2
+  displayName: build '$(solution)'
+  inputs:
+    command: 'build'
+    arguments: -c $(buildConfiguration)
+    projects: '$(solution)'
 
-- task: VSTest@2
+- task: DotNetCoreCLI@2
+  displayName: debug build '$(test-solution)'
   inputs:
-    platform: '$(buildPlatform)'
-    configuration: '$(buildConfiguration)'
+    command: 'build'
+    arguments: -c Debug
+    projects: '$(test-solution)'
+
+- task: DotNetCoreCLI@2
+  displayName: build '$(test-solution)'
+  inputs:
+    command: 'build'
+    arguments: -c $(buildConfiguration)    
+    projects: '$(test-solution)'
+    
+- task: DotNetCoreCLI@2
+  displayName: debug test '$(test-solution)'
+  inputs:
+    command: 'test'
+    arguments: '-c Debug --collect "Code coverage"'
+    projects: '$(test-solution)'
+    testRunTitle: 'Unit Tests'    
+    publishTestResults: true
+
+- task: DotNetCoreCLI@2
+  displayName: test '$(test-solution)'
+  inputs:
+    command: 'test'
+    arguments: '-c $(buildConfiguration) --collect "Code coverage"'
+    projects: '$(test-solution)'
+    testRunTitle: 'Unit Tests'    
+    publishTestResults: true
+

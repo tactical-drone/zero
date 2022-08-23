@@ -2,18 +2,20 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
+using zero.core.misc;
+using zero.core.patterns.misc;
 
 namespace zero.core.conf
 {
     /// <summary>
     /// Configuration storage, retrieval and mutation
     /// </summary>
-    public class IoConfigurable 
+    public class IoConfigurable
     {
         /// <summary>
         /// Constructor that gathers all parameters from instances by scanning for the <see cref="IoParameter"/> attribute
         /// </summary>
-        public IoConfigurable()
+        protected IoConfigurable()
         {
             //Initialize the parameter dictionary
             GetType().GetFields().ToList().Where(p => p.IsDefined(typeof(IoParameter))).ToList().ForEach(
@@ -49,7 +51,7 @@ namespace zero.core.conf
         /// <summary>
         /// Emitted when a setting has changed
         /// </summary>
-        public static EventHandler<KeyValuePair<string, object>> SettingChangedEvent;
+        //public static EventHandler<KeyValuePair<string, object>> SettingChangedEvent;
 
         /// <summary>
         /// A dictionary containing all settings over all instances

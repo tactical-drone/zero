@@ -1,9 +1,10 @@
 ﻿using System;
+using System.Threading.Tasks;
 using NLog;
-using zero.core.models.generic;
 using zero.core.network.ip;
-using zero.core.patterns.bushes;
-using zero.core.patterns.bushes.contracts;
+using zero.core.patterns.bushings;
+using zero.core.patterns.bushings.contracts;
+using zero.core.patterns.misc;
 using Logger = NLog.Logger;
 
 namespace zero.core.core
@@ -12,60 +13,93 @@ namespace zero.core.core
     /// <summary>
     /// Represents a node's neighbor
     /// </summary>
-    public class IoNeighbor<TJob> : IoProducerConsumer<TJob>
-    where TJob : IIoWorker
+    public class IoNeighbor<TJob> : IoZero<TJob>
+    where TJob : IIoJob
     {
         /// <summary>
-        /// Construct
-        /// </summary>        
+        /// ConstructAsync
+        /// </summary>
         /// <param name="node">The node this neighbor is connected to</param>
         /// <param name="ioNetClient">The neighbor rawSocket wrapper</param>
-        /// <param name="mallocMessage">The callback that allocates new message buffer space</param>
-        public IoNeighbor(IoNode<TJob> node, IoNetClient<TJob> ioNetClient, Func<object, IoConsumable<TJob>> mallocMessage)
-            : base($"{node.GetType().Name} neighbor: `{ioNetClient.Description}'", ioNetClient, mallocMessage)
+        /// <param name="mallocJob">The callback that allocates new message buffer space</param>
+        /// <param name="enableZeroRecovery"></param>
+        /// <param name="cascade"></param>
+        /// <param name="concurrencyLevel"></param>
+        public IoNeighbor(IoNode<TJob> node, IoNetClient<TJob> ioNetClient, Func<object, IIoNanite, IoSink<TJob>> mallocJob,
+            bool enableZeroRecovery, bool cascade = true, int concurrencyLevel = 1)
+            : base($"neighbor({ioNetClient?.Description})", ioNetClient, mallocJob, enableZeroRecovery, cascade, concurrencyLevel)
         {
+            //sentinel
+            if(Source == null)
+                return;
             _logger = LogManager.GetCurrentClassLogger();
-            _node = node;
-            Spinners.Token.Register(() => PrimaryProducer?.Close());
+            Node = node;
         }
 
         /// <summary>
         /// logger
         /// </summary>
-        private readonly Logger _logger;
-
-        protected IoNode<TJob> _node;
-
-        private bool _closed = false;
-        /// <summary>
-        /// Called when this neighbor is closed
-        /// </summary>
-        public event EventHandler Closed;
+        private Logger _logger;
 
         /// <summary>
-        /// Close this neighbor
+        /// The node this neighbor belongs to
         /// </summary>
-        public void Close()
+        protected readonly IoNode<TJob> Node;
+
+        /// <summary>
+        /// The Id of this neighbor
+        /// </summary>
+        /// <returns></returns>
+        public virtual string Key => Source.Key;
+
+        /// <summary>
+        /// zero unmanaged
+        /// </summary>
+        public override void ZeroUnmanaged()
         {
-            lock (this)
-            {
-                if (_closed) return;
-                _closed = true;
-            }
-            
-            _logger.Info($"Closing neighbor `{PrimaryProducerDescription}'");
+            base.ZeroUnmanaged();
 
-            OnClosed();
-            
-            Spinners.Cancel();            
+#if SAFE_RELEASE
+            _logger = null;
+#endif
         }
 
         /// <summary>
-        /// Emits the closed event
+        /// DisposeAsync Managed 
         /// </summary>
-        public virtual void OnClosed()
+        public override async ValueTask ZeroManagedAsync()
         {
-            Closed?.Invoke(this, EventArgs.Empty);
-        }               
+            await base.ZeroManagedAsync().FastPath();
+
+            try
+            {
+                if (!Node.Zeroed() && Node.Neighbors.TryGetValue(Key, out var zeroedNeighbor) && zeroedNeighbor.Serial == Serial)
+                {
+                    if (Node?.Neighbors?.TryRemove(Key, out var zeroNeighbor) ?? false)
+                    {
+                        _logger.Trace($"Removed {zeroNeighbor.Description}");
+                        await zeroNeighbor.DisposeAsync(this, $"{nameof(ZeroManagedAsync)}: teardown").FastPath();
+                    }
+                    else
+                    {
+#if DEBUG
+                        _logger.Trace($"Cannot remove neighbor {Key} not found! {Description}");
+#endif
+                    }
+                }
+            }
+            catch when (Node != null && Node.Zeroed())
+            {
+            }
+            catch (Exception e) when (Node != null && !Node.Zeroed())
+            {
+                _logger.Error(e, $"IoNeighbor.ZeroManagedAsync: ");
+            }
+            catch when(Zeroed()){}
+            catch (Exception e) when(!Zeroed())
+            {
+                _logger.Error(e, $"IoNeighbor.ZeroManagedAsync: ");
+            }
+        }
     }
 }

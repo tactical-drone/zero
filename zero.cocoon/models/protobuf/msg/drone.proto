@@ -1,0 +1,14 @@
+﻿syntax = "proto3";
+
+package zero.models.protobuf;
+
+message CcFutileRequest {  
+	int32 protocol = 1;
+	int64 timestamp = 2;  
+}
+
+message CcFutileResponse {  
+	int32 protocol = 1;
+	int64 timestamp = 2;  
+	bytes req_hash = 3;	
+}

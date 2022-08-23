@@ -2,182 +2,228 @@
 using System.Collections.Concurrent;
 using System.Data;
 using System.Net.Sockets;
-using System.Threading;
 using System.Threading.Tasks;
 using NLog;
 using zero.core.conf;
-using zero.core.patterns.bushes.contracts;
+using zero.core.patterns.bushings.contracts;
+using zero.core.patterns.misc;
+using Logger = NLog.Logger;
 
 namespace zero.core.network.ip
 {
     /// <inheritdoc />
     /// <summary>
-    /// A wrap for <see cref="T:zero.core.network.ip.IoSocket" /> to make it host a server
+    /// A wrap for <see cref="T:zero.core.network.ip.IoSocket" /> to host a server for <see cref="IoNetClient{TJob}"/>s to connect to.
     /// </summary>
-    public abstract class IoNetServer<TJob> : IoConfigurable
-    where TJob : IIoWorker
-    
+    public abstract class IoNetServer<TJob> : IoNanoprobe
+    where TJob : IIoJob
+
     {
         /// <inheritdoc />
         /// <summary>
         /// Constructor
         /// </summary>
         /// <param name="listeningAddress">The listening address</param>
-        /// <param name="cancellationToken">Cancellation hooks</param>
-        protected IoNetServer(IoNodeAddress listeningAddress, CancellationToken cancellationToken)
+        /// <param name="prefetch">Nr of reads the producer can lead the consumer</param>
+        /// <param name="concurrencyLevel">Max Nr of expected concurrent consumers</param>
+        protected IoNetServer(IoNodeAddress listeningAddress, int prefetch = 2, int concurrencyLevel = 1) : base($"{nameof(IoNetServer<TJob>)}", concurrencyLevel)
         {
             ListeningAddress = listeningAddress;
+            Prefetch = prefetch;
+            ConcurrencyLevel = concurrencyLevel;
 
             _logger = LogManager.GetCurrentClassLogger();
-
-            Spinners = new CancellationTokenSource();
-            cancellationToken.Register(Close);
         }
 
         /// <summary>
         /// logger
         /// </summary>
-        private readonly Logger _logger;
+        private Logger _logger;
 
         /// <summary>
         /// The listening address of this server
         /// </summary>
-        protected readonly IoNodeAddress ListeningAddress;
+        public IoNodeAddress ListeningAddress { get; protected set; }
+
+
+        private string _description;
+        /// <summary>
+        /// A description
+        /// </summary>
+        public override string Description
+        {
+            get
+            {
+                if(_description == null) 
+                    return _description = IoListenSocket?.ToString() ?? ListeningAddress?.ToString();
+                return _description;
+            }
+        }
 
         /// <summary>
         /// The <see cref="TcpListener"/> instance that is wrapped
         /// </summary>
-        protected IoSocket IoListenSocket;
-
-        /// <summary>
-        /// Cancel all listener tasks
-        /// </summary>
-        protected readonly CancellationTokenSource Spinners;
-
-        /// <summary>
-        /// The cancellation registration handle
-        /// </summary>
-        private CancellationTokenRegistration _cancellationRegistration;
+        protected IoNetSocket IoListenSocket;
 
         /// <summary>
         /// A set of currently connecting net clients
         /// </summary>
-        private ConcurrentDictionary<string, IoNetClient<TJob>> _connectionAttempts = new ConcurrentDictionary<string, IoNetClient<TJob>>();
-
-        /// <summary>
-        /// Have we closed?
-        /// </summary>
-        private bool _closed;
+        private ConcurrentDictionary<string, IoNetClient<TJob>> _connectionAttempts = new();
 
         /// <summary>
         /// The amount of socket reads the producer is allowed to lead the consumer
         /// </summary>
-        [IoParameter]
-        // ReSharper disable once InconsistentNaming
-        protected int parm_read_ahead = 1;
+        protected readonly int Prefetch;
         
         /// <summary>
-        /// Start the listener
+        /// The number of concurrent consumers
+        /// </summary>
+        protected readonly int ConcurrencyLevel;
+        
+        /// <summary>
+        /// Connection timeout
+        /// </summary>
+        [IoParameter]
+        // ReSharper disable once InconsistentNaming
+        protected int parm_connection_timeout = 10000;
+
+        /// <summary>
+        /// Listens for new connections
         /// </summary>
         /// <param name="connectionReceivedAction">Action to execute when an incoming connection was made</param>
-        /// <param name="readAhead">TCP read ahead</param>
-        /// <returns>True on success, false otherwise</returns>
-        public virtual Task<bool> StartListenerAsync(Action<IoNetClient<TJob>> connectionReceivedAction, int readAhead)
+        /// <param name="context">Caller context</param>
+        /// <param name="bootFunc">Bootstrap code</param>
+        public virtual ValueTask BlockOnListenAsync<T,TBoot>(Func<T, IoNetClient<TJob>, ValueTask> connectionReceivedAction, T context = default, Func<TBoot, ValueTask> bootFunc = null, TBoot bootData = default)
         {
             if (IoListenSocket != null)
                 throw new ConstraintException($"Listener has already been started for `{ListeningAddress}'");
-            return Task.FromResult(true);
+            
+            return default;
         }
 
         /// <summary>
         /// Connect to a host async
         /// </summary>
-        /// <param name="address">A stub</param>
+        /// <param name="remoteAddress">A stub</param>
         /// <param name="ioNetClient">The client to connect to</param>
+        /// <param name="timeout"></param>
         /// <returns>The client object managing this socket connection</returns>
-        public virtual async Task<IoNetClient<TJob>> ConnectAsync(IoNodeAddress address, IoNetClient<TJob> ioNetClient = null)
+        public virtual async ValueTask<IoNetClient<TJob>> ConnectAsync(IoNodeAddress remoteAddress,
+            IoNetClient<TJob> ioNetClient = null, int timeout = 0)
         {
-            if (!_connectionAttempts.TryAdd(address.Key, ioNetClient))
+            if (!_connectionAttempts.TryAdd(remoteAddress.Key, ioNetClient))
             {
-                _logger.Warn($"Cancelling existing connection attemp to `{address}'");
-                _connectionAttempts[address.Key].Spinners.Cancel();
-                _connectionAttempts.TryRemove(address.Key, out _);
+                return null;
+
+                //await Task.Delay(parm_connection_timeout, AsyncTasks.Token).ConfigureAwait(ZC);
+                //if (!_connectionAttempts.TryAdd(address.Key, ioNetClient))
+                // {
+                //     _logger.Warn($"Cancelling existing connection attempt to `{remoteAddress}'");
+                //
+                //     await _connectionAttempts[remoteAddress.Key].ZeroAsync(this).ConfigureAwait(ZC);
+                //     _connectionAttempts.TryRemove(remoteAddress.Key, out _);
+                //     return await ConnectAsync(remoteAddress, ioNetClient).ConfigureAwait(ZC);
+                // }
             }
 
+            var connected = false;
             try
             {
-                //ioNetClient will never be null, the null in the parameter is needed for the interface contract
-                if (ioNetClient != null && await ioNetClient.ConnectAsync().ContinueWith(t =>
+                connected = await ioNetClient!.ConnectAsync(remoteAddress, timeout).FastPath();
+                if (connected && ioNetClient.IsOperational())
                 {
-                    switch (t.Status)
+                    //Check things
+
+                    //Ensure ownership
+                    //if (!await ZeroAtomicAsync(static async (s,client,_) => (await s.ZeroHiveAsync(client).FastPath().ConfigureAwait(ZC)).success,ioNetClient).FastPath().ConfigureAwait(ZC))
+                    //{
+                    //    _logger.Trace($"{nameof(ConnectAsync)}: [FAILED], unable to ensure ownership!");
+                    //    //REJECT
+                    //    connected = false;
+                    //}
+
+                    if (!(await ZeroHiveAsync(ioNetClient).FastPath()).success)
                     {
-                        case TaskStatus.Canceled:                 
-                        case TaskStatus.Faulted:
-                            _logger.Error(t.Exception,$"Failed to connect to `{ioNetClient.AddressString}':");
-                            ioNetClient.Close();
-                            break;
-                        case TaskStatus.RanToCompletion:                        
-                            if (ioNetClient.IsOperational)
-                            {
-                                _logger.Info($"Connection established to `{ioNetClient.AddressString}'");
-                                return true;
-                            }
-                            else // On connect failure
-                            {
-                                _logger.Warn($"Unable to connect to `{ioNetClient.AddressString}'");
-                                ioNetClient.Close();
-                                return false;
-                            }                 
+                        _logger.Trace($"{Description}: {nameof(ConnectAsync)} [FAILED], unable to ensure ownership!");
+                        //REJECT
+                        connected = false;
                     }
-                    return false;
-                }, Spinners.Token))
-                {
-                    return ioNetClient;
+
+                    _logger.Trace(
+                        $"{Description}: {nameof(ConnectAsync)} [SUCCESS], dest = {ioNetClient.IoNetSocket.RemoteNodeAddress}");
+                    //ACCEPT
                 }
+                else // On connection failure after successful connect?
+                {
+                    _logger.Trace($"{Description}: {nameof(ConnectAsync)} [STALE], {remoteAddress}");
+                    //REJECT
+                    connected = false;
+                }
+            }
+            catch when (Zeroed()) { }
+            catch (Exception e)when (!Zeroed())
+            {
+                _logger.Error(e, $"{Description}: {nameof(ConnectAsync)} to {remoteAddress.Key} [FAILED]!");
             }
             finally
             {
-                if (!_connectionAttempts.TryRemove(address.Key, out _))
+                if (!connected)
                 {
-                    _logger.Fatal($"Expected key `{address.Key}'");
+                    var errMsg = $"{Description}: {nameof(ConnectAsync)} to {remoteAddress.Key} [FAILED]";
+                    await ioNetClient!.DisposeAsync(this, errMsg).FastPath();
+
+                    if (!Zeroed())
+                        _logger.Error(errMsg);
+                }
+
+                if (!_connectionAttempts.TryRemove(remoteAddress.Key, out _))
+                {
+                    _logger.Fatal($"Unable find existing connection {remoteAddress.Key},");
                 }
             }
 
-            return null;
+            return ioNetClient;
         }
 
         /// <summary>
-        /// Closes this server
+        /// zero unmanaged
         /// </summary>
-        public virtual void Close()
+        public override void ZeroUnmanaged()
         {
-            lock (this)
-            {
-                if (_closed) return;
-                _closed = true;
-            }
+            base.ZeroUnmanaged();
 
-            _logger.Debug($"Closing listener at `{ListeningAddress}'");
-            //This method must always be at the top or we might recurse
-            _cancellationRegistration.Dispose();
+#if SAFE_RELEASE
+            _logger = null;
+            ListeningAddress = null;
+            IoListenSocket = null;
+            _connectionAttempts = null;
+#endif
+        }
 
-            Spinners.Cancel();
-            IoListenSocket.Close();
+        /// <summary>
+        /// zero managed
+        /// </summary>
+        public override async ValueTask ZeroManagedAsync()
+        {
+            await base.ZeroManagedAsync().FastPath();
+            _connectionAttempts.Clear();
         }
 
         /// <summary>
         /// Figures out the correct server to use from the url, <see cref="IoTcpServer"/> or <see cref="IoUdpServer"/>
         /// </summary>
         /// <param name="address"></param>
-        /// <param name="spinner"></param>
+        /// <param name="prefetch"></param>
+        /// <param name="concurrencyLevel"></param>
         /// <returns></returns>
-        public static IoNetServer<TJob> GetKindFromUrl(IoNodeAddress address, CancellationToken spinner, int bufferReadAheadSize)
+        public static IoNetServer<TJob> GetKindFromUrl(IoNodeAddress address, int prefetch, int concurrencyLevel)
         {
             if (address.Protocol() == ProtocolType.Tcp)
-                return new IoTcpServer<TJob>(address, spinner, bufferReadAheadSize);
+                return new IoTcpServer<TJob>(address, prefetch, concurrencyLevel);
+
 
             if (address.Protocol() == ProtocolType.Udp)
-                return new IoUdpServer<TJob>(address, spinner);
+                return new IoUdpServer<TJob>(address, prefetch, concurrencyLevel);
 
             return null;
         }

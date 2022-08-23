@@ -1,0 +1,48 @@
+syntax = "proto3";
+
+package zero.models.protobuf;
+
+import "models/protobuf/core/net.proto";
+
+message CcAdjunctModel {	  
+  bytes public_key = 1;
+  bytes url = 2;
+}
+
+message CcProbeMessage {    
+  int32 protocol = 1;  
+  int64  timestamp = 2;    
+}
+
+message CcProbeResponse {      
+  int32 protocol = 1;  
+  int64 timestamp = 2;
+  bytes req_hash = 3;  
+  int64 status = 4;
+  int64 dbgPtr = 5;
+}
+
+message CcFuseRequest {  
+	int64 timestamp = 1;  
+}
+
+message CcFuseResponse {  
+	int64 timestamp = 1;
+	bytes req_hash = 2;  
+	bool accept = 3;
+}
+
+message CcDefuseRequest {  
+	int64 timestamp = 1;
+}
+
+message CcScanRequest {  
+  z_header header = 1;
+  int64 timestamp = 2;
+}
+
+message CcAdjunctResponse {    
+  int64 timestamp = 1;  
+  bytes req_hash = 2;  
+  repeated CcAdjunctModel contacts = 3;
+}

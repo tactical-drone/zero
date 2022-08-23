@@ -1,10 +1,12 @@
-image: microsoft/dotnet:3.0-sdk
+image: mcr.microsoft.com/dotnet/nightly/sdk:7.0
 
 stages:
   - build
+  - tests
   
 variables:
   project: "zero.sync"
+  LOGFILEPATH: "JUnitTestLogFile.xml"
 
 before_script:
   - "dotnet --version"
@@ -18,5 +20,16 @@ build:
     build_path: "$project"
   script:
     - "cd $build_path"
-    - "dotnet build"
+    - "dotnet build --configuration Release"
+
+test:
+    stage: tests
+    script:
+    - dotnet test --logger "junit;LogFilePath=$LOGFILEPATH;MethodFormat=Class;FailureBodyFormat=Verbose"
+    artifacts:
+        when: always
+        paths:
+        - zero.test/$LOGFILEPATH
+        reports:
+            junit: zero.test/$LOGFILEPATH
 

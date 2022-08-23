@@ -1,4 +1,4 @@
-﻿using zero.core.api;
+﻿using zero.core.feat.api;
 using zero.core.network.ip;
 
 namespace zero.tangle.api.interfaces
