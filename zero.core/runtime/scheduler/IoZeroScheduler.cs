@@ -21,11 +21,15 @@ namespace zero.core.runtime.scheduler
         public static bool Enabled = true;
         static IoZeroScheduler()
         {
+#if !NATIVE  //our experimental (ZERO GC PRESSURE) scheduler that provides insight (& stats) into bugs caused by bad async/await architecture
             Zero = new IoZeroScheduler(Default, native:true); 
             ZeroDefault = Zero;
-            //ZeroDefault = Default; //TODO: Uncomment to enable native .net scheduler...
             Zero.InitQueues();
-
+#else       //Use the default .net scheduler. (this is probably the safer option for production)
+            Zero = new IoZeroScheduler(Default, native: false); 
+            ZeroDefault = Default; 
+            Zero.InitQueues();
+#endif
         }
 
         public IoZeroScheduler(TaskScheduler fallback, CancellationTokenSource asyncTasks = null, bool native = false)
@@ -426,7 +430,7 @@ namespace zero.core.runtime.scheduler
                 var job = await _asyncTaskQueue.WaitAsync().FastPath().ConfigureAwait(_native);
                 try
                 {
-                    Debug.Assert(TaskScheduler.Current.Id == IoZeroScheduler.Zero.Id);
+                    Debug.Assert(TaskScheduler.Current.Id == IoZeroScheduler.ZeroDefault.Id);
                     Interlocked.Increment(ref _asyncTaskLoad);
                     await job.ValueTask.FastPath();
                     Interlocked.Increment(ref _asyncTaskCount);
