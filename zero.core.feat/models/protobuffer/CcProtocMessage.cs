@@ -132,8 +132,11 @@ namespace zero.core.feat.models.protobuffer
                         //----------------------------------------------------------------------------
                         if (!await backPressure(ioJob, ioZero).FastPath() || ioJob.Source.Zeroed())
                         {
-                            _logger.Trace($"{nameof(backPressure)} [FAILED]: {ioJob.Description}");
-                            await job.SetStateAsync(IoJobMeta.JobState.ProdCancel).FastPath();
+                            if (job.Source != null && !job.Source.Zeroed())
+                            {
+                                _logger.Trace($"{nameof(backPressure)} [FAILED]: {ioJob.Description}");
+                                await job.SetStateAsync(IoJobMeta.JobState.ProdCancel).FastPath();
+                            }
                             return false;
                         }
                         //Async read the message from the message stream
