@@ -384,7 +384,7 @@ namespace zero.core.network.ip
                 if(eventArgs.SocketError == SocketError.Success)
                     tcs.SetResult(!Zeroed());
                 else
-                    tcs.SetException(new Exception($"error = {eventArgs.SocketError}"));
+                    tcs.SetException(new SocketException((int)eventArgs.SocketError));
             }
             catch(Exception) when(Zeroed()){}
             catch(Exception e) when (!Zeroed())
@@ -431,7 +431,9 @@ namespace zero.core.network.ip
                             if (NativeSocket.ReceiveFromAsync(args) && !await waitCore.FastPath())
                                 return 0;
                         }
-                        catch when(Zeroed()){}
+                        catch when (Zeroed())
+                        {
+                        }
                         catch (Exception e) when (!Zeroed())
                         {
                             _logger.Error(e, $"{nameof(NativeSocket.ReceiveFromAsync)}");
@@ -439,8 +441,8 @@ namespace zero.core.network.ip
 
                         args.RemoteEndPoint.AsBytes(remoteEp);
 #if DEBUG
-                        if(args.SocketError != SocketError.Success && args.SocketError != SocketError.OperationAborted)
-                            _logger.Error($"socket error = {args.SocketError}");
+                        if (args.SocketError != SocketError.Success && args.SocketError != SocketError.OperationAborted)
+                            _logger.Error($"{nameof(ReceiveAsync)}: socket error = {args.SocketError}");
 #endif
                         return args.SocketError == SocketError.Success ? args.BytesTransferred : 0;
                     }
@@ -450,7 +452,8 @@ namespace zero.core.network.ip
                     catch (Exception e) when (!Zeroed())
                     {
                         _logger.Error(e, "Receive udp failed:");
-                        await DisposeAsync(this, $"{nameof(NativeSocket.ReceiveFromAsync)}: [FAILED] {e.Message}").FastPath();
+                        await DisposeAsync(this, $"{nameof(NativeSocket.ReceiveFromAsync)}: [FAILED] {e.Message}")
+                            .FastPath();
                     }
                     finally
                     {
@@ -458,7 +461,7 @@ namespace zero.core.network.ip
                     }
                 }
 
-                EndPoint remoteEpAny = new IPEndPoint(0,0);
+                EndPoint remoteEpAny = new IPEndPoint(0, 0);
                 if (MemoryMarshal.TryGetArray((ReadOnlyMemory<byte>)buffer, out var tBuf))
                 {
                     NativeSocket.ReceiveTimeout = timeout;
@@ -477,6 +480,10 @@ namespace zero.core.network.ip
                 }
 
                 return 0;
+            }
+            catch (SocketException e) when (!Zeroed() && e.SocketErrorCode != SocketError.OperationAborted)
+            {
+                _logger.Error(e, $"{nameof(ReceiveAsync)}:");
             }
             catch (Exception) when (Zeroed()){}
             catch (Exception e) when(!Zeroed())
