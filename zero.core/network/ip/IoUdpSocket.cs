@@ -431,12 +431,16 @@ namespace zero.core.network.ip
                             if (NativeSocket.ReceiveFromAsync(args) && !await waitCore.FastPath())
                                 return 0;
                         }
+                        catch (SocketException e) when (e.SocketErrorCode == SocketError.OperationAborted)
+                        {
+                            _logger.Trace(e, $"{nameof(NativeSocket.ReceiveFromAsync)}:");
+                        }
                         catch when (Zeroed())
                         {
                         }
                         catch (Exception e) when (!Zeroed())
                         {
-                            _logger.Error(e, $"{nameof(NativeSocket.ReceiveFromAsync)}");
+                            _logger.Error(e, $"{nameof(NativeSocket.ReceiveFromAsync)}:");
                         }
 
                         args.RemoteEndPoint.AsBytes(remoteEp);
