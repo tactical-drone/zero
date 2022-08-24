@@ -342,7 +342,7 @@ namespace zero.cocoon.models
         }*/
 
         private const int MaxLogBatchSize = 10000;
-        private IoInt32 _logBatchNext = MaxLogBatchSize;
+        private readonly IoInt32 _logBatchNext = MaxLogBatchSize;
         private IoInt32 _logBatchTime = Environment.TickCount;
         private const int HeartbeatTime = 10000;
         public override async ValueTask<IoJobMeta.JobState> ConsumeAsync()

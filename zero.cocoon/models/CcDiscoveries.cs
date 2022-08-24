@@ -36,7 +36,7 @@ namespace zero.cocoon.models
             IoZero = (IoZero<CcProtocMessage<chroniton, CcDiscoveryBatch>>)context;
             
             var pf = Source.PrefetchSize * 3;
-            var cc = Source.ZeroConcurrencyLevel() * 3; 
+            var cc = Source.ZeroConcurrencyLevel * 3; 
 
             if (!Source.Proxy && Adjunct.CcCollective.ZeroDrone)
             {
@@ -77,7 +77,7 @@ namespace zero.cocoon.models
                     conduitId,
                     channelSource,
                     static (ioZero, _) => new CcProtocBatchJob<chroniton, CcDiscoveryBatch>(
-                        (IoSource<CcProtocBatchJob<chroniton, CcDiscoveryBatch>>)((IIoConduit)ioZero).UpstreamSource, ((IIoConduit)ioZero).ZeroConcurrencyLevel()), cc).FastPath();
+                        (IoSource<CcProtocBatchJob<chroniton, CcDiscoveryBatch>>)((IIoConduit)ioZero).UpstreamSource, ((IIoConduit)ioZero).ZeroConcurrencyLevel), cc).FastPath();
             }
 
             return this;

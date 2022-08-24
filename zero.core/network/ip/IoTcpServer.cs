@@ -42,7 +42,7 @@ namespace zero.core.network.ip
         {
             await base.BlockOnListenAsync(connectionReceivedAction, context, bootFunc, bootData).FastPath();
 
-            IoListenSocket = (await ZeroHiveAsync(new IoTcpSocket(ZeroConcurrencyLevel()), true).FastPath()).target;
+            IoListenSocket = (await ZeroHiveAsync(new IoTcpSocket(ZeroConcurrencyLevel), true).FastPath()).target;
 
             await IoListenSocket.BlockOnListenAsync(ListeningAddress, static async (newConnectionSocket, state) =>
             {

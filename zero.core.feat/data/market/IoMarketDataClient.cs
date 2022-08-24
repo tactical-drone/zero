@@ -31,9 +31,6 @@ namespace zero.core.feat.data.market
         private static readonly Logger Logger;
         private static readonly HttpClient HttpClient = new();
         private static DateTime _lastFetchTime = DateTime.Now;
-        public static double BundleSize = 1000000.0;
-
-        public static IoCryptoCompareMarketData CurrentData = new IoCryptoCompareMarketData();
         public static volatile short Quality = short.MaxValue;
         
         static async Task<IoCryptoCompareMarketData> FetchDataAsync()
@@ -54,7 +51,7 @@ namespace zero.core.feat.data.market
                             return JsonSerializer.Deserialize<IoCryptoCompareMarketData>(response.Result);                            
                     }
 
-                    return default(IoCryptoCompareMarketData);
+                    return null;
                 }, CancellationToken.None, TaskContinuationOptions.DenyChildAttach, TaskScheduler.Default);
             return fetch;
         }

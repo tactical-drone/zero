@@ -76,10 +76,10 @@ namespace zero.core.network.ip
             NativeSocket.NoDelay = true;
 
             // Set the receive buffer size to MTU times
-            NativeSocket.ReceiveBufferSize = 1492 * ZeroConcurrencyLevel() * 4;
+            NativeSocket.ReceiveBufferSize = 1492 * ZeroConcurrencyLevel * 4;
 
             // Set the send buffer size to MTU times
-            NativeSocket.SendBufferSize = 1492 * ZeroConcurrencyLevel() * 4;
+            NativeSocket.SendBufferSize = 1492 * ZeroConcurrencyLevel * 4;
 
             // Set the timeout for synchronous receive methods to
             // 1 second (1000 milliseconds.)

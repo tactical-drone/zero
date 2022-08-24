@@ -114,7 +114,7 @@ namespace zero.test.core.patterns.bushings
 
             var s1 = new IoZeroSource("zero source 1", false, concurrencyLevel*2, concurrencyLevel);
             var c1 = new IoConduit<IoZeroProduct>("conduit smoke test 1", s1, static (ioZero, _) 
-                => new IoZeroProduct("test product 1", ((IoConduit<IoZeroProduct>)ioZero).Source, 0), s1.ZeroConcurrencyLevel());
+                => new IoZeroProduct("test product 1", ((IoConduit<IoZeroProduct>)ioZero).Source, 0), s1.ZeroConcurrencyLevel);
 
             var z1 = Task.Factory.StartNew(async () => await c1.BlockOnReplicateAsync(), CancellationToken.None, TaskCreationOptions.DenyChildAttach, IoZeroScheduler.ZeroDefault).Unwrap();
 

@@ -123,7 +123,7 @@ namespace zero.core.patterns.bushings
 #if DEBUG
         private volatile IoStateTransition<IoJobMeta.JobState> _stateMeta;
 #else
-        private volatile IoStateTransition<IoJobMeta.JobState> _stateMeta = new();
+        private readonly IoStateTransition<IoJobMeta.JobState> _stateMeta = new();
 #endif
         /// <summary>
         /// Enables async jobs to synchronize at certain parts of the pipeline, effectively chaining them into a unique processing order, ordered by <see cref="Id"/>

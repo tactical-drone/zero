@@ -13,6 +13,7 @@ using zero.core.misc;
 using zero.core.patterns.bushings.contracts;
 using zero.core.patterns.misc;
 using zero.core.patterns.semaphore;
+using zero.core.runtime.scheduler;
 
 namespace zero.core.patterns.bushings
 {
@@ -338,23 +339,24 @@ namespace zero.core.patterns.bushings
             if (channelSource != null && !IoConduits.ContainsKey(id))
             {
                 //var locker = UpstreamSource ?? this;
-                if (!await ZeroAtomicAsync(static async (_, @params, _) =>
+                if (!await ZeroAtomicAsync(static (_, @params, _) =>
                     {
                         
                         var (@this, id, channelSource, jobMalloc, concurrencyLevel) = @params;
 
                         if (@this.IoConduits.ContainsKey(id))
-                            return true;
+                            return new ValueTask<bool>(true);
 
                         var newConduit = new IoConduit<TFJob>($"`conduit({id}>{channelSource.UpstreamSource.Description} ~> {channelSource.Description}", channelSource, jobMalloc, concurrencyLevel);
                         if (!@this.IoConduits.TryAdd(id, newConduit))
-                            await newConduit.DisposeAsync(@this, $"{nameof(CreateConduitOnceAsync)}: lost race, Could not add {id}, already exists = {@this.IoConduits.ContainsKey(id)} {@this.Description}").FastPath();
+                            // ReSharper disable once MethodHasAsyncOverload
+                            newConduit.Dispose();
 #if DEBUG
                         else
                             @this._logger.Debug($"Added {nameof(IoConduit<TJob>)}: {id}; {@this.Description}");
 #endif
 
-                        return true;
+                        return new ValueTask<bool>(true);
                 }, ValueTuple.Create(this, id,channelSource, jobMalloc, concurrencyLevel)).FastPath())
                 {
                     if (!Zeroed())
@@ -438,7 +440,7 @@ namespace zero.core.patterns.bushings
 
                 if (i is > (int)IoJobMeta.JobState.Undefined and < (int)IoJobMeta.JobState.Halted)
                 {
-                    heading.Append($"{((IoJobMeta.JobState)i).ToString().PadLeft(padding)} {count.ToString(),7} | ");
+                    heading.Append($"{((IoJobMeta.JobState)i).ToString().PadLeft(padding)} {count,7} | ");
                     str.Append($"{$"{ave:0,000.0}ms".ToString(CultureInfo.InvariantCulture).PadLeft(padding + 8)} | ");
                 }
             }

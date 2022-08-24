@@ -56,7 +56,7 @@ namespace zero.cocoon.autopeer
                     $"{((CcAdjunct)ioZero)?.Source.Key}",
                     // ReSharper disable once PossibleInvalidCastException
                     ((CcAdjunct)ioZero)?.Source, groupByEp: false),
-                extraData == null, concurrencyLevel:ioNetClient.ZeroConcurrencyLevel()
+                extraData == null, concurrencyLevel:ioNetClient.ZeroConcurrencyLevel
             )
         {
             //parm_io_batch_size = CcCollective.parm_max_adjunct * 2;
@@ -140,9 +140,9 @@ namespace zero.cocoon.autopeer
             Interlocked.Exchange(ref _lastSeduced, Environment.TickCount - 100000);
 
             //if (CcCollective.ZeroDrone)
-            //    Volatile.Write(ref ZeroRoot, ZeroSyncRoot(concurrencyLevel: Source.ZeroConcurrencyLevel() * 20 + 200, AsyncTasks));
+            //    Volatile.Write(ref ZeroRoot, ZeroSyncRoot(concurrencyLevel: Source.ZeroConcurrencyLevel * 20 + 200, AsyncTasks));
             //else
-            //    Volatile.Write(ref ZeroRoot, ZeroSyncRoot(concurrencyLevel: (int)(Source.ZeroConcurrencyLevel() * parm_max_swept_drones), AsyncTasks));
+            //    Volatile.Write(ref ZeroRoot, ZeroSyncRoot(concurrencyLevel: (int)(Source.ZeroConcurrencyLevel * parm_max_swept_drones), AsyncTasks));
         }
 
         public enum AdjunctState
@@ -1239,7 +1239,7 @@ namespace zero.cocoon.autopeer
 
                 do{
                     //The consumer
-                    var width = _protocolConduit.Source.ZeroConcurrencyLevel();
+                    var width = _protocolConduit.Source.ZeroConcurrencyLevel;
                     //var width = 1;
                     for (var i = 0; i < width; i++)
                         await ZeroAsync(static async state =>
@@ -1937,8 +1937,10 @@ namespace zero.cocoon.autopeer
                                     {
                                         if (((CcAdjunct)ioNeighbor).State < AdjunctState.Connected)
                                         {
-                                            await ((CcAdjunct)ioNeighbor).DisposeAsync(@this, "Assimilated!").FastPath();
-                                            @this._logger.Debug($"@ {ioNeighbor.Description}");
+                                            // ReSharper disable once MethodHasAsyncOverload
+#pragma warning disable VSTHRD103 // Call async methods when in an async method
+                                            ioNeighbor.Dispose();
+#pragma warning restore VSTHRD103 // Call async methods when in an async method
                                             break;
                                         }
                                     }

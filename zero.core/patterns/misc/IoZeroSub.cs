@@ -22,7 +22,9 @@ namespace zero.core.patterns.misc
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
+#pragma warning disable IDE0060 // Remove unused parameter
         public Func<IIoNanite, T, ValueTask<bool>> ZeroFunc<T>(T obj)
+#pragma warning restore IDE0060 // Remove unused parameter
         {
             try
             {

@@ -93,8 +93,7 @@ namespace zero.core.patterns.misc
         /// Returns the objects concurrency level
         /// </summary>
         /// <returns></returns>
-        int ZeroConcurrencyLevel();
-
+        int ZeroConcurrencyLevel { get; }
 
         /// <summary>
         /// Return the hive mind

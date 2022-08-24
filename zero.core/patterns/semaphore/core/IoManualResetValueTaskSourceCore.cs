@@ -29,9 +29,9 @@ namespace zero.core.patterns.semaphore.core
         /// or <see cref="ManualResetValueTaskSourceCoreShared.SSentinel"/> if the operation completed before a callback was supplied,
         /// or null if a callback hasn't yet been provided and the operation hasn't yet completed.
         /// </summary>
-#pragma warning disable CS8632 // The annotation for nullable reference types should only be used in code within a '#nullable' annotations context.
+#pragma warning disable CS8632
         private Action<object?>? _continuation;
-        
+
         /// <summary>State to pass to <see cref="_continuation"/>.</summary>
         private object? _continuationState;
 
@@ -46,7 +46,7 @@ namespace zero.core.patterns.semaphore.core
 
         /// <summary>The exception with which the operation failed, or null if it hasn't yet completed or completed successfully.</summary>
         private ExceptionDispatchInfo? _error;
-
+#pragma warning restore CS8632
         /// <summary>The result with which the operation succeeded, or the default value if it hasn't yet completed or failed.</summary>
         [AllowNull, MaybeNull] private TResult _result;
 
@@ -55,8 +55,6 @@ namespace zero.core.patterns.semaphore.core
 
         //public object? _burnContext;
         //public Action<bool, object>? _burnResult;
-
-#pragma warning restore CS8632 // The annotation for nullable reference types should only be used in code within a '#nullable' annotations context.
 
         /// <summary>Whether the current operation has completed.</summary>
         private bool _completed;

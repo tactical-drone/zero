@@ -2,6 +2,7 @@
 using System.Threading;
 using System.Threading.Tasks;
 using System.Threading.Tasks.Sources;
+using NLog;
 using zero.core.patterns.semaphore;
 using zero.core.patterns.semaphore.core;
 
@@ -14,25 +15,32 @@ namespace zero.core.feat.patterns.time
         {
             _make = static (delta, signal, token) =>
             {
-#pragma warning disable VSTHRD101
+#pragma warning disable VSTHRD101 // Avoid unsupported async delegates
                 var t = new Thread(static async state =>
                 {
-                    var (delta, signal, token) = (ValueTuple<TimeSpan, IIoManualResetValueTaskSourceCore<int>, CancellationToken>)state;
-                    signal.RunContinuationsAsynchronouslyAlways = true;
-                    while (!token.IsCancellationRequested)
+                    try
                     {
-                        try
+                        var (delta, signal, token) = (ValueTuple<TimeSpan, IIoManualResetValueTaskSourceCore<int>, CancellationToken>)state;
+                        signal.RunContinuationsAsynchronouslyAlways = true;
+                        while (!token.IsCancellationRequested)
                         {
-                            await Task.Delay((int)delta.TotalMilliseconds, token);
-                            signal.SetResult(Environment.TickCount);
-                        }
-                        catch 
-                        {
-                            signal.Reset();
+                            try
+                            {
+                                await Task.Delay((int)delta.TotalMilliseconds, token);
+                                signal.SetResult(Environment.TickCount);
+                            }
+                            catch 
+                            {
+                                signal.Reset();
+                            }
                         }
                     }
+                    catch (Exception e)
+                    {
+                        LogManager.GetCurrentClassLogger().Error(e,$"{nameof(IoTimer)}:");
+                    }
                 });
-#pragma warning restore VSTHRD101
+#pragma warning restore VSTHRD101 // Avoid unsupported async delegates
 
                 t.Start((delta, signal, token));
             };

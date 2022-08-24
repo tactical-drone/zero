@@ -207,7 +207,7 @@ namespace zero.cocoon
                     {
                         //restart useless hubs
                         if (@this.UpTime.ElapsedMsToSec() > @this.parm_mean_pat_delay_s)
-                            await @this.StartHubAsync(@this.Hub.PreFetch, @this.Hub.ZeroConcurrencyLevel()).FastPath();
+                            await @this.StartHubAsync(@this.Hub.PreFetch, @this.Hub.ZeroConcurrencyLevel).FastPath();
 
                         force = true;
                     }

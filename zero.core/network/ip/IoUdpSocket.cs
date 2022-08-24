@@ -189,8 +189,6 @@ namespace zero.core.network.ip
             //Init connection tracking
             try
             {
-                //_logger.Trace($"Waiting for a new connection to {LocalNodeAddress}");
-
                 try
                 {
                     //ZERO
@@ -210,7 +208,7 @@ namespace zero.core.network.ip
                         await bootstrapAsync(bContext).FastPath();
                     },(bootFunc,bootData));
                 }
-                
+
                 //block
                 await AsyncTasks.Token.BlockOnNotCanceledAsync().FastPath();
 

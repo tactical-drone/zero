@@ -193,7 +193,7 @@ namespace zero.core.core
             _logger.Trace($"Starting lisener, {Description}");
 #endif
             //start the listener
-            _netServer = IoNetServer<TJob>.GetKindFromUrl(_address, _preFetch, ZeroConcurrencyLevel());
+            _netServer = IoNetServer<TJob>.GetKindFromUrl(_address, _preFetch, ZeroConcurrencyLevel);
             await _netServer.ZeroHiveAsync(this).FastPath();
 
             await _netServer.BlockOnListenAsync(static async (state, newSocket) =>
@@ -229,7 +229,7 @@ namespace zero.core.core
             var ioNetClient = newNeighbor.Source;
             try
             {
-                if (await @this.ZeroAtomicAsync(static async (_, state, _) =>
+                if (await @this.ZeroAtomicAsync(static (_, state, _) =>
                     {
                         var (@this, newNeighbor) = state;
                         try
@@ -253,12 +253,11 @@ namespace zero.core.core
 
                                             //We remove the key here or async race conditions with the listener...
                                             @this.Neighbors.Remove(existingNeighbor.Key, out _);
-                                            await existingNeighbor.DisposeAsync(@this, errMsg).FastPath();
                                             continue;
                                         }
 
                                         @this._logger.Warn($"{nameof(BlockOnListenerAsync)}: {newNeighbor.IoSource.Direction} Connection {newNeighbor.Source.Key} [DROPPED], existing [OK]; {existingNeighbor}");
-                                        return false;
+                                        return new ValueTask<bool>(false);
 
                                         ////Only drop incoming if the existing one is working and originating
                                         //if (existingNeighbor.Source.IsOriginating && existingNeighbor.Source.IsOperational)
@@ -286,7 +285,7 @@ namespace zero.core.core
                                 }
                             }
 
-                            return success;
+                            return new ValueTask<bool>(success);
                         }
                         catch when (@this.Zeroed() || newNeighbor.Zeroed())
                         {
@@ -296,7 +295,7 @@ namespace zero.core.core
                             @this._logger.Error(e, $"Adding new node failed! {@this.Description}");
                         }
 
-                        return false;
+                        return new ValueTask<bool>(false);
                     }, (@this, newNeighbor)).FastPath())
                 {
                     //async accept...
@@ -402,7 +401,6 @@ namespace zero.core.core
                 if (Interlocked.CompareExchange(ref @this._activated, 1, 0) != 0)
                     return;
 
-                @this._logger.Trace($"unimatrix zero: {@this.Description}");
                 while (!@this.Zeroed() && retry-- > 0)
                 {
                     await @this.BlockOnListenerAsync<object,TBoot>(bootFunc: bootFunc, bootData: bootData).FastPath();
@@ -411,6 +409,8 @@ namespace zero.core.core
                     else
                         await @this.DisposeAsync(@this, "clean exit").FastPath();
                 }
+
+                @this._logger.Trace($"unimatrix zero: {@this.Description}");
 
                 Interlocked.Exchange(ref @this._activated, 0);
             },(this, bootFunc, bootData), TaskCreationOptions.DenyChildAttach, customScheduler??IoZeroScheduler.ZeroDefault, true).FastPath();

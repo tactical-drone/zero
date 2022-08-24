@@ -150,7 +150,7 @@ namespace zero.core.patterns.misc
         private int _disposed;
 
         /// <summary>
-        /// Are we disposed?
+        /// Are we async disposed?
         /// </summary>
         private int _disposedAsync;
 
@@ -158,7 +158,7 @@ namespace zero.core.patterns.misc
         /// <summary>
         /// Have are there any leaks?
         /// </summary>
-        private volatile int _extracted;
+        private int _extracted;
 #endif
 
         /// <summary>
@@ -177,10 +177,12 @@ namespace zero.core.patterns.misc
         private readonly int _concurrencyLevel;
 
         /// <summary>
-        /// Initialize concurrency level critical region
+        /// Initialize critical region that can handle at most <see cref="concurrencyLevel"/> simultaneous application wide concurrent callers
+        /// Architects need to think hard to what value <see cref="concurrencyLevel"/> is set too. This is not ideal, some kind of auto scaling would be
+        /// nice here. //TODO: scale
         /// </summary>
-        /// <param name="concurrencyLevel"></param>
-        /// <param name="asyncTasks"></param>
+        /// <param name="concurrencyLevel">The max concurrent callers supported</param>
+        /// <param name="asyncTasks">Cancellation tokens</param>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         protected static IIoZeroSemaphoreBase<int> ZeroSyncRoot(int concurrencyLevel, CancellationTokenSource asyncTasks)
         {
@@ -195,12 +197,16 @@ namespace zero.core.patterns.misc
         private static long _zCount;
 
         /// <summary>
-        /// root sync, used to generate critical regions for async contexts
+        /// root sync, used to generate critical regions for async contexts (application wide)
+        ///
+        /// Classes with hot critical regions need to define their own root, this is for convenience and should be sufficient most cases
         /// </summary>
         private static readonly IIoZeroSemaphoreBase<int> ZeroRoot;
 
         /// <summary>
-        /// Our dispose implementation
+        /// Our core dispose that tears down hierarchies of objects that share lifetimes
+        ///
+        /// This method is not virtual, use <see cref="ZeroManagedAsync"/> and <see cref="ZeroUnmanaged"/> instead
         /// </summary>
         private async ValueTask DisposeAsyncCore()
         {
@@ -211,22 +217,23 @@ namespace zero.core.patterns.misc
             CascadeTime = Environment.TickCount;
             var desc = Description;
 
-            //Cascade
+            //Cascade subscriptions
             if (_zeroHive != null)
             {
                 while (await _zeroHive.DequeueAsync().FastPath() is { } zeroSub)
                 {
-                    if (zeroSub.Executed) continue;
+                    if (zeroSub.Executed) continue; //Because teardown walks a tree from many entry points
 
                     if (!await zeroSub.ExecuteAsync(this).FastPath())
                         _logger.Trace($"{zeroSub.From} - zero sub {((IIoNanite)zeroSub.Target)?.Description} on {Description} returned with errors!");
                 }
             }
 
+            //Cascade teardown
             if (_zeroHiveMind != null)
             {
-                while (await _zeroHiveMind.DequeueAsync().FastPath() is { } zeroSub)
-                    await zeroSub.DisposeAsync(this, $"[ZERO CASCADE] from {desc}").FastPath();
+                while (await _zeroHiveMind.DequeueAsync().FastPath() is { } cascade)
+                    await cascade.DisposeAsync(this, $"[ZERO CASCADE] from {desc}").FastPath();
             }
 
             CascadeTime = CascadeTime.ElapsedMs();
@@ -246,9 +253,9 @@ namespace zero.core.patterns.misc
                 catch when (Zeroed()){}
 #endif
 
-#if DEBUG
             TearDownTime = TearDownTime.ElapsedMs();
 
+#if DEBUG
             try
             {
                 if (UpTime.ElapsedUtcMs() > 10 && CascadeTime > TearDownTime * 7 && CascadeTime > 20000)
@@ -292,7 +299,7 @@ namespace zero.core.patterns.misc
         /// </summary>
         /// <param name="managed">Whether to dispose managed resources</param>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public void Dispose(bool managed)
+        private void Dispose(bool managed)
         {
             if(Interlocked.CompareExchange(ref _disposed, 1, 0) == 1)
                 return;
@@ -370,7 +377,7 @@ namespace zero.core.patterns.misc
         }
 
         /// <summary>
-        /// Prime for zero
+        /// Extremely lightweight signal sent to object hierarchies to prepare for teardown
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public virtual void ZeroPrime()
@@ -378,14 +385,15 @@ namespace zero.core.patterns.misc
             if (_zeroPrimed > 0 || Interlocked.CompareExchange(ref _zeroPrimed, 1, 0) != 0)
                 return;
 
-            if (_zeroHiveMind == null) return;
+            var hive = _zeroHiveMind;
+            if (hive == null) return;
             
-            foreach (var ioZNode in _zeroHiveMind)
+            foreach (var ioZNode in hive)
             {
                 try
                 {
                     if (ioZNode.Value != null && !ioZNode.Value.Zeroed())
-                        IoZeroScheduler.Zero.Fork(ioZNode.Value.ZeroPrime);
+                        ioZNode.Value.ZeroPrime();
                 }
                 catch
                 {
@@ -482,7 +490,7 @@ namespace zero.core.patterns.misc
                 return (default, false, null);
             }
 
-            if (twoWay) //zero
+            if (twoWay) //objects with mutual lifetimes, if one is zeroed both are
             {
                 var sub = (await target.ZeroHiveAsync(this).FastPath()).sub;
 
@@ -525,15 +533,15 @@ namespace zero.core.patterns.misc
             ZeroedFrom = null;
             _zeroHive = null;
             _zeroHiveMind = null;
-#if !DEBUG
+#if RELEASE
             ZeroReason = null;
-#endif
-            ZeroedFrom = null;
-            //ZeroRoot = null;
 #endif
 
 #if DEBUG
+            //tracks if base methods are called on teardown as they should be
             Interlocked.Increment(ref _extracted);
+#endif
+            ZeroedFrom = null;
 #endif
         }
 
@@ -543,6 +551,7 @@ namespace zero.core.patterns.misc
         public virtual ValueTask ZeroManagedAsync()
         {
 #if DEBUG
+            //tracks if base methods are called on teardown as they should be
             Interlocked.Increment(ref _extracted);
 #endif
             return default;
@@ -552,12 +561,8 @@ namespace zero.core.patterns.misc
         /// Returns the concurrency level
         /// </summary>
         /// <returns>The concurrency level</returns>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public int ZeroConcurrencyLevel()
-        {
-            return _concurrencyLevel;
-        }
-
+        public int ZeroConcurrencyLevel => _concurrencyLevel;
+        
         /// <summary>
         /// Execute atomic actions
         /// </summary>
@@ -572,7 +577,9 @@ namespace zero.core.patterns.misc
         {
             try
             {
+                _logger.Trace($"[{Environment.CurrentManagedThreadId}] Preparing to enter critical area...");
                 await ZeroRoot.WaitAsync().FastPath();
+                _logger.Trace($"[{Environment.CurrentManagedThreadId}] Entered critical area");
 
                 //insane checks
                 if (_zeroed > 0 && !force)

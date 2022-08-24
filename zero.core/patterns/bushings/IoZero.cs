@@ -33,7 +33,7 @@ namespace zero.core.patterns.bushings
         /// <param name="cascadeOnSource">If the source zeroes out, so does this <see cref="IoZero{TJob}"/> instance</param>
         /// <param name="concurrencyLevel"></param>
         protected IoZero(string description, IoSource<TJob> source, Func<object, IIoNanite, IoSink<TJob>> mallocJob,
-            bool enableZeroRecovery, bool cascadeOnSource = true, int concurrencyLevel = 1) : base($"{nameof(IoSink<TJob>)}", concurrencyLevel < 0? source?.ZeroConcurrencyLevel()??0 : concurrencyLevel)
+            bool enableZeroRecovery, bool cascadeOnSource = true, int concurrencyLevel = 1) : base($"{nameof(IoSink<TJob>)}", concurrencyLevel < 0? source?.ZeroConcurrencyLevel??0 : concurrencyLevel)
         {
             _logger = LogManager.GetCurrentClassLogger();
 
@@ -43,7 +43,7 @@ namespace zero.core.patterns.bushings
 
             //TODO tuning
             if (ZeroRecoveryEnabled)
-                _previousJobFragment = new IoQueue<IoSink<TJob>>($"{description}", (Source.PrefetchSize + Source.ZeroConcurrencyLevel()) * 3, Source.PrefetchSize);
+                _previousJobFragment = new IoQueue<IoSink<TJob>>($"{description}", (Source.PrefetchSize + Source.ZeroConcurrencyLevel) * 3, Source.PrefetchSize);
 
             _zeroSync = new IoManualResetValueTaskSource<bool>();
         }
@@ -60,7 +60,7 @@ namespace zero.core.patterns.bushings
         {
             _description = description;
             Source = source;
-            var capacity = Source.PrefetchSize + Source.ZeroConcurrencyLevel() + 1;
+            var capacity = Source.PrefetchSize + Source.ZeroConcurrencyLevel + 1;
 
             //These numbers were numerically established
             if (ZeroRecoveryEnabled)
@@ -699,7 +699,7 @@ namespace zero.core.patterns.bushings
                 _logger.Debug($"{GetType().Name}: Assimulating {desc}");
 #endif
                 //Consumer
-                var width = Source.ZeroConcurrencyLevel();
+                var width = Source.ZeroConcurrencyLevel;
                 //var width = 1;
                 for (var i = 0; i < width; i++)
                     await ZeroAsync(static async state =>
