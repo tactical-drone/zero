@@ -577,9 +577,7 @@ namespace zero.core.patterns.misc
         {
             try
             {
-                _logger.Trace($"[{Environment.CurrentManagedThreadId}] Preparing to enter critical area...");
                 await ZeroRoot.WaitAsync().FastPath();
-                _logger.Trace($"[{Environment.CurrentManagedThreadId}] Entered critical area");
 
                 //insane checks
                 if (_zeroed > 0 && !force)
