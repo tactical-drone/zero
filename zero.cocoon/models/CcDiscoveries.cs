@@ -205,17 +205,17 @@ namespace zero.cocoon.models
                 var prevJob = ((CcDiscoveries)PreviousJob)?.ZeroRecovery;
                 if (prevJob != null)
                 {
-                    fastPath = IoZero.ZeroRecoveryEnabled && prevJob.GetStatus((short)prevJob.Version) == ValueTaskSourceStatus.Succeeded;
+                    fastPath = IoZero.ZeroRecoveryEnabled && prevJob.GetStatus() == ValueTaskSourceStatus.Succeeded;
                     
                     if (zeroRecovery || fastPath)
                     {
-                        if (fastPath && prevJob.GetResult((short)prevJob.Version))
+                        if (fastPath && prevJob.GetResult(0))
                         {
                             await AddRecoveryBitsAsync().FastPath();
                         }
                         else
                         {
-                            var prevJobTask = new ValueTask<bool>(prevJob, (short)prevJob.Version);
+                            var prevJobTask = new ValueTask<bool>(prevJob, 0);
                             if (await prevJobTask.FastPath())
                                 await AddRecoveryBitsAsync().FastPath();
                         }

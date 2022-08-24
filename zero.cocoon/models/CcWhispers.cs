@@ -361,7 +361,7 @@ namespace zero.cocoon.models
                 var prevJob = ((CcWhispers)PreviousJob)?.ZeroRecovery;
                 if (prevJob != null)
                 {
-                    fastPath = IoZero.ZeroRecoveryEnabled && prevJob.GetStatus((short)prevJob.Version) == ValueTaskSourceStatus.Succeeded && prevJob.GetResult((short)prevJob.Version);
+                    fastPath = IoZero.ZeroRecoveryEnabled && prevJob.GetStatus() == ValueTaskSourceStatus.Succeeded && prevJob.GetResult(0);
                     if (zeroRecovery || fastPath)
                     {
                         if (fastPath)
@@ -371,7 +371,7 @@ namespace zero.cocoon.models
                         }
                         else
                         {
-                            var prevJobTask = new ValueTask<bool>(prevJob, (short)prevJob.Version);
+                            var prevJobTask = new ValueTask<bool>(prevJob, 0);
                             if (await prevJobTask.FastPath())
                                 await AddRecoveryBitsAsync().FastPath();
                         }

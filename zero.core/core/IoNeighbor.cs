@@ -29,9 +29,6 @@ namespace zero.core.core
             bool enableZeroRecovery, bool cascade = true, int concurrencyLevel = 1)
             : base($"neighbor({ioNetClient?.Description})", ioNetClient, mallocJob, enableZeroRecovery, cascade, concurrencyLevel)
         {
-            //sentinel
-            if(Source == null)
-                return;
             _logger = LogManager.GetCurrentClassLogger();
             Node = node;
         }

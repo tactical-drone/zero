@@ -35,10 +35,6 @@ namespace zero.core.patterns.bushings
         protected IoZero(string description, IoSource<TJob> source, Func<object, IIoNanite, IoSink<TJob>> mallocJob,
             bool enableZeroRecovery, bool cascadeOnSource = true, int concurrencyLevel = 1) : base($"{nameof(IoSink<TJob>)}", concurrencyLevel < 0? source?.ZeroConcurrencyLevel()??0 : concurrencyLevel)
         {
-            //sentinel
-            if (source == null)
-                return;
-
             _logger = LogManager.GetCurrentClassLogger();
 
             ZeroRecoveryEnabled = enableZeroRecovery;

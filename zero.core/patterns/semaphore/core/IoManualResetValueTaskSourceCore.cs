@@ -1,7 +1,6 @@
 ﻿using System;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
-using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Runtime.ExceptionServices;
 using System.Runtime.InteropServices;
@@ -10,15 +9,14 @@ using System.Threading.Tasks;
 using System.Threading.Tasks.Sources;
 using NLog;
 using zero.core.misc;
-using zero.core.patterns.bushings;
 using zero.core.runtime.scheduler;
 
 namespace zero.core.patterns.semaphore.core
 {
     /// <summary>Provides the core logic for implementing a manual-reset <see cref="IValueTaskSource"/> or <see cref="IValueTaskSource{TResult}"/>.
     ///
-    /// This version is a slightly modified version of the runtime, allowing a special case where if a waiter is blocking it can be un-blocked asynchronously,
-    /// while if a blocker's result is already ready, it executes synchronously.
+    /// This version is a slightly modified version of the runtime (.net 8), allowing a special case where if a waiter is blocking it can be un-blocked asynchronously,
+    /// while if a result is already ready, it is unblocked synchronously. This should boost performance.
     ///
     /// Caution: Highly experimental!
     /// </summary>
@@ -32,19 +30,19 @@ namespace zero.core.patterns.semaphore.core
         /// or null if a callback hasn't yet been provided and the operation hasn't yet completed.
         /// </summary>
 #pragma warning disable CS8632 // The annotation for nullable reference types should only be used in code within a '#nullable' annotations context.
-        private Action<object> _continuation;
-
+        private Action<object?>? _continuation;
+        
         /// <summary>State to pass to <see cref="_continuation"/>.</summary>
-        private object _continuationState;
+        private object? _continuationState;
 
         /// <summary><see cref="ExecutionContext"/> to flow to the callback, or null if no flowing is required.</summary>
-        private ExecutionContext _executionContext;
+        private ExecutionContext? _executionContext;
 
         /// <summary>
         /// A "captured" <see cref="SynchronizationContext"/> or <see cref="TaskScheduler"/> with which to invoke the callback,
         /// or null if no special context is required.
         /// </summary>
-        private object _capturedContext;
+        private object? _capturedContext;
 
         /// <summary>The exception with which the operation failed, or null if it hasn't yet completed or completed successfully.</summary>
         private ExceptionDispatchInfo? _error;
@@ -56,36 +54,27 @@ namespace zero.core.patterns.semaphore.core
         private object _heapContext;
 
         //public object? _burnContext;
-
         //public Action<bool, object>? _burnResult;
 
 #pragma warning restore CS8632 // The annotation for nullable reference types should only be used in code within a '#nullable' annotations context.
 
         /// <summary>Whether the current operation has completed.</summary>
-        private readonly int _version;
+        private bool _completed;
+        private bool _runContinuationsAsync; //Options on just in time async/sync calls
+
+#if DEBUG
         private int _completeTime;
         private int _burnTime;
-        private bool _completed;
-        
-        private bool _runContinuationsAsync;
-        private bool _runContinuationsAsyncAlways;
-        private bool _autoReset;
-#if DEBUG
-        /// <summary>
-        /// Whether this core has been burned?
-        /// </summary>
         private int _burned;
 #endif
         /// <summary>
         /// Substitute for <see cref="RunContinuationsAsynchronously"/> used internally
         /// </summary>
-        public bool RunContinuationsAsynchronouslyAlways { get => _runContinuationsAsyncAlways; set => _runContinuationsAsyncAlways = value; }
-        //public bool RunContinuationsAsynchronouslyAlways { get; set; }
+        public bool RunContinuationsAsynchronouslyAlways { get; set; }
 
         /// <summary>Gets or sets whether to force continuations to run asynchronously.</summary>
         /// <remarks>Continuations may run asynchronously if this is false, but they'll never run synchronously if this is true.</remarks>
-        public bool RunContinuationsAsynchronously { get => _runContinuationsAsync || _runContinuationsAsyncAlways; set => Volatile.Write(ref _runContinuationsAsync,value); }
-        //public bool RunContinuationsAsynchronously { get; set; }
+        public bool RunContinuationsAsynchronously { get => _runContinuationsAsync || RunContinuationsAsynchronouslyAlways; set => _runContinuationsAsync = value; }
 
         /// <summary>
         /// Run continuations on the flowing scheduler, else on the default one
@@ -93,10 +82,14 @@ namespace zero.core.patterns.semaphore.core
         public bool RunContinuationsUnsafe { get; set; }
 
         /// <summary>
-        /// AutoReset
+        /// AutoReset true always prepares core for reuse on completion
         /// </summary>
-        public bool AutoReset { get => _autoReset; set => _autoReset = value; }
-        //public bool AutoReset { get; set; }
+        public bool AutoReset { get; set; }
+
+        /// <summary>
+        /// Allows the core to be synchronized. Useful when splitting the results and blockers into different queues 
+        /// </summary>
+        public int SyncRoot { get; set; }
 
         /// <summary>
         /// Is this core primed with a sentinel?
@@ -115,41 +108,11 @@ namespace zero.core.patterns.semaphore.core
         public bool Burned => _burned > 0;
 #endif
 
-        /// <summary>
-        /// Whether this core is busy relaying
-        /// </summary>
-        public int SyncRoot { get; set; }
-//#if ZERO_CHECK
-//        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-//        public bool Lock() => Interlocked.CompareExchange(ref _heapItemLock, 1, 0) == 0;
-
-
-//        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-//        public IIoManualResetValueTaskSourceCore<TResult> Free()
-//        {
-//            Interlocked.CompareExchange(ref _heapItemLock, 0, 1);
-//            return this;
-//        }
-//#else
-//        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-//        public bool Lock() => true;
-
-
-//        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-//        public IIoManualResetValueTaskSourceCore<TResult> Free() => this;
-        
-//#endif
-
         //public object BurnContext
         //{
         //    get => _burnContext;
         //    set => _burnContext = value;
         //}
-
-#if DEBUG
-        public TResult Result => _result;
-        public int Completed => _completeTime;
-#endif
 
         /// <summary>Resets to prepare for the next operation.</summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -159,32 +122,17 @@ namespace zero.core.patterns.semaphore.core
             _result = default;
             _error = null;
             _executionContext = null;
-            _capturedContext = null;
-            _continuationState = null;
-            _completeTime = 0;
             SyncRoot = 0;
             _completed = false;
+            _runContinuationsAsync = false;
 #if DEBUG
+            _completeTime = 0;
             _burned = 0;
 #endif
-            _continuation = null;
-            RunContinuationsAsynchronously = false; 
+            _capturedContext = _continuationState = _continuation = null;
             Interlocked.MemoryBarrier();
 
-            //_version++;
-
-#if DEBUG
-            //if(_burned > 0)
             _heapAction?.Invoke(_heapContext);
-#else
-            _heapAction?.Invoke(_heapContext);
-#endif
-        }
-
-        public void Reset(int version)
-        {
-            Reset();
-            //_version = version;
         }
 
         /// <summary>
@@ -198,12 +146,10 @@ namespace zero.core.patterns.semaphore.core
 
             if (!reset) return blocked;
 
-            if (blocked) Reset((short)Version);
+            if (blocked) Reset();
 
             return true;
         }
-
-        //public void SetResult(TResult result) => SetResult<object>(result);
 
         /// <summary>Completes with a successful result.</summary>
         /// <param name = "result" > The result.</param>
@@ -213,17 +159,14 @@ namespace zero.core.patterns.semaphore.core
         //public void SetResult<TContext>(TResult result, Action<bool, TContext> async = null, TContext context = default)
         public void SetResult(TResult result)
         {
-#if DEBUG
             if (_completed)
-                throw new InvalidOperationException($"[{Environment.CurrentManagedThreadId}]: set => v = [{_version}], primed = {Primed}, blocking = {Blocking}, burned = {Burned}, completed = {_completed}, {GetStatus((short)Version)}");   
-#else
-            if (_completed)
-                throw new InvalidOperationException($"[{Environment.CurrentManagedThreadId}]: set => v = [{_version}], primed = {Primed}, blocking = {Blocking}, completed = {_completed}, {GetStatus((short)Version)}");
-#endif
+                throw new InvalidOperationException($"[{Environment.CurrentManagedThreadId}]: set => primed = {Primed}, blocking = {Blocking}, completed = {_completed}, {GetStatus(0)}");   
 
             _result = result;
+#if DEBUG
             _completeTime = Environment.TickCount;
             _burnTime = 0;
+#endif
             //SignalCompletion(async, context);
             SignalCompletion();
         }
@@ -237,17 +180,14 @@ namespace zero.core.patterns.semaphore.core
             SignalCompletion();
         }
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Reset(Action<object> index, object context)
         {
             _heapAction = index;
             _heapContext = context;
         }
 
-        public ValueTask<TResult> WaitAsync() => new(this, (short)Version);
-        
-#if DEBUG 
-        /// <summary>Gets the operation version.</summary>
-        public int Version => _version;
+#if DEBUG
 #else
         /// <summary>Gets the operation version.</summary>
         public int Version => 9;
@@ -258,7 +198,7 @@ namespace zero.core.patterns.semaphore.core
 #if !DEBUG
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
 #endif
-        public ValueTaskSourceStatus GetStatus(short token)
+        public ValueTaskSourceStatus GetStatus(short token = 0)
         {
 #if DEBUG
             //ValidateToken(token);   
@@ -278,22 +218,33 @@ namespace zero.core.patterns.semaphore.core
         {
 #if DEBUG
             if (Interlocked.CompareExchange(ref _burned, 1, 0) != 0)
-                throw new InvalidOperationException($"[{Environment.CurrentManagedThreadId}] {nameof(GetResult)}: core #{_version} already burned completed {_completeTime.ElapsedMs()} ms ago, burned = {_burnTime.ElapsedMs()} ms ago");
-            //ValidateToken(token);
-#endif
+                throw new InvalidOperationException($"[{Environment.CurrentManagedThreadId}] {nameof(GetResult)}: core already burned completed {_completeTime.ElapsedMs()} ms ago, burned = {_burnTime.ElapsedMs()} ms ago");
+
             _burnTime = Environment.TickCount;
+#endif
 
             if (!_completed)
-                throw new InvalidOperationException($"[{Environment.CurrentManagedThreadId}] {nameof(GetResult)}: core  #{_version} not completed {_completeTime.ElapsedMs()} ms, burned = {_burnTime.ElapsedMs()} ms ago");
-            
-            var r = _result;
+                throw new InvalidOperationException($"[{Environment.CurrentManagedThreadId}] {nameof(GetResult)}: core not completed!");
 
-            if (_autoReset)
-                Reset();
+            try
+            {
+                _error?.Throw();
+                return _result;
+            }
+            finally
+            {
+                if (AutoReset)
+                    Reset();
+            }
 
-            _error?.Throw();
+            //var r = _result;
 
-            return r;
+            //if (AutoReset)
+            //    Reset();
+
+            //_error?.Throw();
+
+            //return r;
         }
 
         /// <summary>Schedules the continuation action for this operation.</summary>
@@ -308,7 +259,6 @@ namespace zero.core.patterns.semaphore.core
         {
 #if DEBUG
             Debug.Assert(continuation != null && state != null);
-            //ValidateToken(token);
 #endif
             if ((flags & ValueTaskSourceOnCompletedFlags.FlowExecutionContext) != 0)
             {
@@ -344,31 +294,15 @@ namespace zero.core.patterns.semaphore.core
             if (oldContinuation == null)
             {
                 _continuationState = state;
-#if DEBUG
-                var ts = Environment.TickCount;
-#endif
-
                 oldContinuation = Interlocked.CompareExchange(ref _continuation, continuation, null);
-
-#if DEBUG
-                if (ts.ElapsedMs() > 16)
-                    LogManager.GetCurrentClassLogger().Fatal($"OnComplete CAS took => {ts.ElapsedMs()}");
-                //Debug.Assert(ts.ElapsedMs() <= 16);       
-#endif
             }
 
             if (oldContinuation != null)
             {
                 // Operation already completed, so we need to queue the supplied callback.
 #pragma warning disable CS0252 // Possible unintended reference comparison; left hand side needs cast
-#if DEBUG
                 if (oldContinuation != ManualResetValueTaskSourceCoreShared.SSentinel)
-                    throw new InvalidOperationException($"[{Environment.CurrentManagedThreadId}] // => had = {oldContinuation}, // => has = {continuation}, {state}, v = [{_version}], primed = {Primed}, blocking = {Blocking}, burned = {Burned}, completed = {_completed}, {GetStatus((short)Version)}");       
-#else
-                if (oldContinuation != ManualResetValueTaskSourceCoreShared.SSentinel)
-                    throw new InvalidOperationException($"[{Environment.CurrentManagedThreadId}] // => had = {oldContinuation}, // => has = {continuation}, {state}, v = [{_version}], primed = {Primed}, blocking = {Blocking}, completed = {_completed}, {GetStatus((short)Version)}");
-#endif
-
+                    throw new InvalidOperationException($"[{Environment.CurrentManagedThreadId}] // => had = {oldContinuation}, // => has = {continuation}, {state}, primed = {Primed}, blocking = {Blocking}, completed = {_completed}, {GetStatus(0)}");
 #pragma warning restore CS0252 // Possible unintended reference comparison; left hand side needs cast
 
                 //try
@@ -380,18 +314,23 @@ namespace zero.core.patterns.semaphore.core
                 //    // ignored
                 //}
 
-                //WaitCallback proxy = static delegate (object context)
-                //{
-                //    var (continuation, state) = (ValueTuple<Action<object>, object>)context;
-                //    continuation(state);
-                //};
                 switch (_capturedContext)
                 {
                     case null:
-                        if (RunContinuationsAsynchronously)
-                            _ = Task.Factory.StartNew(continuation, state, CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Default);
+                        if (_executionContext != null)
+                        {
+                            ThreadPool.QueueUserWorkItem(continuation, state, preferLocal: true);
+                        }
                         else
-                            continuation(state);
+                        {
+                            static void WaitCallback(object context)
+                            {
+                                var (continuation, state) = (ValueTuple<Action<object>, object>)context;
+                                continuation(state);
+                            }
+
+                            ThreadPool.UnsafeQueueUserWorkItem(WaitCallback, (continuation, state));
+                        }
                         break;
                     case SynchronizationContext sc:
                         sc.Post(s =>
@@ -419,20 +358,6 @@ namespace zero.core.patterns.semaphore.core
             //}
         }
 
-#if DEBUG
-        /// <summary>Ensures that the specified token matches the current version.</summary>
-        /// <param name="token">The token supplied by <see cref="ValueTask"/>.</param>
-        //private void ValidateToken(int token)
-        //{
-        //    //if (token != _version)
-        //    //{
-        //    //    throw new InvalidOperationException($"{nameof(ValidateToken)}: Invalid core token detected: wants = {token}, has = {_version}");
-        //    //}
-        //}
-#endif
-
-        //private void SignalCompletion() => SignalCompletion<object>();
-
         /// <summary>Signals that the operation has completed.  Invoked after the result or error has been set.</summary>
 #if !DEBUG
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -440,36 +365,17 @@ namespace zero.core.patterns.semaphore.core
         //private void SignalCompletion<TContext>(Action<bool, TContext> async = null, TContext context = default)
         private void SignalCompletion()
         {
-#if DEBUG
             if (_completed)
-            {
-                if (_error == null)
-                    throw new InvalidOperationException($"[{Environment.CurrentManagedThreadId}]: set => v = [{_version}], primed = {Primed}, blocking = {Blocking}, completed = {_completed}, {GetStatus((short)Version)}");
-                Reset();
-                return;
-            }
-#else
-            if (_completed)
-                throw new InvalidOperationException($"[{Environment.CurrentManagedThreadId}]: set => v = [{_version}], primed = {Primed}, blocking = {Blocking}, completed = {_completed}, {GetStatus((short)Version)}");
-#endif
+                throw new InvalidOperationException($"[{Environment.CurrentManagedThreadId}]: set => primed = {Primed}, blocking = {Blocking}, completed = {_completed}, status = {GetStatus()}");
+
             _completed = true;
 
-#if DEBUG
-            var ts = Environment.TickCount;
-#endif
-            
             if (_continuation == null &&
                 Interlocked.CompareExchange(ref _continuation, ManualResetValueTaskSourceCoreShared.SSentinel, null) == null)
             {
                 //async?.Invoke(false, context);
                 return;
             }
-#if DEBUG
-            if (ts.ElapsedMs() > 16)
-            {
-                LogManager.GetCurrentClassLogger().Fatal($"{nameof(SignalCompletion)}: CAS took => {ts.ElapsedMs()} ms");
-            }
-#endif
             //async?.Invoke(true, context);
 
             if (_executionContext != null)
@@ -500,9 +406,26 @@ namespace zero.core.patterns.semaphore.core
             {
                 case null:
                     if (RunContinuationsAsynchronously)
-                        _ = Task.Factory.StartNew(_continuation!, _continuationState, CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Default);
+                    {
+                        if (_executionContext != null)
+                        {
+                            ThreadPool.QueueUserWorkItem(_continuation, _continuationState, preferLocal: true);
+                        }
+                        else
+                        {
+                            static void WaitCallback(object context)
+                            {
+                                var (continuation, state) = (ValueTuple<Action<object>, object>)context;
+                                continuation(state);
+                            }
+
+                            ThreadPool.UnsafeQueueUserWorkItem(WaitCallback, (_continuation, _continuationState));
+                        }
+                    }
                     else
-                        _continuation!(_continuationState);
+                    {
+                        _continuation(_continuationState);
+                    }
                     break;
                 case SynchronizationContext sc:
                     sc.Post(s =>
@@ -526,8 +449,8 @@ namespace zero.core.patterns.semaphore.core
             try
             {
                 if (_completed)
-                    return $" {_version} - {_result}";
-                return $" {_version} - {GetStatus((short)_version)}";
+                    return $"state = {GetStatus()}, result = {_result}";
+                return $"state = {GetStatus()}, blocking = {IsBlocking()}, primed = {Primed}";
             }
             catch (Exception e)
             {

@@ -52,7 +52,7 @@ namespace zero.core.network.ip
             }
             catch (ObjectDisposedException)
             {
-                _ = Task.Factory.StartNew(@this => ((IoSocket)@this).DisposeAsync((IoSocket)@this, "RACE"),this, CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Default);
+                Dispose();
                 return;
             }
             catch (Exception e)
@@ -310,7 +310,7 @@ namespace zero.core.network.ip
         /// <param name="remoteEp"></param>
         /// <param name="timeout">Sync read with timeout</param>
         /// <returns>The amounts of bytes read</returns>
-        public abstract ValueTask<int> ReadAsync(Memory<byte> buffer, int offset, int length, byte[] remoteEp = null,
+        public abstract ValueTask<int> ReceiveAsync(Memory<byte> buffer, int offset, int length, byte[] remoteEp = null,
             int timeout = 0);
 
         /// <summary>

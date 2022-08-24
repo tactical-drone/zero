@@ -59,10 +59,6 @@ namespace zero.cocoon.autopeer
                 extraData == null, concurrencyLevel:ioNetClient.ZeroConcurrencyLevel()
             )
         {
-            //sentinel
-            if (Source == null)
-                return;
-
             //parm_io_batch_size = CcCollective.parm_max_adjunct * 2;
 
             if (Source.Zeroed())
@@ -128,10 +124,6 @@ namespace zero.cocoon.autopeer
             _chronitonHeap = new IoHeap<chroniton, CcAdjunct>(packetHeapDesc, CcCollective.ZeroDrone & !IsProxy ? 32 : 16,
                 static (_, @this) =>
                 {
-                    //sentinel
-                    if (@this == null)
-                        return new chroniton();
-
                     return new chroniton
                     {
                         Header = new z_header { Ip = new net_header() },
@@ -1982,7 +1974,7 @@ namespace zero.cocoon.autopeer
                         if (!await newAdjunct.ProbeAsync("ACK").FastPath())
                         {
                             _logger.Trace($"{nameof(ProbeAsync)}: ACK [FAILED], {newAdjunct.Description}");
-                            newAdjunct?.DisposeAsync(this, "CollectAsync failed! -> ACK [FAILED]");
+                            await newAdjunct.DisposeAsync(this, "CollectAsync failed! -> ACK [FAILED]").FastPath();
                             return false;
                         }
                     }
@@ -3037,12 +3029,20 @@ namespace zero.cocoon.autopeer
                     IoZeroScheduler.Zero.LoadAsyncContext(static async state =>
                     {
                         var @this = (CcAdjunct)state;
-                        if (@this.CcCollective is { Adjuncts: { } })
+                        try
                         {
-                            await @this.CcCollective.Adjuncts.Where(static a => a.State == AdjunctState.Verified).ToList().ForEachAsync<CcAdjunct, IIoNanite>(static async (@this, _) =>
+                            if (@this.CcCollective is { Adjuncts: { } })
                             {
-                                await @this.ProbeAsync("SYN-HOT").FastPath();
-                            }).FastPath();
+                                await @this.CcCollective.Adjuncts.Where(static a => a.State == AdjunctState.Verified).ToList().ForEachAsync<CcAdjunct, IIoNanite>(static async (@this, _) =>
+                                {
+                                    await @this.ProbeAsync("SYN-HOT").FastPath();
+                                }).FastPath();
+                            }
+                        }
+                        catch when(@this.Zeroed()){}
+                        catch (Exception e) when (!@this.Zeroed()) 
+                        {
+                            @this._logger.Error(e, $"{nameof(ProbeAsync)}:");
                         }
                     }, this);
                 }

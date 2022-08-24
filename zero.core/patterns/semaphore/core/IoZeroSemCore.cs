@@ -1,18 +1,18 @@
 ﻿//#define TRACE
 using System;
-using System.Diagnostics;
-using System.Net.Http.Headers;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Threading.Tasks.Sources;
-using NLog.LayoutRenderers;
 
 namespace zero.core.patterns.semaphore.core
 {
     /// <summary>
-    /// A new core semaphore based on learnings from <see cref="IoZeroSemaphore{T}"/> that uses
+    ///
+    /// DEPRECATED!!! (left here for a example of possible implementation of a single Q version of <see cref="IoZeroCore{T}"/>
+    /// 
+    /// A new core semaphore based on learning from <see cref="IoZeroSemaphore{T}"/> that uses
     /// <see cref="IoManualResetValueTaskSourceCore{TResult}"/> better;
     ///
     /// Status: Passes smoke tests but sometimes glitches out, reason unknown...
@@ -42,7 +42,7 @@ namespace zero.core.patterns.semaphore.core
             {
                 _manualResetValueTaskSourceCore[i] = new IoManualResetValueTaskSourceCore<T>{RunContinuationsAsynchronouslyAlways = zeroAsyncMode, AutoReset = true};
                 var core = _manualResetValueTaskSourceCore[i];
-                core.Reset(i);
+                core.Reset();
             }
 
             _head = ready;
@@ -262,7 +262,7 @@ namespace zero.core.patterns.semaphore.core
                     }
                 }
                 else if(!core.Primed)
-                    core.Reset((short)latch);
+                    core.Reset();
                 Interlocked.Increment(ref _head);
             }
             finally

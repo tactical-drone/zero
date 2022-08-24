@@ -13,13 +13,7 @@ namespace zero.test.core.patterns.heap
         [Fact]
         async Task SpamTestAsync()
         {
-            var h = new IoHeapIo<TestHeapItem, IoHeapIoTest>("test heap", _capacity * _capacity, static (o, @this) =>
-            {
-                //sentinel
-                if (@this == null)
-                    return new TestHeapItem(-1, -1);
-                return new TestHeapItem(@this._localVar, (int)o);
-            }, context:this)
+            var h = new IoHeapIo<TestHeapItem, IoHeapIoTest>("test heap", _capacity * _capacity, static (o, @this) => new TestHeapItem(@this._localVar, (int)o), context:this)
             {
                 PopAction = (item, o) =>
                 {

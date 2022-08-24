@@ -30,7 +30,6 @@ namespace zero.core.patterns.semaphore
 
         public bool RunContinuationsAsynchronouslyAlways { get; set; }
         public bool AutoReset => _zeroCore.AutoReset;
-        public int Version => _zeroCore.Version;
 
         public void SetResult(T result) => _zeroCore.SetResult(result);
         public void SetException(Exception exception) => _zeroCore.SetException(exception);
@@ -60,12 +59,8 @@ namespace zero.core.patterns.semaphore
         public ValueTaskSourceStatus GetStatus(short token) => _zeroCore.GetStatus(token);
         public void OnCompleted(Action<object> continuation, object state, short token, ValueTaskSourceOnCompletedFlags flags) => _zeroCore.OnCompleted(continuation, state, token, flags);
 
-        public ValueTask<T> WaitAsync() => new(_zeroCore, (short)_zeroCore.Version);
-
         public override string ToString() => _zeroCore.ToString();
 
         public void Reset() => _zeroCore.Reset();
-        public void Reset(int version) => _zeroCore.Reset(version);
-
     }
 }

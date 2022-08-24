@@ -15,14 +15,16 @@ namespace zero.core.patterns.misc
 {
     /// <summary>
     /// Base class for async/await only frameworks (useful for example if you need to call async/await code from a critical section)
-    /// 
+    ///
     /// Adds memory management dependency framework options to any object. Allows objects build hierarchies that cascade teardown etc.
     ///
+    /// Adds virtual methods <see cref="ZeroManagedAsync"/> and <see cref="ZeroUnmanaged"/> for easy teardown
+    /// 
     /// Tracks concurrency level supported, because this async/await framework bakes load balancing parameters into every object that is super useful.
     ///
     /// Additionally, contains useful debug stuff like descriptions & uptime etc.
     /// </summary>
-    public class IoNanoprobe : IIoNanite, IDisposable
+    public class IoNanoprobe : IIoNanite, IAsyncDisposable, IDisposable
     {
         /// <summary>
         /// static constructor
@@ -78,14 +80,7 @@ namespace zero.core.patterns.misc
         /// </summary>
         ~IoNanoprobe()
         {
-            try
-            {
-                ZeroDisposeAsync(false).AsTask().GetAwaiter();
-            }
-            catch (Exception e)
-            {
-                _logger.Fatal(e);
-            }
+            Dispose(false);
         }
 
         /// <summary>
@@ -152,7 +147,12 @@ namespace zero.core.patterns.misc
         /// <summary>
         /// Are we disposed?
         /// </summary>
-        private volatile int _disposed;
+        private int _disposed;
+
+        /// <summary>
+        /// Are we disposed?
+        /// </summary>
+        private int _disposedAsync;
 
 #if DEBUG
         /// <summary>
@@ -190,19 +190,6 @@ namespace zero.core.patterns.misc
         }
 
         /// <summary>
-        /// Dispose pattern from non async contexts, else use <see cref="DisposeAsync"/>
-        /// </summary>
-        public void Dispose()
-        {
-            //Console.WriteLine("Z");
-            _ = Task.Factory.StartNew(static async state =>
-            {
-                var @this = (IoNanoprobe)state;
-                await @this.ZeroDisposeAsync(false).FastPath();
-            },this, CancellationToken.None,TaskCreationOptions.DenyChildAttach, TaskScheduler.Default);
-        }
-
-        /// <summary>
         /// Tracks teardown
         /// </summary>
         private static long _zCount;
@@ -213,7 +200,75 @@ namespace zero.core.patterns.misc
         private static readonly IIoZeroSemaphoreBase<int> ZeroRoot;
 
         /// <summary>
-        /// ZeroDisposeAsync
+        /// Our dispose implementation
+        /// </summary>
+        private async ValueTask DisposeAsyncCore()
+        {
+            // Only once
+            if (_disposedAsync > 0 || Interlocked.CompareExchange(ref _disposedAsync, 1, 0) != 0)
+                return;
+
+            CascadeTime = Environment.TickCount;
+            var desc = Description;
+
+            //Cascade
+            if (_zeroHive != null)
+            {
+                while (await _zeroHive.DequeueAsync().FastPath() is { } zeroSub)
+                {
+                    if (zeroSub.Executed) continue;
+
+                    if (!await zeroSub.ExecuteAsync(this).FastPath())
+                        _logger.Trace($"{zeroSub.From} - zero sub {((IIoNanite)zeroSub.Target)?.Description} on {Description} returned with errors!");
+                }
+            }
+
+            if (_zeroHiveMind != null)
+            {
+                while (await _zeroHiveMind.DequeueAsync().FastPath() is { } zeroSub)
+                    await zeroSub.DisposeAsync(this, $"[ZERO CASCADE] from {desc}").FastPath();
+            }
+
+            CascadeTime = CascadeTime.ElapsedMs();
+            TearDownTime = Environment.TickCount;
+
+            try
+            {
+                await ZeroManagedAsync().FastPath();
+            }
+#if DEBUG
+            catch (Exception e) when (!Zeroed())
+            {
+
+                _logger.Error(e, $"[{this}] {nameof(ZeroManagedAsync)} returned with errors!");
+            }
+#else
+                catch when (Zeroed()){}
+#endif
+
+#if DEBUG
+            TearDownTime = TearDownTime.ElapsedMs();
+
+            try
+            {
+                if (UpTime.ElapsedUtcMs() > 10 && CascadeTime > TearDownTime * 7 && CascadeTime > 20000)
+                    _logger.Fatal($"{GetType().Name}:Z/{Description}> SLOW TEARDOWN!, c = {CascadeTime:0.0}ms, t = {TearDownTime:0.0}ms");
+            }
+            catch
+            {
+                // ignored
+            }
+#endif
+
+#if TRACE
+            _logger.Trace($"z:{Serial}> {desc}; from = {ZeroedFrom?.Description}, reason = `{reason}'");
+#endif
+            ZeroedFrom = null;
+            ZeroRoot.ZeroSem();
+        }
+
+        /// <summary>
+        /// Async dispose pattern with teardown reason
         /// </summary>
         public ValueTask DisposeAsync(IIoNanite @from, string reason, [CallerFilePath] string filePath = null, [CallerMemberName] string methodName = null, [CallerLineNumber] int lineNumber = default)
         {
@@ -223,36 +278,95 @@ namespace zero.core.patterns.misc
 
             ZeroedFrom = from;
 #if RELEASE
-            ZeroReason = $"ZERO: {reason??"N/A"}"; 
+            ZeroReason = $"{reason??"N/A"}"; 
 #else
             ZeroReason = $"{methodName}:{lineNumber} - reason = {reason ?? "N/A"}";
 #endif
+            return DisposeAsync();
+        }
 
-            IoZeroScheduler.Zero.LoadAsyncContext(static async state =>
+        /// <summary>
+        /// Our sync dispose pattern
+        ///
+        /// This method is not virtual, use <see cref="ZeroManagedAsync"/> and <see cref="ZeroUnmanaged"/> instead
+        /// </summary>
+        /// <param name="managed">Whether to dispose managed resources</param>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public void Dispose(bool managed)
+        {
+            if(Interlocked.CompareExchange(ref _disposed, 1, 0) == 1)
+                return;
+
+            if (managed)
             {
-                var @this = (IoNanoprobe)state;
-
-                //prime for garbage collection (threads stop spinning)
-                try
+                _ = Task.Factory.StartNew(static async state =>
                 {
-                    if(@this.Serial % 2 == 0 || IoZeroScheduler.Zero == null || !IoZeroScheduler.Zero.Fork(@this.ZeroPrime))
-                        @this.ZeroPrime();
-                }
-                catch (Exception e)
-                {
-                    _logger.Trace(e, $"{@this.Description}");
-                }
-
-                //collect memory
-                await @this.ZeroDisposeAsync(true).FastPath();
-            }, this);
-
-            if (Interlocked.Increment(ref _zCount) % 100000 == 0)
-            {
-                Console.WriteLine("z");
+                    await ((IoNanoprobe)state).DisposeAsync((IIoNanite)state, "Dispose").FastPath();
+                },this, CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Default);
             }
 
-            return default;
+            //Dispose async task cancellation token registrations etc.
+            try
+            {
+                if (!(AsyncTasks?.IsCancellationRequested ?? true) && AsyncTasks.Token.CanBeCanceled)
+                    AsyncTasks.Cancel(false);
+                AsyncTasks?.Dispose();
+            }
+#if DEBUG
+            catch (Exception e) when (!Zeroed())
+            {
+                _logger.Error(e, $"ZeroDisposeAsync [Un]managed errors: {Description}");
+            }
+#else
+            catch
+            {
+                // ignored
+            }
+#endif
+
+            try
+            {
+                ZeroUnmanaged();
+            }
+            catch (Exception e)
+            {
+                _logger.Error(e, $"{nameof(ZeroUnmanaged)}:");
+            }
+        }
+
+        /// <summary>
+        /// Async dispose implementation - This is always called regardless if you call <see cref="Dispose(bool)"/> from sync contexts
+        ///
+        /// This means that objects can be disposed from sync or async contexts alike, but sync originating calls will spawn a thread
+        /// to complete the async dispose
+        /// 
+        /// </summary>
+        /// <returns>A value task</returns>
+        public async ValueTask DisposeAsync()
+        {
+            await DisposeAsyncCore().FastPath();
+
+            Dispose(managed: false);
+            GC.SuppressFinalize(this);
+
+            if (Interlocked.Increment(ref _zCount) % 100000 == 0)
+                Console.WriteLine("z");
+
+#if DEBUG
+            if (_extracted < 2)
+            {
+                throw new ApplicationException($"{Description}: BUG!!! Memory leaks detected in type {GetType().Name}!!!");
+            }
+#endif
+        }
+
+        /// <summary>
+        /// Sync dispose implementation
+        /// </summary>
+        public void Dispose()
+        {
+            Dispose(true);
+            GC.SuppressFinalize(this);
         }
 
         /// <summary>
@@ -394,111 +508,6 @@ namespace zero.core.patterns.misc
             }
 
             return (target, true, zNode);
-        }
-
-        /// <summary>
-        /// Our dispose implementation
-        /// </summary>
-        private async ValueTask ZeroDisposeAsync(bool disposing)
-        {
-            // Only once
-            if (_disposed > 0 || Interlocked.CompareExchange(ref _disposed, 1, 0) != 0)
-                return;
-
-            CascadeTime = Environment.TickCount;
-            var desc = Description;
-
-            //Dispose managed
-            if (disposing)
-            {
-                if (_zeroHive != null)
-                {
-                    while(await _zeroHive.DequeueAsync().FastPath() is { } zeroSub)
-                    {
-                        if(zeroSub.Executed) continue;
-                        
-                        if (!await zeroSub.ExecuteAsync(this).FastPath())
-                            _logger.Trace($"{zeroSub.From} - zero sub {((IIoNanite)zeroSub.Target)?.Description} on {Description} returned with errors!");
-                    }
-                }
-
-                if (_zeroHiveMind != null)
-                {
-                    while (await _zeroHiveMind.DequeueAsync().FastPath() is { } zeroSub)
-                        await zeroSub.DisposeAsync(this, $"[ZERO CASCADE] from {desc}").FastPath();
-                }
-                
-                CascadeTime = CascadeTime.ElapsedMs();
-                TearDownTime = Environment.TickCount;
-
-                try
-                {
-                    await ZeroManagedAsync().FastPath();
-                }
-#if DEBUG
-                catch (Exception e) when(!Zeroed())
-                {
-
-                    _logger.Error(e, $"[{this}] {nameof(ZeroManagedAsync)} returned with errors!");
-                }
-#else
-                catch when (Zeroed()){}
-#endif
-            }
-
-            //Dispose unmanaged
-            try
-            {
-                ZeroUnmanaged();
-            }
-            catch (Exception e)
-            {
-                _logger.Fatal(e, $"[{this}] {nameof(ZeroManagedAsync)} returned with errors!");
-            }
-
-            //Dispose async task cancellation token registrations etc.
-            try
-            {
-                if (!(AsyncTasks?.IsCancellationRequested ?? true) && AsyncTasks.Token.CanBeCanceled)
-                    AsyncTasks.Cancel(false);
-                AsyncTasks?.Dispose();
-            }
-#if DEBUG
-            catch (Exception e) when (!Zeroed())
-            {
-                _logger.Error(e, $"ZeroDisposeAsync [Un]managed errors: {Description}");
-            }
-#else
-            catch
-            {
-                // ignored
-            }
-#endif
-
-#if DEBUG
-            if (_extracted < 2 && disposing)
-            {
-                throw new ApplicationException($"{Description}: BUG!!! Memory leaks detected in type {GetType().Name}!!!");
-            }
-#endif
-            TearDownTime = TearDownTime.ElapsedMs();
-
-            try
-            {
-                if (UpTime.ElapsedUtcMs() > 10 && CascadeTime > TearDownTime * 7 && CascadeTime > 20000)
-                    _logger.Fatal($"{GetType().Name}:Z/{Description}> SLOW TEARDOWN!, c = {CascadeTime:0.0}ms, t = {TearDownTime:0.0}ms");
-            }
-            catch
-            {
-                // ignored
-            }
-
-            GC.SuppressFinalize(this);
-#if TRACE
-            _logger.Trace($"z:{Serial}> {desc}; from = {ZeroedFrom?.Description}, reason = `{reason}'");
-#endif
-            ZeroedFrom = null;
-            ZeroRoot.ZeroSem();
         }
 
         /// <summary>

@@ -386,7 +386,7 @@ namespace zero.core.network.ip
         /// <param name="remoteEp"></param>
         /// <param name="timeout">A timeout</param>
         /// <returns>The number of bytes read</returns>
-        public override async ValueTask<int> ReadAsync(Memory<byte> buffer, int offset, int length, byte[] remoteEp = null, int timeout = 0)
+        public override async ValueTask<int> ReceiveAsync(Memory<byte> buffer, int offset, int length, byte[] remoteEp = null, int timeout = 0)
         {
             try
             {
@@ -396,14 +396,14 @@ namespace zero.core.network.ip
             catch (OperationCanceledException) { }
             catch (SocketException e) when (!Zeroed())
             {
-                var errMsg = $"{nameof(ReadAsync)}: {e.Message} - {Description}";
+                var errMsg = $"{nameof(ReceiveAsync)}: {e.Message} - {Description}";
                 _logger?.Debug(errMsg);
                 await DisposeAsync(this, errMsg).FastPath();
             }
             catch (Exception) when (Zeroed()){}
             catch (Exception e) when(!Zeroed())
             {
-                var errMsg = $"{nameof(ReadAsync)}: [FAILED], {Description}, l = {length}, o = {offset}: {e.Message}";
+                var errMsg = $"{nameof(ReceiveAsync)}: [FAILED], {Description}, l = {length}, o = {offset}: {e.Message}";
                 _logger?.Error(e, errMsg);
                 await DisposeAsync(this, errMsg).FastPath();
             }

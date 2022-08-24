@@ -618,7 +618,7 @@ namespace zero.cocoon
                     int localRead;
                     do
                     {
-                        bytesRead += localRead = await ioNetSocket.ReadAsync(futileBuffer, bytesRead, _futileRequestSize - bytesRead, timeout: parm_futile_timeout_ms).FastPath();
+                        bytesRead += localRead = await ioNetSocket.ReceiveAsync(futileBuffer, bytesRead, _futileRequestSize - bytesRead, timeout: parm_futile_timeout_ms).FastPath();
                     } while (bytesRead < _futileRequestSize && localRead > 0 && !Zeroed());
 
                     if ((bytesRead == 0 || bytesRead < _futileRequestSize) && ioNetSocket.IsConnected())
@@ -759,7 +759,7 @@ namespace zero.cocoon
                     ts = Environment.TickCount;
                     do
                     {
-                        bytesRead += localRead = await ioNetSocket.ReadAsync(futileBuffer, bytesRead, chunkSize, timeout: parm_futile_timeout_ms).FastPath();
+                        bytesRead += localRead = await ioNetSocket.ReceiveAsync(futileBuffer, bytesRead, chunkSize, timeout: parm_futile_timeout_ms).FastPath();
                         if (chunkSize == _futileRejectSize)
                         {
                             expectedChunk = _futileResponseSize;

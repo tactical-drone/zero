@@ -5,13 +5,11 @@ using System.Net.Sockets;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Threading.Tasks;
-using System.Threading.Tasks.Sources;
 using NLog;
 using zero.core.conf;
 using zero.core.misc;
 using zero.core.patterns.heap;
 using zero.core.patterns.misc;
-using zero.core.patterns.semaphore;
 using zero.core.patterns.semaphore.core;
 using zero.core.runtime.scheduler;
 
@@ -30,7 +28,7 @@ namespace zero.core.network.ip
         /// <param name="concurrencyLevel"></param>
         public IoUdpSocket(int concurrencyLevel) : base(SocketType.Dgram, ProtocolType.Udp, concurrencyLevel)
         {
-            Init(concurrencyLevel, false);//TODO tuning
+            Init(concurrencyLevel);//TODO tuning
         }
 
         /// <summary>
@@ -84,61 +82,22 @@ namespace zero.core.network.ip
         /// Initializes the socket
         /// </summary>
         /// <param name="concurrencyLevel"></param>
-        /// <param name="recv"></param>
-        public void Init(int concurrencyLevel, bool recv = true)
+        public void Init(int concurrencyLevel)
         {
             _logger = LogManager.GetCurrentClassLogger();
-            //TODO tuning
 
-            //NativeSocket.Blocking = false;
-            //_sendSync = new IoZeroSemaphore("udp send lock", concurrencyLevel, 1, 0);
-            //_sendSync.ZeroRef(ref _sendSync, AsyncTasks);
-
-            //_rcvSync = new IoZeroSemaphore("udp receive lock", concurrencyLevel, 1, 0);
-            //_rcvSync.ZeroRef(ref _rcvSync, AsyncTasks);
-
-            InitHeap(concurrencyLevel, recv);
-        }
-
-        /// <summary>
-        /// Initializes the heap
-        /// </summary>
-        private void InitHeap(int concurrencyLevel, bool recv = true)
-        {
-            if (recv)
-            {
-                _recvArgs = new IoHeap<SocketAsyncEventArgs, IoUdpSocket>($"{nameof(_recvArgs)}: {Description}",
-                    concurrencyLevel << 1, static (_, @this) =>
+            _argsHeap = new IoHeap<SocketAsyncEventArgs, IoUdpSocket>($"{nameof(_argsHeap)}: {Description}",
+                concurrencyLevel << 2, static (_, @this) =>
+                {
+                    var args = new SocketAsyncEventArgs
                     {
-                        //sentinel
-                        if (@this == null)
-                            return new SocketAsyncEventArgs();
-
-                        var args = new SocketAsyncEventArgs();
-                        args.RemoteEndPoint = new IPEndPoint(0, 0);
-                        args.UserToken = new IoManualResetValueTaskSourceCore<bool> { AutoReset = true };
-                        args.Completed += @this.ZeroCompletion;
-                        args.RemoteEndPoint = new IPEndPoint(IPAddress.Any, 53);
-                        return args;
-                    })
-                {
-                    Context = this
-                };
-            }
-
-            //TODO: tuning
-            _sendArgs = new IoHeap<SocketAsyncEventArgs, IoUdpSocket>($"{nameof(_sendArgs)}: {Description}",
-                concurrencyLevel * 8, static (_, @this) =>
-                {
-                    //sentinel
-                    if (@this == null)
-                        return new SocketAsyncEventArgs();
-
-                    var args = new SocketAsyncEventArgs();
-                    args.UserToken = new IoManualResetValueTaskSourceCore<bool> { AutoReset = true };
+                        RemoteEndPoint = new IPEndPoint(0, 0),
+                        UserToken = new IoManualResetValueTaskSourceCore<bool> { AutoReset = true },
+                    };
                     args.Completed += @this.ZeroCompletion;
+
                     return args;
-                })
+                }, autoScale: true)
             {
                 Context = this
             };
@@ -153,11 +112,9 @@ namespace zero.core.network.ip
 
 #if SAFE_RELEASE
             _logger = null;
-            _recvArgs = null;
-            _sendArgs = null;
+            _argsHeap = null;
+            _argsHeap = null;
             RemoteNodeAddress = null;
-            //_sendSync = null;
-            //_rcvSync = null;
 #endif
         }
 
@@ -168,9 +125,9 @@ namespace zero.core.network.ip
         {
             await base.ZeroManagedAsync().FastPath();
 
-            if (_recvArgs != null)
+            if (_argsHeap != null)
             {
-                await _recvArgs.ZeroManagedAsync(static (o, @this) =>
+                await _argsHeap.ZeroManagedAsync(static (o, @this) =>
                 {
                     o.Completed -= @this.ZeroCompletion;
                     o.UserToken = null;
@@ -189,27 +146,6 @@ namespace zero.core.network.ip
                 }, this).FastPath();
             }
             
-            await _sendArgs.ZeroManagedAsync(static (o,@this) =>
-            {
-                o.Completed -= @this.ZeroCompletion;
-                o.UserToken = null;
-                //o.RemoteEndPoint = null;
-                
-                try
-                {
-                    o.SetBuffer(null,0,0);
-                }
-                catch
-                {
-                    // ignored
-                }
-                ((IDisposable)o).Dispose();
-                return default;
-            },this).FastPath();
-
-
-            //_sendSync.ZeroSem();
-            //_rcvSync.ZeroSem();
         }
 
         /// <summary>
@@ -323,7 +259,7 @@ namespace zero.core.network.ip
 
         //private async ValueTask<bool> RouteAsync(byte[] listenerBuffer, IPEndPoint endPoint, Func<IoSocket, Task<IIoZero>> newConnectionHandler)
         //{
-        //    var read = await ReadAsync(listenerBuffer, 0, listenerBuffer.Length, endPoint).ZeroBoostAsync(oomCheck: false).ConfigureAwait(ZC);
+        //    var read = await ReceiveAsync(listenerBuffer, 0, listenerBuffer.Length, endPoint).ZeroBoostAsync(oomCheck: false).ConfigureAwait(ZC);
 
         //    //fail fast
         //    if (read == 0)
@@ -396,32 +332,21 @@ namespace zero.core.network.ip
             if (!NativeSocket.Poll(parm_socket_poll_wait_ms, SelectMode.SelectWrite))
                 return 0;
 
-            //#if DEBUG
-            //                if (_sendSync.WaitCount >= _sendArgs.Capacity / 2)
-            //                    _logger.Warn(
-            //                        $"{Description}: Send semaphore is running lean {_sendSync.WaitCount}/{_sendArgs.Capacity}");
-
-            //                Debug.Assert(endPoint != null);
-            //#endif
             SocketAsyncEventArgs args = default;
             try
             {
-                //if (!await _sendSync.WaitAsync().FastPath())
-                //    return 0;
-
-                args = _sendArgs.Take();
+                args = _argsHeap.Take();
                 if (args == null)
-                    throw new OutOfMemoryException(nameof(_sendArgs));
+                    throw new OutOfMemoryException(nameof(_argsHeap));
 
                 var buf = Unsafe.As<ReadOnlyMemory<byte>, Memory<byte>>(ref buffer).Slice(offset, length);
-                var core = (IIoManualResetValueTaskSourceCore<bool>)args.UserToken;
-                core.Reset();
-                var sent = new ValueTask<bool>(core, 0);
+                var send = new ValueTask<bool>((IIoManualResetValueTaskSourceCore<bool>)args.UserToken, 0);
+
                 args.SetBuffer(buf);
                 args.RemoteEndPoint = endPoint;
 
-                //receive
-                if (NativeSocket.SendToAsync(args) && !await sent.FastPath())
+                //send
+                if (NativeSocket.SendToAsync(args) && !await send.FastPath())
                     return 0;
 
                 return args.SocketError == SocketError.Success ? args.BytesTransferred : 0;
@@ -437,9 +362,7 @@ namespace zero.core.network.ip
             finally
             {
                 if (args != default)
-                    _sendArgs.Return(args);
-
-                //_sendSync.Release();
+                    _argsHeap.Return(args);
             }
 
             return 0;
@@ -448,12 +371,7 @@ namespace zero.core.network.ip
         /// <summary>
         /// socket args heap
         /// </summary>
-        private IoHeap<SocketAsyncEventArgs, IoUdpSocket> _recvArgs;
-
-        /// <summary>
-        /// socket args heap
-        /// </summary>
-        private IoHeap<SocketAsyncEventArgs, IoUdpSocket> _sendArgs;
+        private IoHeap<SocketAsyncEventArgs, IoUdpSocket> _argsHeap;
 
         /// <summary>
         /// Interacts with <see cref="SocketAsyncEventArgs"/> to complete async reads
@@ -492,8 +410,8 @@ namespace zero.core.network.ip
         /// <param name="length">Bytes to read</param>
         /// <param name="remoteEp"></param>
         /// <param name="timeout">Timeout after ms</param>
-        /// <returns></returns>
-        public override async ValueTask<int> ReadAsync(Memory<byte> buffer, int offset, int length, byte[] remoteEp, int timeout = 0)
+        /// <returns>Number of bytes received</returns>
+        public override async ValueTask<int> ReceiveAsync(Memory<byte> buffer, int offset, int length, byte[] remoteEp, int timeout = 0)
         {
             try
             {
@@ -502,38 +420,28 @@ namespace zero.core.network.ip
                     SocketAsyncEventArgs args = null;
                     try
                     {
-                        args = _recvArgs.Take();
+                        args = _argsHeap.Take();
 
                         if (args == null)
-                            throw new OutOfMemoryException(nameof(_recvArgs));
+                            throw new OutOfMemoryException(nameof(_argsHeap));
 
-                        var core = (IIoManualResetValueTaskSourceCore<bool>)args.UserToken;
-                        core.Reset();
-                        var receive = new ValueTask<bool>(core, 0);
                         args.SetBuffer(buffer.Slice(offset, length));
+                        var waitCore = new ValueTask<bool>((IIoManualResetValueTaskSourceCore<bool>)args.UserToken, 0);
 
                         try
                         {
-                            if (NativeSocket.ReceiveFromAsync(args) && !await receive.FastPath())
+                            if (NativeSocket.ReceiveFromAsync(args) && !await waitCore.FastPath())
                                 return 0;
                         }
                         catch when(Zeroed()){}
                         catch (Exception e) when (!Zeroed())
                         {
-                            _logger.Trace(e, Description);
-                            try
-                            {
-                                await receive.FastPath();
-                            }
-                            catch (Exception exception)
-                            {
-                                _logger.Trace(exception, Description);
-                            }
+                            _logger.Error(e, $"{nameof(NativeSocket.ReceiveFromAsync)}");
                         }
 
                         args.RemoteEndPoint.AsBytes(remoteEp);
 #if DEBUG
-                        if(args.SocketError != SocketError.Success)
+                        if(args.SocketError != SocketError.Success && args.SocketError != SocketError.OperationAborted)
                             _logger.Error($"socket error = {args.SocketError}");
 #endif
                         return args.SocketError == SocketError.Success ? args.BytesTransferred : 0;
@@ -548,22 +456,10 @@ namespace zero.core.network.ip
                     }
                     finally
                     {
-                        if (args != null)
-                        {
-                            var dispose = /*args.Disposed ||*/ args.SocketError != SocketError.Success;
-                            if (dispose)
-                            {
-                                args.SetBuffer(null, 0, 0);
-                                args.Completed -= ZeroCompletion;
-                                args.Dispose();
-                            }
-
-                            _recvArgs?.Return(args, dispose);
-                        }
+                        _argsHeap.Return(args);
                     }
                 }
 
-                //TODO, heapify 
                 EndPoint remoteEpAny = new IPEndPoint(0,0);
                 if (MemoryMarshal.TryGetArray((ReadOnlyMemory<byte>)buffer, out var tBuf))
                 {
@@ -591,11 +487,7 @@ namespace zero.core.network.ip
                 _logger?.Error(e, errMsg);
                 await DisposeAsync(this, errMsg).FastPath();
             }
-            //finally
-            //{
-            //    //_rcvSync.Release();
-            //}
-
+            
             return 0;
         }
 
@@ -613,9 +505,9 @@ namespace zero.core.network.ip
 
                 return connected;
             }
-            catch (ObjectDisposedException d)
+            catch (ObjectDisposedException)
             {
-                _ = DisposeAsync(this, $"{nameof(IsConnected)}: {d.Message}");
+                Dispose();
             }
             catch when(Zeroed()){}
             catch (Exception e) when(!Zeroed())

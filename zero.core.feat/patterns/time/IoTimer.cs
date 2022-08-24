@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Threading.Tasks.Sources;
 using zero.core.patterns.semaphore;
 using zero.core.patterns.semaphore.core;
 
@@ -52,8 +53,7 @@ namespace zero.core.feat.patterns.time
             IoTimer._make(timeout, _signal, token);
         }
 
-        public ValueTask<int> TickAsync() => _signal.WaitAsync();
-
+        public ValueTask<int> TickAsync() => new(_signal, 0);
 
         public void Reset() => _signal.Reset();
         

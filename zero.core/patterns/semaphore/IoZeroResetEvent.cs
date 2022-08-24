@@ -74,7 +74,7 @@ namespace zero.core.patterns.semaphore
             throw new NotImplementedException();
         }
 
-        public ValueTask<bool> WaitAsync() => _pressure.WaitAsync();
+        public ValueTask<bool> WaitAsync() => new(_pressure, 0);
 
         public void ZeroSem() => _pressure.SetResult(false);
         

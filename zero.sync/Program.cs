@@ -389,9 +389,9 @@ namespace zero.sync
                 var t = j.RunAsync(async () =>
                 {
                     //await SemTestAsync();
-                    //await QueueTestAsync();
+                    await QueueTestAsync();
                     //await ZeroQTestAsync();
-                    await BagTestAsync();
+                    //await BagTestAsync();
                 });
                 t.Join();
             }
@@ -473,8 +473,8 @@ namespace zero.sync
             Console.WriteLine("Type 'help' for a list of test commands");
             
             //Tune dotnet for large tests
-            ThreadPool.GetMinThreads(out var wt, out var cp);
-            ThreadPool.SetMinThreads(wt * 3, cp * 2);
+            //ThreadPool.GetMinThreads(out var wt, out var cp);
+            //ThreadPool.SetMinThreads(wt * 3, cp * 2);
 
             //run tests
             //CoreTest();
@@ -1564,7 +1564,7 @@ namespace zero.sync
             int zeroed = 0;
             var sw = Stopwatch.StartNew();
 
-            _nodes?.ToList().ForEach(n =>
+            _nodes.ToList().ForEach(n =>
             {
                 try
                 {

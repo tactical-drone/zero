@@ -151,7 +151,7 @@ namespace zero.core.core
 
             Neighbors.Clear();
 
-            _netServer?.DisposeAsync(this, $"{nameof(ZeroManagedAsync)}: teardown");
+            await _netServer.DisposeAsync(this, $"{nameof(ZeroManagedAsync)}: teardown").FastPath();
 
             //await NeighborTasks.ZeroManagedAsync(static (neighborTask, @this) =>
             //{

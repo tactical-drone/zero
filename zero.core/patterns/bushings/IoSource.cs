@@ -275,7 +275,7 @@ namespace zero.core.patterns.bushings
         {
             await base.ZeroManagedAsync().FastPath();
 
-            if(_pressure != null)
+            if (_pressure != null)
                 await _pressure.DisposeAsync(this, $"{nameof(ZeroManagedAsync)}: teardown").FastPath();
             if(_backPressure != null)
                 await _backPressure.DisposeAsync(this, $"{nameof(ZeroManagedAsync)}: teardown").FastPath();
@@ -298,7 +298,7 @@ namespace zero.core.patterns.bushings
 
             try
             {
-                RecentlyProcessed?.DisposeAsync(this, reason);
+                await RecentlyProcessed.DisposeAsync(this, reason).FastPath();
             }
             catch { }
 

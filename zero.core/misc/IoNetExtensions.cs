@@ -22,7 +22,7 @@ namespace zero.core.misc
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static byte[] AsBytes(this EndPoint address, byte[] buf = null)
         {
-            return ((IPEndPoint)(address)).AsBytes(buf);
+            return ((IPEndPoint)address).AsBytes(buf);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]

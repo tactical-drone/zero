@@ -13,6 +13,7 @@ using zero.core.core;
 using zero.core.feat.models.protobuffer;
 using zero.core.misc;
 using zero.core.network.ip;
+using zero.core.patterns.bushings;
 using zero.core.patterns.bushings.contracts;
 using zero.core.patterns.heap;
 using zero.core.patterns.misc;
@@ -38,10 +39,6 @@ namespace zero.cocoon
                 static (ioZero, _) => new CcWhispers(string.Empty, string.Empty, ((CcDrone)ioZero)?.MessageService), false
             )
         {
-            //sentinel
-            if (Source == null)
-                return;
-
             _logger = LogManager.GetCurrentClassLogger();
 
             Adjunct = adjunct;

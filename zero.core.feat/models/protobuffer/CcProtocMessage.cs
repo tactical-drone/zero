@@ -26,10 +26,6 @@ namespace zero.core.feat.models.protobuffer
         protected CcProtocMessage(string sinkDesc, string jobDesc, IoSource<CcProtocMessage<TModel, TBatch>> source)
             : base(sinkDesc, jobDesc, source)
         {
-            //sentinel
-            if(Source == null)
-                return;
-
             Debug.Assert(parm_datums_per_buffer >=4);
             var blockSize = 8192;
             DatumSize = blockSize / parm_datums_per_buffer;
@@ -141,7 +137,7 @@ namespace zero.core.feat.models.protobuffer
                         }
                         //Async read the message from the message stream
                         //CryptographicOperations.ZeroMemory(job.MemoryBuffer.Span);
-                        var read = await ((IoNetClient<CcProtocMessage<TModel, TBatch>>)ioSocket).IoNetSocket.ReadAsync(job.MemoryBuffer, job.BufferOffset, job.BufferSize, job.RemoteEndPoint).FastPath();
+                        var read = await ((IoNetClient<CcProtocMessage<TModel, TBatch>>)ioSocket).IoNetSocket.ReceiveAsync(job.MemoryBuffer, job.BufferOffset, job.BufferSize, job.RemoteEndPoint).FastPath();
                         job.GenerateJobId();
 
                         //Drop zero reads
@@ -155,7 +151,7 @@ namespace zero.core.feat.models.protobuffer
                             else
                             {
 #if DEBUG
-                                _logger.Error($"ReadAsync [FAILED]: ZERO UDP READS!!! {ioJob.Description}");
+                                _logger.Error($"ReceiveAsync [FAILED]: ZERO UDP READS!!! {ioJob.Description}");
 #endif
                                 //await job.SetStateAsync(IoJobMeta.JobState.ProdConnReset).FastPath();
                                 await job.SetStateAsync(IoJobMeta.JobState.ProdSkipped).FastPath();
@@ -179,7 +175,7 @@ namespace zero.core.feat.models.protobuffer
                     catch (Exception e) when (!job.Zeroed())
                     {
                         await job.SetStateAsync(IoJobMeta.JobState.ProduceErr).FastPath();
-                        _logger.Error(e, $"ReadAsync {job.Description}:");
+                        _logger.Error(e, $"ReceiveAsync {job.Description}:");
                     }
 
                     return false;
