@@ -323,7 +323,7 @@ namespace zero.core.runtime.scheduler
                 {
                     Interlocked.Increment(ref _taskQueueLoad);
 
-                    if (!TryExecuteTask(job))
+                    if (!TryExecuteTask(job) && job.Status != TaskStatus.RanToCompletion)
                         LogManager.GetCurrentClassLogger().Fatal($"{nameof(HandleAsyncSchedulerTask)}: Unable to execute task, id = {job.Id}, state = {job.Status}, async-state = {job.AsyncState}, success = {job.IsCompletedSuccessfully}");
                     else
                         Interlocked.Increment(ref _taskDequeueCount);

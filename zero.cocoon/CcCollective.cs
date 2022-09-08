@@ -189,19 +189,19 @@ namespace zero.cocoon
             var rLow = new IoTimer(TimeSpan.FromMilliseconds(@this._random.Next(@this.parm_mean_pat_delay_s/3 * 1000) + @this.parm_mean_pat_delay_s/3 * 1000 / 2), @this.AsyncTasks.Token);
             while (!@this.Zeroed())
             {
-                var ts = Environment.TickCount;
-                if(@this.TotalConnections < @this.parm_max_outbound)
-                    await rLow.TickAsync().FastPath();
-                else
-                    await r.TickAsync().FastPath();
-
-                if (@this.Zeroed())
-                    break;
-
-                @this._logger.Trace($"Robo - {TimeSpan.FromMilliseconds(ts.ElapsedMs())}, {@this.Description}");
-                
                 try
                 {
+                    var ts = Environment.TickCount;
+                    if(@this.TotalConnections < @this.parm_max_outbound)
+                        await rLow.TickAsync().FastPath();
+                    else
+                        await r.TickAsync().FastPath();
+
+                    if (@this.Zeroed())
+                        break;
+
+                    @this._logger.Trace($"Robo - {TimeSpan.FromMilliseconds(ts.ElapsedMs())}, {@this.Description}");
+                    
                     var force = false;
                     if (@this.Hub.Neighbors.Count <= 1 || @this.TotalConnections == 0)
                     {
@@ -216,7 +216,7 @@ namespace zero.cocoon
                         await @this.DeepScanAsync(force).FastPath();
                 }
                 catch when(@this.Zeroed()){}
-                catch (Exception e)
+                catch (Exception e) when (!@this.Zeroed())
                 {
                     @this._logger.Error(e, "Error while scanning DMZ!");
                 }
