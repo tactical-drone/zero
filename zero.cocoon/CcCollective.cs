@@ -113,7 +113,7 @@ namespace zero.cocoon
 
             _futileResponseSize = protocolMsg.CalculateSize();
 
-            futileResponse.ReqHash = ByteString.CopyFrom(new byte[]{9});
+            futileResponse.ReqHash = ByteString.CopyFrom(9);
             protocolMsg.Data = futileResponse.ToByteString();
 
             _futileRejectSize = protocolMsg.CalculateSize();
@@ -123,8 +123,8 @@ namespace zero.cocoon
             if(_fuseBufSize > parm_max_handshake_bytes)
                 throw new ApplicationException($"{nameof(_fuseBufSize)} > {parm_max_handshake_bytes}");
 
-            _dupPoolFpsTarget = 10000 * 2;  
-            DupHeap = new IoHeap<List<string>, CcCollective>($"{nameof(DupHeap)}: {_description}", _dupPoolFpsTarget, static (_, @this) => new List<string>(@this.MaxDrones))
+            _dupPoolFpsTarget = 8192;  
+            DupHeap = new IoHeap<List<string>, CcCollective>($"{nameof(DupHeap)}: {_description}", _dupPoolFpsTarget, static (_, @this) => new List<string>(@this.MaxDrones), autoScale: true)
             {
                 PopAction = (popped, endpoint) =>
                 {

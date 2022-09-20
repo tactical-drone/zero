@@ -17,7 +17,8 @@ namespace zero.core.misc
         public IoInt32(int value)
 		{
 			_value = value;
-		}
+            Interlocked.MemoryBarrier();
+        }
 
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		public static implicit operator IoInt32(int value)
@@ -28,6 +29,7 @@ namespace zero.core.misc
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		public static implicit operator int(IoInt32 integer)
 		{
+			Interlocked.MemoryBarrier();
 			return integer._value;
 		}
 

@@ -2,6 +2,7 @@
 #define DUPCHECK
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.IO.Compression;
 using System.Linq;
@@ -36,7 +37,7 @@ namespace zero.cocoon.models
         static CcWhispers()
         {
             //TODO: tuning
-            _sendBuf = new IoHeap<byte[]>($"{nameof(_sendBuf)}:", 4096, (_, _) => new byte[32], true);
+            SendBuf = new IoHeap<byte[]>($"{nameof(SendBuf)}:", 4096, (_, _) => new byte[32], true);
             //_sendBuffer = new IoHeap<Tuple<BrotliStream, byte[]>>($"{nameof(_sendBuf)}:", 4096, (_, _) =>
             //{
             //    var b = new byte[32];
@@ -49,7 +50,11 @@ namespace zero.cocoon.models
             _m = new CcWhisperMsg { Data = UnsafeByteOperations.UnsafeWrap(new ReadOnlyMemory<byte>(_vb)) };
 
             retry:
-            if (Source?.ObjectStorage?.TryGetValue(Source.Serial.ToString(), out var nextBatch)??false)
+            if (Source.ObjectStorage.TryGetValue(Source.Serial.ToString(), out var nextBatch))
+            {
+                _logBatchNext = (IoInt32)nextBatch;
+            }
+            else
             {
                 if (!Source.ObjectStorage.TryAdd(Source.Serial.ToString(), _logBatchNext))
                 {
@@ -58,12 +63,10 @@ namespace zero.cocoon.models
             }
         }
 
-        private static readonly IoHeap<byte[]> _sendBuf;
+        private static readonly IoHeap<byte[]> SendBuf;
         //private static readonly IoHeap<Tuple<BrotliStream, byte[]>> _sendBuffer;
         private readonly byte[] _vb = new byte[sizeof(ulong)];
         private readonly CcWhisperMsg _m;
-
-        
 
         /// <summary>
         /// DisposeAsync managed
@@ -73,7 +76,7 @@ namespace zero.cocoon.models
         {
             await base.ZeroManagedAsync().FastPath();
 
-            await _sendBuf.ZeroManagedAsync<object>().FastPath();
+            //await _sendBuf.ZeroManagedAsync<object>().FastPath();
             //if (_protocolMsgBatch != null)
             //    _arrayPool.ReturnAsync(_protocolMsgBatch, true);
 
@@ -418,7 +421,7 @@ namespace zero.cocoon.models
                                 var unpackOffset = DatumProvisionLengthMax << 2;
                                 var packetLen = LZ4Codec.Decode(Buffer, BufferOffset + sizeof(ulong), length, Buffer, unpackOffset, Buffer.Length - unpackOffset - 1);
 
-                                //buf = _sendBuf.Take();
+                                buf = SendBuf.Take();
                                 //BufferBrotliStream.BaseStream.Seek(BufferOffset + sizeof(ulong), SeekOrigin.Begin);
                                 //var packetLen = await BufferBrotliStream.ReadAsync(buf, 0, buf.Length, AsyncTasks.Token);
                                 ////var packetLen = await BufferBrotliStream.ReadAsync(buf).FastPath();
@@ -456,7 +459,7 @@ namespace zero.cocoon.models
 #endif
                             finally
                             {
-                                _sendBuf.Return(buf);
+                                SendBuf.Return(buf);
                             }
                         }
 
@@ -514,8 +517,6 @@ namespace zero.cocoon.models
                                 }
                             }
                         }
-
-                        
                     }
                     catch (Exception) when (Zeroed() || CcCollective == null || CcCollective.Zeroed() || CcCollective.DupSyncRoot == null)
                     {
@@ -582,10 +583,10 @@ namespace zero.cocoon.models
                         dupEndpoints.Add(endpoint);
                     }
 #endif
-                    if (CcCollective.MaxReq > 1000 && req < 10)
+                    if (CcCollective.MaxReq > 100 && req < 10)
                     {
                         Console.WriteLine($"RESET[{req}] {CcCollective.MaxReq} -> {IoZero.Description}");
-                        CcCollective.MaxReq = -1;
+                        CcCollective.MaxReq = 0;
                     }
 
 
@@ -594,7 +595,7 @@ namespace zero.cocoon.models
                     {
                         if (_logBatchNext.AtomicCas(batchSize + MaxLogBatchSize, batchSize) == batchSize)
                         {
-                            _logger.Info($"[{Id}]: lts = {req}, {(_logBatchNext - batchSize) * 1000 / (_logBatchTime.ElapsedMs() + 1)} t/s; recover = {Source.Counters[(int)IoJobMeta.JobState.Synced]}/{Source.Counters[(int)IoJobMeta.JobState.ZeroRecovery]} ({Source.Counters[(int)IoJobMeta.JobState.Synced] / (double)Source.Counters[(int)IoJobMeta.JobState.ZeroRecovery] * 100:0.0}%), frag = {Source.Counters[(int)IoJobMeta.JobState.Fragmented]}, bad = {Source.Counters[(int)IoJobMeta.JobState.BadData]}, success = {Source.Counters[(int)IoJobMeta.JobState.Consumed]}, fail = {Source.Counters[(int)IoJobMeta.JobState.Queued] - Source.Counters[(int)IoJobMeta.JobState.Consumed]}");
+                            _logger.Info($"[{Source.Key}]: lts = {req}, {(_logBatchNext - batchSize) * 1000 / (_logBatchTime.ElapsedMs() + 1)} t/s; dup = {CcCollective.DupChecker.Count}/{CcCollective.DupHeap.ReferenceCount}; recover = {Source.Counters[(int)IoJobMeta.JobState.Synced]}/{Source.Counters[(int)IoJobMeta.JobState.ZeroRecovery]} ({Source.Counters[(int)IoJobMeta.JobState.Synced] / (double)Source.Counters[(int)IoJobMeta.JobState.ZeroRecovery] * 100:0.0}%), frag = {Source.Counters[(int)IoJobMeta.JobState.Fragmented]}, bad = {Source.Counters[(int)IoJobMeta.JobState.BadData]}, success = {Source.Counters[(int)IoJobMeta.JobState.Consumed]}, fail = {Source.Counters[(int)IoJobMeta.JobState.Queued] - Source.Counters[(int)IoJobMeta.JobState.Consumed]}");
                             _logBatchTime = Environment.TickCount;
                         }
                     }
@@ -641,23 +642,10 @@ namespace zero.cocoon.models
                         //Tuple<BrotliStream,byte[]> socketXBuf = null;
                         var req = @this.CcCollective.MaxReq + 1;
                         //Console.WriteLine($"req <= {req}");
+                        int processed = -1;
                         try
                         {
-                            socketBuf = _sendBuf.Take();
-                            //socketXBuf = _sendBuffer.Take();
-                            //MemoryMarshal.Write(@this._vb.AsSpan(), ref req);
-                            //var protoBuf = @this._m.ToByteString().Memory;
-
-                            //var compressed = (ulong)LZ4Codec.Encode(protoBuf.AsArray(), 0, protoBuf.Length, socketBuf,
-                            //    sizeof(ulong), socketBuf.Length - sizeof(ulong));
-                            //MemoryMarshal.Write(socketBuf, ref compressed);
-
-                            //socketXBuf.Item1.BaseStream.Seek(sizeof(ulong), SeekOrigin.Begin);
-                            //await socketXBuf.Item1.WriteAsync(protoBuf.AsArray(), 0, protoBuf.Length);
-                            //await socketXBuf.Item1.FlushAsync();
-                            //Unsafe.As<ulong[]>(socketXBuf.Item2)[0] = (ulong)(socketXBuf.Item1.BaseStream.Position - sizeof(ulong));
-
-                            
+                            socketBuf = SendBuf.Take();
                             @this.CcCollective.DupChecker.TryGetValue(req, out var dupEndpoints);
                             
                             if (!@this.Zeroed())
@@ -666,29 +654,31 @@ namespace zero.cocoon.models
                                 var fanOut = @this.CcCollective.Neighbors.Values
                                     .Where(d => ((CcDrone)d).MessageService?.IsOperational()??false).ToList();
 
-                                @this.Source.SetRateSet(0, 1);
-
                                 //Console.WriteLine($"4 -> neighbors = {@this.CcCollective.Neighbors.Values.Count}, ({fanOut.Count})");
                                 ulong compressed = 0;
-
+                                processed = Math.Min(fanOut.Count, -1);
                                 foreach (var fanDrone in fanOut)
                                 {
+                                    processed--;
                                     //Console.WriteLine("f");
                                     var drone = (CcDrone)fanDrone;
                                     try
                                     {
+                                        if (processed == 0)
+                                            @this.Source.SetRateSet(0, 1);
+
                                         var source = drone.MessageService;
                                         if (source == null)
                                             continue;
 
                                         //update latest state
-                                        
                                         if (req <= @this.CcCollective.MaxReq || compressed == 0)
                                         {
                                             req = @this.CcCollective.MaxReq + 1;
                                             MemoryMarshal.Write(@this._vb.AsSpan(), ref req);
                                             var protoBuf = @this._m.ToByteString().Memory;
-                                            compressed = (ulong)LZ4Codec.Encode(protoBuf.AsArray(), 0, protoBuf.Length, socketBuf,
+                                            compressed = (ulong)LZ4Codec.Encode(protoBuf.AsArray(), 0, protoBuf.Length,
+                                                socketBuf,
                                                 sizeof(ulong), socketBuf.Length - sizeof(ulong));
                                             MemoryMarshal.Write(socketBuf, ref compressed);
                                             //Console.WriteLine($"pk -> {compressed}({@this._m.Data.Memory.Length}) - {socketBuf.AsSpan().Slice(sizeof(ulong), (int)compressed).ToArray().PayloadSig()}");
@@ -704,17 +694,19 @@ namespace zero.cocoon.models
                                         //This trick has the added bonus of using congestion as a governor to catch more of those overlaps, 
                                         //which in turn lowers the traffic causing less congestion
 
-                                        if(dupEndpoints == null)
+                                        if (dupEndpoints == null)
                                             @this.CcCollective.DupChecker.TryGetValue(req, out dupEndpoints);
 
                                         if (dupEndpoints?.Contains(source.IoNetSocket.Key) ?? false)
                                         {
                                             continue;
                                         }
-                                            
+
 #endif
                                         int sent = 0;
-                                        if (source == null || (sent = await source.IoNetSocket.SendAsync(socketBuf, 0, (int)(compressed + sizeof(ulong))).FastPath()) <= 0)
+                                        if (source == null || (sent = await source.IoNetSocket
+                                                .SendAsync(socketBuf, 0, (int)(compressed + sizeof(ulong)))
+                                                .FastPath()) <= 0)
                                         {
                                             //_logger.Trace($"SendAsync: FAILED; {source?.Description}");
                                             continue;
@@ -765,11 +757,15 @@ namespace zero.cocoon.models
                         }
                         finally 
                         {
-                            _sendBuf.Return(socketBuf);
+                            if(processed != 0 && @this.Source.RateSet > 0)
+                                @this.Source.SetRateSet(0, 1);
+
+                            SendBuf.Return(socketBuf);
                             //_sendBuffer.Return(socketXBuf);
                             for (var j = req; j > req - @this.CcCollective.parm_max_drone && j < 0; j--)
                             {
-                                @this.CcCollective.DupChecker.TryRemove(j, out _);
+                                if (@this.CcCollective.DupChecker.TryRemove(j, out var removed))
+                                    @this.CcCollective.DupHeap.Return(removed);
                             }
                         }
                     }, (this));
