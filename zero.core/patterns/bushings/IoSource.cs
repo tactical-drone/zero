@@ -198,6 +198,8 @@ namespace zero.core.patterns.bushings
 
         private volatile int _rate = Environment.TickCount;
 
+        private volatile int _rateSet;
+
         /// <summary>
         /// Used to rate limit
         /// </summary>
@@ -205,6 +207,15 @@ namespace zero.core.patterns.bushings
         {
             get => _rate;
             internal set => _rate = value;
+        }
+
+        /// <summary>
+        /// Used to rate limit
+        /// </summary>
+        public int RateSet
+        {
+            get => _rateSet;
+            internal set => _rateSet = value;
         }
 
         private long _zeroTimeStamp = -1;
@@ -219,7 +230,9 @@ namespace zero.core.patterns.bushings
         }
 
         public int SetRate(int value, int cmp) => Interlocked.CompareExchange(ref _rate, value, cmp);
-        
+
+        public int SetRateSet(int value, int cmp) => Interlocked.CompareExchange(ref _rateSet, value, cmp);
+
         /// <summary>
         /// Used to identify work that was done recently
         /// </summary>
@@ -299,7 +312,8 @@ namespace zero.core.patterns.bushings
 
             try
             {
-                await RecentlyProcessed.DisposeAsync(this, reason).FastPath();
+                if(RecentlyProcessed != null)
+                    await RecentlyProcessed.DisposeAsync(this, reason).FastPath();
             }
             catch { }
 

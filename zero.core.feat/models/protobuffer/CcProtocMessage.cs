@@ -3,6 +3,7 @@ using System.Buffers;
 using System.CodeDom;
 using System.Diagnostics;
 using System.IO;
+using System.IO.Compression;
 using System.Net;
 using System.Net.Http.Headers;
 using System.Runtime.CompilerServices;
@@ -43,10 +44,11 @@ namespace zero.core.feat.models.protobuffer
                 ArraySegment = new ArraySegment<byte>(new byte[blockSize * 2]);
 
                 Buffer = ArraySegment.Array;
-                
+
                 ReadOnlySequence = new ReadOnlySequence<byte>(Buffer);
                 MemoryBuffer = new Memory<byte>(Buffer);
                 ByteStream = new MemoryStream(Buffer!);
+                BufferBrotliStream = new BrotliStream(new MemoryStream(Buffer, 0, ArraySegment.Count), CompressionMode.Decompress, true);
             }
         }
 

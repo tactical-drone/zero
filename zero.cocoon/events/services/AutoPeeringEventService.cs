@@ -66,7 +66,7 @@ namespace zero.cocoon.events.services
 
                 int c = 0;
                 while (curQ.Count == 0 && c++ < 20)
-                    await Task.Delay(1000);
+                    await Task.Delay(50);
 
                 c = 0;
                 while (c++ < EventBatchSize && curQ.TryDequeue(out var cur))
@@ -380,6 +380,7 @@ namespace zero.cocoon.events.services
                 // ignored
             }
 
+#if DEBUG
             if (newAutoPeerEvent.EventType == AutoPeerEventType.AddCollective)
                 LogManager.GetCurrentClassLogger().Error($"[{newAutoPeerEvent.Seq}] => {newAutoPeerEvent.EventType}: <<{newAutoPeerEvent.Collective.Id}| >");
 
@@ -397,6 +398,7 @@ namespace zero.cocoon.events.services
 
             if (newAutoPeerEvent.EventType == AutoPeerEventType.AddAdjunct)
                 LogManager.GetCurrentClassLogger().Error($"[{newAutoPeerEvent.Seq}] => {newAutoPeerEvent.EventType}: <<{newAutoPeerEvent.Adjunct.CollectiveId}| {newAutoPeerEvent.Adjunct.Id} >");
+#endif
         }
 
 

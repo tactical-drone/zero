@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Buffers;
 using System.IO;
+using System.IO.Compression;
 using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
@@ -38,6 +39,7 @@ namespace zero.core.feat.models
         /// buffer owner
         /// </summary>
         //public IMemoryOwner<byte> MemoryOwner;
+        public BrotliStream BufferBrotliStream;
 
         /// <summary>
         /// A buffer to receive the message in

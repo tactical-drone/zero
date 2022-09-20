@@ -314,7 +314,8 @@ namespace zero.core.core
                     await newNeighbor.DisposeAsync(@this, $"Failed to add new node... {@this.Description}").FastPath();
                 }
             }
-            catch (Exception e)
+            catch when(@this.Zeroed()){}
+            catch (Exception e) when (!@this.Zeroed())
             {
                 await newNeighbor.DisposeAsync(@this, $"{nameof(handshake)} Exception: {e.Message}").FastPath();
 

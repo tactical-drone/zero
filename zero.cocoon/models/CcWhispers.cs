@@ -2,6 +2,8 @@
 #define DUPCHECK
 using System;
 using System.Collections.Generic;
+using System.IO;
+using System.IO.Compression;
 using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
@@ -11,6 +13,8 @@ using System.Threading.Tasks;
 using System.Threading.Tasks.Sources;
 using Google.Protobuf;
 using K4os.Compression.LZ4;
+using Org.BouncyCastle.Bcpg;
+using Org.BouncyCastle.Crypto.Paddings;
 using zero.cocoon.autopeer;
 using zero.cocoon.events.services;
 using zero.cocoon.identity;
@@ -29,10 +33,20 @@ namespace zero.cocoon.models
 {
     public class CcWhispers : CcProtocMessage<CcWhisperMsg, CcGossipBatch>
     {
+        static CcWhispers()
+        {
+            //TODO: tuning
+            _sendBuf = new IoHeap<byte[]>($"{nameof(_sendBuf)}:", 4096, (_, _) => new byte[32], true);
+            //_sendBuffer = new IoHeap<Tuple<BrotliStream, byte[]>>($"{nameof(_sendBuf)}:", 4096, (_, _) =>
+            //{
+            //    var b = new byte[32];
+            //    return new Tuple<BrotliStream, byte[]>(new BrotliStream(new MemoryStream(b), CompressionLevel.Optimal), b);
+            //}, true);
+        }
+
         public CcWhispers(string sinkDesc, string jobDesc, IoSource<CcProtocMessage<CcWhisperMsg, CcGossipBatch>> source) : base(sinkDesc, jobDesc, source)
         {
             _m = new CcWhisperMsg { Data = UnsafeByteOperations.UnsafeWrap(new ReadOnlyMemory<byte>(_vb)) };
-            _sendBuf = new IoHeap<byte[]>($"{nameof(_sendBuf)}: {Description}", 32, (_, _) => new byte[32], true);
 
             retry:
             if (Source?.ObjectStorage?.TryGetValue(Source.Serial.ToString(), out var nextBatch)??false)
@@ -44,9 +58,12 @@ namespace zero.cocoon.models
             }
         }
 
-        private IoHeap<byte[]> _sendBuf;
+        private static readonly IoHeap<byte[]> _sendBuf;
+        //private static readonly IoHeap<Tuple<BrotliStream, byte[]>> _sendBuffer;
         private readonly byte[] _vb = new byte[sizeof(ulong)];
         private readonly CcWhisperMsg _m;
+
+        
 
         /// <summary>
         /// DisposeAsync managed
@@ -79,7 +96,6 @@ namespace zero.cocoon.models
             //_dupHeap = null;
             //_arrayPool = null;
             //_batchMsgHeap = null;
-            _sendBuf = null;
             base.ZeroUnmanaged();
         }
 
@@ -344,7 +360,7 @@ namespace zero.cocoon.models
         private const int MaxLogBatchSize = 10000;
         private readonly IoInt32 _logBatchNext = MaxLogBatchSize;
         private IoInt32 _logBatchTime = Environment.TickCount;
-        private const int HeartbeatTime = 10000;
+        private const int HeartbeatTime = 3000;
         public override async ValueTask<IoJobMeta.JobState> ConsumeAsync()
         {
             //are we in recovery mode?
@@ -389,16 +405,23 @@ namespace zero.cocoon.models
                         int length;
                         while ((length = ZeroSync()) > 0)
                         {
+                            //Console.WriteLine($"bs - in {length} bytes - {ReadOnlyMemory.Slice(BufferOffset + sizeof(ulong),length).PayloadSig()}");
                             if (length > BytesLeftToProcess)
                             {
                                 await SetStateAsync(IoJobMeta.JobState.Fragmented).FastPath();
                                 break;
                             }
 
+                            byte[] buf = null;
                             try
                             {
                                 var unpackOffset = DatumProvisionLengthMax << 2;
                                 var packetLen = LZ4Codec.Decode(Buffer, BufferOffset + sizeof(ulong), length, Buffer, unpackOffset, Buffer.Length - unpackOffset - 1);
+
+                                //buf = _sendBuf.Take();
+                                //BufferBrotliStream.BaseStream.Seek(BufferOffset + sizeof(ulong), SeekOrigin.Begin);
+                                //var packetLen = await BufferBrotliStream.ReadAsync(buf, 0, buf.Length, AsyncTasks.Token);
+                                ////var packetLen = await BufferBrotliStream.ReadAsync(buf).FastPath();
 
                                 read = length + sizeof(ulong);
                                 Interlocked.Add(ref BufferOffset, read);
@@ -406,18 +429,23 @@ namespace zero.cocoon.models
                                 if (packetLen > 0)
                                     packet = CcWhisperMsg.Parser.ParseFrom(Buffer, unpackOffset, packetLen);
 
+                                //if (packetLen > 0)
+                                //    packet = CcWhisperMsg.Parser.ParseFrom(buf, 0, packetLen);
+
                                 if (State == IoJobMeta.JobState.ZeroRecovery)
                                 {
                                     await SetStateAsync(IoJobMeta.JobState.Synced).FastPath();
                                     await SetStateAsync(IoJobMeta.JobState.Consuming).FastPath();
                                 }
+
                                 break;
                             }
-#if DEBUG
+#if !DEBUG
                             catch (Exception e)
                             {
                                 await SetStateAsync(IoJobMeta.JobState.BadData).FastPath();
-                                _logger.Trace(e, $"Parse failed: buf[{BufferOffset}], r = {BytesRead - BytesLeftToProcess }/{BytesRead}/{BytesLeftToProcess }, d = {DatumCount}, {Description}");
+                                _logger.Trace(e,
+                                    $"Parse failed: buf[{BufferOffset}], r = {BytesRead - BytesLeftToProcess}/{BytesRead}/{BytesLeftToProcess}, d = {DatumCount}, {Description}");
                             }
 #else
                             catch
@@ -426,6 +454,10 @@ namespace zero.cocoon.models
                                 //_logger.Trace(e, $"Parse failed: buf[{BufferOffset}], r = {BytesRead - BytesLeftToProcess }/{BytesRead}/{BytesLeftToProcess }, d = {DatumCount}, syncing = {InRecovery}, {Description}");
                             }
 #endif
+                            finally
+                            {
+                                _sendBuf.Return(buf);
+                            }
                         }
 
                         if (read == 0 && length == -1)
@@ -568,99 +600,146 @@ namespace zero.cocoon.models
                     }
 
                     var l = CcCollective.MaxReq;
-                    
+
                     if (req is > uint.MaxValue or < 0 || req <= l)
                     {
                         //Console.Write($". r = {req}, mr = {Volatile.Read(ref CcCollective.MaxReq)}");
                         continue;
                     }
 
+                    //Console.WriteLine($"mt -> {req}");
+
                     if (Interlocked.CompareExchange(ref CcCollective.MaxReq, req, l) != l)
                         continue;
-
+                     
                     //entropy
                     IoZero.IoSource.ZeroTimeStamp = Environment.TickCount;
                     IoZero.IncEventCounter();
                     CcCollective.IncEventCounter();
 
-                    //TODO: store
-
-
                     //broadcast not seen
 #if THROTTLE
-                    if (req > 2 && Source.Rate.ElapsedMs() < HeartbeatTime) //TODO: tuning, network tick rate of 2 per second
-                        continue;
+                    //if (req > CcCollective.parm_max_drone && Source.Rate.ElapsedMs() < HeartbeatTime) //TODO: tuning, network tick rate of 2 per second
+                    //    continue;
 #endif
-                    //await Task.Delay(RandomNumberGenerator.GetInt32(5, 350));
-                    //await Task.Delay(RandomNumberGenerator.GetInt32(16, 90));
 
-                    var latch = Source.Rate;
-                    if (Source.SetRate(Environment.TickCount, latch) != latch)
+
+                    if (Source.SetRateSet(1, 0) != 0)
                         continue;
 
-                    
+                    //Console.WriteLine($"req -> {req}");
+
                     IoZeroScheduler.Zero.LoadAsyncContext(static async state =>
                     {
-                        var (@this, req, dupEndpoints) = (ValueTuple<CcWhispers,long, List<string>>)state;
-
+                        var @this  = (CcWhispers)state;
 #if THROTTLE
-                        //await Task.Delay(RandomNumberGenerator.GetInt32(32, 500));
-                        await Task.Delay(HeartbeatTime);
+                        //await Task.Delay(RandomNumberGenerator.GetInt32(HeartbeatTime/2, HeartbeatTime));
+                        //await Task.Delay(30);
 #endif
 
                         byte[] socketBuf = null;
+                        //Tuple<BrotliStream,byte[]> socketXBuf = null;
+                        var req = @this.CcCollective.MaxReq + 1;
+                        //Console.WriteLine($"req <= {req}");
                         try
                         {
-                            socketBuf = @this._sendBuf.Take();
-                            req = @this.CcCollective.MaxReq + 1;
-                            MemoryMarshal.Write(@this._vb.AsSpan(), ref req);
-                            var protoBuf = @this._m.ToByteString().Memory;
-                            var compressed = (ulong)LZ4Codec.Encode(protoBuf.AsArray(), 0, protoBuf.Length, socketBuf,
-                                sizeof(ulong), socketBuf.Length - sizeof(ulong));
-                            MemoryMarshal.Write(socketBuf, ref compressed);
+                            socketBuf = _sendBuf.Take();
+                            //socketXBuf = _sendBuffer.Take();
+                            //MemoryMarshal.Write(@this._vb.AsSpan(), ref req);
+                            //var protoBuf = @this._m.ToByteString().Memory;
 
+                            //var compressed = (ulong)LZ4Codec.Encode(protoBuf.AsArray(), 0, protoBuf.Length, socketBuf,
+                            //    sizeof(ulong), socketBuf.Length - sizeof(ulong));
+                            //MemoryMarshal.Write(socketBuf, ref compressed);
+
+                            //socketXBuf.Item1.BaseStream.Seek(sizeof(ulong), SeekOrigin.Begin);
+                            //await socketXBuf.Item1.WriteAsync(protoBuf.AsArray(), 0, protoBuf.Length);
+                            //await socketXBuf.Item1.FlushAsync();
+                            //Unsafe.As<ulong[]>(socketXBuf.Item2)[0] = (ulong)(socketXBuf.Item1.BaseStream.Position - sizeof(ulong));
+
+                            
+                            @this.CcCollective.DupChecker.TryGetValue(req, out var dupEndpoints);
+                            
                             if (!@this.Zeroed())
                             {
-                                foreach (var drone in @this.CcCollective.Neighbors.Values.Cast<CcDrone>().Where(d=>d.MessageService?.IsOperational()??false))
-                                {
-                                    if (@this.CcCollective == null || req < Volatile.Read(ref @this.CcCollective.MaxReq))
-                                        break;
+                                
+                                var fanOut = @this.CcCollective.Neighbors.Values
+                                    .Where(d => ((CcDrone)d).MessageService?.IsOperational()??false).ToList();
 
+                                @this.Source.SetRateSet(0, 1);
+
+                                //Console.WriteLine($"4 -> neighbors = {@this.CcCollective.Neighbors.Values.Count}, ({fanOut.Count})");
+                                ulong compressed = 0;
+
+                                foreach (var fanDrone in fanOut)
+                                {
+                                    //Console.WriteLine("f");
+                                    var drone = (CcDrone)fanDrone;
                                     try
                                     {
                                         var source = drone.MessageService;
+                                        if (source == null)
+                                            continue;
 
                                         //update latest state
-                                        if (req < @this.CcCollective.MaxReq)
+                                        
+                                        if (req <= @this.CcCollective.MaxReq || compressed == 0)
                                         {
                                             req = @this.CcCollective.MaxReq + 1;
                                             MemoryMarshal.Write(@this._vb.AsSpan(), ref req);
-                                            compressed = (ulong)LZ4Codec.Encode(@this._m.Data.Memory.AsArray(), 0, @this._m.Data.Memory.Length, socketBuf,
+                                            var protoBuf = @this._m.ToByteString().Memory;
+                                            compressed = (ulong)LZ4Codec.Encode(protoBuf.AsArray(), 0, protoBuf.Length, socketBuf,
                                                 sizeof(ulong), socketBuf.Length - sizeof(ulong));
                                             MemoryMarshal.Write(socketBuf, ref compressed);
+                                            //Console.WriteLine($"pk -> {compressed}({@this._m.Data.Memory.Length}) - {socketBuf.AsSpan().Slice(sizeof(ulong), (int)compressed).ToArray().PayloadSig()}");
+                                            //socketXBuf.Item1.BaseStream.Seek(sizeof(ulong), SeekOrigin.Begin);
+                                            //await socketXBuf.Item1.WriteAsync(protoBuf.AsArray(), 0, protoBuf.Length);
+                                            //await socketXBuf.Item1.FlushAsync();
+                                            //Unsafe.As<ulong[]>(socketXBuf.Item2)[0] = (ulong)(socketXBuf.Item1.BaseStream.Position - sizeof(ulong));
+
+                                            @this.CcCollective.DupChecker.TryGetValue(req, out dupEndpoints);
                                         }
 #if DUPCHECK
                                         //Don't forward new messages to nodes from which we have received the msg in the mean time.
                                         //This trick has the added bonus of using congestion as a governor to catch more of those overlaps, 
                                         //which in turn lowers the traffic causing less congestion
-                                        if (dupEndpoints is { Count: > 1 } && dupEndpoints.Contains(source.IoNetSocket.Key))
-                                            continue;
-#endif
-                                        if (source == null || await source.IoNetSocket.SendAsync(socketBuf, 0, (int)compressed + sizeof(ulong)).FastPath() <= 0) continue;
+
+                                        if(dupEndpoints == null)
+                                            @this.CcCollective.DupChecker.TryGetValue(req, out dupEndpoints);
+
+                                        if (dupEndpoints?.Contains(source.IoNetSocket.Key) ?? false)
                                         {
-                                            if (AutoPeeringEventService.Operational)
-                                                AutoPeeringEventService.AddEvent(new AutoPeerEvent
-                                                {
-                                                    EventType = AutoPeerEventType.SendProtoMsg,
-                                                    Msg = new ProtoMsg
-                                                    {
-                                                        CollectiveId = @this.CcCollective.Hub.Router.Designation
-                                                            .IdString(),
-                                                        Id = drone.Adjunct.Designation.IdString(),
-                                                        Type = $"gossip{@this.Id % 6}"
-                                                    }
-                                                });
+                                            continue;
                                         }
+                                            
+#endif
+                                        int sent = 0;
+                                        if (source == null || (sent = await source.IoNetSocket.SendAsync(socketBuf, 0, (int)(compressed + sizeof(ulong))).FastPath()) <= 0)
+                                        {
+                                            //_logger.Trace($"SendAsync: FAILED; {source?.Description}");
+                                            continue;
+                                        }
+
+                                        //if (source == null || await source.IoNetSocket.SendAsync(socketXBuf.Item2, 0, (int)socketXBuf.Item1.BaseStream.Position + sizeof(ulong)).FastPath() <= 0) continue;
+                                        if (AutoPeeringEventService.Operational)
+                                            AutoPeeringEventService.AddEvent(new AutoPeerEvent
+                                            {
+                                                EventType = AutoPeerEventType.SendProtoMsg,
+                                                Msg = new ProtoMsg
+                                                {
+                                                    CollectiveId = @this.CcCollective.Hub.Router.Designation.IdString(),
+                                                    Id = drone.Adjunct.Designation.IdString(),
+                                                    Type = $"gossip{@this.Id % 6}"
+                                                }
+                                            });
+
+#if THROTTLE
+                                            //await Task.Delay(30);
+
+                                            if (@this.Source.Rate > 0 && @this.Source.Rate.ElapsedMs() < HeartbeatTime) //TODO: tuning, network tick rate of 2 per second
+                                                break;
+#endif
+                                        //Console.WriteLine($"sent = {sent}");
                                     }
                                     catch when (@this.Zeroed() || @this.CcCollective == null ||
                                                 @this.CcCollective.Zeroed() || @this.CcCollective.DupSyncRoot == null)
@@ -671,7 +750,11 @@ namespace zero.cocoon.models
                                         _logger.Trace(e, @this.Description);
                                     }
                                 }
+
+                                @this.Source.SetRate(Environment.TickCount, @this.Source.Rate);
                             }
+                            else
+                                @this.Source.SetRateSet(0, 1);
                         }
                         catch when (@this.Zeroed())
                         {
@@ -680,11 +763,16 @@ namespace zero.cocoon.models
                         {
                             IoJob<CcWhispers>._logger.Error(e,$"{@this.Description}");
                         }
-                        finally
+                        finally 
                         {
-                            @this._sendBuf.Return(socketBuf);
+                            _sendBuf.Return(socketBuf);
+                            //_sendBuffer.Return(socketXBuf);
+                            for (var j = req; j > req - @this.CcCollective.parm_max_drone && j < 0; j--)
+                            {
+                                @this.CcCollective.DupChecker.TryRemove(j, out _);
+                            }
                         }
-                    }, (this, req, dupEndpoints));
+                    }, (this));
 
                 }
 

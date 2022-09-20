@@ -631,7 +631,7 @@ namespace zero.core.patterns.queue
 #endif
                 //node.lastOp = 2;
                 _nodeHeap?.Return(node, deDup);
-                _syncRoot.Release(Environment.TickCount, false);//FALSE
+                _syncRoot.Release(Environment.TickCount, true);//FALSE
             }
         }
 

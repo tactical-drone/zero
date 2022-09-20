@@ -74,7 +74,7 @@ namespace zero.core.network.ip
 
         [IoParameter]
         // ReSharper disable once InconsistentNaming
-        public int parm_socket_poll_wait_ms = 250;
+        public int parm_socket_poll_wait_ms = 2500;
 
         /// <summary>
         /// Starts a TCP listener

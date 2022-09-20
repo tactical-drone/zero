@@ -467,7 +467,7 @@ namespace zero.cocoon
 #if DEBUG
         public int parm_mean_pat_delay_s = 60 * 3;
 #else
-        public int parm_mean_pat_delay_s = 60 * 15;
+        public int parm_mean_pat_delay_s = 60 * 10;
 #endif
 
         /// <summary>
@@ -1017,7 +1017,7 @@ namespace zero.cocoon
                     return;
 
                 var foundVector = false;
-                foreach (var vector in Hub.Neighbors.Values.Where(n=>((CcAdjunct)n).State >= CcAdjunct.AdjunctState.Verified).OrderBy(n=>((CcAdjunct)n).Priority))
+                foreach (var vector in Hub.Neighbors.Values.Where(n=>((CcAdjunct)n).State >= CcAdjunct.AdjunctState.Verified).OrderByDescending(n=>((CcAdjunct)n).OpenSlots))
                 {
                     var adjunct = (CcAdjunct)vector;
 
@@ -1031,7 +1031,7 @@ namespace zero.cocoon
                         else
                         {
                             if (!Zeroed())
-                                _logger.Trace($"{nameof(adjunct.ScanAsync)}: Unable to probe adjuncts; state = {adjunct.State}, in = {adjunct.FuseCount}, out = {adjunct.FuseRequestCount}, age = {adjunct.ScanAge.ElapsedMs()}ms, tries = {adjunct.ScanCount}, Seduced = {adjunct.LastSeduced}ms,  {Description}");
+                                _logger.Trace($"{nameof(adjunct.ScanAsync)}: Unable to probe adjuncts; state = {adjunct.State}, in = {adjunct.FuseCount}, out = {adjunct.OpenSlots}, age = {adjunct.ScanAge.ElapsedMs()}ms, tries = {adjunct.ScanCount}, Seduced = {adjunct.LastSeduced}ms,  {Description}");
                         }
                     }
                     else

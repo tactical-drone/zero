@@ -246,6 +246,7 @@ namespace zero.core.feat.misc
                 try
                 {
                     var qid = cur.Qid;
+                    Interlocked.MemoryBarrier();
 #if TRACE
                     Console.WriteLine($"[{Environment.CurrentManagedThreadId}] CHECKED <<{cur.Value.Key}>> -> {cur.Value.Hash.HashSig()}");
 #endif
@@ -278,8 +279,13 @@ namespace zero.core.feat.misc
                 }
                 catch
                 {
-                    _lut.Modified = false;
-                    cur = _lut.Head;
+                    if (_lut.Modified)
+                    {
+                        _lut.Modified = false;
+                        cur = _lut.Head;
+                    }
+                    else
+                        break;
                 }
             }
 
@@ -306,6 +312,7 @@ namespace zero.core.feat.misc
                     try
                     {
                         var qId = n.Qid;
+                        Interlocked.MemoryBarrier();
                         if (n.Value.TimestampMs.ElapsedUtcMs() > _ttlMs)
                         {
                             var challenge = n.Value;

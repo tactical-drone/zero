@@ -1564,7 +1564,7 @@ namespace zero.sync
             int zeroed = 0;
             var sw = Stopwatch.StartNew();
 
-            _nodes.ToList().ForEach(n =>
+            _nodes?.ToList().ForEach(n =>
             {
                 try
                 {
@@ -1592,6 +1592,7 @@ namespace zero.sync
 
             GC.Collect(GC.MaxGeneration);
             Console.WriteLine($"z = {_nodes?.Count(n => n.Zeroed())}/{total}");
+            
             return ValueTask.CompletedTask;
             //await AutoPeeringEventService.ClearAsync().FastPath();
         }

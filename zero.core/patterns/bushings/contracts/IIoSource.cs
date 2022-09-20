@@ -172,6 +172,11 @@ namespace zero.core.patterns.bushings.contracts
         int Rate { get;}
 
         /// <summary>
+        /// Used to anchor a control rate at the consumer
+        /// </summary>
+        int RateSet { get; }
+
+        /// <summary>
         /// Current timestamp
         /// </summary>
         long ZeroTimeStamp { get; set; }
@@ -184,6 +189,15 @@ namespace zero.core.patterns.bushings.contracts
         /// <param name="cmp"></param>
         /// <returns></returns>
         int SetRate(int value, int cmp);
+
+        /// <summary>
+        /// Sets the current rate
+        /// </summary>
+        /// <param name="rate"></param>
+        /// <param name="value"></param>
+        /// <param name="cmp"></param>
+        /// <returns></returns>
+        int SetRateSet(int value, int cmp);
 
         /// <summary>
         /// Congestion control hooks

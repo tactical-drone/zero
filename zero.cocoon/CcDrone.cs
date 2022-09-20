@@ -1,9 +1,14 @@
 ﻿using System;
+using System.IO;
+using System.IO.Compression;
+using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
+using Cassandra;
 using Google.Protobuf;
 using K4os.Compression.LZ4;
 using NLog;
+using Org.BouncyCastle.Crypto.Paddings;
 using zero.cocoon.autopeer;
 using zero.cocoon.events.services;
 using zero.cocoon.models;
@@ -19,6 +24,7 @@ using zero.core.patterns.heap;
 using zero.core.patterns.misc;
 using Zero.Models.Protobuf;
 using static System.Runtime.InteropServices.MemoryMarshal;
+using Logger = NLog.Logger;
 
 namespace zero.cocoon
 {
@@ -292,16 +298,32 @@ namespace zero.cocoon
                 //    return;
             
                 //if (Adjunct?.Direction == CcAdjunct.Heading.IsEgress)
-                byte[] socketBuf = null;
-
+                byte[] buf = null;
                 try
                 {
-                    socketBuf = _sendBuf.Take();
+                    
                     Write(_vb.AsSpan(), ref v);
 
                     var protoBuf = _m.ToByteString().Memory;
-                    var compressed = (ulong)LZ4Codec.Encode(protoBuf.AsArray(), 0, protoBuf.Length, socketBuf, sizeof(ulong), socketBuf.Length - sizeof(ulong));
-                    Write(socketBuf, ref compressed);
+                    buf = _sendBuf.Take();
+                    ulong compressed = (ulong)LZ4Codec.Encode(protoBuf.AsArray(), 0, protoBuf.Length, buf, sizeof(ulong), buf.Length - sizeof(ulong));
+                    Write(buf, ref compressed);
+                    //Console.WriteLine($"pr->{compressed}({protoBuf.Length}) - {buf.AsSpan().Slice(sizeof(ulong), (int)compressed).ToArray().PayloadSig()}");
+
+                    //buf = _sendBuf.Take(); ;
+                    //var bl = new BrotliStream(new MemoryStream(buf), CompressionLevel.Optimal);
+                    //bl.BaseStream.Seek(sizeof(ulong), SeekOrigin.Begin);
+                    //await bl.WriteAsync(protoBuf.AsArray(), 0, protoBuf.Length);
+                    //await bl.FlushAsync();
+
+                    //var tmp = new byte[32];
+                    //var tmp2 = new byte[32];
+                    //var tmpS = new BrotliStream(new MemoryStream(buf), CompressionMode.Decompress);
+
+                    //tmpS.BaseStream.Seek(sizeof(ulong), SeekOrigin.Begin);
+                    //await tmpS.ReadAsync(tmp).FastPath();
+
+                    //Unsafe.As<long[]>(buf)[0] = bl.BaseStream.Position - sizeof(ulong);
 
                     if (!Zeroed())
                     {
@@ -309,7 +331,8 @@ namespace zero.cocoon
                         Adjunct.CcCollective.IncEventCounter();
 
                         var socket = MessageService.IoNetSocket;
-                        if (await socket.SendAsync(socketBuf, 0, (int)compressed + sizeof(ulong), timeout: 20).FastPath() > 0)
+                        if (await socket.SendAsync(buf, 0, (int)compressed + sizeof(ulong), timeout: 20).FastPath() > 0) 
+                        //if (await socket.SendAsync(buf, 0, (int)bl.BaseStream.Position, timeout: 20).FastPath() > 0)
                         {
                             if (!Adjunct.CcCollective.ZeroDrone && AutoPeeringEventService.Operational)
                                 AutoPeeringEventService.AddEvent(new AutoPeerEvent
@@ -327,7 +350,7 @@ namespace zero.cocoon
                 }
                 finally
                 {
-                    _sendBuf.Return(socketBuf);
+                    _sendBuf.Return(buf);
                 }
             }
             catch (Exception e)

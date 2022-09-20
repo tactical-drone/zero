@@ -337,9 +337,9 @@ namespace zero.core.patterns.semaphore.core
                             tuple.Item1(tuple.Item2);
                         }, (continuation, state));
                         break;
-                    case IoZeroScheduler when !RunContinuationsAsynchronously && TaskScheduler.Current is IoZeroScheduler:
-                        continuation(state);
-                        break;
+                    //case IoZeroScheduler when !RunContinuationsAsynchronously && TaskScheduler.Current is IoZeroScheduler:
+                    //    continuation(state);
+                    //    break;
                     case TaskScheduler ts:
                         _ = Task.Factory.StartNew(continuation, state, CancellationToken.None, TaskCreationOptions.DenyChildAttach, ts);
                         break;

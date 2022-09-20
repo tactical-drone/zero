@@ -19,18 +19,20 @@ namespace zero.core.runtime.scheduler
     public class IoZeroScheduler : TaskScheduler, IDisposable
     {
         public static bool Enabled = true;
-        static IoZeroScheduler()
-        {
-#if !NATIVE  //our experimental (ZERO GC PRESSURE) scheduler that provides insight (& stats) into bugs caused by bad async/await architecture
-            Zero = new IoZeroScheduler(Default, native:true); 
-            ZeroDefault = Zero;
-            Zero.InitQueues();
-#else       //Use the default .net scheduler. (this is probably the safer option for production)
-            Zero = new IoZeroScheduler(Default, native: false); 
-            ZeroDefault = Default; 
-            Zero.InitQueues();
-#endif
-        }
+
+//        public static IoZeroScheduler Default 
+//        get {
+//#if !NATIVE  //our experimental (ZERO GC PRESSURE) scheduler that provides insight (& stats) into bugs caused by bad async/await architecture
+//            Zero = new IoZeroScheduler(Default, native: true);
+//            ZeroDefault = Zero;
+//            Zero.InitQueues();
+//#else       //Use the default .net scheduler. (this is probably the safer option for production)
+//            Zero = new IoZeroScheduler(Default, native: false); 
+//            ZeroDefault = Default; 
+//            Zero.InitQueues();
+//#endif
+//            return zero;
+//        };
 
         public IoZeroScheduler(TaskScheduler fallback, CancellationTokenSource asyncTasks = null, bool native = false)
         {
@@ -123,8 +125,28 @@ namespace zero.core.runtime.scheduler
 
 
         private static volatile int _workerSpawnBurstMax = WorkerSpawnBurstMax;
-        public static readonly TaskScheduler ZeroDefault;
-        public static readonly IoZeroScheduler Zero;
+
+        private static TaskScheduler _zeroDefault;
+        public static TaskScheduler ZeroDefault
+        {
+            get
+            {
+                if (_zeroDefault != null)
+                    return _zeroDefault;
+
+#if !NATIVE     //our experimental (ZERO GC PRESSURE) scheduler that provides insight (& stats) into bugs caused by bad async/await architecture
+                _zeroDefault = Zero = new IoZeroScheduler(Default, native: true);
+                Zero.InitQueues();
+#else           //Use the default .net scheduler. (this is probably the safer option for production)
+                Zero = new IoZeroScheduler(Default, native: false);
+                _zeroDefault = Default;
+                Zero.InitQueues();
+#endif
+                return _zeroDefault;
+            }
+        }
+
+        public static IoZeroScheduler Zero;
         private readonly CancellationTokenSource _asyncTasks;
 
         private readonly IoZeroSemaphoreChannel<Task> _taskQueue;
@@ -219,7 +241,7 @@ namespace zero.core.runtime.scheduler
         public double LoadFactor => (double)Load / _taskQueueCapacity;
         public long Capacity => _taskQueueCapacity;
 
-        private void InitQueues()
+        public void InitQueues()
         {
             //tasks
             for (var i = 0; i < _taskQueueCapacity; i++)
