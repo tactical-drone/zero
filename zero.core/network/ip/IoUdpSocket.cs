@@ -431,16 +431,19 @@ namespace zero.core.network.ip
                             if (NativeSocket.ReceiveFromAsync(args) && !await waitCore.FastPath())
                                 return 0;
                         }
-                        catch (SocketException e) when (e.SocketErrorCode == SocketError.OperationAborted)
+                        catch (SocketException e) when (!Zeroed() && e.SocketErrorCode == SocketError.OperationAborted)
                         {
+#if DEBUG
                             _logger.Trace(e, $"{nameof(NativeSocket.ReceiveFromAsync)}:");
+#endif
+                            await DisposeAsync(this, e.Message).FastPath();
                         }
-                        catch when (Zeroed())
-                        {
-                        }
+                        catch when (Zeroed()) { }
                         catch (Exception e) when (!Zeroed())
                         {
                             _logger.Error(e, $"{nameof(NativeSocket.ReceiveFromAsync)}:");
+                            await DisposeAsync(this, e.Message).FastPath();
+                            return 0;
                         }
 
                         args.RemoteEndPoint.AsBytes(remoteEp);

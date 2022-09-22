@@ -178,7 +178,11 @@ namespace zero.core.network.ip
                 {
                     //rate limit
                     if (_lastSocketHealthCheck.ElapsedMs() < 5000)
-                        return IoNetSocket.NativeSocket.Connected && IoNetSocket.NativeSocket.IsBound;
+                    {
+                        if (IoNetSocket.NativeSocket.Connected && IoNetSocket.NativeSocket.IsBound)
+                            return true;
+                    }
+                        
 
                     _lastSocketHealthCheck = Environment.TickCount;
                     //TODO more checks?
@@ -189,7 +193,6 @@ namespace zero.core.network.ip
 
                         Dispose();
                         
-                        //Do cleanup
                         return false;
                     }
 

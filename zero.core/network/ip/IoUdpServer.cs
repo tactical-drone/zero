@@ -51,7 +51,7 @@ namespace zero.core.network.ip
                 //Creates a listening socket
                 try
                 {
-                    IoListenSocket = (await ZeroHiveAsync(new IoUdpSocket(Prefetch), true).FastPath()).target;
+                    IoListenSocket = (await ZeroHiveAsync(new IoUdpSocket(Prefetch), false).FastPath()).target;
 
                     await IoListenSocket.BlockOnListenAsync(ListeningAddress, static async (ioSocket,state) =>
                     {

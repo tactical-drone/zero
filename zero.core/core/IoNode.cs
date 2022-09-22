@@ -96,7 +96,7 @@ namespace zero.core.core
         /// </summary>
         [IoParameter]
         // ReSharper disable once InconsistentNaming
-        protected int parm_zombie_connect_time_threshold_s = 4; //currently takes 2 seconds to up
+        protected int parm_zombie_connect_time_threshold_s = 2; //currently takes 2 seconds to up
 
         /// <summary>
         /// Threads per neighbor
@@ -245,10 +245,10 @@ namespace zero.core.core
                                     {
                                         if (!existingNeighbor.Zeroed() &&
                                             !existingNeighbor.Source.IsOperational() &&
-                                            existingNeighbor.UpTime.ElapsedMsToSec() >
+                                            existingNeighbor.UpTime.ElapsedUtcMsToSec() >
                                             @this.parm_zombie_connect_time_threshold_s)
                                         {
-                                            var errMsg = $"{nameof(BlockOnListenerAsync)}: Connection {newNeighbor.Key} [REPLACED], existing {existingNeighbor.Key} with uptime {existingNeighbor.UpTime.ElapsedMs()}ms [DC]";
+                                            var errMsg = $"{nameof(BlockOnListenerAsync)}: Connection {newNeighbor.Key} [REPLACED], existing {existingNeighbor.Key} with uptime {existingNeighbor.UpTime.ElapsedUtcMs()}ms [DC]";
                                             @this._logger.Warn(errMsg);
 
                                             //We remove the key here or async race conditions with the listener...

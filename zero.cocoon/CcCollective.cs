@@ -363,8 +363,6 @@ namespace zero.cocoon
         /// The autopeering task handler
         /// </summary>
         private Task _autoPeeringTask;
-
-        private readonly Stopwatch _sw = Stopwatch.StartNew();
         private readonly int _futileRequestSize;
         private readonly int _futileResponseSize;
         private readonly int _futileRejectSize;
@@ -388,7 +386,7 @@ namespace zero.cocoon
         /// Timeout for futile messages
         /// </summary>
         [IoParameter]
-        public int parm_futile_timeout_ms = 10000;
+        public int parm_futile_timeout_ms = 1000;
         
         /// <summary>
         /// The discovery service
@@ -613,7 +611,6 @@ namespace zero.cocoon
                 {
                     var verified = false;
                     
-                    _sw.Restart();
                     //read from the socket
                     int localRead;
                     do
@@ -623,7 +620,7 @@ namespace zero.cocoon
 
                     if ((bytesRead == 0 || bytesRead < _futileRequestSize) && ioNetSocket.IsConnected())
                     {
-                        _logger.Error($"Failed to read futile ingress request, waited = {_sw.ElapsedMilliseconds}ms, wanted ={parm_futile_timeout_ms}ms, socket = {ioNetSocket.Description}");
+                        _logger.Error($"Failed to read futile ingress request, waited = {ts.ElapsedMs()}ms, wanted ={parm_futile_timeout_ms}ms, socket = {ioNetSocket.Description}");
                         return false;
                     }
 #if TRACE
@@ -711,13 +708,13 @@ namespace zero.cocoon
                             };
                             
                             var futileResponseBuf = futileResponse.ToByteString();
-                            
-                            _sw.Restart();
+
+                            ts = Environment.TickCount;
 
                             var sent = await SendMessageAsync(drone, futileResponseBuf, nameof(CcFutileResponse), parm_futile_timeout_ms).FastPath();
                             if (sent == 0)
                             {
-                                _logger.Trace($"{nameof(futileResponse)}: Send FAILED! {ioNetSocket.Description}");
+                                _logger.Trace($"{nameof(futileResponse)}: Send FAILED!; time = {ts.ElapsedMs()} ms, {ioNetSocket.Description}");
                                 return false;
                             }
                         }
@@ -738,13 +735,12 @@ namespace zero.cocoon
                     };
                     
                     var futileRequestBuf = ccFutileRequest.ToByteString();
-                    
-                    _sw.Restart();
+
+                    ts = Environment.TickCount;
                     var sent = await SendMessageAsync(drone, futileRequestBuf, nameof(CcFutileRequest)).FastPath();
                     if (sent > 0)
                     {
-                        _logger.Trace(
-                            $"Sent {sent} egress futile challange, socket = {ioNetSocket.Description}");
+                        _logger.Trace($"h/> {nameof(SendMessageAsync)}({sent}): dest = {ioNetSocket.Description}");
                     }
                     else
                     {
@@ -771,13 +767,11 @@ namespace zero.cocoon
 
                     if (bytesRead == 0 || bytesRead < _futileRejectSize)
                     {
-                        _logger.Trace(
-                            $"Failed to read egress futile challange response, waited = {_sw.ElapsedMilliseconds}ms, remote = {ioNetSocket.RemoteAddress}, zeroed {Zeroed()}");
+                        _logger.Trace($"<\\h {nameof(ioNetSocket.ReceiveAsync)}({bytesRead}): Failed to read egress futile challange response, waited = {ts.ElapsedMs()}ms, remote = {ioNetSocket.RemoteAddress}, z = {Zeroed()}");
                         return false;
                     }
                     
-                    _logger.Trace(
-                        $"Read egress futile challange response size = {bytesRead} b, addess = {ioNetSocket.RemoteAddress}");
+                    _logger.Trace($"<\\h {nameof(ioNetSocket.ReceiveAsync)}({bytesRead}): src = {ioNetSocket.RemoteAddress};");
                     
                     var verified = false;
                     
@@ -904,7 +898,7 @@ namespace zero.cocoon
 
             adjunct.CompareAndEnterState(CcAdjunct.AdjunctState.Verified, CcAdjunct.AdjunctState.Connecting);
 
-            _logger.Trace($"{direction} futile request [LOST] {CcDesignation.FromPubKey(packet.PublicKey.Memory.AsArray())} - {remoteEp}: s = {drone.Adjunct.State}, a = {drone.Adjunct.Assimilating}, p = {drone.Adjunct.IsDroneConnected}, pa = {drone.Adjunct.IsDroneAttached}, ut = {drone.Adjunct.UpTime.ElapsedMs()}");
+            _logger.Trace($"{direction} futile request [LOST] {CcDesignation.FromPubKey(packet.PublicKey.Memory.AsArray())} - {remoteEp}: s = {drone.Adjunct.State}, a = {drone.Adjunct.Assimilating}, p = {drone.Adjunct.IsDroneConnected}, pa = {drone.Adjunct.IsDroneAttached}, ut = {drone.Adjunct.UpTime.ElapsedUtcMs()}ms");
             return false;
         }
 

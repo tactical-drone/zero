@@ -8,6 +8,7 @@ using System.Threading.Tasks.Sources;
 using zero.core.patterns.misc;
 using NLog;
 using zero.core.conf;
+using zero.core.misc;
 using zero.core.patterns.heap;
 using zero.core.patterns.semaphore.core;
 using zero.core.runtime.scheduler;
@@ -74,7 +75,7 @@ namespace zero.core.network.ip
 
         [IoParameter]
         // ReSharper disable once InconsistentNaming
-        public int parm_socket_poll_wait_ms = 2500;
+        public int parm_socket_poll_wait_ms = 200;
 
         /// <summary>
         /// Starts a TCP listener
@@ -333,7 +334,6 @@ namespace zero.core.network.ip
             return false;
         }
 
-
         /// <summary>
         /// Sends data over TCP async
         /// </summary>
@@ -350,7 +350,7 @@ namespace zero.core.network.ip
             {
                 if (!NativeSocket.Poll(parm_socket_poll_wait_ms, SelectMode.SelectWrite))
                     return 0;
-
+                
                 return await NativeSocket.SendAsync(buffer.Slice(offset, length), SocketFlags.None, timeout >0? new CancellationTokenSource(timeout).Token: AsyncTasks.Token).FastPath();
             }
             catch (SocketException e)

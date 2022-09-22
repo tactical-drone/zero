@@ -68,8 +68,7 @@ namespace zero.core.network.ip
         /// logger
         /// </summary>
         private Logger _logger;
-
-
+        private string _description;
         //Socket description 
         public override string Description
         {
@@ -77,12 +76,13 @@ namespace zero.core.network.ip
             {
                 try
                 {
-                    return
-                        $"{(Proxy ? "[proxy]" : "")}{Kind} socket({LocalNodeAddress}({NativeSocket?.LocalEndPoint}), {(Kind <= Connection.Listener ? "N/A" : RemoteNodeAddress?.ToString())}({NativeSocket?.RemoteEndPoint})";
+                    if(_description == null || Environment.TickCount % 100 < 15)
+                        return _description = $"{(Proxy ? "[proxy]" : "")}{Kind} socket({LocalNodeAddress}, {(Kind <= Connection.Listener ? "N/A" : RemoteNodeAddress?.ToString())}";
+                    return _description;
                 }
                 catch
                 {
-                    return $"{(Proxy ? "[proxy]" : "")}{Kind} socket({LocalNodeAddress}, {(Kind <= Connection.Listener ? "N/A" : RemoteNodeAddress?.ToString())}";
+                    return _description = $"{(Proxy ? "[proxy]" : "")}{Kind} socket({LocalNodeAddress}, {(Kind <= Connection.Listener ? "N/A" : RemoteNodeAddress?.ToString())}";
                 }
             }
         }

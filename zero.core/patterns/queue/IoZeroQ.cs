@@ -127,7 +127,7 @@ namespace zero.core.patterns.queue
         private int _pumpingConsumers;
         private int _primedForScale;
         private int _timeSinceLastScale = Environment.TickCount;
-        private volatile int _count;
+        private int _count;
         
         #endregion
 

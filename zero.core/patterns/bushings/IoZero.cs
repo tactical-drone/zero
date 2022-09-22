@@ -684,7 +684,7 @@ namespace zero.core.patterns.bushings
 
         public string DumpStats()
         {
-            return $"{Description} {EventCount / (double)IoUnixToMs.ElapsedMsToSec((long)UpTime):0.0} j/s, [{JobHeap.ReferenceCount} / {JobHeap.CacheSize} / {JobHeap.ReferenceCount + JobHeap.CacheSize} / {JobHeap.AvailableCapacity} / {JobHeap.Capacity}]\n" + Source.PrintCounters();
+            return $"{Description} {EventCount / (double)UpTime.ElapsedUtcMsToSec():0.0} j/s, [{JobHeap.ReferenceCount} / {JobHeap.CacheSize} / {JobHeap.ReferenceCount + JobHeap.CacheSize} / {JobHeap.AvailableCapacity} / {JobHeap.Capacity}]\n" + Source.PrintCounters();
         }
 
         /// <summary>

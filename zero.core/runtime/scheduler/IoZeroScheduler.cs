@@ -25,11 +25,11 @@ namespace zero.core.runtime.scheduler
 //#if !NATIVE  //our experimental (ZERO GC PRESSURE) scheduler that provides insight (& stats) into bugs caused by bad async/await architecture
 //            Zero = new IoZeroScheduler(Default, native: true);
 //            ZeroDefault = Zero;
-//            Zero.InitQueues();
+//            Zero.GrowQueues();
 //#else       //Use the default .net scheduler. (this is probably the safer option for production)
 //            Zero = new IoZeroScheduler(Default, native: false); 
 //            ZeroDefault = Default; 
-//            Zero.InitQueues();
+//            Zero.GrowQueues();
 //#endif
 //            return zero;
 //        };
@@ -47,7 +47,7 @@ namespace zero.core.runtime.scheduler
             //_asyncCallbackWithContextCapacity = _asyncTaskCapacity = _asyncTaskWithContextCapacity = _taskQueueCapacity * 2;
             //_asyncFallbackCapacity = _forkCapacity = _asyncCallbackWithContextCapacity * 2;
 
-            _taskQueueCapacity = Environment.ProcessorCount * 4 * 5;
+            _taskQueueCapacity = Environment.ProcessorCount * 5;
             _asyncFallbackCapacity = _taskQueueCapacity;
 
             _asyncTaskWithContextCapacity = _taskQueueCapacity;
@@ -58,7 +58,7 @@ namespace zero.core.runtime.scheduler
             _asyncForkCapacity = _taskQueueCapacity / 5;
             _forkCapacity = _taskQueueCapacity / 5;
 
-            var size = short.MaxValue; //TODO: tuning
+            var size = ushort.MaxValue; //TODO: tuning
             _taskQueue = new IoZeroSemaphoreChannel<Task>($"{nameof(_taskQueue)}", size, 0, false);
             _asyncFallbackQueue = new IoZeroSemaphoreChannel<ZeroContinuation>($"{nameof(_asyncFallbackQueue)}", size, 0, false);
 
@@ -136,11 +136,11 @@ namespace zero.core.runtime.scheduler
 
 #if !NATIVE     //our experimental (ZERO GC PRESSURE) scheduler that provides insight (& stats) into bugs caused by bad async/await architecture
                 _zeroDefault = Zero = new IoZeroScheduler(Default, native: true);
-                Zero.InitQueues();
+                Zero.GrowQueues();
 #else           //Use the default .net scheduler. (this is probably the safer option for production)
                 Zero = new IoZeroScheduler(Default, native: false);
                 _zeroDefault = Default;
-                Zero.InitQueues();
+                Zero.GrowQueues();
 #endif
                 return _zeroDefault;
             }
@@ -241,7 +241,7 @@ namespace zero.core.runtime.scheduler
         public double LoadFactor => (double)Load / _taskQueueCapacity;
         public long Capacity => _taskQueueCapacity;
 
-        public void InitQueues()
+        public void GrowQueues()
         {
             //tasks
             for (var i = 0; i < _taskQueueCapacity; i++)
@@ -345,7 +345,7 @@ namespace zero.core.runtime.scheduler
                 {
                     Interlocked.Increment(ref _taskQueueLoad);
 
-                    if (!TryExecuteTask(job) && job.Status != TaskStatus.RanToCompletion)
+                    if (job.Status == TaskStatus.WaitingToRun && !TryExecuteTask(job) && job.Status != TaskStatus.RanToCompletion)
                         LogManager.GetCurrentClassLogger().Fatal($"{nameof(HandleAsyncSchedulerTask)}: Unable to execute task, id = {job.Id}, state = {job.Status}, async-state = {job.AsyncState}, success = {job.IsCompletedSuccessfully}");
                     else
                         Interlocked.Increment(ref _taskDequeueCount);
@@ -397,8 +397,18 @@ namespace zero.core.runtime.scheduler
             while (!_asyncTasks.IsCancellationRequested)
             {
                 var job = await _asyncTaskWithContextQueue.WaitAsync().FastPath().ConfigureAwait(_native);
+
                 try
                 {
+                    if ((double)_asyncTaskWithContextLoad / _asyncTaskWithContextCapacity > 0.84)
+                    {
+                        _ = Task.Factory.StartNew(static async state =>
+                            {
+                                var (@this, i) = (ValueTuple<IoZeroScheduler, int>)state;
+                                await @this.HandleAsyncValueTaskWithContext().FastPath();
+                            }, (this, Interlocked.Increment(ref _asyncTaskWithContextCapacity)),
+                            CancellationToken.None, TaskCreationOptions.LongRunning, ZeroDefault);
+                    }
                     Interlocked.Increment(ref _asyncTaskWithContextLoad);
                     await job.ValueFunc(job.Context).FastPath();
                     Interlocked.Increment(ref _asyncTaskWithContextCount);

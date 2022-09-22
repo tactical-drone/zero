@@ -202,7 +202,7 @@ namespace zero.cocoon
 
             try
             {
-                if ((Adjunct?.WasAttached??false) && UpTime.ElapsedMs() > parm_min_uptime_ms)
+                if ((Adjunct?.WasAttached??false) && UpTime.ElapsedUtcMs() > parm_min_uptime_ms)
                     _logger.Info($"- {Description}, from: {ZeroedFrom?.Description}");
 
                 await _sendBuf.ZeroManagedAsync<object>().FastPath();
@@ -331,9 +331,11 @@ namespace zero.cocoon
                         Adjunct.CcCollective.IncEventCounter();
 
                         var socket = MessageService.IoNetSocket;
-                        if (await socket.SendAsync(buf, 0, (int)compressed + sizeof(ulong), timeout: 20).FastPath() > 0) 
+                        var sent = 0;
+                        if ((sent = await socket.SendAsync(buf, 0, (int)compressed + sizeof(ulong), timeout: 20).FastPath()) > 0) 
                         //if (await socket.SendAsync(buf, 0, (int)bl.BaseStream.Position, timeout: 20).FastPath() > 0)
                         {
+                            _logger.Trace($"{nameof(EmitTestGossipMsgAsync)}: hup sent {sent} bytes to {socket.RemoteAddress}...");
                             if (!Adjunct.CcCollective.ZeroDrone && AutoPeeringEventService.Operational)
                                 AutoPeeringEventService.AddEvent(new AutoPeerEvent
                                 {

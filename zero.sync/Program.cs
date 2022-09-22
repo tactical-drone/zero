@@ -273,7 +273,7 @@ namespace zero.sync
                                     {
                                         var drone = (CcDrone)d;
                                         Console.WriteLine(
-                                            $"t = {ioCcNode.TotalConnections} ({ioCcNode.IngressCount},{ioCcNode.EgressCount}), [{ioCcNode.Description}] -> {drone.Description} ][ {drone.Adjunct.MetaDesc}, uptime = {drone.UpTime.ElapsedMs():0.0}s");
+                                            $"t = {ioCcNode.TotalConnections} ({ioCcNode.IngressCount},{ioCcNode.EgressCount}), [{ioCcNode.Description}] -> {drone.Description} ][ {drone.Adjunct.MetaDesc}, uptime = {drone.UpTime.ElapsedUtcMs():0.0}s");
                                     }
                                 }
 
@@ -642,10 +642,14 @@ namespace zero.sync
                     {
                         var n = _nodes.Where(n => !n.ZeroDrone).ToArray();
                         IoZeroScheduler.Zero.LoadAsyncCallback(async () => await n[Random.Shared.Next(0, n.Length - 1)].BootAsync(1).FastPath());
-                        //IoZeroScheduler.Zero.LoadAsyncCallback(async () => await n[Random.Shared.Next(0, n.Length - 1)].BootAsync(0).FastPath());
-                        //IoZeroScheduler.Zero.LoadAsyncCallback(async () => await n[Random.Shared.Next(0, n.Length - 1)].BootAsync(0).FastPath());
-                        //IoZeroScheduler.Zero.LoadAsyncCallback(async () => await n[Random.Shared.Next(0, n.Length - 1)].BootAsync(0).FastPath());
-                        Console.WriteLine("ZERO CORE best case horizontal scale cluster TCP/IP (DDoS) pressure test started... make sure your CPU has enough juice, this test will redline your kernel and hang your OS");
+                        if (_nodes.Count >= 4)
+                        {
+                            IoZeroScheduler.Zero.LoadAsyncCallback(async () => await n[Random.Shared.Next(0, n.Length - 1)].BootAsync(10).FastPath());
+                            IoZeroScheduler.Zero.LoadAsyncCallback(async () => await n[Random.Shared.Next(0, n.Length - 1)].BootAsync(20).FastPath());
+                            IoZeroScheduler.Zero.LoadAsyncCallback(async () => await n[Random.Shared.Next(0, n.Length - 1)].BootAsync(30).FastPath());
+                        }
+
+                        Console.WriteLine("ZERO CORE test...");
                     }
 
                     if (line.StartsWith("gr"))
