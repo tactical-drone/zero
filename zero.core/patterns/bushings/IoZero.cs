@@ -1,5 +1,4 @@
 ﻿using System;
-using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
@@ -12,7 +11,6 @@ using zero.core.patterns.misc;
 using zero.core.patterns.queue;
 using zero.core.patterns.semaphore;
 using zero.core.patterns.semaphore.core;
-using zero.core.runtime.scheduler;
 
 namespace zero.core.patterns.bushings
 {
@@ -764,7 +762,7 @@ namespace zero.core.patterns.bushings
                     }, this, TaskCreationOptions.DenyChildAttach).FastPath(); //TODO tuning
                 }
 
-                await AsyncTasks.Token.BlockOnNotCanceledAsync().FastPath();
+                await AsyncTasks.BlockOnNotCanceledAsync().FastPath();
 #if DEBUG
                 _logger?.Trace($"{GetType().Name}: Processing for {desc} stopped");
 #endif

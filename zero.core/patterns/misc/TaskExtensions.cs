@@ -52,13 +52,13 @@ namespace zero.core.patterns.misc
         /// <summary>
         /// Block on a token until cancelled (wait one causes problems)
         /// </summary>
-        /// <param name="token">The token to block on</param>
+        /// <param name="tokenSource">The token to block on</param>
         /// <returns>A ValueTask</returns>
-        public static async ValueTask BlockOnNotCanceledAsync(this CancellationToken token)
+        public static async ValueTask BlockOnNotCanceledAsync(this CancellationTokenSource tokenSource)
         {
             IIoManualResetValueTaskSourceCore<bool> source = new IoManualResetValueTaskSourceCore<bool>();
             var waitForCancellation = new ValueTask<bool>(source, 0);
-            var reg = token.Register(static s =>
+            var reg = tokenSource.Token.Register(static s =>
             {
                 ((IIoManualResetValueTaskSourceCore<bool>)s).SetResult(true);
             }, source);

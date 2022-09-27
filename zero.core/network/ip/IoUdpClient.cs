@@ -6,7 +6,7 @@ using zero.core.patterns.misc;
 namespace zero.core.network.ip
 {
     /// <summary>
-    /// The UDP flavor of <see cref="IoNetClient{TJob}"/>
+    /// The UDP flavor of <see cref="IoNetClient{TJob}"/>, produces udp packets for <see cref="IIoZero"/>
     /// </summary>
     /// <seealso cref="zero.core.network.ip.IoNetClient{TJob}" />
     public class IoUdpClient<TJob> : IoNetClient<TJob>
@@ -31,7 +31,7 @@ namespace zero.core.network.ip
         /// <param name="ioSocket">The socket the listener created</param>
         /// <param name="prefetch">Read ahead size</param>
         /// <param name="concurrencyLevel">Level of concurrency</param>
-        public IoUdpClient(string description, IoSocket ioSocket, int prefetch, int concurrencyLevel) : base(description, new IoUdpSocket(ioSocket.NativeSocket, new IPEndPoint(IPAddress.Any, 305), prefetch), prefetch, concurrencyLevel, false)
+        public IoUdpClient(string description, IoNetSocket ioSocket, int prefetch, int concurrencyLevel) : base(description, ioSocket, prefetch, concurrencyLevel, false)
         {
             
         }

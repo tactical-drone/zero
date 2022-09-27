@@ -1,9 +1,11 @@
 ﻿using System;
 using System.ComponentModel;
+using System.Linq;
 using System.Net;
 using System.Net.Sockets;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
+using System.Threading;
 using System.Threading.Tasks;
 using NLog;
 using zero.core.conf;
@@ -38,7 +40,9 @@ namespace zero.core.network.ip
         /// <param name="remoteEndPoint">The remote endpoint</param>
         /// <param name="concurrencyLevel"></param>
         /// <param name="clone">Operator overloaded, parm not used</param>
+#pragma warning disable IDE0060 // Remove unused parameter
         public IoUdpSocket(Socket nativeSocket, IPEndPoint remoteEndPoint, int concurrencyLevel, bool clone = false) : base(nativeSocket, remoteEndPoint, concurrencyLevel)
+#pragma warning restore IDE0060 // Remove unused parameter
         {
             try
             {
@@ -176,7 +180,7 @@ namespace zero.core.network.ip
             //TODO sec
             _ = NativeSocket.IOControl(
                 (IOControlCode)SIO_UDP_CONNRESET,
-                new byte[] { 0, 0, 0, 0 },
+                "\0\0\0\0"u8.ToArray(),
                 null
             );
 
@@ -184,7 +188,7 @@ namespace zero.core.network.ip
             ConfigureSocket();
 
             //base
-            await base.BlockOnListenAsync(listeningAddress, acceptConnectionHandler, context,bootFunc, bootData).FastPath();
+            await base.BlockOnListenAsync<object,object>(listeningAddress, null, null).FastPath();
 
             //Init connection tracking
             try
@@ -210,7 +214,7 @@ namespace zero.core.network.ip
                 }
 
                 //block
-                await AsyncTasks.Token.BlockOnNotCanceledAsync().FastPath();
+                await AsyncTasks.BlockOnNotCanceledAsync().FastPath();
 
                 _logger?.Trace($"Stopped listening at {LocalNodeAddress}");
             }
@@ -400,6 +404,7 @@ namespace zero.core.network.ip
             }
         }
 
+        private static int _failOne;
         /// <summary>
         /// Read from the socket
         /// </summary>
@@ -464,8 +469,16 @@ namespace zero.core.network.ip
                     }
                     finally
                     {
-                        _argsHeap.Return(args);
+                        _argsHeap?.Return(args);
+
+                        if (Interlocked.CompareExchange(ref _failOne, 1, 0) == 0)
+                        {
+                            //await DisposeAsync(this, "test").FastPath();
+                            //AsyncTasks.Cancel(false);
+                        }
                     }
+
+                    return 0;
                 }
 
                 EndPoint remoteEpAny = new IPEndPoint(0, 0);

@@ -44,6 +44,9 @@ namespace zero.cocoon
             _logger = LogManager.GetCurrentClassLogger();
             _gossipAddress = gossipAddress;
             _peerAddress = peerAddress;
+            _udpPrefetch = udpPrefetch;
+            _udpConcurrencyLevel = udpConcurrencyLevel;
+
             BootstrapAddress = bootstrap;
             ExtAddress = extAddress; //this must be the external or NAT address.
             CcId = ccDesignation;
@@ -63,18 +66,7 @@ namespace zero.cocoon
             Services.CcRecord.Endpoints.TryAdd(CcService.Keys.Gossip, _gossipAddress);
             Services.CcRecord.Endpoints.TryAdd(CcService.Keys.Fpc, fpcAddress);
 
-            _ = StartHubAsync(udpPrefetch, udpConcurrencyLevel);
-            //IoZeroScheduler.AsyncBridge.Run(async () =>
-            //{
-            //    await _autoPeering.ZeroHiveAsync(this).FastPath();
-            //});
-
             DupSyncRoot = new IoZeroSemaphoreSlim(AsyncTasks,  $"Dup checker for {ccDesignation.IdString()}", maxBlockers: Math.Max(MaxDrones * tcpConcurrencyLevel,1), initialCount: 1);
-            //IoZeroScheduler.AsyncBridge.Run(async () =>
-            //{
-            //    await DupSyncRoot.ZeroHiveAsync(this).FastPath();
-            //});
-            
             
             // Calculate max handshake
             var futileRequest = new CcFutileRequest
@@ -136,13 +128,33 @@ namespace zero.cocoon
 
         private async ValueTask StartHubAsync(int udpPrefetch, int udpConcurrencyLevel)
         {
-            if(Zeroed() || _autoPeering != null && _autoPeering.Zeroed())
-                return;
-
             if (_autoPeering != null)
                 await _autoPeering.DisposeAsync(this, "RESTART!").FastPath();
 
             _autoPeering = new CcHub(this, _peerAddress, static (node, client, extraData) => new CcAdjunct((CcHub)node, client, extraData), udpPrefetch, udpConcurrencyLevel);
+
+            await _autoPeering.ZeroSubAsync(static async (_, state) =>
+            {
+                var (@this, udpPrefetch, udpConcurrencyLevel) = (ValueTuple<CcCollective, int, int>)state;
+                if (!@this.Zeroed())
+                    await @this.StartHubAsync(udpPrefetch, udpConcurrencyLevel).FastPath();
+
+                return true;
+            }, (this, udpPrefetch, udpConcurrencyLevel));
+
+            if (Zeroed())
+                return;
+
+            _autoPeeringTask = _autoPeering.StartAsync(static async @this =>
+            {
+                var spinWait = new SpinWait();
+
+                //wait for the router to become available
+                while (@this.Hub.Router == null)
+                    spinWait.SpinOnce();
+
+                await @this.DeepScanAsync().FastPath();
+            }, this).AsTask();
         }
 
         /// <summary>
@@ -164,16 +176,7 @@ namespace zero.cocoon
                 if(bootFunc != null)
                     await bootFunc(bootData).FastPath();
 
-                @this._autoPeeringTask = @this._autoPeering.StartAsync(static async @this =>
-                {
-                    var spinWait = new SpinWait();
-
-                    //wait for the router to become available
-                    while(@this.Hub.Router == null)
-                        spinWait.SpinOnce();
-
-                    await @this.DeepScanAsync().FastPath();
-                },@this).AsTask();
+                await @this.StartHubAsync(@this._udpPrefetch, @this._udpConcurrencyLevel).FastPath();
 
             }, (this, bootFunc, bootData)).FastPath();
         }
@@ -999,6 +1002,9 @@ namespace zero.cocoon
 
         private const int ScanSets = 3;
         private volatile int _scanSet = 0;
+        private readonly int _udpPrefetch;
+        private readonly int _udpConcurrencyLevel;
+
         /// <summary>
         /// Bootstrap node
         /// </summary>

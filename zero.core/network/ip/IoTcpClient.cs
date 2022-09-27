@@ -6,7 +6,7 @@ using zero.core.patterns.misc;
 namespace zero.core.network.ip
 {
     /// <summary>
-    /// The <see cref="IoNetClient{TJob}"/>'s TCP flavor
+    /// The <see cref="IoNetClient{TJob}"/>'s TCP flavor, produces tcp packets for <see cref="IIoZero"/>
     /// </summary>
     /// <seealso cref="IoNetClient{TJob}" />
     public class IoTcpClient<TJob> : IoNetClient<TJob>

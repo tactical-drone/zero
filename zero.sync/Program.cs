@@ -124,15 +124,15 @@ namespace zero.sync
                             //$"udp://127.0.0.1:{1237}"
                         }.ToList(), false));
 
-                    //StartCocoon(CoCoon(CcDesignation.Generate(), $"tcp://127.0.0.1:{1235}",
-                    //    $"udp://127.0.0.1:{1235}", $"tcp://127.0.0.1:{1235}",
-                    //    $"udp://127.0.0.1:{1235}",
-                    //    new string[]
-                    //    {
-                    //            $"udp://127.0.0.1:{1234}",
-                    //        //$"udp://127.0.0.1:{1236}",
-                    //        //$"udp://127.0.0.1:{1237}"
-                    //    }.ToList(), false));
+                    StartCocoon(CoCoon(CcDesignation.Generate(), $"tcp://127.0.0.1:{1235}",
+                        $"udp://127.0.0.1:{1235}", $"tcp://127.0.0.1:{1235}",
+                        $"udp://127.0.0.1:{1235}",
+                        new string[]
+                        {
+                                $"udp://127.0.0.1:{1234}",
+                            //$"udp://127.0.0.1:{1236}",
+                            //$"udp://127.0.0.1:{1237}"
+                        }.ToList(), false));
                 }
             }
             else
@@ -444,14 +444,13 @@ namespace zero.sync
 
         static IHost _host = null;
 
-        static void StartGRPC(int localPort)
+        static void StartGRPC()
         {
             //BOOSTRAP GRPC
             
-            var port = localPort;
             var grpc = Task.Factory.StartNew(() =>
             {
-                _host = CreateHostBuilder(AutoPeeringEventService.Port = port == -1 ? 27021 : port + 1).Build();
+                _host = CreateHostBuilder(AutoPeeringEventService.Port = 27021).Build();
                 _host.Run();
             }, CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Default);
         }
@@ -497,19 +496,20 @@ namespace zero.sync
                     l++;
                 }
             }
-            
+
+            ConcurrentBag<CcCollective> tasks = new ConcurrentBag<CcCollective>();
+
             if (localPort != -1)
             {
                 LogManager.Configuration.Variables["zeroLogLevel"] = "trace";
                 LogManager.ReconfigExistingLoggers();
+                Bootstrap(out tasks, total, 0, localPort, remotePort);
             }
 
             //Console.WriteLine($"local = {localPort}, remote = {remotePort}");
-            
-            StartGRPC(localPort);
 
-            ConcurrentBag<CcCollective> tasks = new ConcurrentBag<CcCollective>();
-            //Bootstrap(out tasks, total, 0, localPort, remotePort);
+            StartGRPC();
+
 
             //Continue to print some stats while tests are running... 
             long C = 0;
@@ -554,7 +554,7 @@ namespace zero.sync
                     {
                         var tokens = line.Split(' ');
                         if (tokens.Length > 1)
-                            total = int.Parse(tokens[1]);
+                            int.TryParse(tokens[1], out total);
 
                         Bootstrap(out tasks, total);
                     }

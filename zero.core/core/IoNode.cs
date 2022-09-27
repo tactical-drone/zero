@@ -32,6 +32,15 @@ namespace zero.core.core
             _preFetch = prefetch;
             _logger = LogManager.GetCurrentClassLogger();
             NeighborTasks = new ConcurrentDictionary<string, Task>(concurrencyLevel, new KeyValuePair<string, Task>[]{}, null!);
+
+            //start the listener
+            //_netServer = IoNetServer<TJob>.GetKindFromUrl(_address, _preFetch, ZeroConcurrencyLevel);
+
+            //IoZeroScheduler.Zero.LoadAsyncContext(static async @this =>
+            //{
+            //    await ((IoNode<TJob>)@this)._netServer.ZeroHiveAsync((IoNode<TJob>)@this).FastPath();
+            //},this);
+            
         }
 
         /// <summary>
@@ -181,18 +190,10 @@ namespace zero.core.core
         /// </summary>
         protected virtual async ValueTask BlockOnListenerAsync<T,TBoot>(Func<IoNeighbor<TJob>, T, ValueTask<bool>> handshake = null, T context = default, Func<TBoot, ValueTask> bootFunc = null, TBoot bootData = default)
         {
-            //clear previous attempts
-            if (_netServer != null)
-            {
-                await _netServer.DisposeAsync(this, "Recycled").FastPath();
-                _netServer = null;
-                return;
-            }
-
 #if DEBUG
             _logger.Trace($"Starting lisener, {Description}");
 #endif
-            //start the listener
+            ////start the listener
             _netServer = IoNetServer<TJob>.GetKindFromUrl(_address, _preFetch, ZeroConcurrencyLevel);
             await _netServer.ZeroHiveAsync(this).FastPath();
 
@@ -243,12 +244,9 @@ namespace zero.core.core
                                 {
                                     try
                                     {
-                                        if (!existingNeighbor.Zeroed() &&
-                                            !existingNeighbor.Source.IsOperational() &&
-                                            existingNeighbor.UpTime.ElapsedUtcMsToSec() >
-                                            @this.parm_zombie_connect_time_threshold_s)
+                                        if (existingNeighbor.Zeroed() || !existingNeighbor.Source.IsOperational())
                                         {
-                                            var errMsg = $"{nameof(BlockOnListenerAsync)}: Connection {newNeighbor.Key} [REPLACED], existing {existingNeighbor.Key} with uptime {existingNeighbor.UpTime.ElapsedUtcMs()}ms [DC]";
+                                            var errMsg = $"{nameof(BlockOnListenerAsync)}: Connection {newNeighbor.Key} [REPLACED], uptime = {existingNeighbor.UpTime.ElapsedUtcMs()}ms";
                                             @this._logger.Warn(errMsg);
 
                                             //We remove the key here or async race conditions with the listener...
@@ -398,21 +396,12 @@ namespace zero.core.core
             await ZeroAsync(static async state =>
             {
                 var (@this, bootFunc, bootData) = state;
-                var retry = 3;
+                
                 if (Interlocked.CompareExchange(ref @this._activated, 1, 0) != 0)
                     return;
 
-                while (!@this.Zeroed() && retry-- > 0)
-                {
-                    await @this.BlockOnListenerAsync<object,TBoot>(bootFunc: bootFunc, bootData: bootData).FastPath();
-                    if (!@this.Zeroed())
-                        @this._logger.Warn($"Listener restart {retry}...; {@this.Description}");
-                    else
-                        await @this.DisposeAsync(@this, "clean exit").FastPath();
-                }
-
-                @this._logger.Trace($"unimatrix zero: {@this.Description}");
-
+                await @this.BlockOnListenerAsync<object,TBoot>(bootFunc: bootFunc, bootData: bootData).FastPath();
+                
                 Interlocked.Exchange(ref @this._activated, 0);
             },(this, bootFunc, bootData), TaskCreationOptions.DenyChildAttach, customScheduler??IoZeroScheduler.ZeroDefault, true).FastPath();
         }

@@ -214,6 +214,23 @@ namespace zero.core.patterns.misc
             if (_disposedAsync > 0 || Interlocked.CompareExchange(ref _disposedAsync, 1, 0) != 0)
                 return;
 
+            TearDownTime = Environment.TickCount;
+
+            try
+            {
+                await ZeroManagedAsync().FastPath();
+            }
+#if DEBUG
+            catch (Exception e) when (!Zeroed())
+            {
+
+                _logger.Error(e, $"[{this}] {nameof(ZeroManagedAsync)} returned with errors!");
+            }
+#else
+                catch when (Zeroed()){}
+#endif
+
+            TearDownTime = TearDownTime.ElapsedMs();
             CascadeTime = Environment.TickCount;
             var desc = Description;
 
@@ -237,23 +254,7 @@ namespace zero.core.patterns.misc
             }
 
             CascadeTime = CascadeTime.ElapsedMs();
-            TearDownTime = Environment.TickCount;
-
-            try
-            {
-                await ZeroManagedAsync().FastPath();
-            }
-#if DEBUG
-            catch (Exception e) when (!Zeroed())
-            {
-
-                _logger.Error(e, $"[{this}] {nameof(ZeroManagedAsync)} returned with errors!");
-            }
-#else
-                catch when (Zeroed()){}
-#endif
-
-            TearDownTime = TearDownTime.ElapsedMs();
+            
 
 #if DEBUG
             try

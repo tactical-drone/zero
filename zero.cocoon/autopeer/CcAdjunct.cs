@@ -56,7 +56,7 @@ namespace zero.cocoon.autopeer
                     $"{((CcAdjunct)ioZero)?.Source.Key}",
                     // ReSharper disable once PossibleInvalidCastException
                     ((CcAdjunct)ioZero)?.Source, groupByEp: false),
-                extraData == null, concurrencyLevel:ioNetClient.ZeroConcurrencyLevel
+                extraData == null, false, concurrencyLevel:ioNetClient.ZeroConcurrencyLevel
             )
         {
             //parm_io_batch_size = CcCollective.parm_max_adjunct * 2;
@@ -770,11 +770,11 @@ namespace zero.cocoon.autopeer
                     if (!await ProbeAsync("SYN-PAT").FastPath())
                     {
                         if (!Zeroed())
-                            _logger.Error($"-/> {nameof(ProbeAsync)}: PAT Send [FAILED], {Description}, {MetaDesc}");
+                            _logger.Error($"-/> {nameof(ProbeAsync)}: SYN-PAT [FAILED], {Description}, {MetaDesc}");
                     }
 #if DEBUG
                     else 
-                        _logger.Trace($"-/> {nameof(ProbeAsync)}: PAT Send [SUCCESS], {Description}, {MetaDesc}");
+                        _logger.Trace($"-/> {nameof(ProbeAsync)}: SYN-PAT [SUCCESS], {Description}");
 #endif
                 }
 
@@ -1406,7 +1406,7 @@ namespace zero.cocoon.autopeer
                         
                         },this, TaskCreationOptions.DenyChildAttach).FastPath();
 
-                    await AsyncTasks.Token.BlockOnNotCanceledAsync().FastPath();
+                    await AsyncTasks.BlockOnNotCanceledAsync().FastPath();
                 }
                 while (!Zeroed());  
             }
@@ -2236,8 +2236,8 @@ namespace zero.cocoon.autopeer
                     {
 #if DEBUG
                         _logger.Trace(IsDroneConnected
-                            ? $"<\\- {nameof(CcProbeResponse)}({sent})[{payload[..payload.Length].PayloadSig()} ~ {response.ReqHash.Memory.HashSig()}]: Sent {sent} bytes, [[SYN-ACK-KA]], {Description}"
-                            : $"<\\- {nameof(CcProbeResponse)}({sent})[{payload[..payload.Length].PayloadSig()} ~ {response.ReqHash.Memory.HashSig()}]: Sent {sent} bytes, [[SYN-ACK]], {Description}");
+                            ? $"-/> {nameof(CcProbeResponse)}({sent})[{payload[..payload.Length].PayloadSig()} ~ {response.ReqHash.Memory.HashSig()}]: Sent {sent} bytes, [[SYN-ACK-KA]], {Description}"
+                            : $"-/> {nameof(CcProbeResponse)}({sent})[{payload[..payload.Length].PayloadSig()} ~ {response.ReqHash.Memory.HashSig()}]: Sent {sent} bytes, [[SYN-ACK]], {Description}");
 #endif
 
                         ////ensure ingress delta trigger

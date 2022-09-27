@@ -85,7 +85,7 @@ namespace zero.core.network.ip
         /// </summary>
         [IoParameter]
         // ReSharper disable once InconsistentNaming
-        protected int parm_connection_timeout = 10000;
+        protected int parm_connection_timeout = 2000;
 
         /// <summary>
         /// Listens for new connections
@@ -132,31 +132,18 @@ namespace zero.core.network.ip
                 connected = await ioNetClient!.ConnectAsync(remoteAddress, timeout).FastPath();
                 if (connected && ioNetClient.IsOperational())
                 {
-                    //Check things
-
-                    //Ensure ownership
-                    //if (!await ZeroAtomicAsync(static async (s,client,_) => (await s.ZeroHiveAsync(client).FastPath().ConfigureAwait(ZC)).success,ioNetClient).FastPath().ConfigureAwait(ZC))
-                    //{
-                    //    _logger.Trace($"{nameof(ConnectAsync)}: [FAILED], unable to ensure ownership!");
-                    //    //REJECT
-                    //    connected = false;
-                    //}
-
                     if (!(await ZeroHiveAsync(ioNetClient).FastPath()).success)
                     {
                         _logger.Trace($"{Description}: {nameof(ConnectAsync)} [FAILED], unable to ensure ownership!");
-                        //REJECT
                         connected = false;
                     }
 
                     _logger.Trace(
                         $"{Description}: {nameof(ConnectAsync)} [SUCCESS], dest = {ioNetClient.IoNetSocket.RemoteNodeAddress}");
-                    //ACCEPT
                 }
                 else // On connection failure after successful connect?
                 {
                     _logger.Trace($"{Description}: {nameof(ConnectAsync)} [STALE], {remoteAddress}");
-                    //REJECT
                     connected = false;
                 }
             }
