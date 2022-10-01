@@ -111,6 +111,7 @@ namespace zero.cocoon.identity
             return MemoryMarshal.Read<int>(PublicKey);
         }
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public override string ToString()
         {
             return IdString();

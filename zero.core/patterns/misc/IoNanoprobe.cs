@@ -31,7 +31,7 @@ namespace zero.core.patterns.misc
         /// </summary>
         static IoNanoprobe()
         {
-            Volatile.Write(ref ZeroRoot, ZeroSyncRoot(short.MaxValue>>1, new CancellationTokenSource()));
+            Volatile.Write(ref ZeroRoot, ZeroSyncRoot(short.MaxValue>>3, new CancellationTokenSource()));
             _logger = LogManager.GetCurrentClassLogger();
         }
 

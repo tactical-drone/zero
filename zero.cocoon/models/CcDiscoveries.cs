@@ -35,15 +35,14 @@ namespace zero.cocoon.models
 
             IoZero = (IoZero<CcProtocMessage<chroniton, CcDiscoveryBatch>>)context;
             
-            var pf = Source.PrefetchSize * 3;
-            var cc = Source.ZeroConcurrencyLevel * 3; 
+            var pf = Source.PrefetchSize * 2;
+            var cc = Source.ZeroConcurrencyLevel * 2; 
 
             if (!Source.Proxy && Adjunct.CcCollective.ZeroDrone)
             {
                 parm_max_msg_batch_size *= 2;
-                
-                pf = 2;
-                cc = 1;
+                pf = Source.PrefetchSize * 3;
+                cc = Source.ZeroConcurrencyLevel * 3;
             }
 
 #if DEBUG
@@ -72,12 +71,9 @@ namespace zero.cocoon.models
             if (ProtocolConduit == null)
             {
                 //TODO tuning
-                var channelSource = new CcProtocBatchSource<chroniton, CcDiscoveryBatch>(Description, MessageService, pf, cc);
-                ProtocolConduit = await MessageService.CreateConduitOnceAsync(
-                    conduitId,
-                    channelSource,
-                    static (ioZero, _) => new CcProtocBatchJob<chroniton, CcDiscoveryBatch>(
-                        (IoSource<CcProtocBatchJob<chroniton, CcDiscoveryBatch>>)((IIoConduit)ioZero).UpstreamSource, ((IIoConduit)ioZero).ZeroConcurrencyLevel), cc).FastPath();
+                var source = new CcProtocBatchSource<chroniton, CcDiscoveryBatch>(Description, MessageService, pf, cc);
+                ProtocolConduit = await MessageService.CreateConduitOnceAsync(conduitId, source,static (ioZero, _) => 
+                    new CcProtocBatchJob<chroniton, CcDiscoveryBatch>((IoSource<CcProtocBatchJob<chroniton, CcDiscoveryBatch>>)((IIoZero)ioZero).IoSource, ((IIoZero)ioZero).ZeroConcurrencyLevel), cc).FastPath();
             }
 
             return this;
@@ -126,15 +122,15 @@ namespace zero.cocoon.models
         /// </summary>
         public enum MessageTypes
         {
-            Undefined = 0,
-            Handshake = 1,
-            Probe = 10,
-            Probed = 11,
-            Scan = 12,
-            Adjuncts = 13,
-            Fuse = 20,
-            Fused = 21,
-            Defuse = 22
+            Undefined       = 0,
+            Handshake       = 1,
+            Probe           = 2,
+            ProbeResponse   = 3,
+            Scan            = 4,
+            ScanResponse    = 5,
+            Fuse            = 6,
+            FuseResponse    = 7,
+            Defuse          = 8
         }
 
         /// <summary>
@@ -191,7 +187,7 @@ namespace zero.cocoon.models
 
             if (connReset)
             {
-                await ZeroBatchRequestAsync(null, chroniton.Parser).FastPath();
+                ZeroBatchRequest(null, chroniton.Parser);
                 await SetStateAsync(IoJobMeta.JobState.Consumed);
             }
 
@@ -295,7 +291,7 @@ namespace zero.cocoon.models
                     var verified = CcDesignation.Verify(packetMsgRaw, 0, packetMsgRaw.Length, packet.PublicKey.Memory.AsArray(), 0, packet.Signature.Memory.AsArray(), 0);
                     
                     var messageType = Enum.GetName(typeof(MessageTypes), packet.Type);
-#if DEBUG
+#if TRACE
                     _logger.Trace($"<\\= {messageType ?? "Unknown"} [{RemoteEndPoint.GetEndpoint()} ~> {MessageService.IoNetSocket.LocalNodeAddress}], ({CcCollective.CcId.IdString()})<<[{(verified ? "signed" : "un-signed")}]{packet.Data.Memory.PayloadSig()}: <{MessageService.Description}> id = {Id}, r = {BytesRead}");
 #endif
 
@@ -309,25 +305,25 @@ namespace zero.cocoon.models
                     switch ((MessageTypes)packet.Type)
                     {
                         case MessageTypes.Probe:
-                            await ZeroBatchRequestAsync(packet, CcProbeMessage.Parser).FastPath();
+                            ZeroBatchRequest(packet, CcProbeMessage.Parser);
                             break;
-                        case MessageTypes.Probed:
-                            await ZeroBatchRequestAsync(packet, CcProbeResponse.Parser).FastPath();
+                        case MessageTypes.ProbeResponse:
+                            ZeroBatchRequest(packet, CcProbeResponse.Parser);
                             break;
                         case MessageTypes.Scan:
-                            await ZeroBatchRequestAsync(packet, CcScanRequest.Parser).FastPath();
+                            ZeroBatchRequest(packet, CcScanRequest.Parser);
                             break;
-                        case MessageTypes.Adjuncts:
-                            await ZeroBatchRequestAsync(packet, CcAdjunctResponse.Parser).FastPath();
+                        case MessageTypes.ScanResponse:
+                            ZeroBatchRequest(packet, CcAdjunctResponse.Parser);
                             break;
                         case MessageTypes.Fuse:
-                            await ZeroBatchRequestAsync(packet, CcFuseRequest.Parser).FastPath();
+                            ZeroBatchRequest(packet, CcFuseRequest.Parser);
                             break;
-                        case MessageTypes.Fused:
-                            await ZeroBatchRequestAsync(packet, CcFuseResponse.Parser).FastPath();
+                        case MessageTypes.FuseResponse:
+                            ZeroBatchRequest(packet, CcFuseResponse.Parser);
                             break;
                         case MessageTypes.Defuse:
-                            await ZeroBatchRequestAsync(packet, CcDefuseRequest.Parser).FastPath();
+                            ZeroBatchRequest(packet, CcDefuseRequest.Parser);
                             break;
                         default:
                             _logger.Debug($"Unknown auto peer msg type = {packet.Type}");
@@ -340,8 +336,9 @@ namespace zero.cocoon.models
                 //TODO tuning
                 if (_currentBatch.Count > _batchHeap.Capacity * 3 / 2)
                     _logger.Warn($"{nameof(_batchHeap)} running lean {_currentBatch.Count}/{_batchHeap.Capacity}, {_batchHeap}, {_batchHeap.Description}");
+
                 //Release a waiter
-                await ZeroBatchAsync().FastPath();
+                ZeroBatch();
             }
             catch when(Zeroed()){await SetStateAsync(IoJobMeta.JobState.ConsumeErr).FastPath();}
             catch (Exception e) when (!Zeroed())
@@ -401,7 +398,7 @@ namespace zero.cocoon.models
         /// <param name="messageParser"></param>
         /// <typeparam name="T">The expected type</typeparam>
         /// <returns>The task</returns>
-        private async ValueTask ZeroBatchRequestAsync<T>(chroniton packet, MessageParser<T> messageParser)
+        private void ZeroBatchRequest<T>(chroniton packet, MessageParser<T> messageParser)
             where T : IMessage<T>, IMessage, new()
         {
             if (packet == null)
@@ -461,10 +458,7 @@ namespace zero.cocoon.models
                     }
 
                     if (_currentBatch.Count >= parm_max_msg_batch_size)
-                    {
-                        await ZeroBatchAsync().FastPath();
-                    }
-
+                        ZeroBatch();
                 }
             }
             catch when(Zeroed()){}
@@ -478,57 +472,40 @@ namespace zero.cocoon.models
         /// Forwards a batch of messages
         /// </summary>
         /// <returns>Task</returns>
-        private async ValueTask ZeroBatchAsync()
+        private void ZeroBatch()
         {
             try
             {
                 if (_currentBatch.Count == 0 || Zeroed())
                     return;
 
-                //cog the producer
-                if (!await ProtocolConduit.UpstreamSource.ProduceAsync<object>(static (source, _, _, ioJob) =>
-                    {
-                        var @this = (CcDiscoveries)ioJob;
-
-                        try
-                        {
-                            var chan = ((CcProtocBatchSource<chroniton, CcDiscoveryBatch>)source).Channel;
-#if TRACE
-                            _logger.Fatal($"{nameof(ZeroBatchAsync)}: -1-> to batch; id = {ioJob.Id}, r = {chan.ReadyCount}, w = {chan.WaitCount}");
-#endif
-                            if (source == null || chan.Release(@this._currentBatch, forceAsync: true) != 1)
-                            {
-                                if (source != null && !((CcProtocBatchSource<chroniton, CcDiscoveryBatch>)source).Zeroed())
-                                {
-                                    _logger.Fatal($"{nameof(ZeroBatchAsync)}: Unable to q batch,{chan.Description} {@this.Description}");
-                                }
-                                return new ValueTask<bool>(false);
-                            }
-#if TRACE
-                            else
-                            {
-                                _logger.Fatal($"{nameof(ZeroBatchAsync)}: -2-> to batch; id = {ioJob.Id}, r = {chan.ReadyCount}, w = {chan.WaitCount}");
-                            }
-#endif
-                            @this._currentBatch = @this._batchHeap.Take();
-                            if (@this._currentBatch == null)
-                                throw new OutOfMemoryException($"{@this.Description}: {nameof(@this._batchHeap)}, c = {@this._batchHeap.Count}/{@this._batchHeap.Capacity}, ref = {@this._batchHeap.ReferenceCount}");
-
-                            @this._currentBatch.Count = 0;
-
-                            return new ValueTask<bool>(true);
-                        }
-                        catch (Exception) when (@this.Zeroed() ) { }
-                        catch (Exception e) when (!@this.Zeroed() )
-                        {
-                            _logger.Error(e, $"{@this.Description} - Forward failed!");
-                        }
-
-                        return new ValueTask<bool>(false);
-                    }, this, null, default).FastPath())
+                try
                 {
-                    if(!Zeroed())
-                        _logger.Debug($"{nameof(ZeroBatchAsync)} - {Description}: Failed to produce jobs from {ProtocolConduit.Description}");
+                    var chan = ((CcProtocBatchSource<chroniton, CcDiscoveryBatch>)ProtocolConduit.Source).Channel;
+#if TRACE
+                    _logger.Fatal($"{nameof(ZeroBatch)}: -1-> to batch; id = {ioJob.Id}, r = {chan.ReadyCount}, w = {chan.WaitCount}");
+#endif
+                    if (chan.Release(_currentBatch, forceAsync: true) != 1)
+                    {
+                        _logger.Fatal($"{nameof(ZeroBatch)}: Unable to q batch,{chan.Description} {Description}");
+                        return;
+                    }
+#if TRACE
+                    else
+                    {
+                        _logger.Fatal($"{nameof(ZeroBatch)}: -2-> to batch; id = {ioJob.Id}, r = {chan.ReadyCount}, w = {chan.WaitCount}");
+                    }
+#endif
+                    _currentBatch = _batchHeap.Take();
+                    if (_currentBatch == null)
+                        throw new OutOfMemoryException($"{Description}: {nameof(_batchHeap)}, c = {_batchHeap.Count}/{_batchHeap.Capacity}, ref = {_batchHeap.ReferenceCount}");
+
+                    _currentBatch.Count = 0;
+                }
+                catch (Exception) when (Zeroed()) { }
+                catch (Exception e) when (!Zeroed())
+                {
+                    _logger.Error(e, $"{Description} - Forward failed!");
                 }
             }
             catch when(Zeroed() || ProtocolConduit?.UpstreamSource == null) {}

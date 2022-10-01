@@ -353,25 +353,24 @@ namespace zero.core.patterns.bushings
             if (channelSource != null && !IoConduits.ContainsKey(id))
             {
                 //var locker = UpstreamSource ?? this;
-                if (!await ZeroAtomicAsync(static (_, @params, _) =>
+                if (!await ZeroAtomicAsync(static (_, @params, _) => 
                     {
-                        
                         var (@this, id, channelSource, jobMalloc, concurrencyLevel) = @params;
 
                         if (@this.IoConduits.ContainsKey(id))
                             return new ValueTask<bool>(true);
 
-                        var newConduit = new IoConduit<TFJob>($"`conduit({id}>{channelSource.UpstreamSource.Description} ~> {channelSource.Description}", channelSource, jobMalloc, concurrencyLevel);
+                        var newConduit = new IoConduit<TFJob>($"`conduit({id}>{channelSource.UpstreamSource.Description} ~> {channelSource.Description}", @this, channelSource, jobMalloc);
                         if (!@this.IoConduits.TryAdd(id, newConduit))
                             // ReSharper disable once MethodHasAsyncOverload
                             newConduit.Dispose();
-#if DEBUG
+#if TRACE
                         else
                             @this._logger.Debug($"Added {nameof(IoConduit<TJob>)}: {id}; {@this.Description}");
 #endif
 
                         return new ValueTask<bool>(true);
-                }, ValueTuple.Create(this, id,channelSource, jobMalloc, concurrencyLevel)).FastPath())
+                    }, ValueTuple.Create(this, id,channelSource, jobMalloc, concurrencyLevel)).FastPath())
                 {
                     if (!Zeroed())
                     {

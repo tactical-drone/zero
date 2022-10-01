@@ -131,8 +131,8 @@ namespace zero.cocoon
             if (_autoPeering != null)
                 await _autoPeering.DisposeAsync(this, "RESTART!").FastPath();
 
-            _autoPeering = new CcHub(this, _peerAddress, static (node, client, extraData) => new CcAdjunct((CcHub)node, client, extraData), udpPrefetch, udpConcurrencyLevel);
-
+            Interlocked.Exchange(ref _autoPeering, new CcHub(this, _peerAddress, static (node, client, extraData) => new CcAdjunct((CcHub)node, client, extraData), udpPrefetch, udpConcurrencyLevel));
+            
             await _autoPeering.ZeroSubAsync(static async (_, state) =>
             {
                 var (@this, udpPrefetch, udpConcurrencyLevel) = (ValueTuple<CcCollective, int, int>)state;
@@ -188,17 +188,14 @@ namespace zero.cocoon
         /// <returns></returns>
         private static async ValueTask RoboAsync(CcCollective @this)
         {
-            var r = new IoTimer(TimeSpan.FromMilliseconds(@this._random.Next(@this.parm_mean_pat_delay_s * 1000) + @this.parm_mean_pat_delay_s * 1000 / 2), @this.AsyncTasks.Token);
-            var rLow = new IoTimer(TimeSpan.FromMilliseconds(@this._random.Next(@this.parm_mean_pat_delay_s/3 * 1000) + @this.parm_mean_pat_delay_s/3 * 1000 / 2), @this.AsyncTasks.Token);
             while (!@this.Zeroed())
             {
                 try
                 {
                     var ts = Environment.TickCount;
-                    if(@this.TotalConnections < @this.parm_max_outbound)
-                        await rLow.TickAsync().FastPath();
-                    else
-                        await r.TickAsync().FastPath();
+                    var delay = (@this.EgressCount < @this.parm_max_outbound ? @this.parm_mean_pat_delay_s/3 : @this.parm_mean_pat_delay_s) * 1000;
+
+                    await Task.Delay(TimeSpan.FromMilliseconds(@this._random.Next(delay) + delay / 2), @this.AsyncTasks.Token);
 
                     if (@this.Zeroed())
                         break;
@@ -438,7 +435,7 @@ namespace zero.cocoon
         /// </summary>
         [IoParameter]
         // ReSharper disable once InconsistentNaming
-        public int parm_max_adjunct = 9;
+        public int parm_max_adjunct = 10;
 
         /// <summary>
         /// Protocol version
@@ -954,7 +951,7 @@ namespace zero.cocoon
 
         //private Poisson _poisson = new(_lambda, new Random(DateTimeOffset.Now.Ticks.GetHashCode() * DateTimeOffset.Now.Ticks.GetHashCode()));
 
-        private volatile bool _zeroDrone;
+        private readonly bool _zeroDrone;
         public bool ZeroDrone => _zeroDrone;
 
         /// <summary>
@@ -1000,8 +997,6 @@ namespace zero.cocoon
             return false;
         }
 
-        private const int ScanSets = 3;
-        private volatile int _scanSet = 0;
         private readonly int _udpPrefetch;
         private readonly int _udpConcurrencyLevel;
 
@@ -1027,12 +1022,7 @@ namespace zero.cocoon
                     if (!await adjunct.ScanAsync().FastPath())
                     {
                         if (adjunct.Zeroed())
-                            await adjunct.DisposeAsync(this, $"Zombie on scan! {adjunct.Description}");
-                        else
-                        {
-                            if (!Zeroed())
-                                _logger.Trace($"{nameof(adjunct.ScanAsync)}: Unable to probe adjuncts; state = {adjunct.State}, in = {adjunct.FuseCount}, out = {adjunct.OpenSlots}, age = {adjunct.ScanAge.ElapsedMs()}ms, tries = {adjunct.ScanCount}, Seduced = {adjunct.LastSeduced}ms,  {Description}");
-                        }
+                            await adjunct.DisposeAsync(this, "Zombie on scan!");
                     }
                     else
                     {
@@ -1042,9 +1032,8 @@ namespace zero.cocoon
                     await Task.Delay(((CcAdjunct)vector).parm_max_network_latency_ms>>1, AsyncTasks.Token);
                 }
 
-                if(foundVector && Interlocked.Decrement(ref _scanSet) > 0)
+                if(foundVector)
                     return;
-                _scanSet = ScanSets;
 
                 if (BootstrapAddress != null)
                 {

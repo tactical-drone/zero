@@ -57,11 +57,12 @@ namespace zero.core.feat.patterns.time
 
         public IoTimer(TimeSpan timeout, CancellationToken token = default)
         {
-            _signal = new IoZeroResetValueTaskSource<int>();
+            _signal = new IoZeroResetValueTaskSource<int>(true);
             IoTimer._make(timeout, _signal, token);
         }
 
         public ValueTask<int> TickAsync() => new(_signal, 0);
+        
 
         public void Reset() => _signal.Reset();
         

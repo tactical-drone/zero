@@ -25,7 +25,6 @@ namespace zero.cocoon.events.services
         public static int Port { get; set; }
 
         private const int EventBatchSize = 4096;
-        private const int TotalBatches = 10;
         private readonly ILogger<AutoPeeringEventService> _logger;
         public static IoZeroQ<AutoPeerEvent>[] QueuedEvents =
         {
@@ -246,12 +245,21 @@ namespace zero.cocoon.events.services
 
                                     if (isZero)
                                     {
-                                        output = output.Replace(" INFO [", " <color=#ffffffff><b>INFO</b></color> [");
-                                        output = output.Replace(" DEBUG [", " <color=#00ffffff><b>DEBUG</b></color> [");
-                                        output = output.Replace(" ERROR [", " <color=#ffff00ff><b>ERROR</b></color> [");
-                                        output = output.Replace(" WARN [", " <color=#ff00ffff><b>WARN</b></color> [");
-                                        output = output.Replace(" FATAL [", " <color=#ff0000ff><b>FATAL</b></color> [");
-                                        output = output.Replace(" TRACE [", " <color=#ffa500ff><b>TRACE</b></color> [");
+                                        //output = output.Replace(" INFO [", " <color=#ffffffff><b>INFO</b></color> [");
+                                        //output = output.Replace(" DEBUG [", " <color=#00ffffff><b>DEBUG</b></color> [");
+                                        //output = output.Replace(" ERROR [", " <color=#ffff00ff><b>ERROR</b></color> [");
+                                        //output = output.Replace(" WARN [", " <color=#ff00ffff><b>WARN</b></color> [");
+                                        //output = output.Replace(" FATAL [", " <color=#ff0000ff><b>FATAL</b></color> [");
+                                        //output = output.Replace(" TRACE [", " <color=#ffa500ff><b>TRACE</b></color> [");
+
+                                        output = output.Replace(" INFO [", " <color=#ffffffff><b>INFO</b> [");
+                                        output = output.Replace(" DEBUG [", " <color=#00ffffff><b>DEBUG</b> [");
+                                        output = output.Replace(" ERROR [", " <color=#ffff00ff><b>ERROR</b> [");
+                                        output = output.Replace(" WARN [", " <color=#ff00ffff><b>WARN</b> [");
+                                        output = output.Replace(" FATAL [", " <color=#ff0000ff><b>FATAL</b> [");
+                                        output = output.Replace(" TRACE [", " <color=#ffa500ff><b>TRACE</b> [");
+                                        output = output.Replace("\n", "</color>\n");
+
                                         Interlocked.MemoryBarrier();
                                     }
 

@@ -144,17 +144,19 @@ namespace zero.sync
                     remotePort.Take(count).Select(p => $"udp://127.0.0.1:{p}").ToList(), false));
 
                 Console.WriteLine($"starting udp://127.0.0.1:{localPort} -> {string.Join(", ", remotePort.Take(count).Select(port => $"udp://127.0.0.1:{port}"))}");
-
+                return;
             }
 
             portOffset += 2;
             for (var i = 0; i < total; i++)
             {
                 var range = 20;
-                var o1 = Random.Shared.Next(portOffset + Math.Max(0, i - range), portOffset + i);
-                var o2 = Random.Shared.Next(portOffset + Math.Max(0, i - range), portOffset + i);
-                var o3 = Random.Shared.Next(portOffset + Math.Max(0, i - range), portOffset + i);
-                var o4 = Random.Shared.Next(portOffset + Math.Max(0, i - range), portOffset + i);
+
+                var o1 = Random.Shared.Next(portOffset, portOffset + range);
+                var o2 = Random.Shared.Next(portOffset, portOffset + range);
+                var o3 = Random.Shared.Next(portOffset, portOffset + range);
+                var o4 = Random.Shared.Next(portOffset, portOffset + range);
+
                 string extra = i == 0 ? $"udp://127.0.0.1:{1235}" : $"udp://127.0.0.1:{1234 + portOffset + i - 1}";
 
                 concurrentBag.Add(CoCoon(CcDesignation.Generate(), $"tcp://127.0.0.1:{1234 + portOffset + i}",
@@ -279,6 +281,9 @@ namespace zero.sync
 
                                 ooutBound += e;
                                 oinBound += i;
+                                if(ioCcNode.Hub == null)
+                                    continue;
+                                
                                 oavailable += ioCcNode.Hub.Neighbors.Values.Count(static n => ((CcAdjunct)n).IsProxy);
 
                                 uptime += ioCcNode.Hub.Neighbors.Values.Select(static n =>
@@ -418,16 +423,12 @@ namespace zero.sync
                             if (await p.WaitForNextTickAsync(token).FastPath())
                                 signal.SetResult(Environment.TickCount);
                             else
-                            {
                                 signal.SetException(new OperationCanceledException());
-                            }
-
                         }
-                        catch
+                        catch (Exception)
                         {
                             try
                             {
-                                signal.Reset();
                                 signal.SetException(new OperationCanceledException());
                             }
                             catch (Exception e)
@@ -558,6 +559,28 @@ namespace zero.sync
 
                         Bootstrap(out tasks, total);
                     }
+
+                    if (line.Contains("add"))
+                    {
+                        var tokens = line.Split(' ');
+                        if (tokens.Length > 1)
+                        {
+                            int.TryParse(tokens[1], out localPort);
+
+                            if (!string.IsNullOrEmpty(tokens[1]))
+                            {
+                                var l = 1;
+                                while (l < tokens.Length)
+                                {
+                                    int.TryParse(tokens[l], out remotePort[l - 1]);
+                                    l++;
+                                }
+                            }
+
+                            Bootstrap(out tasks, total, 0, localPort, remotePort);
+                        }
+                    }
+
                     if (line == "gc")
                     {
                         var pinned = GC.GetGCMemoryInfo(GCKind.Any).PinnedObjectsCount;
@@ -1646,7 +1669,7 @@ namespace zero.sync
                 IoNodeAddress.Create(fpcAddress),
                 IoNodeAddress.Create(extAddress),
                 bootStrapAddress.Select(IoNodeAddress.Create).Where(a => a.Port.ToString() != peerAddress.Split(":")[2]).ToList(),
-                3, 2, 2, 1, zeroDrone);
+                2, 2, 1, 1, zeroDrone);
 
             _nodes.Add(cocoon);
             return cocoon;

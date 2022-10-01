@@ -31,7 +31,7 @@ namespace zero.core.patterns.bushings
         /// <param name="cascadeOnSource">If the source zeroes out, so does this <see cref="IoZero{TJob}"/> instance</param>
         /// <param name="concurrencyLevel"></param>
         protected IoZero(string description, IoSource<TJob> source, Func<object, IIoNanite, IoSink<TJob>> mallocJob,
-            bool enableZeroRecovery, bool cascadeOnSource = true, int concurrencyLevel = 1) : base($"{nameof(IoSink<TJob>)}", concurrencyLevel < 0? source?.ZeroConcurrencyLevel??0 : concurrencyLevel)
+            bool enableZeroRecovery, bool cascadeOnSource = true, int concurrencyLevel = 0) : base($"{nameof(IoSink<TJob>)}", concurrencyLevel <= 0? source?.ZeroConcurrencyLevel?? 1 : concurrencyLevel)
         {
             _logger = LogManager.GetCurrentClassLogger();
 

@@ -23,7 +23,7 @@
 	<ItemGroup>
 		<PackageReference Include="JUnitTestLogger" Version="1.1.0" />
 		<PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.4.0-preview-20220726-02" />
-		<PackageReference Include="System.Diagnostics.PerformanceCounter" Version="8.0.0-alpha.1.22472.5" />
+		<PackageReference Include="System.Diagnostics.PerformanceCounter" Version="8.0.0-alpha.1.22479.9" />
 		<PackageReference Include="coverlet.collector" Version="3.1.2">
 			<IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
 			<PrivateAssets>all</PrivateAssets>

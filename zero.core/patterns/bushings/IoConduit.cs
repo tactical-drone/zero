@@ -17,17 +17,17 @@ namespace zero.core.patterns.bushings
         /// Initializes a new instance of the <see cref="IoConduit{TJob}"/> class.
         /// </summary>
         /// <param name="description">A description of the channel destination</param>
+        /// <param name="upstream">Upstream source</param>
         /// <param name="source">The source of the work to be done</param>
         /// <param name="mallocJob">A callback to malloc individual consumer jobs from the heap</param>
-        /// <param name="concurrencyLevel">Concurrency Level</param>
-        public IoConduit(string description, IoSource<TJob> source, Func<object, IIoNanite, IoSink<TJob>> mallocJob, int concurrencyLevel = 1) : base(description, source, mallocJob, false, false, concurrencyLevel)
+        public IoConduit(string description, IIoSource upstream, IoSource<TJob> source, Func<object, IIoNanite, IoSink<TJob>> mallocJob) : base(description, source, mallocJob, false, false)
         {
-            
+            UpstreamSource = upstream;
         }
 
         /// <summary>
         /// Upstream source
         /// </summary>
-        public IIoSource UpstreamSource => IoSource;
+        public IIoSource UpstreamSource { get; }
     }
 }

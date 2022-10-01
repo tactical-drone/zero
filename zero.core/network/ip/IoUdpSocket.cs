@@ -1,11 +1,9 @@
 ﻿using System;
 using System.ComponentModel;
-using System.Linq;
 using System.Net;
 using System.Net.Sockets;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
-using System.Threading;
 using System.Threading.Tasks;
 using NLog;
 using zero.core.conf;
@@ -363,8 +361,7 @@ namespace zero.core.network.ip
             }
             finally
             {
-                if (args != default)
-                    _argsHeap.Return(args);
+                _argsHeap?.Return(args);
             }
 
             return 0;
@@ -404,7 +401,11 @@ namespace zero.core.network.ip
             }
         }
 
+#if TEST_FAIL_LISTEN
         private static int _failOne;
+#endif
+
+
         /// <summary>
         /// Read from the socket
         /// </summary>
@@ -471,11 +472,13 @@ namespace zero.core.network.ip
                     {
                         _argsHeap?.Return(args);
 
+#if TEST_FAIL_LISTEN
                         if (Interlocked.CompareExchange(ref _failOne, 1, 0) == 0)
                         {
-                            //await DisposeAsync(this, "test").FastPath();
+                            await DisposeAsync(this, "test").FastPath();
                             //AsyncTasks.Cancel(false);
                         }
+#endif
                     }
 
                     return 0;
