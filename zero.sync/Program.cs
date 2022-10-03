@@ -551,6 +551,12 @@ namespace zero.sync
             {
                 try
                 {
+                    if (line.StartsWith("pid"))
+                    {
+                        Console.Write($"pid = {Environment.ProcessId}\n");
+                    }
+
+
                     if (line.Contains("boot"))
                     {
                         var tokens = line.Split(' ');
@@ -845,14 +851,15 @@ namespace zero.sync
                     {
                         Console.WriteLine("\n               -- ZERO CORE TEST SUITE --\n");
                         Console.WriteLine("test usage:\n");
-                        Console.WriteLine("boot <n>       - boot a new cluster with 'n' nodes");
-                        Console.WriteLine("loadTest       - start cluster Lamport timestamp test (preferred after cluster bootstrap is complete or near 100%)");
-                        Console.WriteLine("zero           - destroys the current cluster");
-                        Console.WriteLine("log [level]    - set log level to 'info', 'debug', 'trace'");
-                        Console.WriteLine("gc             - Force a full generation garbage collect");
-                        Console.WriteLine("L              - Display zero scheduler stats");
-                        Console.WriteLine("t              - Display runtime scheduler stats");
-                        Console.WriteLine("quit           - quit");
+                        Console.WriteLine("boot <n>            - boot a new cluster with 'n' nodes");
+                        Console.WriteLine("add local [remotes] - Add a new node at local port that boostraps from a list of remote ports all on 127.0.0.1");
+                        Console.WriteLine("loadTest            - start cluster Lamport timestamp test (preferred after cluster bootstrap is complete or near 100%)");
+                        Console.WriteLine("zero                - destroys the current cluster");
+                        Console.WriteLine("log [level]         - set log level to 'info', 'debug', 'trace'");
+                        Console.WriteLine("gc                  - Force a full generation garbage collect");
+                        Console.WriteLine("L                   - Display zero scheduler stats");
+                        Console.WriteLine("t                   - Display runtime scheduler stats");
+                        Console.WriteLine("quit                - quit");
                     }
                 }
                 catch (Exception e)

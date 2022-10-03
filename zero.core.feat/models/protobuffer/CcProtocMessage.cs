@@ -111,6 +111,7 @@ namespace zero.core.feat.models.protobuffer
         /// Produce a Message
         /// </summary>
         /// <typeparam name="T"></typeparam>
+        /// <param name="barrier">The barrier that synchronizes with the consumer of the messages produced</param>
         /// <param name="ioZero">The worker</param>
         /// <returns></returns>
         public override async ValueTask<IoJobMeta.JobState> ProduceAsync<T>(IIoSource.IoZeroCongestion<T> barrier, T ioZero)

@@ -26,6 +26,23 @@ namespace zero.core.patterns.bushings
         static IoJob()
         {
             _logger = LogManager.GetCurrentClassLogger();
+
+#if DEBUG
+            _stateHeap = new($"{nameof(IoJob<TJob>)}.{nameof(_stateHeap)}:", short.MaxValue, static (_, _) => new IoStateTransition<IoJobMeta.JobState>() { FinalState = IoJobMeta.JobState.Halted })
+            {
+                PopAction = (nextState, context) =>
+                {
+                    var (prevState, newStateId) = (ValueTuple<IoStateTransition<IoJobMeta.JobState>, int>)context;
+                    nextState.ExitTime = nextState.EnterTime = Environment.TickCount;
+
+                    nextState.Next = null;
+                    nextState.Prev = prevState;
+                    if (nextState.Prev != null)
+                        nextState.Prev.Next = nextState;
+                    nextState.Set(newStateId);
+                }
+            };
+#endif
         }
 
         /// <summary>
@@ -45,20 +62,6 @@ namespace zero.core.patterns.bushings
 #if DEBUG
             _jobDesc = desc;
             StateTransitionHistory = new IoQueue<IoStateTransition<IoJobMeta.JobState>>($"{nameof(StateTransitionHistory)}: {desc}", 64, concurrencyLevel, IoQueue<IoStateTransition<IoJobMeta.JobState>>.Mode.DynamicSize);
-            _stateHeap = new($"{nameof(_stateHeap)}: {desc}", (Enum.GetNames(typeof(IoJobMeta.JobState)).Length * 2), static (_, _) => new IoStateTransition<IoJobMeta.JobState>() { FinalState = IoJobMeta.JobState.Halted })
-            {
-                PopAction = (nextState, context) =>
-                {
-                    var (prevState, newStateId) = (ValueTuple<IoStateTransition<IoJobMeta.JobState>, int>)context;
-                    nextState.ExitTime = nextState.EnterTime = Environment.TickCount;
-
-                    nextState.Next = null;
-                    nextState.Prev = prevState;
-                    if (nextState.Prev != null)
-                        nextState.Prev.Next = nextState;
-                    nextState.Set(newStateId);
-                }
-            };
 #else
             _jobDesc = string.Empty;
 #endif
@@ -156,7 +159,7 @@ namespace zero.core.patterns.bushings
 #if DEBUG
                 await StateTransitionHistory.ZeroManagedAsync(static (s, @this) =>
                 {
-                    @this._stateHeap.Return(s.Value);
+                    _stateHeap.Return(s.Value);
                     return default;
                 }, this).FastPath();
 
@@ -199,9 +202,6 @@ namespace zero.core.patterns.bushings
         public override void ZeroUnmanaged()
         {
             base.ZeroUnmanaged();
-#if DEBUG
-            _stateHeap?.ZeroUnmanaged();
-#endif
 
 #if SAFE_RELEASE
             Source = null;
@@ -225,16 +225,10 @@ namespace zero.core.patterns.bushings
 
             await StateTransitionHistory.ZeroManagedAsync(static (s, @this) =>
             {
-                @this._stateHeap.Return(s.Value);
+                _stateHeap.Return(s.Value);
                 return default;
             }, this, zero:true).FastPath();
 
-
-            await _stateHeap.ZeroManagedAsync((ioHeapItem, _) =>
-            {
-                ioHeapItem.ZeroManaged();
-                return default;
-            }, this);
 #endif
             if (PreviousJob != null)
                 await PreviousJob.DisposeAsync(this, $"{nameof(IoJob<TJob>)}: teardown").FastPath();
@@ -331,7 +325,7 @@ namespace zero.core.patterns.bushings
         /// <summary>
         /// state heap
         /// </summary>
-        private readonly IoHeap<IoStateTransition<IoJobMeta.JobState>> _stateHeap;
+        private static readonly IoHeap<IoStateTransition<IoJobMeta.JobState>> _stateHeap;
 #endif
         /// <summary>
         /// Final state
@@ -345,7 +339,7 @@ namespace zero.core.patterns.bushings
             {
 #if DEBUG
                 //Update the previous state's exit time
-                if (_stateMeta != null)
+                if (_stateMeta != null && !Zeroed())
                 {
                     var s = _stateMeta.Value;
                     if (value == IoJobMeta.JobState.Undefined && s == IoJobMeta.JobState.Consuming)
@@ -368,8 +362,11 @@ namespace zero.core.patterns.bushings
                         return value;
 
                     _stateMeta.ExitTime = Environment.TickCount;
-                    Interlocked.Increment(ref Source.Counters[(int)_stateMeta.Value]);
-                    Interlocked.Add(ref Source.ServiceTimes[(int)_stateMeta.Value], _stateMeta.Mu);
+                    if (Source != null)
+                    {
+                        Interlocked.Increment(ref Source.Counters[(int)_stateMeta.Value]);
+                        Interlocked.Add(ref Source.ServiceTimes[(int)_stateMeta.Value], _stateMeta.Mu);
+                    }
                 }
                 //else
                 //{
@@ -392,7 +389,8 @@ namespace zero.core.patterns.bushings
                 }
 
                 _stateMeta = newState;
-                await StateTransitionHistory.EnqueueAsync(_stateMeta).FastPath();
+                if(StateTransitionHistory != null)
+                    await StateTransitionHistory.EnqueueAsync(_stateMeta).FastPath();
 #else
                 _stateMeta.ExitTime = Environment.TickCount;
                 Interlocked.Increment(ref Source.Counters[(int)_stateMeta.Value]);

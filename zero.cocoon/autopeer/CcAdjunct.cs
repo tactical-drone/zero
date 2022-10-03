@@ -476,9 +476,14 @@ namespace zero.cocoon.autopeer
         private readonly ConcurrentDictionary<string, int> _v;
 
         /// <summary>
+        /// V
+        /// </summary>
+        public ConcurrentDictionary<string, int> V;
+
+        /// <summary>
         /// V flush timestamp
         /// </summary>
-        private int _vFlush;
+        private int _vFlush = Environment.TickCount;
 
         /// <summary>
         /// The adjunct services
@@ -515,7 +520,7 @@ namespace zero.cocoon.autopeer
         /// </summary>
         [IoParameter]
         // ReSharper disable once InconsistentNaming
-        public uint parm_max_v_heuristic_ms = 10000;
+        public int parm_max_v_heuristic_ms = 10000;
 
         /// <summary>
         /// Maximum number of drones in discovery response
@@ -614,13 +619,13 @@ namespace zero.cocoon.autopeer
                 try
                 {
                     //Remove from routing table
-                    if (_routed && Router is { _routingTable: { } } && Router._routingTable.TryGetValue(RemoteAddress.Key, out var currentRoute))
+                    if (_routed && Router is { _routingTable: { } } && Router._routingTable.TryGetValue(RemoteAddress.IpPort, out var currentRoute))
                     {
                         if (currentRoute == this)
                         {
-                            if (!Router._routingTable.TryRemove(RemoteAddress.Key, out _) && Verified)
+                            if (!Router._routingTable.TryRemove(RemoteAddress.IpPort, out _) && Verified)
                             {
-                                _logger.Warn($"Failed to remove route {RemoteAddress.Key}, {Description}");
+                                _logger.Warn($"Failed to remove route {RemoteAddress.IpPort}, {Description}");
 #if DEBUG
                                 foreach (var route in Router._routingTable)
                                 {
@@ -634,6 +639,8 @@ namespace zero.cocoon.autopeer
                             _logger.Trace($"ROUTER: cull failed,wanted = [{Designation?.IdString()}], got [{currentRoute.Designation.IdString()}, serial1 = {Serial} vs {currentRoute.Serial}], {Description}");
                         }
                     }
+
+                    Router.V.TryRemove(RemoteAddress.IpPort, out _);
                 }
                 catch
                 {
@@ -1159,20 +1166,23 @@ namespace zero.cocoon.autopeer
                 }
 
                 //verify pk
-                if (proxy is { IsProxy: true } &&
-                    !proxy.Designation.PublicKey.ArrayEqual(publicKey.Memory))
+                if (proxy is { IsProxy: true } && !proxy.Designation.PublicKey.ArrayEqual(publicKey.Memory))
                 {
-                    var pk1 = proxy?.Designation.IdString();
+                    var pk1 = proxy.Designation.IdString();
                     var pk2 = CcDesignation.MakeKey(publicKey);
+                    var msg = $"{nameof(Router)}: adjunct rejected; [BAD SIGNATURE or PROXY]; {proxy.RemoteAddress}/{pk1}, key = {key}/{pk2}: state = {proxy.State}, up = {proxy.UpTime.ElapsedUtcMsToSec()}s, events = {proxy.EventCount}, | {proxy.Description}";
 
-                    var msg = $"{nameof(Router)}: [BAD SIGNATURE or PROXY]; {proxy.RemoteAddress}/{pk1}, key = {key}/{pk2}: state = {proxy.State}, up = {proxy.UpTime.ElapsedUtcMsToSec()}s, events = {proxy.EventCount}, | {proxy.Description}";
-#if DEBUG
-                    _logger.Warn(msg);
-#endif
-                    if(proxy is { State: < AdjunctState.Verified })
+                    if (!proxy.IsDroneConnected || proxy is { State: < AdjunctState.Verified }) 
+                    {
+                        _logger.Fatal($"{nameof(RouteAsync)}: stale route {proxy.Description}");
                         await proxy.DisposeAsync(this, msg).FastPath();
-
-                    return Router;
+                        return await RouteAsync(srcEndPoint, publicKey, alternate).FastPath();
+                    }
+                    else
+                    {
+                        _logger.Warn(msg);
+                        return Router;
+                    }
                 }
             }
             catch when (Zeroed() || (proxy?.Zeroed() ?? false)) { }
@@ -2144,7 +2154,6 @@ namespace zero.cocoon.autopeer
 
                 if (_v.TryAdd(remoteEp.ToString(), Environment.TickCount))
                 {
-
                     //SEND SYN-ACK
                     byte[] payload;
                     if ((sent = await SendMessageAsync(payload = response.ToByteArray(),
@@ -2175,7 +2184,7 @@ namespace zero.cocoon.autopeer
                             _logger.Error($"-/> {nameof(CcProbeMessage)}: FAILED; dest = {dest}");
                     }
                 }
-                else if(_v.Count > CcCollective.parm_max_adjunct * 2 && _vFlush.ElapsedMs() > parm_max_v_heuristic_ms)
+                else if(_v.Count > CcCollective.parm_max_adjunct * 2 || _vFlush.ElapsedMs() > parm_max_v_heuristic_ms)
                 {
                     Interlocked.Exchange(ref _vFlush, Environment.TickCount);
                     foreach (var i in _v)
@@ -2184,8 +2193,19 @@ namespace zero.cocoon.autopeer
                             _v.TryRemove(i.Key, out _);
                     }
                 }
+                else
+                {
+                    IoZeroScheduler.Zero.LoadAsyncContext(static async state =>
+                    {
+                        var (@this, toAddress) = (ValueTuple<CcAdjunct, IoNodeAddress>)state;
+                        await Task.Delay(@this.parm_max_v_heuristic_ms, @this.AsyncTasks.Token);
 
-                
+                        if (!await @this.Router.ProbeAsync("SYN-DC", toAddress))
+                        {
+                            @this._logger.Trace($"-/> {nameof(CcProbeMessage)} SYN-DC failed; {toAddress}");
+                        }
+                    }, (this, toAddress));
+                }
 
                 //                if (toProxyAddress != null && CcCollective.UdpTunnelSupport && toAddress.Ip != toProxyAddress.Ip)
                 //                {
