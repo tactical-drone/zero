@@ -653,12 +653,21 @@ namespace zero.cocoon
 
                         if (!stateIsValid)
                         {
-                            if (drone.Adjunct.CurrentState.EnterTime.ElapsedMs() > parm_futile_timeout_ms)
+                            stateIsValid = drone.Adjunct.CompareAndEnterState(CcAdjunct.AdjunctState.Connecting,
+                                               CcAdjunct.AdjunctState.Verified, overrideHung: parm_futile_timeout_ms) ==
+                                           CcAdjunct.AdjunctState.Verified;
+                            if (!stateIsValid)
                             {
-                                _logger.Warn($"{nameof(FutileAsync)} - {Description}: Invalid state, {prevState}, age = {prevState.EnterTime.ElapsedMs()}ms. Wanted {nameof(CcAdjunct.AdjunctState.Fusing)} - [RACE OK!]");
+                                if (drone.Adjunct.CurrentState.EnterTime.ElapsedMs() > parm_futile_timeout_ms)
+                                {
+                                    _logger.Warn($"{nameof(FutileAsync)} - {Description}: Invalid state, {prevState}, age = {prevState.EnterTime.ElapsedMs()}ms. Wanted {nameof(CcAdjunct.AdjunctState.Fusing)} - [RACE OK!]");
+                                }
+                                else
+                                {
+                                    _logger.Error($"{nameof(FutileAsync)} - {Description}: Invalid state, {prevState}, age = {prevState.EnterTime.ElapsedMs()}ms. Wanted {nameof(CcAdjunct.AdjunctState.Fusing)} - [RACE OK!]");
+                                    return false;
+                                }
                             }
-                            else
-                                return false;
                         }
                         
                         //verify the signature

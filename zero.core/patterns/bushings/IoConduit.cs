@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Runtime.CompilerServices;
 using zero.core.patterns.bushings.contracts;
 using zero.core.patterns.misc;
 
@@ -29,5 +30,11 @@ namespace zero.core.patterns.bushings
         /// Upstream source
         /// </summary>
         public IIoSource UpstreamSource { get; }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public override bool Zeroed()
+        {
+            return base.Zeroed() || Source.Zeroed() || (UpstreamSource?.Zeroed()??false);
+        }
     }
 }
