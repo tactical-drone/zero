@@ -632,31 +632,35 @@ namespace zero.cocoon
                     
                     //parse a packet
                     var packet = chroniton.Parser.ParseFrom(futileBuffer, 0, bytesRead);
-                    
+
                     if (packet != null && packet.Data != null && packet.Data.Length > 0)
                     {
                         ////verify the public key
                         CcDesignation id = null;
-                        if (packet.PublicKey.Length <= 0 || !Hub.Neighbors.TryGetValue((id = CcDesignation.FromPubKey(packet.PublicKey.Memory)).IdString(), out var adjunct))
+                        if (packet.PublicKey.Length <= 0 || !Hub.Neighbors.TryGetValue(
+                                (id = CcDesignation.FromPubKey(packet.PublicKey.Memory)).IdString(), out var adjunct))
                         {
-                            _logger.Error($"bad public key: id = `{id?.IdString() ?? "null"}' not found in {Adjuncts.Count} adjuncts, {Description}");
+                            _logger.Error(
+                                $"bad public key: id = `{id?.IdString() ?? "null"}' not found in {Adjuncts.Count} adjuncts, {Description}");
                             return false;
                         }
 
                         drone.Adjunct = (CcAdjunct)adjunct;
+                        var prevState = drone.Adjunct.CurrentState;
+                        var stateIsValid = drone.Adjunct.CompareAndEnterState(CcAdjunct.AdjunctState.Connecting,
+                                               CcAdjunct.AdjunctState.Fusing, overrideHung: parm_futile_timeout_ms) ==
+                                           CcAdjunct.AdjunctState.Fusing;
 
-                        var stateIsValid = drone.Adjunct.CompareAndEnterState(CcAdjunct.AdjunctState.Connecting, CcAdjunct.AdjunctState.Fusing) == CcAdjunct.AdjunctState.Fusing;
                         if (!stateIsValid)
                         {
-                            stateIsValid = drone.Adjunct.CompareAndEnterState(CcAdjunct.AdjunctState.Connecting, CcAdjunct.AdjunctState.Verified) == CcAdjunct.AdjunctState.Verified;
-                            if (!stateIsValid)
+                            if (drone.Adjunct.CurrentState.EnterTime.ElapsedMs() > parm_futile_timeout_ms)
                             {
-                                if (drone.Adjunct.CurrentState.Value != CcAdjunct.AdjunctState.Connected)
-                                    _logger.Warn($"{nameof(FutileAsync)} - {Description}: Invalid state, {drone.Adjunct.CurrentState.Value}, age = {drone.Adjunct.CurrentState.EnterTime.ElapsedMs()}ms. Wanted {nameof(CcAdjunct.AdjunctState.Fusing)} - [RACE OK!]");
-                                return false;
+                                _logger.Warn($"{nameof(FutileAsync)} - {Description}: Invalid state, {prevState}, age = {prevState.EnterTime.ElapsedMs()}ms. Wanted {nameof(CcAdjunct.AdjunctState.Fusing)} - [RACE OK!]");
                             }
+                            else
+                                return false;
                         }
-
+                        
                         //verify the signature
                         var packetData = packet.Data.Memory.AsArray();
                         if (packet.Signature != null || packet.Signature!.Length != 0)

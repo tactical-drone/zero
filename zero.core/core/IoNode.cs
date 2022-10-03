@@ -227,6 +227,9 @@ namespace zero.core.core
         /// <returns>ValueTask</returns>
         private static async ValueTask<bool> ZeroEnsureConnAsync<T>(IoNode<TJob> @this, IoNeighbor<TJob> newNeighbor, Func<IoNeighbor<TJob>, T, ValueTask<bool>> handshake, T listenerContext)
         {
+            if (newNeighbor == null)
+                return default;
+
             var ioNetClient = newNeighbor.Source;
             try
             {

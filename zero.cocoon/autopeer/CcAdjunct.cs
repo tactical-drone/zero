@@ -1538,7 +1538,6 @@ namespace zero.cocoon.autopeer
                 }
 
                 fuseResponse.Accept &= stateIsValid;
-
                 if (!stateIsValid && _state.EnterTime.ElapsedMs() > parm_max_network_latency_ms)
                 {
                     _logger.Warn($"{Description}: Invalid state ~{_state.Value}, age = {_state.EnterTime.ElapsedMs()}ms. Wanted {nameof(AdjunctState.Verified)} -  [RACE OK!]");
