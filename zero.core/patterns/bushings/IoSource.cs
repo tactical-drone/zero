@@ -117,7 +117,7 @@ namespace zero.core.patterns.bushings
         /// <summary>
         /// Seeds job Ids
         /// </summary>
-        private long _jobIdSeed = 0;
+        private long _jobIdSeed;
 
         /// <summary>
         /// Total service times per <see cref="Counters"/>
@@ -469,8 +469,8 @@ namespace zero.core.patterns.bushings
         /// <param name="barrier">A synchronization barrier from</param>
         /// <param name="ioZero">Optional produce state</param>
         /// <returns>True on success, false otherwise</returns>
-        public virtual ValueTask<bool> ProduceAsync<T>(
-            Func<IIoSource, IIoSource.IoZeroCongestion<T>, T, IIoJob, ValueTask<bool>> produce,
+        public virtual ValueTask<IoJobMeta.JobState> ProduceAsync<T>(
+            Func<IIoSource, IIoSource.IoZeroCongestion<T>, T, IIoJob, ValueTask<IoJobMeta.JobState>> produce,
             IIoJob ioJob,
             IIoSource.IoZeroCongestion<T> barrier,
             T ioZero)
@@ -485,7 +485,7 @@ namespace zero.core.patterns.bushings
                 _logger.Error(e, $"Source `{Description ?? "N/A"}' produce failed:");
             }
 
-            return new ValueTask<bool>(false);
+            return ioJob.SetStateAsync(IoJobMeta.JobState.ProduceErr).FastPath();
         }
 
         /// <summary>

@@ -25,8 +25,8 @@ namespace zero.core.patterns.queue
         /// </summary>
         public class IoZNode
         {
-            public volatile IoZNode Next;
-            public volatile IoZNode Prev;
+            public IoZNode Next;
+            public IoZNode Prev;
             public T Value;
             public int Qid;
             //public int lastOp;
@@ -68,6 +68,7 @@ namespace zero.core.patterns.queue
                     node.Next = null;
                     node.Prev = null;
                     node.Value = default;
+                    Interlocked.MemoryBarrier();
                 },
                 PopAction = (node, _) =>
                 {

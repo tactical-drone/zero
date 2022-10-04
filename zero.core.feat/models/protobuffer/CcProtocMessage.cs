@@ -129,14 +129,15 @@ namespace zero.core.feat.models.protobuffer
                         // amount of steps. Instead of say just filling up memory buffers.
                         // This allows us some kind of (anti DOS?) congestion control
                         //----------------------------------------------------------------------------
-                        if (!await backPressure(ioJob, ioZero).FastPath() || ioJob.Source.Zeroed())
+                        if (!await backPressure(ioZero).FastPath() || ioJob.Source.Zeroed())
                         {
                             if (job.Source != null && !job.Source.Zeroed())
                             {
                                 _logger.Trace($"{nameof(backPressure)} [FAILED]: {ioJob.Description}");
-                                await job.SetStateAsync(IoJobMeta.JobState.ProdCancel).FastPath();
+                                return await job.SetStateAsync(IoJobMeta.JobState.ProdCancel).FastPath();
                             }
-                            return false;
+
+                            return await job.SetStateAsync(IoJobMeta.JobState.ProduceErr).FastPath();
                         }
                         //Async read the message from the message stream
                         //CryptographicOperations.ZeroMemory(job.MemoryBuffer.Span);
@@ -149,17 +150,15 @@ namespace zero.core.feat.models.protobuffer
                             if (!job.MessageService.IsOperational() || ((IoNetClient<CcProtocMessage<TModel, TBatch>>)ioSocket).IoNetSocket.IsTcpSocket)
                             {
                                 await job.MessageService.DisposeAsync(ioJob, "ZERO READS!!!").FastPath();
-                                await job.SetStateAsync(IoJobMeta.JobState.Error).FastPath();
+                                return await job.SetStateAsync(IoJobMeta.JobState.Error).FastPath();
                             }
                             else
                             {
 #if DEBUG
                                 _logger.Error($"ReceiveAsync [FAILED]: ZERO UDP READS!!! {ioJob.Description}");
 #endif
-                                //await job.SetStateAsync(IoJobMeta.JobState.ProdConnReset).FastPath();
-                                await job.SetStateAsync(IoJobMeta.JobState.ProdSkipped).FastPath();
+                                return await job.SetStateAsync(IoJobMeta.JobState.ProdSkipped).FastPath();
                             }
-                            return false;
                         }
 
                         Interlocked.Add(ref job.BytesRead, read);
@@ -168,8 +167,7 @@ namespace zero.core.feat.models.protobuffer
                         _logger.Trace($"<\\== {job.Buffer[job.DatumProvisionLengthMax..(job.DatumProvisionLengthMax + job.BytesRead)].PayloadSig("C")} {job.Description}; clr type = ({job.GetType().Name}), job id = {job.Id}, prev Id = {job.PreviousJob?.Id}, r = {job.BytesRead}, r = {job.BytesLeftToProcess}, dc = {job.DatumCount}, ds = {job.DatumSize}, f = {job.DatumFragmentLength}, b = {job.BytesLeftToProcess}/{job.BufferSize + job.DatumProvisionLengthMax}, b = {(int)(job.BytesLeftToProcess / (double)(job.BufferSize + job.DatumProvisionLengthMax) * 100)}%");
 #endif
 
-                        await job.SetStateAsync(IoJobMeta.JobState.Produced).FastPath();
-                        return true;
+                        return await job.SetStateAsync(IoJobMeta.JobState.Produced).FastPath(); ;
                     }
                     catch when (job.Zeroed())
                     {
@@ -181,7 +179,7 @@ namespace zero.core.feat.models.protobuffer
                         _logger.Error(e, $"ReceiveAsync {job.Description}:");
                     }
 
-                    return false;
+                    return await job.SetStateAsync(IoJobMeta.JobState.ProduceErr).FastPath();
                 }, this, barrier, ioZero).FastPath();
             }
             catch when (Zeroed()) { await SetStateAsync(IoJobMeta.JobState.Cancelled).FastPath();}

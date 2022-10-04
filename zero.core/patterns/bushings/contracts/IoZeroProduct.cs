@@ -38,26 +38,30 @@ namespace zero.core.patterns.bushings.contracts
         public override async ValueTask<IoJobMeta.JobState> ProduceAsync<T>(IIoSource.IoZeroCongestion<T> barrier,
             T ioZero)
         {
-            if (!await Source.ProduceAsync(static async (source, backPressure, state, ioJob) =>
+            if (await Source.ProduceAsync(static async (source, backPressure, state, ioJob) =>
                 {
                     var job = (IoZeroProduct)ioJob;
 
-                    if (!await backPressure(ioJob, state).FastPath())
-                        return false;
+                    if (!await backPressure(state).FastPath())
+                        return await ioJob.SetStateAsync(IoJobMeta.JobState.Error);
 
                     //mock production delay
                     if (job._constructionDelay > 0)
                         await Task.Delay(job._constructionDelay);
 
                     job.GenerateJobId();
-                    
-                    return job._produced = ((IoZeroSource)source).Produce();
-                }, this, barrier, ioZero).FastPath())
+
+                    if (job._produced = ((IoZeroSource)source).Produce())
+                        return await ioJob.SetStateAsync(IoJobMeta.JobState.Produced);
+                    else
+                        return await ioJob.SetStateAsync(IoJobMeta.JobState.ProdSkipped);
+
+                }, this, barrier, ioZero).FastPath() != IoJobMeta.JobState.Produced)
             {
-                return await SetStateAsync(IoJobMeta.JobState.Error).FastPath();
+                return State;
             }
 
-            return await SetStateAsync(IoJobMeta.JobState.Produced).FastPath();
+            return State;
         }
 
         public override async ValueTask<IIoHeapItem> HeapPopAsync(object context)

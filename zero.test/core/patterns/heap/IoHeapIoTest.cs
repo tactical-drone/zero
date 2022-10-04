@@ -167,6 +167,10 @@ namespace zero.test.core.patterns.heap
             return ValueTask.FromResult((IIoHeapItem)this);
         }
 
+        public void HeapPush()
+        {
+        }
+
         public ValueTask<IIoHeapItem> HeapConstructAsync(object context)
         {
             TestVar4 = (int)context;

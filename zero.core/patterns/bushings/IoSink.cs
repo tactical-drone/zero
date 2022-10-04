@@ -50,7 +50,7 @@ namespace zero.core.patterns.bushings
             get
             {
 #if DEBUG
-                return $"{_sinkDesc} ~> {base.Description}";
+                return $"<#{Serial}>[{Id}] {_sinkDesc} ~> {base.Description}";
 #else
                 return string.Empty;
 #endif

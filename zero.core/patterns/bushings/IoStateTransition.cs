@@ -3,6 +3,7 @@ using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
+using NLog;
 using zero.core.patterns.heap;
 using zero.core.patterns.queue;
 using zero.core.patterns.queue.variant;
@@ -61,12 +62,12 @@ namespace zero.core.patterns.bushings
         public new IoStateTransition<TState> Next
         {
             get => (IoStateTransition<TState>)base.Next;
-            set => base.Next = value;
+            set => Interlocked.Exchange(ref  base.Next, value);
         }
         public new IoStateTransition<TState> Prev
         {
             get => (IoStateTransition<TState>)base.Prev;
-            set => base.Prev = value;
+            set => Interlocked.Exchange(ref base.Prev, value);
         }
 
         /// <summary>
@@ -88,19 +89,6 @@ namespace zero.core.patterns.bushings
         /// The absolute time this job took so far
         /// </summary>
         //public long Delta => Prev?.Delta + Mu?? Mu;
-
-        /// <summary>
-        /// default constructor
-        /// </summary>
-        /// <returns></returns>
-        public ValueTask<IIoHeapItem> ConstructorAsync(int initState)
-        {
-            ExitTime = EnterTime = Environment.TickCount;
-            base.Next = null;
-            base.Prev = null;
-            base.Value = initState;
-            return new ValueTask<IIoHeapItem>(this);
-        }
 
         /// <summary>
         /// Calculates the max state string length used for log formatting purposes
@@ -169,7 +157,7 @@ namespace zero.core.patterns.bushings
             base.Next = nextState;
             if(nextState != null)
                 nextState.Prev = this;
-
+            Interlocked.MemoryBarrier();
             return nextState;
         }
 
@@ -177,11 +165,14 @@ namespace zero.core.patterns.bushings
         public IoStateTransition<TState> GetStartState()
         {
             var c = this;
-            while (c.Prev != null)
+            while (c != null)
             {
+                if (c.Prev == null)
+                    break;
+
                 c = c.Prev;
             }
-
+            
             return c;
         }
 
@@ -195,7 +186,14 @@ namespace zero.core.patterns.bushings
         {
             base.Next = null;
             base.Prev = null;
+            Interlocked.MemoryBarrier();
             return new ValueTask<IIoHeapItem>(this);
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public void HeapPush()
+        {
+            
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -204,6 +202,7 @@ namespace zero.core.patterns.bushings
             ExitTime = EnterTime = Environment.TickCount;
             base.Next = null;
             base.Prev = null;
+            Interlocked.MemoryBarrier();
             return new ValueTask<IIoHeapItem>(this);
         }
     }

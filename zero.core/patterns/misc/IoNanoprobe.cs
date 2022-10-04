@@ -302,7 +302,7 @@ namespace zero.core.patterns.misc
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private void Dispose(bool managed)
         {
-            if(Interlocked.CompareExchange(ref _disposed, 1, 0) == 1)
+            if(Interlocked.CompareExchange(ref _disposed, 1, 0) != 0)
                 return;
 
             if (managed)
@@ -621,13 +621,17 @@ namespace zero.core.patterns.misc
         }
 
         /// <summary>
-        /// Executes a async continuation in a critical section
+        /// Executes a continuation asynchronously using runtime api.
+        ///
+        /// We use this function as supposed to a more lightweight alternative <see cref="IoZeroScheduler.LoadAsyncContext{T}"/> when
+        /// the processes spawned is blocking in nature. If the workload is one shot in nature, use <see cref="IoZeroScheduler.LoadAsyncContext{T}"/>
+        /// instead.
         /// </summary>
         /// <param name="continuation">The continuation</param>
         /// <param name="state">user state</param>
         /// <param name="options">Task options</param>
         /// <param name="unwrap">If the task awaited should be unwrapped, effectively making this a blocking call</param>
-        /// <param name="scheduler">The scheduler</param>
+        /// <param name="scheduler">The scheduler to scheduler the work on, <see cref="IoZeroScheduler.ZeroDefault"/> otherwise</param>
         /// <returns>A ValueTask</returns>
         protected async ValueTask ZeroAsync<T>(Func<T, ValueTask> continuation, T state, TaskCreationOptions options = TaskCreationOptions.DenyChildAttach, TaskScheduler scheduler = null, bool unwrap = false)
         {
@@ -655,11 +659,13 @@ namespace zero.core.patterns.misc
                     catch when (nanoprobe != null && nanoprobe.Zeroed() || nanoprobe == null && @this._zeroed > 0) { }
                     catch (Exception e) when (nanoprobe != null && !nanoprobe.Zeroed() || nanoprobe == null && @this._zeroed == 0)
                     {
-                        //_logger.Error(e, $"{Path.GetFileName(fileName)}:{methodName}() line {lineNumber} - [{@this.Description}]: {nameof(DisposeAsync)}");
                         _logger.Error(e, $"[{@this.Description}]: {nameof(DisposeAsync)}");
                     }
                 }, (this, continuation, state), CancellationToken.None, options, scheduler??IoZeroScheduler.ZeroDefault);
                 
+                //TODO: It is unclear what .net runtime does here. We are unwrapping a Task but the function returns a ValueTask. 
+                //TODO: There must be magic under the hood allowing this to happen. Or it could be bad practice bug turned int a feature.
+
                 if (unwrap)
                     await zeroAsyncTask.Unwrap();
             }

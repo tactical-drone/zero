@@ -419,7 +419,14 @@ namespace zero.core.patterns.queue
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public bool Contains(T item)
         {
-            return _storage.Contains(item);
+            for (var i = _head; i < _tail; i++)
+            {
+                if (_storage[i % Capacity].Equals(item))
+                    return true;
+                Console.WriteLine($"Comparing {_storage[i % Capacity].ToString()} - {item.ToString()}");
+            }
+
+            return false;
         }
 
         /// <summary>

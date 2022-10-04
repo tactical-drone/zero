@@ -393,7 +393,7 @@ namespace zero.sync
             {
                 var t = j.RunAsync(async () =>
                 {
-                    //await SemTestAsync();
+                    await SemTestAsync();
                     await QueueTestAsync();
                     //await ZeroQTestAsync();
                     //await BagTestAsync();

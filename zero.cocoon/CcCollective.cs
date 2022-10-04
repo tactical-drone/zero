@@ -193,7 +193,7 @@ namespace zero.cocoon
                 try
                 {
                     var ts = Environment.TickCount;
-                    var delay = (@this.EgressCount < @this.parm_max_outbound ? @this.parm_mean_pat_delay_s/3 : @this.parm_mean_pat_delay_s) * 1000;
+                    var delay = (@this.EgressCount < @this.parm_max_outbound ? @this.parm_futile_timeout_ms/1000 : @this.parm_mean_pat_delay_s) * 1000;
 
                     await Task.Delay(TimeSpan.FromMilliseconds(@this._random.Next(delay) + delay / 2), @this.AsyncTasks.Token);
 

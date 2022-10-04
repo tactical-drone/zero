@@ -24,6 +24,11 @@ namespace zero.core.patterns.misc
         /// ZeroAsync pattern
         /// </summary>
         ValueTask DisposeAsync(IIoNanite @from, string reason, [CallerFilePath] string filePath = null, [CallerMemberName] string methodName = null, [CallerLineNumber] int lineNumber = default);
+
+        /// <summary>
+        /// Regular sync dispose
+        /// </summary>
+        void Dispose();
         
         /// <summary>
         /// A description of this object

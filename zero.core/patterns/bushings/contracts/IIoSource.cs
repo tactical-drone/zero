@@ -206,7 +206,7 @@ namespace zero.core.patterns.bushings.contracts
         /// <param name="job">The job being processed</param>
         /// <param name="ioZero">The engine processing the job</param>
         /// <returns></returns>
-        delegate ValueTask<bool> IoZeroCongestion<in T>(IIoJob job, T ioZero);
+        delegate ValueTask<bool> IoZeroCongestion<in T>(T ioZero);
 
         /// <summary>
         /// Produces a job, in the context of the source.
@@ -216,7 +216,7 @@ namespace zero.core.patterns.bushings.contracts
         /// <param name="barrier">The congestion barrier</param>
         /// <param name="ioZero">The pattern</param>
         /// <returns></returns>
-        ValueTask<bool> ProduceAsync<T>(Func<IIoSource, IoZeroCongestion<T>, T, IIoJob, ValueTask<bool>> produce,
+        ValueTask<IoJobMeta.JobState> ProduceAsync<T>(Func<IIoSource, IoZeroCongestion<T>, T, IIoJob, ValueTask<IoJobMeta.JobState>> produce,
             IIoJob ioJob,
             IoZeroCongestion<T> barrier,
             T ioZero);

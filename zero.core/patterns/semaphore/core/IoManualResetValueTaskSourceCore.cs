@@ -411,13 +411,19 @@ namespace zero.core.patterns.semaphore.core
                         }
                         else
                         {
-                            static void WaitCallback(object context)
-                            {
-                                var (continuation, state) = (ValueTuple<Action<object>, object>)context;
-                                continuation(state);
-                            }
+                            //static void WaitCallback(object context)
+                            //{
+                            //    var (continuation, state) = (ValueTuple<Action<object>, object>)context;
+                            //    continuation(state);
+                            //}
 
-                            ThreadPool.UnsafeQueueUserWorkItem(WaitCallback, (_continuation, _continuationState));
+                            //ThreadPool.QueueUserWorkItem(_continuation, _continuationState, preferLocal: false);
+                            //IoZeroScheduler.Zero.QueueCallback(_continuation, _continuationState);
+
+
+
+                            Task.Factory.StartNew(_continuation, _continuationState, CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Default);
+                            //ThreadPool.UnsafeQueueUserWorkItem(WaitCallback, (_continuation, _continuationState));
                         }
                     }
                     else

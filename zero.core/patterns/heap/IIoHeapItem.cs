@@ -17,6 +17,8 @@ namespace zero.core.patterns.heap
         /// <returns>This instance</returns>
         ValueTask<IIoHeapItem> HeapPopAsync(object context);
 
+        void HeapPush();
+
         ///// <summary>
         ///// Constructs a new item from the heap
         ///// </summary>

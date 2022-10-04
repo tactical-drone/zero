@@ -264,7 +264,7 @@ namespace zero.core.patterns.heap
             {
                 if (!zero)
                 {
-                    if (_ioHeapBuf.TryEnqueue(item) < 0 && !Zeroed)
+                    if (_ioHeapBuf.TryEnqueue(item, deDup) < 0 && !Zeroed)
                         _logger.Warn($"{nameof(Return)}: Unable to return {item} to the heap, {Description}");
                 }
                 else

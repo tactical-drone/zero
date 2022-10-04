@@ -478,7 +478,7 @@ namespace zero.cocoon.autopeer
         /// <summary>
         /// V
         /// </summary>
-        public ConcurrentDictionary<string, int> V;
+        public ConcurrentDictionary<string, int> V => _v;
 
         /// <summary>
         /// V flush timestamp
@@ -1433,7 +1433,7 @@ namespace zero.cocoon.autopeer
                                 @this._logger?.Error(e, $"{@this.Description}");
                             }
                         
-                        },this, TaskCreationOptions.DenyChildAttach).FastPath();
+                        },this).FastPath();
 
                     await AsyncTasks.BlockOnNotCanceledAsync().FastPath();
                 }

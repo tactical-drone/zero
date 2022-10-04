@@ -114,13 +114,9 @@ namespace zero.core.patterns.heap
             base.Return(item, zero, deDup);
 
             if (zero && !deDup || Zeroed) //hack
-            {
-                IoZeroScheduler.Zero.LoadAsyncContext(static async state =>
-                {
-                    var item = (TItem)state;
-                    await item.DisposeAsync(null, $"{nameof(IoHeapIo<TItem, TContext>)}: teardown direct!");
-                },item);
-            }
+                item.Dispose();
+            else
+                item.HeapPush();
         }
     }
 

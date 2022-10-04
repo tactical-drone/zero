@@ -267,8 +267,6 @@ namespace zero.core.patterns.semaphore.core
 #endif
         private bool Block(out ValueTask<T> slowTaskCore)
         {
-            slowTaskCore = default;
-
             //fast path
             if (_blockingCores.Count == 0 && _results.TryDequeue(out var readyResult))
             {
@@ -298,9 +296,12 @@ namespace zero.core.patterns.semaphore.core
             {
                 Debug.Assert(Zeroed() || WaitCount <= Capacity);
 
-                if (Zeroed())
+                if (Zeroed() || WaitCount >= Capacity)
+                {
+                    slowTaskCore = default;
                     return false;
-
+                }
+                
                 spinWait.SpinOnce();
             }
 
@@ -317,12 +318,12 @@ namespace zero.core.patterns.semaphore.core
                 //block the core by synchronizing with release
                 blockingCore.SyncRoot = SyncReady;
             }
-            else if(_results.Count == Capacity && _blockingCores.Count == Capacity && _results.TryDequeue(out var saturatedResult)) //unstuck full semaphore
-            {
-                blockingCore.SyncRoot = SyncRace;
-                slowTaskCore = new ValueTask<T>(saturatedResult);
-                return true;
-            }
+            //else if(_results.Count >= Capacity && _blockingCores.Count >= Capacity && _results.TryDequeue(out var saturatedResult)) //unstuck full semaphore
+            //{
+            //    blockingCore.SyncRoot = SyncRace;
+            //    slowTaskCore = new ValueTask<T>(saturatedResult);
+            //    return true;
+            //}
             
             //No results pending, we block
             slowTaskCore = new ValueTask<T>(blockingCore, 0);
