@@ -76,7 +76,7 @@ namespace zero.core.network.ip
             {
                 try
                 {
-                    if(_description == null || Environment.TickCount % 100 < 15)
+                    if(!Zeroed() || _description == null || Environment.TickCount % 100 < 15)
                         return _description = $"{(Proxy ? "[proxy]" : "")}{Kind} socket({LocalNodeAddress}, {(Kind <= Connection.Listener ? "N/A" : RemoteNodeAddress?.ToString())}";
                     return _description;
                 }
@@ -107,13 +107,23 @@ namespace zero.core.network.ip
         /// </summary>
         public IoNodeAddress LocalNodeAddress { get; protected set; }
 
-        //Local Address string
-        public string LocalAddress => Kind < Connection.Listener || LocalNodeAddress == null ? "(zero)" : LocalNodeAddress.ToString();
-
         /// <summary>
-        ///
+        /// Remote address
         /// </summary>
         public IoNodeAddress RemoteNodeAddress { get; protected set; }
+
+        /// <summary>
+        /// The socket initiative
+        /// </summary>
+        public Connection Kind { get; private set; } = Connection.Undefined;
+
+        /// <summary>
+        /// Last socket error
+        /// </summary>
+        public SocketError LastError { get; protected set; } = SocketError.Success;
+
+        //Local Address string
+        public string LocalAddress => Kind < Connection.Listener || LocalNodeAddress == null ? "(zero)" : LocalNodeAddress.ToString();
 
         /// <summary>
         /// remote address string
@@ -130,11 +140,6 @@ namespace zero.core.network.ip
             Ingress,
             Egress,
         }
-
-        /// <summary>
-        /// The socket initiative
-        /// </summary>
-        public Connection Kind { get; private set; } = Connection.Undefined;
 
         /// <summary>
         /// Ingress connection

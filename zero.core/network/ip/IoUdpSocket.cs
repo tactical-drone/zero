@@ -457,7 +457,9 @@ namespace zero.core.network.ip
                         if (args.SocketError != SocketError.Success && args.SocketError != SocketError.OperationAborted)
                             _logger.Error($"{nameof(ReceiveAsync)}: socket error = {args.SocketError}");
 #endif
-                        return args.SocketError == SocketError.Success ? args.BytesTransferred : 0;
+                        LastError = args.SocketError;
+
+                        return LastError == SocketError.Success ? args.BytesTransferred : 0;
                     }
                     catch when (Zeroed())
                     {
@@ -529,18 +531,13 @@ namespace zero.core.network.ip
         {
             try
             {
-                var connected = !Zeroed() && NativeSocket is { IsBound: true, LocalEndPoint: { } };
-
-                return connected;
+                return !Zeroed() && NativeSocket is { IsBound: true, Connected: true};
             }
-            catch (ObjectDisposedException)
-            {
-                Dispose();
-            }
+            catch (ObjectDisposedException) { }
             catch when(Zeroed()){}
             catch (Exception e) when(!Zeroed())
             {
-                _logger?.Trace(e, Description);
+                _logger.Error(e, Description);
             }
 
             return false;

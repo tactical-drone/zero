@@ -153,7 +153,7 @@ namespace zero.core.feat.models.protobuffer
                                 if (!job.MessageService.IsOperational() ||
                                     ((IoNetClient<CcProtocMessage<TModel, TBatch>>)ioSocket).IoNetSocket.IsTcpSocket)
                                 {
-                                    await job.MessageService.DisposeAsync(ioJob, "ZERO READS!!!").FastPath();
+                                    await job.MessageService.DisposeAsync(ioJob, $"socket: {job.MessageService.IoNetSocket.LastError}").FastPath();
                                     return false;
                                 }
                                 else

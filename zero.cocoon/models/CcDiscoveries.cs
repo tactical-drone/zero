@@ -480,38 +480,36 @@ namespace zero.cocoon.models
 
                 //cog the producer
                 if (!await ProtocolConduit.Source.ProduceAsync<object>(static (source, _, _, ioJob) =>
+                {
+                    var @this = (CcDiscoveries)ioJob;
+                    try
                     {
-                        var @this = (CcDiscoveries)ioJob;
-
-                        try
+                        var chan = ((CcProtocBatchSource<chroniton, CcDiscoveryBatch>)source).Channel;
+                        if (source == null || chan.Release(@this._currentBatch, forceAsync: true) != 1)
                         {
-                            var chan = ((CcProtocBatchSource<chroniton, CcDiscoveryBatch>)source).Channel;
-                            if (source == null || chan.Release(@this._currentBatch, forceAsync: true) != 1)
+                            if (source != null && !((CcProtocBatchSource<chroniton, CcDiscoveryBatch>)source).Zeroed())
                             {
-                                if (source != null && !((CcProtocBatchSource<chroniton, CcDiscoveryBatch>)source).Zeroed())
-                                {
-                                    _logger.Fatal($"{nameof(ZeroBatchAsync)}: Unable to q batch,{chan.Description} {@this.Description}");
-                                }
-
-                                return new ValueTask<bool>(false);
+                                _logger.Fatal($"{nameof(ZeroBatchAsync)}: Unable to q batch,{chan.Description} {@this.Description}");
                             }
 
-                            @this._currentBatch = @this._batchHeap.Take();
-                            if (@this._currentBatch == null)
-                                throw new OutOfMemoryException($"{@this.Description}: {nameof(@this._batchHeap)}, c = {@this._batchHeap.Count}/{@this._batchHeap.Capacity}, ref = {@this._batchHeap.ReferenceCount}");
-
-                            @this._currentBatch.Count = 0;
-
-                            return new ValueTask<bool>(true);
-                        }
-                        catch (Exception) when (@this.Zeroed()) { }
-                        catch (Exception e) when (!@this.Zeroed())
-                        {
-                            _logger.Error(e, $"{@this.Description} - Forward failed!");
+                            return new ValueTask<bool>(false);
                         }
 
-                        return new ValueTask<bool>(false);
-                    }, this, null, null).FastPath())
+                        @this._currentBatch = @this._batchHeap.Take();
+                        if (@this._currentBatch == null)
+                            throw new OutOfMemoryException($"{@this.Description}: {nameof(@this._batchHeap)}, c = {@this._batchHeap.Count}/{@this._batchHeap.Capacity}, ref = {@this._batchHeap.ReferenceCount}");
+
+                        Interlocked.Exchange(ref @this._currentBatch.Count, 0);
+                        return new ValueTask<bool>(true);
+                    }
+                    catch (Exception) when (@this.Zeroed()) { }
+                    catch (Exception e) when (!@this.Zeroed())
+                    {
+                        _logger.Error(e, $"{@this.Description} - Forward failed!");
+                    }
+
+                    return new ValueTask<bool>(false);
+                }, this, null, null).FastPath())
                 {
                     if (!Zeroed())
                         _logger.Trace($"{nameof(ZeroBatchAsync)}: Production [FAILED]: {ProtocolConduit.Description}");

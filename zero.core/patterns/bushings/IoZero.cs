@@ -541,12 +541,10 @@ namespace zero.core.patterns.bushings
         /// <summary>
         /// Consume 
         /// </summary>
-        /// <param name="threadIdx"></param>
-        /// <param name="inlineCallback">The inline callback.</param>
-        /// <param name="nanite"></param>
+        /// <param name="consume">The inline callback.</param>
+        /// <param name="context"></param>
         /// <returns>True if consumption happened</returns>
-        public async ValueTask<bool> ConsumeAsync<T>(int threadIdx,
-            Func<IoSink<TJob>, T, ValueTask> inlineCallback = null, T nanite = default)
+        public async ValueTask<bool> ConsumeAsync<T>(Func<IoSink<TJob>, T, ValueTask> consume = null, T context = default)
         {
             try
             {
@@ -565,14 +563,13 @@ namespace zero.core.patterns.bushings
                     if (await curJob.ConsumeAsync().FastPath() == IoJobMeta.JobState.Consumed ||
                         curJob.State is IoJobMeta.JobState.ConInlined or IoJobMeta.JobState.FastDup)
                     {
-                        if (curJob.State == IoJobMeta.JobState.ConInlined && inlineCallback != null)
-                        {
-                            //forward any jobs                                                                             
-                            await inlineCallback(curJob, nanite).FastPath();
-                        }
+                        if (curJob.State == IoJobMeta.JobState.ConInlined && consume != null)
+                            await consume(curJob, context).FastPath();
 
                         //count the number of work done
                         IncEventCounter();
+
+                        return true;
                     }
                     else if (curJob.State != IoJobMeta.JobState.RSync &&
                              curJob.State != IoJobMeta.JobState.ZeroRecovery &&
@@ -580,7 +577,7 @@ namespace zero.core.patterns.bushings
                              curJob.State != IoJobMeta.JobState.BadData && !Zeroed() && !curJob.Zeroed())
                     {
 #if DEBUG
-                            _logger?.Error($"consuming job: {curJob.Description} was unsuccessful, state = {curJob.State}");
+                            _logger.Error($"consuming job: {curJob.Description} was unsuccessful, state = {curJob.State}");
                             curJob.PrintStateHistory("stale");
 #endif
                     }
@@ -590,8 +587,7 @@ namespace zero.core.patterns.bushings
                 }
                 catch (Exception e) when (!Zeroed() && !curJob.Zeroed())
                 {
-                    _logger?.Error(e,
-                        $"{Description}: {curJob.TraceDescription} consuming job: {curJob.Description} returned with errors:");
+                    _logger.Error(e,$"{Description}: {curJob.TraceDescription} consuming job: {curJob.Description} returned with errors:");
                 }
                 finally
                 {
@@ -628,27 +624,20 @@ namespace zero.core.patterns.bushings
                             Source.BackPressure(zeroAsync: true);
                         }
                     }
-                    catch when (Zeroed())
-                    {
-                    }
+                    catch when (Zeroed()) { }
                     catch (Exception e) when (!Zeroed())
                     {
-                        _logger?.Fatal(e);
+                        _logger.Fatal(e,$"{nameof(ConsumeAsync)}:");
                     }
                 }
-
-                return true;
             }
-            catch (Exception) when (Zeroed())
-            {
-            }
+            catch (Exception) when (Zeroed()) {}
             catch (Exception e) when (!Zeroed())
             {
-                await Task.Delay(500);
-                _logger?.Error(e, $"{GetType().Name}: Consumer {Description} dequeue returned with errors:");
+                _logger.Error(e, $"{GetType().Name}: Consumer {Description} dequeue returned with errors:");
             }
             
-            return true;
+            return false;
         }
 
         /// <summary>
@@ -727,13 +716,12 @@ namespace zero.core.patterns.bushings
                             {
                                 try
                                 {
-                                    await @this.ConsumeAsync<object>(i).FastPath();
+                                    await @this.ConsumeAsync<object>().FastPath();
                                 }
                                 catch when (@this.Zeroed()) { }
                                 catch (Exception e) when (!@this.Zeroed())
                                 {
                                     @this._logger.Error(e, $"Consumption failed {@this.Description}");
-
                                     break;
                                 }
                             }

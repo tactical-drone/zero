@@ -30,22 +30,22 @@ namespace zero.core.patterns.semaphore.core
         /// or null if a callback hasn't yet been provided and the operation hasn't yet completed.
         /// </summary>
 #pragma warning disable CS8632
-        private Action<object?>? _continuation;
+        private Action<object> _continuation;
 
         /// <summary>State to pass to <see cref="_continuation"/>.</summary>
-        private object? _continuationState;
+        private object _continuationState;
 
         /// <summary><see cref="ExecutionContext"/> to flow to the callback, or null if no flowing is required.</summary>
-        private ExecutionContext? _executionContext;
+        private ExecutionContext _executionContext;
 
         /// <summary>
         /// A "captured" <see cref="SynchronizationContext"/> or <see cref="TaskScheduler"/> with which to invoke the callback,
         /// or null if no special context is required.
         /// </summary>
-        private object? _capturedContext;
+        private object _capturedContext;
 
         /// <summary>The exception with which the operation failed, or null if it hasn't yet completed or completed successfully.</summary>
-        private ExceptionDispatchInfo? _error;
+        private ExceptionDispatchInfo _error;
 #pragma warning restore CS8632
         /// <summary>The result with which the operation succeeded, or the default value if it hasn't yet completed or failed.</summary>
         [AllowNull, MaybeNull] private TResult _result;
@@ -399,7 +399,7 @@ namespace zero.core.patterns.semaphore.core
 #endif
         private void InvokeContinuation()
         {
-            Debug.Assert(_continuation != null && _continuationState != null);
+            //Debug.Assert(_continuation != null && _continuationState != null);
             switch (_capturedContext)
             {
                 case null:
@@ -411,19 +411,12 @@ namespace zero.core.patterns.semaphore.core
                         }
                         else
                         {
-                            //static void WaitCallback(object context)
-                            //{
-                            //    var (continuation, state) = (ValueTuple<Action<object>, object>)context;
-                            //    continuation(state);
-                            //}
-
-                            //ThreadPool.QueueUserWorkItem(_continuation, _continuationState, preferLocal: false);
-                            //IoZeroScheduler.Zero.QueueCallback(_continuation, _continuationState);
-
-
-
-                            Task.Factory.StartNew(_continuation, _continuationState, CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Default);
-                            //ThreadPool.UnsafeQueueUserWorkItem(WaitCallback, (_continuation, _continuationState));
+                            static void WaitCallback(object context)
+                            {
+                                var (continuation, state) = (ValueTuple<Action<object>, object>)context;
+                                continuation(state);
+                            }
+                            ThreadPool.UnsafeQueueUserWorkItem(WaitCallback, (_continuation, _continuationState));
                         }
                     }
                     else

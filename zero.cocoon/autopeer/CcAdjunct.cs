@@ -1264,7 +1264,7 @@ namespace zero.cocoon.autopeer
                             {
                                 while (!@this.Zeroed())
                                 {
-                                    await @this._protocolConduit.ConsumeAsync(i, ProcessMessages(), @this).FastPath();
+                                    await @this._protocolConduit.ConsumeAsync(ProcessMessages(), @this).FastPath();
                                     [MethodImpl(MethodImplOptions.AggressiveInlining)]
                                     static Func<IoSink<CcProtocBatchJob<chroniton, CcDiscoveryBatch>>, CcAdjunct, ValueTask> ProcessMessages()
                                     {

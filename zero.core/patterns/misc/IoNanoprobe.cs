@@ -250,7 +250,7 @@ namespace zero.core.patterns.misc
             if (_zeroHiveMind != null)
             {
                 while (await _zeroHiveMind.DequeueAsync().FastPath() is { } cascade)
-                    await cascade.DisposeAsync(this, $"[ZERO CASCADE] from {desc}").FastPath();
+                    await cascade.DisposeAsync(this, ZeroReason).FastPath();
             }
 
             CascadeTime = CascadeTime.ElapsedMs();

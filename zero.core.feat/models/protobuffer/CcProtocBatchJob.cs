@@ -124,41 +124,30 @@ namespace zero.core.feat.models.protobuffer
         public override async ValueTask<IoJobMeta.JobState> ProduceAsync<T>(IIoSource.IoZeroCongestion<T> barrier, T ioZero)
         {
             if (!await Source.ProduceAsync(static async (source, backPressure, state, ioJob )=>
+            {
+                if (!await backPressure(state).FastPath())
+                    return false;
+
+                var job = (CcProtocBatchJob<TModel, TBatch>)ioJob;
+
+                try
                 {
-                    var job = (CcProtocBatchJob<TModel, TBatch>)ioJob;
-
-                    //_logger.Fatal($"CHAN(w ) <#{ioJob.Serial}>[{ioJob.Id}]; {ioJob.State} <- {source.Description}");
-                    if (!await backPressure(state).FastPath())
-                        return false;
-                    //_logger.Fatal($"CHAN(w-) <#{ioJob.Serial}>[{ioJob.Id}]; {ioJob.State} <- {source.Description}");
-
-                    try
+                    if ((job._batch = await ((CcProtocBatchSource<TModel, TBatch>)source).Channel.WaitAsync()) != null)
                     {
-                        //_logger.Fatal($"CHAN(c ) <#{ioJob.Serial}>[{ioJob.Id}]; {ioJob.State} <- {source.Description}");
-                        job._batch = await ((CcProtocBatchSource<TModel, TBatch>)source).Channel.WaitAsync();
-                        //_logger.Fatal($"CHAN(c-) <#{ioJob.Serial}>[{ioJob.Id}]; {ioJob.State} <- {source.Description}");
-                        if (job._batch != null)
-                        {
-#if TRACE
-                            _logger.Fatal($"{nameof(ProduceAsync)}: <-- from batch, {ioJob.Description}");                   
-#endif
-                            job.GenerateJobId();
-                        }
-                        else
-                            return false;
+                        job.GenerateJobId();
+                        return true;
                     }
-                    catch (TaskCanceledException) { }
-                    catch when (job.Zeroed())
-                    {
-                        return false;
-                    }
-                    catch (Exception e) when(!job.Zeroed())
-                    {
-                        _logger.Fatal(e,$"BatchChannel.TryDequeueAsync failed: {job.Description}"); 
-                    }
+                }
+                catch (TaskCanceledException) { }
+                catch when (job.Zeroed())
+                { }
+                catch (Exception e) when(!job.Zeroed())
+                {
+                    _logger.Fatal(e,$"BatchChannel.TryDequeueAsync failed: {job.Description}"); 
+                }
 
-                    return job._batch != null;
-                }, this, barrier, ioZero).FastPath())
+                return false;
+            }, this, barrier, ioZero).FastPath())
             {
                 _logger.Trace($"{nameof(ProduceAsync)}: Production [FAILED]; {Description}");
                 return await SetStateAsync(IoJobMeta.JobState.ProdSkipped).FastPath();

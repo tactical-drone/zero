@@ -353,10 +353,8 @@ namespace zero.core.patterns.queue
         public async ValueTask<IoZNode> PushBackAsync(T item)
         {
             if (_zeroed > 0 || item == null)
-            {
                 return null;
-            }
-            
+
             var entered = false;
             IoZNode retVal = default;
             try
@@ -410,30 +408,16 @@ namespace zero.core.patterns.queue
 #if DEBUG
                         Interlocked.Decrement(ref _insaneExclusive);
 #endif
-                        var async = true;
-                        var ts = Environment.TickCount;
-                        _syncRoot.Release(Environment.TickCount, async);
-                        if (ts.ElapsedMs() > Qe)
-                            LogManager.GetCurrentClassLogger().Warn($"pb _syncRoot async = {async}, t = {ts.ElapsedMs()}ms");
+                        _syncRoot.Release(Environment.TickCount, true);
                     }
 
                     if (_pressure != null && retVal != default)
                     {
-                        //var async = _count > Q_C; //TRUE because 
-                        var async = true; //TRUE because 
-                        var ts = Environment.TickCount;
-                        _pressure.Release(ts, async);
-                        if (ts.ElapsedMs() > Qe)
-                            LogManager.GetCurrentClassLogger().Warn($"pb _pressure async = {async}, t = {ts.ElapsedMs()}ms");
+                        _pressure.Release(Environment.TickCount, true);
                     }
-                    else if(_backPressure != null)
+                    else
                     {
-                        //var async = _count > Q_C; //FALSE
-                        var async = true; //TRUE because 
-                        var ts = Environment.TickCount;
-                        _backPressure.Release(ts, async);
-                        if (ts.ElapsedMs() > Qe)
-                            LogManager.GetCurrentClassLogger().Warn($"pb _pressure async = {async}, t = {ts.ElapsedMs()}ms");
+                        _backPressure?.Release(Environment.TickCount, true);
                     }
                 }
             }
@@ -459,13 +443,10 @@ namespace zero.core.patterns.queue
             T retVal = default;
             try
             {
-                //LogManager.GetCurrentClassLogger().Warn($"dq W");
                 if (_pressure != null && (await _pressure.WaitAsync().FastPath()).ElapsedMs() == int.MaxValue)
                     return default;
 
-                //LogManager.GetCurrentClassLogger().Warn($"dq l");
                 await _syncRoot.WaitAsync().FastPath();
-                //LogManager.GetCurrentClassLogger().Warn($"dq");
                 entered = true;
 #if DEBUG
                 //Debug.Assert(Interlocked.Increment(ref _insaneExclusive) == 1 || _syncRoot.Zeroed(), $"{nameof(_insaneExclusive)} = {_insaneExclusive} > 1, {nameof(_syncRoot.ReadyCount)} = {_syncRoot.ReadyCount}, wait =  {_syncRoot.WaitCount}");
@@ -477,7 +458,7 @@ namespace zero.core.patterns.queue
 #endif
                 if (_count == 0)
                     return default;
-
+                
                 dq = _head;
                 _head = _head.Next;
                 dq.Next = null;
@@ -505,12 +486,7 @@ namespace zero.core.patterns.queue
                     //Debug.Assert(_syncRoot.ReadyCount == 0, $"INVALID {nameof(_syncRoot.ReadyCount)} = {_syncRoot.ReadyCount}");
                     Debug.Assert(_syncRoot.ReadyCount == 0);
 #endif
-                    //var async = _syncRoot.WaitCount >= _syncRoot.Capacity - _syncRoot.WaitCount + _syncRoot.ReadyCount; //FALSE because super fast??? and after back pressure because it is async and this wants to be sync
-                    var ts = Environment.TickCount;
-                    bool async; //no deadlocks allowed
-                    _syncRoot.Release(Environment.TickCount, async = true);
-                    if (ts.ElapsedMs() > Qe)
-                        LogManager.GetCurrentClassLogger().Warn($"dq _syncRoot async = {async}, t = {ts.ElapsedMs()}ms");
+                    _syncRoot.Release(Environment.TickCount, true);
                 }
 
                 try
@@ -519,34 +495,16 @@ namespace zero.core.patterns.queue
                     if (dq != null)
                     {
                         retVal = dq.Value;
-                        //dq.lastOp = 1;
                         _nodeHeap.Return(dq);
-                    } 
-                    //else if (_pressure != null)
-                    //{
-                    //    var async = true;
-                    //    var ts = Environment.TickCount;
-                    //    _pressure.Release(ts, async);
-                    //    if (ts.ElapsedMs() > Q_E)
-                    //        LogManager.GetCurrentClassLogger().Warn($"pb _pressure async = {async}, t = {ts.ElapsedMs()}ms");
-                    //}
-
-                    if (_backPressure != null)
-                    {
-                        var async = true; //TRUE, because FIFO!!!
-                        var ts = Environment.TickCount;
-                        _backPressure?.Release(ts, async);
-                        if (ts.ElapsedMs() > Qe)
-                            LogManager.GetCurrentClassLogger().Warn($"pb _backPressure async = {async}, t = {ts.ElapsedMs()}ms");
                     }
+
+                    _backPressure?.Release(Environment.TickCount, true);
                 }
                 catch when (_zeroed > 0) { }
                 catch (Exception e) when (_zeroed == 0)
                 {
                     LogManager.GetCurrentClassLogger().Error(e, $"{_description}: DQ failed!");
                 }
-
-               
             }
             
             return retVal;
@@ -632,9 +590,8 @@ namespace zero.core.patterns.queue
 #if DEBUG
                 Interlocked.Decrement(ref _insaneExclusive);
 #endif
-                //node.lastOp = 2;
-                _nodeHeap?.Return(node, deDup);
                 _syncRoot.Release(Environment.TickCount, true);//FALSE
+                _nodeHeap.Return(node, deDup);
             }
         }
 
