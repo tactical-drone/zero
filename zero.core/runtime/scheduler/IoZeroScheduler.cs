@@ -248,9 +248,9 @@ namespace zero.core.runtime.scheduler
             {
                 _ = Task.Factory.StartNew(static async state =>
                 {
-                    var (@this, i) = (ValueTuple<IoZeroScheduler, int>)state;
-                    await @this.HandleAsyncSchedulerTask(i).ConfigureAwait(false);
-                }, (this, i), CancellationToken.None, TaskCreationOptions.LongRunning | TaskCreationOptions.HideScheduler, Default);
+                    var @this = (IoZeroScheduler)state;
+                    await @this.HandleAsyncSchedulerTask().ConfigureAwait(false);
+                }, this, CancellationToken.None, TaskCreationOptions.DenyChildAttach | TaskCreationOptions.HideScheduler, Default);
             }
 
             //forks with context
@@ -258,9 +258,9 @@ namespace zero.core.runtime.scheduler
             {
                 _ = Task.Factory.StartNew(static async state =>
                 {
-                    var (@this, i) = (ValueTuple<IoZeroScheduler, int>)state;
+                    var @this = (IoZeroScheduler)state;
                     await @this.HandleAsyncFallback().ConfigureAwait(false);
-                }, (this, i), CancellationToken.None, TaskCreationOptions.LongRunning | TaskCreationOptions.HideScheduler, Default);
+                }, this, CancellationToken.None, TaskCreationOptions.DenyChildAttach | TaskCreationOptions.HideScheduler, Default);
             }
 
             //async value callbacks with context
@@ -268,9 +268,9 @@ namespace zero.core.runtime.scheduler
             {
                 _ = Task.Factory.StartNew(static async state =>
                 {
-                    var (@this, i) = (ValueTuple<IoZeroScheduler, int>)(state);
+                    var @this = (IoZeroScheduler)state;
                     await @this.HandleAsyncValueTaskWithContext().FastPath();
-                }, (this, i), CancellationToken.None, TaskCreationOptions.LongRunning, ZeroDefault);
+                }, this, CancellationToken.None, TaskCreationOptions.DenyChildAttach, ZeroDefault);
             }
 
             //async value callbacks
@@ -278,9 +278,9 @@ namespace zero.core.runtime.scheduler
             {
                 _ = Task.Factory.StartNew(static async state =>
                 {
-                    var (@this, i) = (ValueTuple<IoZeroScheduler, int>)(state);
+                    var @this = (IoZeroScheduler)state;
                     await @this.HandleAsyncValueTask().FastPath();
-                }, (this, i), CancellationToken.None, TaskCreationOptions.LongRunning, ZeroDefault);
+                }, this, CancellationToken.None, TaskCreationOptions.DenyChildAttach, ZeroDefault);
             }
 
             //async callbacks
@@ -288,9 +288,9 @@ namespace zero.core.runtime.scheduler
             {
                 _ = Task.Factory.StartNew(static async state =>
                 {
-                    var (@this, i) = (ValueTuple<IoZeroScheduler, int>)(state);
+                    var @this = (IoZeroScheduler)state;
                     await @this.HandleAsyncCallback().FastPath();
-                }, (this, i), CancellationToken.None, TaskCreationOptions.LongRunning, ZeroDefault);
+                }, this, CancellationToken.None, TaskCreationOptions.DenyChildAttach, ZeroDefault);
             }
 
             //async callbacks
@@ -298,9 +298,9 @@ namespace zero.core.runtime.scheduler
             {
                 _ = Task.Factory.StartNew(static async state =>
                 {
-                    var (@this, i) = (ValueTuple<IoZeroScheduler, int>)state;
+                    var @this = (IoZeroScheduler)state;
                     await @this.ForkAsyncCallbacks().ConfigureAwait(false);
-                }, (this, i), CancellationToken.None, TaskCreationOptions.LongRunning, ZeroDefault);
+                }, this, CancellationToken.None, TaskCreationOptions.DenyChildAttach, ZeroDefault);
             }
 
             //forks
@@ -308,9 +308,9 @@ namespace zero.core.runtime.scheduler
             {
                 _ = Task.Factory.StartNew(static async state =>
                 {
-                    var (@this, i) = (ValueTuple<IoZeroScheduler, int>)state;
+                    var @this = (IoZeroScheduler)state;
                     await @this.ForkCallbacks().FastPath();
-                }, (this, i), CancellationToken.None, TaskCreationOptions.LongRunning, ZeroDefault);
+                }, this, CancellationToken.None, TaskCreationOptions.DenyChildAttach, ZeroDefault);
             }
         }
 
@@ -335,7 +335,7 @@ namespace zero.core.runtime.scheduler
                 Interlocked.Exchange(ref _intialized, 1);
         }
 
-        private async ValueTask HandleAsyncSchedulerTask(int threadIndex)
+        private async ValueTask HandleAsyncSchedulerTask()
         {
             TrackInit();
             while (!_asyncTasks.IsCancellationRequested)
@@ -402,12 +402,12 @@ namespace zero.core.runtime.scheduler
                 {
                     if ((double)_asyncTaskWithContextLoad / _asyncTaskWithContextCapacity > 0.84)
                     {
+                        Interlocked.Increment(ref _asyncTaskWithContextCapacity);
                         _ = Task.Factory.StartNew(static async state =>
                             {
-                                var (@this, i) = (ValueTuple<IoZeroScheduler, int>)state;
+                                var @this= (IoZeroScheduler)state;
                                 await @this.HandleAsyncValueTaskWithContext().FastPath();
-                            }, (this, Interlocked.Increment(ref _asyncTaskWithContextCapacity)),
-                            CancellationToken.None, TaskCreationOptions.LongRunning, ZeroDefault);
+                            }, this, CancellationToken.None, TaskCreationOptions.DenyChildAttach, ZeroDefault);
                     }
                     Interlocked.Increment(ref _asyncTaskWithContextLoad);
                     await job.ValueFunc(job.Context).FastPath();
@@ -577,28 +577,27 @@ namespace zero.core.runtime.scheduler
                     var @this = (IoZeroScheduler)state;
                     if (Interlocked.Decrement(ref _workerSpawnBurstMax) > 0 || @this.LoadFactor > WorkerSpawnThreshold)
                     {
+                        Interlocked.Increment(ref @this._taskQueueCapacity);
                         _ = Task.Factory.StartNew(static async state =>
                             {
-                                var (@this, i) = (ValueTuple<IoZeroScheduler, int>)state;
-                                await @this.HandleAsyncSchedulerTask(i).ConfigureAwait(false);
-                            }, (@this, Interlocked.Increment(ref @this._taskQueueCapacity) - 1), CancellationToken.None,
-                            TaskCreationOptions.LongRunning, Default);
+                                var @this = (IoZeroScheduler)state;
+                                await @this.HandleAsyncSchedulerTask().FastPath().ConfigureAwait(false);
+                            }, @this, CancellationToken.None, TaskCreationOptions.DenyChildAttach | TaskCreationOptions.HideScheduler, Default);
 
+                        Interlocked.Increment(ref @this._asyncTaskWithContextCapacity);
                         _ = Task.Factory.StartNew(static async state =>
                             {
-                                var (@this, i) = (ValueTuple<IoZeroScheduler, int>)state;
+                                var @this = (IoZeroScheduler)state;
                                 await @this.HandleAsyncValueTaskWithContext().FastPath();
-                            }, (@this, Interlocked.Increment(ref @this._asyncTaskWithContextCapacity)),
-                            CancellationToken.None,
-                            TaskCreationOptions.LongRunning, ZeroDefault);
+                            }, @this, CancellationToken.None, TaskCreationOptions.DenyChildAttach, ZeroDefault);
 
+                        Interlocked.Increment(ref @this._asyncCallbackWithContextCapacity);
                         //async callbacks
-                        
                         _ = Task.Factory.StartNew(static async state =>
                         {
-                            var (@this, i) = (ValueTuple<IoZeroScheduler, int>)(state);
+                            var @this = (IoZeroScheduler)state;
                             await @this.HandleAsyncCallback().FastPath();
-                        }, (@this, Interlocked.Increment(ref @this._asyncCallbackWithContextCapacity)), CancellationToken.None, TaskCreationOptions.LongRunning, ZeroDefault);
+                        }, @this, CancellationToken.None, TaskCreationOptions.DenyChildAttach, ZeroDefault);
                         
 
                         if (_workerSpawnBurstMax == 0)
