@@ -35,8 +35,8 @@ namespace zero.cocoon.models
 
             IoZero = (IoZero<CcProtocMessage<chroniton, CcDiscoveryBatch>>)context;
             
-            var pf = Source.PrefetchSize * 2;
-            var cc = Source.ZeroConcurrencyLevel * 2; 
+            var pf = Source.PrefetchSize * 3;
+            var cc = Source.ZeroConcurrencyLevel * 3; 
 
             if (!Source.Proxy && Adjunct.CcCollective.ZeroDrone)
             {
