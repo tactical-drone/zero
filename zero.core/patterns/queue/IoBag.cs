@@ -6,7 +6,6 @@ using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Threading;
-using System.Threading.Channels;
 using System.Threading.Tasks;
 using NLog;
 using zero.core.misc;
@@ -314,7 +313,7 @@ namespace zero.core.patterns.queue
                     
                     Interlocked.MemoryBarrier();
                     slot = this[next];
-
+                    this[next] = default;
                     long prev;
                     if ((prev = Interlocked.Exchange(ref _bloom[idx], 0)) == 2)
                     {

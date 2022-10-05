@@ -28,11 +28,12 @@ namespace zero.core.patterns.bushings
             _logger = LogManager.GetCurrentClassLogger();
 
 #if DEBUG
-            StateHeap = new($"{nameof(IoJob<TJob>)}.{nameof(StateHeap)}:", short.MaxValue, static (_, _) => new IoStateTransition<IoJobMeta.JobState>() { FinalState = IoJobMeta.JobState.Halted })
+            StateHeap = new($"{nameof(IoJob<TJob>)}.{nameof(StateHeap)}:", short.MaxValue, static (_, _) => new IoStateTransition<IoJobMeta.JobState> { FinalState = IoJobMeta.JobState.Halted })
             {
                 PopAction = (nextState, context) =>
                 {
                     var (prevState, newStateId) = (ValueTuple<IoStateTransition<IoJobMeta.JobState>, int>)context;
+
                     nextState.ExitTime = nextState.EnterTime = Environment.TickCount;
 
                     nextState.Next = null;
@@ -81,10 +82,14 @@ namespace zero.core.patterns.bushings
         // ReSharper disable once StaticMemberInGenericType
         protected static readonly Logger _logger;
 
+        private long _id;
         /// <summary>
         /// A unique id for this work
         /// </summary>
-        public long Id { get; protected set; }
+        public long Id {
+            get => Interlocked.Read(ref _id);
+            protected set => Interlocked.Exchange(ref _id, value);
+        }
 
         /// <summary>
         /// Work spanning multiple jobs
@@ -231,15 +236,11 @@ namespace zero.core.patterns.bushings
             await base.ZeroManagedAsync().FastPath();
 
 #if DEBUG
-            if (_stateMeta != null)
-                StateHeap.Return(_stateMeta);
-
             await StateTransitionHistory.ZeroManagedAsync(static (s, @this) =>
             {
                 StateHeap.Return(s.Value);
                 return default;
             }, this, zero:true).FastPath();
-
 #endif
             if (PreviousJob != null)
                 await PreviousJob.DisposeAsync(this, $"{nameof(IoJob<TJob>)}: teardown").FastPath();
@@ -256,11 +257,11 @@ namespace zero.core.patterns.bushings
         /// <summary>
         /// Print the state transition history for this work
         /// </summary>
-        public void PrintStateHistory()
+        public void PrintStateHistory(string tag)
         {
             var curState = _stateMeta?.GetStartState();
 
-            _logger.Warn($"dumpstate ~> {Description}");
+            _logger.Warn($"[{tag}] dumpstate ~> {Description}");
             while (curState != null)
             {
                 PrintState(curState);
@@ -313,7 +314,11 @@ namespace zero.core.patterns.bushings
 
             //    stateMeta.PaddedStr(),
             //    (stateMeta.Mu.ToString(CultureInfo.InvariantCulture) + " ms ").PadLeft(parm_id_pad_size));
+#if DEBUG
+            _logger.Warn($"[{stateMeta.Id}] {stateMeta.DefaultPadded}");
+#else
             _logger.Warn($"{stateMeta.DefaultPadded}");
+#endif
 
             //stateMeta.Next == null ? stateMeta.DefaultPadded : stateMeta.Next.PaddedStr(),
             //(stateMeta.Delta.ToString(CultureInfo.InvariantCulture) + " ms ").PadLeft(parm_id_pad_size));
@@ -357,7 +362,7 @@ namespace zero.core.patterns.bushings
                     if (value == IoJobMeta.JobState.Undefined && s == IoJobMeta.JobState.Consuming)
                     {
                         //_stateMeta.Set((int)IoJobMeta.JobState.Race);
-                        PrintStateHistory();
+                        PrintStateHistory("SetStateAsync - c");
                         throw new ApplicationException(
                             $"(CONSUME!) Cannot transition from `{IoJobMeta.JobState.Halted}' to `{value}', had = {s}");
                     }
@@ -365,7 +370,14 @@ namespace zero.core.patterns.bushings
                     if (_stateMeta.Value == IoJobMeta.JobState.Halted && value != IoJobMeta.JobState.Undefined)
                     {
                         //_stateMeta.Set((int)IoJobMeta.JobState.Race);
-                        PrintStateHistory();
+                        PrintStateHistory("SetStateAsync");
+                        throw new ApplicationException(
+                            $"Cannot transition from `{_stateMeta.Value}' to `{value}', had = {s}");
+                    }
+
+                    if (value < _stateMeta.Value)
+                    {
+                        PrintStateHistory("RACE");
                         throw new ApplicationException(
                             $"Cannot transition from `{_stateMeta.Value}' to `{value}', had = {s}");
                     }
@@ -374,6 +386,15 @@ namespace zero.core.patterns.bushings
                         return value;
 
                     _stateMeta.ExitTime = Environment.TickCount;
+#if DEBUG
+                    _stateMeta.Id = Id;
+
+                    if ((_stateMeta.Prev?.Id ?? Id) != Id)
+                    {
+                        PrintStateHistory("Id");
+                    }
+#endif
+
                     if (Source != null)
                     {
                         Interlocked.Increment(ref Source.Counters[(int)_stateMeta.Value]);
@@ -392,6 +413,15 @@ namespace zero.core.patterns.bushings
 
                 //Allocate memory for a new current state
                 var newState = StateHeap.Take((_stateMeta, (int)value));
+
+                if (newState.Next != null)
+                {
+                    _logger.Fatal($"POPPED <#{Serial}>[{Id}]; state[{newState.Id}] = {newState}, next[{newState.Next.Id}] = {newState.Next}");
+                    PrintStateHistory("POPPED");
+                }
+
+                Debug.Assert(newState.Next == null);
+
                 if (newState == null)
                 {
                     if (!Zeroed())
@@ -410,11 +440,11 @@ namespace zero.core.patterns.bushings
                 _stateMeta.Set((int)value);
                 _stateMeta.EnterTime = Environment.TickCount;
 #endif
-
-                if (value is IoJobMeta.JobState.Accept or IoJobMeta.JobState.Reject)
+                //sentinel 
+                if (value is IoJobMeta.JobState.Accept or IoJobMeta.JobState.Reject or IoJobMeta.JobState.Recovering)
                 {
                     FinalState = value;
-                    //_logger.Error($"<#{Serial}:[{Id}]; HALTED {State} <- {Source.Description}");
+                    //_logger.Error($"<#{Serial}:[{Id}]; SENTINEL {FinalState} <- {Source.Description}");
                     await SetStateAsync(IoJobMeta.JobState.Halted).FastPath();
                 }
             }

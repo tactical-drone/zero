@@ -52,7 +52,7 @@
 	  <PackageReference Include="Microsoft.CSharp" Version="4.7.0" />    
 	  <PackageReference Include="NLog" Version="5.0.4" />    
 	  <PackageReference Include="System.Runtime.CompilerServices.Unsafe" Version="7.0.0-preview.3.22119.2" />    
-	  <PackageReference Include="System.Threading.Channels" Version="8.0.0-alpha.1.22504.2" />
+	  <PackageReference Include="System.Threading.Channels" Version="8.0.0-alpha.1.22504.7" />
 	  <PackageReference Include="xunit.abstractions" Version="2.0.3" />        
   </ItemGroup>
 

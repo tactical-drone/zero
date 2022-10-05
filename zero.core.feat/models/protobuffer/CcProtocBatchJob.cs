@@ -123,13 +123,13 @@ namespace zero.core.feat.models.protobuffer
         /// </returns>
         public override async ValueTask<IoJobMeta.JobState> ProduceAsync<T>(IIoSource.IoZeroCongestion<T> barrier, T ioZero)
         {
-            if (await Source.ProduceAsync(static async (source, backPressure, state, ioJob )=>
+            if (!await Source.ProduceAsync(static async (source, backPressure, state, ioJob )=>
                 {
                     var job = (CcProtocBatchJob<TModel, TBatch>)ioJob;
 
                     //_logger.Fatal($"CHAN(w ) <#{ioJob.Serial}>[{ioJob.Id}]; {ioJob.State} <- {source.Description}");
                     if (!await backPressure(state).FastPath())
-                        return await job.SetStateAsync(IoJobMeta.JobState.ProduceErr).FastPath();
+                        return false;
                     //_logger.Fatal($"CHAN(w-) <#{ioJob.Serial}>[{ioJob.Id}]; {ioJob.State} <- {source.Description}");
 
                     try
@@ -145,28 +145,26 @@ namespace zero.core.feat.models.protobuffer
                             job.GenerateJobId();
                         }
                         else
-                            return await job.SetStateAsync(IoJobMeta.JobState.ProdSkipped).FastPath();
+                            return false;
                     }
                     catch (TaskCanceledException) { }
                     catch when (job.Zeroed())
                     {
-                        return await job.SetStateAsync(IoJobMeta.JobState.ProduceErr).FastPath();
+                        return false;
                     }
                     catch (Exception e) when(!job.Zeroed())
                     {
                         _logger.Fatal(e,$"BatchChannel.TryDequeueAsync failed: {job.Description}"); 
                     }
 
-                    if (job._batch != null)
-                        return await ioJob.SetStateAsync(IoJobMeta.JobState.Produced).FastPath();
-                    return await ioJob.SetStateAsync(IoJobMeta.JobState.ProdSkipped).FastPath();
-                }, this, barrier, ioZero).FastPath() != IoJobMeta.JobState.Produced)
+                    return job._batch != null;
+                }, this, barrier, ioZero).FastPath())
             {
                 _logger.Trace($"{nameof(ProduceAsync)}: Production [FAILED]; {Description}");
-                return State;
+                return await SetStateAsync(IoJobMeta.JobState.ProdSkipped).FastPath();
             }
-            
-            return State;
+
+            return await SetStateAsync(IoJobMeta.JobState.Produced).FastPath();
         }
 
         /// <summary>

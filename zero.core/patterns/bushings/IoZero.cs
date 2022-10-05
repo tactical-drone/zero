@@ -309,7 +309,6 @@ namespace zero.core.patterns.bushings
                 if (nextJob != null)
                 {
                     await nextJob.SetStateAsync(IoJobMeta.JobState.Producing).FastPath();
-
 #if DEBUG
                     //sanity check _previousJobFragment
                     if (ZeroRecoveryEnabled &&
@@ -449,7 +448,6 @@ namespace zero.core.patterns.bushings
 
                     if(!Zeroed())
                         await ZeroJobAsync(nextJob, true).FastPath();
-                    nextJob = null;
                 }
             }
             
@@ -506,9 +504,10 @@ namespace zero.core.patterns.bushings
                         var latch = job.FragmentIdx;
                         var qid = job.FragmentIdx?.Qid ?? -1;
                         if (latch != null && Interlocked.CompareExchange(ref job.FragmentIdx, null, latch) == latch)
+                        {
                             await _previousJobFragment.RemoveAsync(latch, qid).FastPath();
-
-                        JobHeap.Return(job, true);
+                            JobHeap.Return(job, true);
+                        }
                     }
                     else
                     {
@@ -553,6 +552,7 @@ namespace zero.core.patterns.bushings
             {
                 //A job was produced. Dequeue it and process
                 var curJob = await _queue.WaitAsync().FastPath();
+
                 try
                 {
                     if (Zeroed())
@@ -581,7 +581,7 @@ namespace zero.core.patterns.bushings
                     {
 #if DEBUG
                             _logger?.Error($"consuming job: {curJob.Description} was unsuccessful, state = {curJob.State}");
-                            curJob.PrintStateHistory();
+                            curJob.PrintStateHistory("stale");
 #endif
                     }
                 }
@@ -599,12 +599,19 @@ namespace zero.core.patterns.bushings
                     {
                         if (!Zeroed())
                         {
-                            //Consume success?
-                            await curJob.SetStateAsync(curJob.State is IoJobMeta.JobState.Consumed
-                                or IoJobMeta.JobState.Fragmented or IoJobMeta.JobState.BadData
-                                ? IoJobMeta.JobState.Accept
-                                : IoJobMeta.JobState.Reject).FastPath();
+                            if (curJob.State is IoJobMeta.JobState.Fragmented or IoJobMeta.JobState.BadData)
+                            {
+                                await curJob.SetStateAsync(IoJobMeta.JobState.Recovering).FastPath();
+                            }
+                            else
+                            {
+                                //Consume success?
+                                await curJob.SetStateAsync(curJob.State is IoJobMeta.JobState.Consumed
+                                    ? IoJobMeta.JobState.Accept
+                                    : IoJobMeta.JobState.Reject).FastPath();
+                            }
 
+                            //log stats to console
                             if (curJob.Id % parm_stats_mod_count == 0 && curJob.Id >= 9999)
                             {
                                 await ZeroAtomicAsync(static (_, @this, _) =>
@@ -614,7 +621,8 @@ namespace zero.core.patterns.bushings
                                 }, this).FastPath();
                             }
 
-                            await ZeroJobAsync(curJob, curJob.FinalState != IoJobMeta.JobState.Accept).FastPath();
+                            //cleanup
+                            await ZeroJobAsync(curJob, curJob.FinalState is IoJobMeta.JobState.Reject).FastPath();
 
                             //back pressure
                             Source.BackPressure(zeroAsync: true);
@@ -752,9 +760,11 @@ namespace zero.core.patterns.bushings
                             {
                                 try
                                 {
-                                    await @this.ProduceAsync().FastPath();
+                                    if(!await @this.ProduceAsync().FastPath())
+                                        await Task.Delay(@this.parm_min_failed_production_time, @this.AsyncTasks.Token);
                                 }
-                                catch (Exception e)
+                                catch when (@this.Zeroed()) { }
+                                catch (Exception e) when (!@this.Zeroed())
                                 {
                                     @this._logger.Error(e, $"Production failed: {@this.Description}");
                                     break;

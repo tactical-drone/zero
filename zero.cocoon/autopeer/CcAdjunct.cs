@@ -1418,9 +1418,11 @@ namespace zero.cocoon.autopeer
                                 {
                                     try
                                     {
-                                        await @this._protocolConduit.ProduceAsync().FastPath();
+                                        if (!await @this._protocolConduit.ProduceAsync().FastPath())
+                                            await Task.Delay(@this.parm_min_failed_production_time, @this.AsyncTasks.Token);
                                     }
-                                    catch (Exception e)
+                                    catch when(@this.Zeroed()){}
+                                    catch (Exception e) when (!@this.Zeroed())
                                     {
                                         @this._logger.Error(e, $"Production failed for {@this.Description}");
                                         break;
@@ -2197,11 +2199,20 @@ namespace zero.cocoon.autopeer
                     IoZeroScheduler.Zero.LoadAsyncContext(static async state =>
                     {
                         var (@this, toAddress) = (ValueTuple<CcAdjunct, IoNodeAddress>)state;
-                        await Task.Delay(@this.parm_max_v_heuristic_ms, @this.AsyncTasks.Token);
-
-                        if (!await @this.Router.ProbeAsync("SYN-DC", toAddress))
+                        try
                         {
-                            @this._logger.Trace($"-/> {nameof(CcProbeMessage)} SYN-DC failed; {toAddress}");
+                            await Task.Delay(@this.parm_max_v_heuristic_ms, @this.AsyncTasks.Token);
+
+                            if (!await @this.Router.ProbeAsync("SYN-DC", toAddress))
+                            {
+                                @this._logger.Trace($"-/> {nameof(CcProbeMessage)} SYN-DC failed; {toAddress}");
+                            }
+                        }
+                        catch (TaskCanceledException){}
+                        catch when(@this.Zeroed()){}
+                        catch (Exception e) when (!@this.Zeroed()) 
+                        {
+                            @this._logger.Error(e,$"{nameof(@this.Router.ProbeAsync)}:");
                         }
                     }, (this, toAddress));
                 }

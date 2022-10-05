@@ -24,13 +24,13 @@ namespace zero.core.patterns.bushings
 
         public IoStateTransition()
         {
-            EnterTime = Environment.TickCount;
+            EnterTime = ExitTime = Environment.TickCount;
         }
 
         public IoStateTransition(int initState = 0)
         {
             base.Value = initState;
-            EnterTime = Environment.TickCount;
+            EnterTime = ExitTime = Environment.TickCount;
         }
 
         //Release all memory held
@@ -51,12 +51,12 @@ namespace zero.core.patterns.bushings
         /// <summary>
         /// Timestamped when this state was entered
         /// </summary>
-        public volatile int EnterTime;
+        public int EnterTime;
 
         /// <summary>
         /// Timestamped when this state was exited
         /// </summary>
-        public volatile int ExitTime;
+        public int ExitTime;
         #endregion
 
         public new IoStateTransition<TState> Next
@@ -123,7 +123,11 @@ namespace zero.core.patterns.bushings
             if (Next != null)
                 nextStr = $" ~> {Enum.GetName(typeof(TState), Next.Value)}";
 
-            return $"{prevStr}[{Enum.GetName(typeof(TState),Value)}]{nextStr}";
+#if DEBUG
+            return $"[{Id}] {prevStr}[{Enum.GetName(typeof(TState), Value)}]{nextStr}";
+#else
+            return $"{prevStr}[{Enum.GetName(typeof(TState), Value)}]{nextStr}";
+#endif
         }
 
         /// <summary>

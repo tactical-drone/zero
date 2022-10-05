@@ -163,7 +163,7 @@ namespace zero.cocoon.models
         /// </summary>
         [IoParameter]
         // ReSharper disable once InconsistentNaming
-        public int parm_max_msg_batch_size = 2;
+        public int parm_max_msg_batch_size = 4;
         //TODO: tuning. The showcase implementation never goes beyond 1 because of how UDP delivers packets from the same endpoint... batching is pointless here.
 
         /// <summary>
@@ -479,7 +479,7 @@ namespace zero.cocoon.models
                     return;
 
                 //cog the producer
-                if (await ProtocolConduit.Source.ProduceAsync<object>(static (source, _, _, ioJob) =>
+                if (!await ProtocolConduit.Source.ProduceAsync<object>(static (source, _, _, ioJob) =>
                     {
                         var @this = (CcDiscoveries)ioJob;
 
@@ -493,7 +493,7 @@ namespace zero.cocoon.models
                                     _logger.Fatal($"{nameof(ZeroBatchAsync)}: Unable to q batch,{chan.Description} {@this.Description}");
                                 }
 
-                                return ioJob.SetStateAsync(IoJobMeta.JobState.ProduceErr).FastPath();
+                                return new ValueTask<bool>(false);
                             }
 
                             @this._currentBatch = @this._batchHeap.Take();
@@ -502,7 +502,7 @@ namespace zero.cocoon.models
 
                             @this._currentBatch.Count = 0;
 
-                            return ioJob.SetStateAsync(IoJobMeta.JobState.Produced).FastPath();
+                            return new ValueTask<bool>(true);
                         }
                         catch (Exception) when (@this.Zeroed()) { }
                         catch (Exception e) when (!@this.Zeroed())
@@ -510,8 +510,8 @@ namespace zero.cocoon.models
                             _logger.Error(e, $"{@this.Description} - Forward failed!");
                         }
 
-                        return ioJob.SetStateAsync(IoJobMeta.JobState.ProduceErr).FastPath();
-                    }, this, null, null).FastPath() != IoJobMeta.JobState.Produced)
+                        return new ValueTask<bool>(false);
+                    }, this, null, null).FastPath())
                 {
                     if (!Zeroed())
                         _logger.Trace($"{nameof(ZeroBatchAsync)}: Production [FAILED]: {ProtocolConduit.Description}");

@@ -29,7 +29,9 @@ namespace zero.core.patterns.queue
             public IoZNode Prev;
             public T Value;
             public int Qid;
-            //public int lastOp;
+#if DEBUG
+            public long Id;
+#endif
         }
 
         /// <summary>
