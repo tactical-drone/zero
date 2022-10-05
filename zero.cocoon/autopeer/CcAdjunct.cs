@@ -906,13 +906,9 @@ namespace zero.cocoon.autopeer
                     var @this = (CcAdjunct)state;
                     try
                     {
-                        //TODO: DELAYS
-                        //await Task.Delay(@this._random.Next(@this.parm_max_network_latency_ms>>4), @this.AsyncTasks.Token);
-                        //await Task.Yield();
-
                         var ts = Environment.TickCount;
                         AdjunctState oldState;
-                        if ((oldState = @this.CompareAndEnterState(AdjunctState.Connecting, AdjunctState.Fusing)) != AdjunctState.Fusing)
+                        if ((@this.CurrentState.EnterTime.ElapsedMs() == 0 || @this.State == AdjunctState.Connecting) && (oldState = @this.CompareAndEnterState(AdjunctState.Connecting, AdjunctState.Fusing)) != AdjunctState.Fusing)
                         {
                             @this._logger.Trace($"{nameof(ConnectAsync)} - {@this.Description}: Invalid state, {oldState}. Wanted {nameof(AdjunctState.Fusing)}");
                             return;
@@ -1529,13 +1525,12 @@ namespace zero.cocoon.autopeer
             if (fuseResponse.Accept)
             {
                 var origState = _state.Value;
-                AdjunctState curState;
-                var stateIsValid = (curState = CompareAndEnterState(AdjunctState.Fusing, AdjunctState.Verified, overrideHung: parm_max_network_latency_ms)) == AdjunctState.Verified;
+                var stateIsValid = CompareAndEnterState(AdjunctState.Fusing, AdjunctState.Verified, overrideHung: parm_max_network_latency_ms) == AdjunctState.Verified;
 
                 if (!stateIsValid)
                 {
                     //avert deadlock
-                    if (curState == AdjunctState.Fusing && CcDesignation.Sha256.ComputeHash(Hub.Designation.PublicKey)[0] < CcDesignation.Sha256.ComputeHash(packet.PublicKey.Memory.AsArray())[0])
+                    if (origState is >= AdjunctState.Fusing and <= AdjunctState.Connected && CcDesignation.Sha256.ComputeHash(Hub.Designation.PublicKey)[0] < CcDesignation.Sha256.ComputeHash(packet.PublicKey.Memory.AsArray())[0])
                         stateIsValid = true;
                 }
 
@@ -2724,17 +2719,14 @@ namespace zero.cocoon.autopeer
             var stateIsValid = (oldState = CompareAndEnterState(AdjunctState.Fusing, AdjunctState.Verified, overrideHung: parm_max_network_latency_ms)) == AdjunctState.Verified;
             if (!stateIsValid)
             {
-                if (oldState != AdjunctState.Fusing && _state.EnterTime.ElapsedMs() > parm_max_network_latency_ms)
+                if (_state.Value is >= AdjunctState.Fusing and <= AdjunctState.Connected && _state.EnterTime.ElapsedMs() > parm_max_network_latency_ms)
                     _logger.Warn($"{nameof(FuseAsync)} - {Description}: Invalid state, {oldState}, age = {_state.EnterTime.ElapsedMs()}ms. Wanted {nameof(AdjunctState.Verified)} - [RACE OK!] ");
                 return false;
             }
 
-
-
-            //IoZeroScheduler.Zero.LoadAsyncContext(static async state =>
-            await ZeroAsync(static async @this =>
+            IoZeroScheduler.Zero.LoadAsyncContext(static async state =>
             {
-                //var @this = (CcAdjunct)state;
+                var @this = (CcAdjunct)state;
                 try
                 {
                     var fuseRequest = new CcFuseRequest

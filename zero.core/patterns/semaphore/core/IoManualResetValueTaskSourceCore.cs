@@ -7,7 +7,6 @@ using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Threading.Tasks.Sources;
-using NLog;
 using zero.core.misc;
 using zero.core.runtime.scheduler;
 
@@ -29,7 +28,6 @@ namespace zero.core.patterns.semaphore.core
         /// or <see cref="ManualResetValueTaskSourceCoreShared.SSentinel"/> if the operation completed before a callback was supplied,
         /// or null if a callback hasn't yet been provided and the operation hasn't yet completed.
         /// </summary>
-#pragma warning disable CS8632
         private Action<object> _continuation;
 
         /// <summary>State to pass to <see cref="_continuation"/>.</summary>
@@ -46,7 +44,7 @@ namespace zero.core.patterns.semaphore.core
 
         /// <summary>The exception with which the operation failed, or null if it hasn't yet completed or completed successfully.</summary>
         private ExceptionDispatchInfo _error;
-#pragma warning restore CS8632
+
         /// <summary>The result with which the operation succeeded, or the default value if it hasn't yet completed or failed.</summary>
         [AllowNull, MaybeNull] private TResult _result;
 
@@ -405,6 +403,7 @@ namespace zero.core.patterns.semaphore.core
                 case null:
                     if (RunContinuationsAsynchronously)
                     {
+                        //Task.Factory.StartNew(_continuation, _continuationState, CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Default);
                         if (_executionContext != null)
                         {
                             ThreadPool.QueueUserWorkItem(_continuation, _continuationState, preferLocal: true);

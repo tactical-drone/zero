@@ -235,8 +235,11 @@ namespace zero.core.runtime.scheduler
         private readonly bool _native;
 
 
-        public int RLength => _taskQueue.ReadyCount;
-        public int QLength => _taskQueue.WaitCount;
+        //idle worker threads
+        public int Idle => _taskQueue.WaitCount;
+
+        //waiting program threads
+        public int Wait => _taskQueue.ReadyCount;
         public int ThreadCount => _taskQueueCapacity;
         public double LoadFactor => (double)Load / _taskQueueCapacity;
         public long Capacity => _taskQueueCapacity;
