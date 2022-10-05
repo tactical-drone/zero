@@ -499,58 +499,55 @@ namespace zero.cocoon
 
         private static async ValueTask<bool> ZeroAcceptConAsync(IoNeighbor<CcProtocMessage<CcWhisperMsg, CcGossipBatch>> drone, CcCollective collective)
         {
+            if (drone == null || collective.Zeroed())
+                return false;
+
             var success = false;
             var ccDrone = (CcDrone)drone;
-            var @this = collective;
+
             //limit connects
             try
             {
-                if (@this.Zeroed() || @this.TotalConnections >= @this.parm_max_drone)
+                if (collective.Zeroed() || collective.IngressCount >= collective.parm_max_inbound)
                     return false;
 
                 //Handshake
-                if (await @this.FutileAsync(ccDrone).FastPath())
+                if (await collective.FutileAsync(ccDrone).FastPath())
                 {
-                    //TODO: DELAYS
-                    //await Task.Delay(@this.parm_futile_timeout_ms>>4, @this.AsyncTasks.Token);
-                    //await Task.Yield();
-
                     if (ccDrone.Zeroed())
                     {
-                        @this._logger.Debug($"+|{drone.Description}");
+                        collective._logger.Debug($"+|{drone.Description}");
                         return false;
                     }
 
                     ccDrone.Adjunct.WasAttached = true;
 
-                    if (!@this.ZeroDrone && AutoPeeringEventService.Operational)
+                    if (!collective.ZeroDrone && AutoPeeringEventService.Operational)
                         AutoPeeringEventService.AddEvent(new AutoPeerEvent
                         {
                             EventType = AutoPeerEventType.AddDrone,
                             Drone = new Drone
                             {
-                                CollectiveId = @this.Hub.Designation.IdString(),
+                                CollectiveId = collective.Hub.Designation.IdString(),
                                 Id = ccDrone.Adjunct.Designation.IdString(),
                                 Direction = ccDrone.Adjunct.Direction.ToString()
                             }
                         });
                     
                     //ACCEPT
-                    @this._logger.Info($"+ {drone.Description}");
+                    collective._logger.Info($"+ {drone.Description}");
                     return success = true;
                 }
                 else
                 {
-                    @this._logger.Debug($"+|{drone.Description}");
+                    collective._logger.Debug($"+|{drone.Description}");
                 }
                 return false;
             }
             finally
             {
-                if (!success)
-                {
-                    //await @this.Hub.Router.DeFuseAsync();
-                }
+                if (!success && ccDrone.Adjunct != null)
+                    await ccDrone.Adjunct.DeFuseAsync();
             }
         }
 
@@ -620,7 +617,8 @@ namespace zero.cocoon
 
                     if ((bytesRead == 0 || bytesRead < _futileRequestSize) && ioNetSocket.IsConnected())
                     {
-                        _logger.Error($"Failed to read futile ingress request, waited = {ts.ElapsedMs()}ms, wanted ={parm_futile_timeout_ms}ms, socket = {ioNetSocket.Description}");
+                        if(bytesRead > 0)
+                            _logger.Error($"Handshake [FAILED]; read = {bytesRead}/{_futileRequestSize}, w = {ts.ElapsedMs()}ms, want = {parm_futile_timeout_ms}ms, socket = {ioNetSocket.Description}");
                         return false;
                     }
 #if TRACE
