@@ -2467,7 +2467,7 @@ namespace zero.cocoon.autopeer
                         return true;
                 }
 
-                if (!CcCollective.ZeroDrone && heading.HasFlag(IIoSource.Heading.Ingress) && CcCollective.IngressCount < CcCollective.parm_max_inbound)
+                if (!CcCollective.ZeroDrone && heading.HasFlag(IIoSource.Heading.Ingress) && CcCollective.TotalConnections < CcCollective.MaxAdjuncts)
                 {
                     var proxy = dmzEndpoint == null ? this : Router;
 

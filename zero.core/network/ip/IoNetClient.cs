@@ -149,7 +149,7 @@ namespace zero.core.network.ip
             if (connected)
                 _logger.Trace($"Connecting to `{remoteAddress}', took {ts.ElapsedMs()}ms, {Description}");
             else
-                _logger.Error($"Failed connecting to `{remoteAddress}', took {ts.ElapsedMs()}ms, timeout = {timeout}, {Description} [FAILED]");
+                _logger.Error($"Failed connecting to `{remoteAddress}', took {ts.ElapsedMs()}ms, timeout = {timeout}ms, {Description} [FAILED]");
             
             return connected;
         }

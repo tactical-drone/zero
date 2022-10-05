@@ -499,7 +499,7 @@ namespace zero.cocoon
 
         private static async ValueTask<bool> ZeroAcceptConAsync(IoNeighbor<CcProtocMessage<CcWhisperMsg, CcGossipBatch>> drone, CcCollective collective)
         {
-            if (drone == null || collective.Zeroed())
+            if (drone == null || (collective?.Zeroed()??true))
                 return false;
 
             var success = false;
@@ -516,7 +516,7 @@ namespace zero.cocoon
                 {
                     if (ccDrone.Zeroed())
                     {
-                        collective._logger.Debug($"+|{drone.Description}");
+                        collective._logger.Debug($"+| {drone.Description}");
                         return false;
                     }
 
@@ -540,14 +540,23 @@ namespace zero.cocoon
                 }
                 else
                 {
-                    collective._logger.Debug($"+|{drone.Description}");
+                    collective._logger.Trace($"+h {drone.Description}");
                 }
                 return false;
             }
             finally
             {
                 if (!success && ccDrone.Adjunct != null)
-                    await ccDrone.Adjunct.DeFuseAsync();
+                {
+                    try
+                    {
+                        await ccDrone.Adjunct.DeFuseAsync();
+                    }
+                    catch
+                    {
+                        // ignored
+                    }
+                }
             }
         }
 

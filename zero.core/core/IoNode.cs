@@ -227,9 +227,9 @@ namespace zero.core.core
         /// <returns>ValueTask</returns>
         private static async ValueTask<bool> ZeroEnsureConnAsync<T>(IoNode<TJob> @this, IoNeighbor<TJob> newNeighbor, Func<IoNeighbor<TJob>, T, ValueTask<bool>> handshake, T listenerContext)
         {
-            var ioNetClient = newNeighbor?.Source??null;
+            var ioNetClient = newNeighbor?.Source;
 
-            if (ioNetClient == null || @this.Zeroed() || ioNetClient.Zeroed())
+            if ((ioNetClient?.Zeroed()??true) || (@this?.Zeroed()??true))
                 return false;
 
             try
@@ -303,8 +303,9 @@ namespace zero.core.core
                     //async accept...
                     if (!await handshake(newNeighbor, listenerContext).FastPath())
                     {
-                        @this._logger.Trace($"{nameof(handshake)}: {((IoNetClient<TJob>)newNeighbor.IoSource).Direction} connection {ioNetClient.Key} rejected.");
-                        await newNeighbor.DisposeAsync(@this, $"{nameof(handshake)}: {((IoNetClient<TJob>)newNeighbor.IoSource).Direction} connection {ioNetClient.Key} not accepted").FastPath();
+                        var msg = $"{nameof(handshake)}: {((IoNetClient<TJob>)newNeighbor?.IoSource)?.Direction} connection {ioNetClient.Key} rejected.";
+                        @this._logger.Trace(msg);
+                        await newNeighbor.DisposeAsync(@this, msg).FastPath();
                         return false;
                     }
 
