@@ -18,15 +18,12 @@ using zero.cocoon.models.services;
 using zero.core.conf;
 using zero.core.core;
 using zero.core.feat.models.protobuffer;
-using zero.core.feat.patterns.time;
 using zero.core.misc;
 using zero.core.network.ip;
 using zero.core.patterns.bushings.contracts;
 using zero.core.patterns.heap;
 using zero.core.patterns.misc;
-using zero.core.patterns.queue;
 using zero.core.patterns.semaphore;
-using zero.core.runtime.scheduler;
 using Zero.Models.Protobuf;
 
 namespace zero.cocoon
@@ -360,14 +357,14 @@ namespace zero.cocoon
         public CcService Services { get; set; } = new CcService();
 
         /// <summary>
-        /// The autopeering task handler
+        /// The auto peering task handler
         /// </summary>
         private Task _autoPeeringTask;
         private readonly int _futileRequestSize;
         private readonly int _futileResponseSize;
         private readonly int _futileRejectSize;
         private readonly int _fuseBufSize;
-        private ByteString _badSigResponse = ByteString.CopyFrom(new byte[] { 9 });
+        private ByteString _badSigResponse = ByteString.CopyFrom(9);
         public long Testing;
 
         /// <summary>
@@ -497,26 +494,27 @@ namespace zero.cocoon
         protected override ValueTask BlockOnListenerAsync<T, TContext>(Func<IoNeighbor<CcProtocMessage<CcWhisperMsg, CcGossipBatch>>, T, ValueTask<bool>> handshake = null, T context = default, Func<TContext, ValueTask> bootFunc = null, TContext bootData = default)=>
             base.BlockOnListenerAsync(ZeroAcceptConAsync,this, bootFunc, bootData);
 
+        /// <summary>
+        /// Accepts or Rejects an incoming connection
+        /// </summary>
+        /// <param name="drone">The drone holding the meta</param>
+        /// <param name="collective">The collective this drone belongs to</param>
+        /// <returns>True on success, false otherwise</returns>
         private static async ValueTask<bool> ZeroAcceptConAsync(IoNeighbor<CcProtocMessage<CcWhisperMsg, CcGossipBatch>> drone, CcCollective collective)
         {
-            if (drone == null || (collective?.Zeroed()??true))
+            var ccDrone = (CcDrone)drone;
+            if (drone == null || (collective?.Zeroed()??true) || ccDrone.Zeroed())
                 return false;
 
             var success = false;
-            var ccDrone = (CcDrone)drone;
-
-            //limit connects
-            try
+            try 
             {
-                if (collective.Zeroed() || collective.IngressCount >= collective.parm_max_inbound)
-                    return false;
-
                 //Handshake
                 if (await collective.FutileAsync(ccDrone).FastPath())
                 {
                     if (ccDrone.Zeroed())
                     {
-                        collective._logger.Debug($"+| {drone.Description}");
+                        collective._logger.Trace($"+| {drone.Description}");
                         return false;
                     }
 
@@ -534,19 +532,18 @@ namespace zero.cocoon
                             }
                         });
                     
-                    //ACCEPT
                     collective._logger.Info($"+ {drone.Description}");
+
+                    //ACCEPT CONNECTION
                     return success = true;
                 }
-                else
-                {
-                    collective._logger.Trace($"+h {drone.Description}");
-                }
+
+                collective._logger.Trace($"^ {drone.Description}");
                 return false;
             }
             finally
             {
-                if (!success && ccDrone.Adjunct != null)
+                if (!success)
                 {
                     try
                     {
@@ -583,12 +580,12 @@ namespace zero.cocoon
             int sent = 0;
             if (!drone.Zeroed() && (sent = await drone.MessageService.IoNetSocket.SendAsync(protocolRaw, 0, protocolRaw.Length, timeout: timeout).FastPath()) == protocolRaw.Length)
             {
-                _logger.Trace($"~/> {type}({sent}): {drone.MessageService.IoNetSocket.LocalAddress} ~> {drone.MessageService.IoNetSocket.RemoteAddress} ({Enum.GetName(typeof(CcDiscoveries.MessageTypes), responsePacket.Type)})");
+                _logger.Trace($"~/> {type}({sent}) [{protocolRaw.PayloadSig()} {msg.Memory.PayloadSig("D")}]: {drone.MessageService.IoNetSocket.LocalAddress} ~> {drone.MessageService.IoNetSocket.RemoteAddress} ({Enum.GetName(typeof(CcDiscoveries.MessageTypes), responsePacket.Type)}); {protocolRaw.Print()}");
                 return msg.Length;
             }
 
             if(!drone.Zeroed())
-                _logger.Error($"~/> {type}({sent}):  {drone.MessageService.IoNetSocket.LocalAddress} ~> {drone.MessageService.IoNetSocket.RemoteAddress}");
+                _logger.Error($"~/> {type}({sent}) [{protocolRaw.PayloadSig()} {msg.Memory.PayloadSig("D")}]:  {drone.MessageService.IoNetSocket.LocalAddress} ~> {drone.MessageService.IoNetSocket.RemoteAddress};");
             
             return 0;
         }
@@ -600,20 +597,19 @@ namespace zero.cocoon
         /// <returns>True if accepted, false otherwise</returns>
         private async ValueTask<bool> FutileAsync(CcDrone drone)
         {
-            
             var success = false;
             var bytesRead = 0;
 
-            if (Zeroed()) return false;
+            if (Zeroed() || drone.Zeroed()) 
+                return false;
 
             int ts = Environment.TickCount;
+            var futileBuffer = new byte[_fuseBufSize];
             try
-            {                
-                var futileBuffer = new byte[_fuseBufSize];
+            {
                 var ioNetSocket = drone.MessageService.IoNetSocket;
-
                 //inbound
-                if (drone.MessageService?.IoNetSocket?.IsIngress??false)
+                if (ioNetSocket.IsIngress)
                 {
                     var verified = false;
                     
@@ -622,73 +618,60 @@ namespace zero.cocoon
                     do
                     {
                         bytesRead += localRead = await ioNetSocket.ReceiveAsync(futileBuffer, bytesRead, _futileRequestSize - bytesRead, timeout: parm_futile_timeout_ms).FastPath();
-                    } while (bytesRead < _futileRequestSize && localRead > 0 && !Zeroed());
+                    } while (bytesRead < _futileRequestSize && localRead > 0 && ioNetSocket.NativeSocket.Available > 0 && !Zeroed());
 
-                    if ((bytesRead == 0 || bytesRead < _futileRequestSize) && ioNetSocket.IsConnected())
+                    if (bytesRead < _futileRequestSize || !drone.MessageService.IsOperational())
                     {
-                        if(bytesRead > 0)
-                            _logger.Error($"Handshake [FAILED]; read = {bytesRead}/{_futileRequestSize}, w = {ts.ElapsedMs()}ms, want = {parm_futile_timeout_ms}ms, socket = {ioNetSocket.Description}");
+                        _logger.Error($"<\\h {nameof(CcFutileRequest)}({bytesRead}): wanted = {_futileRequestSize}, available = {ioNetSocket.NativeSocket.Available}, t = {ts.ElapsedMs()}ms, T = {parm_futile_timeout_ms}ms, socket = {ioNetSocket.Description}");
                         return false;
                     }
-#if TRACE
-                    else
-                    {
-                        _logger.Trace($"{nameof(CcFutileRequest)}: size = {bytesRead}, socket = {ioNetSocket.Description}");
-                    }
-#endif
-                    
+
                     //parse a packet
                     var packet = chroniton.Parser.ParseFrom(futileBuffer, 0, bytesRead);
-
                     if (packet != null && packet.Data != null && packet.Data.Length > 0)
                     {
+#if TRACE
+                        if (bytesRead > 0)
+                        {
+                            _logger.Fatal($"<h\\ {nameof(CcFutileRequest)}({bytesRead}) [{futileBuffer[..bytesRead].PayloadSig()} {packet.Data.Memory.PayloadSig("D")}]: socket = {ioNetSocket.Description}");
+                        }
+#endif
                         ////verify the public key
                         CcDesignation id = null;
-                        if (packet.PublicKey.Length <= 0 || !Hub.Neighbors.TryGetValue(
-                                (id = CcDesignation.FromPubKey(packet.PublicKey.Memory)).IdString(), out var adjunct))
+                        if (packet.PublicKey.Length <= 0 || !Hub.Neighbors.TryGetValue((id = CcDesignation.FromPubKey(packet.PublicKey.Memory)).IdString(), out var adjunct))
                         {
-                            _logger.Error(
-                                $"bad public key: id = `{id?.IdString() ?? "null"}' not found in {Adjuncts.Count} adjuncts, {Description}");
+                            _logger.Error($"bad public key: id = `{id?.IdString() ?? "null"}' not found in {Adjuncts.Count} adjuncts, {Description}");
                             return false;
                         }
 
                         drone.Adjunct = (CcAdjunct)adjunct;
                         var prevState = drone.Adjunct.CurrentState;
-                        var stateIsValid = drone.Adjunct.CompareAndEnterState(CcAdjunct.AdjunctState.Connecting,
-                                               CcAdjunct.AdjunctState.Fusing, overrideHung: parm_futile_timeout_ms) ==
-                                           CcAdjunct.AdjunctState.Fusing;
+                        var stateIsValid = drone.Adjunct.CompareAndEnterState(CcAdjunct.AdjunctState.Connecting, CcAdjunct.AdjunctState.Fusing, overrideHung: parm_futile_timeout_ms) == CcAdjunct.AdjunctState.Fusing;
 
                         if (!stateIsValid)
                         {
-                            stateIsValid = drone.Adjunct.CompareAndEnterState(CcAdjunct.AdjunctState.Connecting,
-                                               CcAdjunct.AdjunctState.Verified, overrideHung: parm_futile_timeout_ms) ==
-                                           CcAdjunct.AdjunctState.Verified;
+                            stateIsValid = drone.Adjunct.CompareAndEnterState(CcAdjunct.AdjunctState.Connecting, CcAdjunct.AdjunctState.Verified, overrideHung: parm_futile_timeout_ms) == CcAdjunct.AdjunctState.Verified;
                             if (!stateIsValid)
                             {
                                 if (drone.Adjunct.CurrentState.EnterTime.ElapsedMs() > parm_futile_timeout_ms)
                                 {
                                     _logger.Warn($"{nameof(FutileAsync)} - {Description}: Invalid state, {prevState}, age = {prevState.EnterTime.ElapsedMs()}ms. Wanted {nameof(CcAdjunct.AdjunctState.Fusing)} - [RACE OK!]");
                                 }
-                                else
-                                {
-                                    _logger.Error($"{nameof(FutileAsync)} - {Description}: Invalid state, {prevState}, age = {prevState.EnterTime.ElapsedMs()}ms. Wanted {nameof(CcAdjunct.AdjunctState.Fusing)} - [RACE OK!]");
+                                else 
                                     return false;
-                                }
                             }
                         }
                         
                         //verify the signature
                         var packetData = packet.Data.Memory.AsArray();
-                        if (packet.Signature != null || packet.Signature!.Length != 0)
+                        if (
+                            packet.Signature == null ||
+                            packet.Signature.Length != CcDesignation.KeyLength ||
+                            !CcDesignation.Verify(packetData, 0, packetData.Length, packet.PublicKey.Memory.AsArray(), 0, packet!.Signature!.Memory.AsArray(), 0)
+                        )
                         {
-                            verified = CcDesignation.Verify(packetData, 0,
-                                packetData.Length, packet.PublicKey.Memory.AsArray(), 0,
-                                packet!.Signature!.Memory.AsArray(), 0);
-                        }
-                        
-                        //Don't process unsigned or unknown messages
-                        if (!verified)
                             return false;
+                        }
 
                         //process futile request 
                         var ccFutileRequest = CcFutileRequest.Parser.ParseFrom(packet.Data);
@@ -696,7 +679,7 @@ namespace zero.cocoon
                         if (ccFutileRequest != null)
                         {
                             //reject old futile requests
-                            if (ccFutileRequest.Timestamp.ElapsedMs() > parm_futile_timeout_ms)
+                            if (ccFutileRequest.Timestamp.ElapsedUtcMs() > parm_futile_timeout_ms)
                             {
                                 _logger.Error($"Rejected old futile request from {ioNetSocket.Key} - d = {ccFutileRequest.Timestamp.ElapsedMs()}ms, > {parm_futile_timeout_ms}");
                                 return false;
@@ -705,8 +688,7 @@ namespace zero.cocoon
                             //reject invalid protocols
                             if (ccFutileRequest.Protocol != parm_version)
                             {
-                                _logger.Error(
-                                    $"Invalid protocol version from  {ioNetSocket.Key} - got {ccFutileRequest.Protocol}, wants {parm_version}");
+                                _logger.Error($"Invalid protocol version from  {ioNetSocket.Key} - got {ccFutileRequest.Protocol}, wants {parm_version}");
                                 return false;
                             }
 
@@ -719,11 +701,13 @@ namespace zero.cocoon
 
                             //race for connection
                             won = ConnectForTheWin(IIoSource.Heading.Ingress, drone, packet, (IPEndPoint)ioNetSocket.NativeSocket.RemoteEndPoint);
-                            _logger.Trace($"{nameof(CcFutileRequest)}: won = {won}, read = {bytesRead}, {drone.IoSource?.Key}");
+                            _logger.Trace($"{nameof(CcFutileRequest)}({bytesRead}) [{packetData.PayloadSig()}]: won = {won}, read = {bytesRead}, {drone.IoSource?.Key}");
 
                             //send response
                             var futileResponse = new CcFutileResponse
                             {
+                                Timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
+                                Protocol = parm_version,
                                 ReqHash = won? UnsafeByteOperations.UnsafeWrap(new ReadOnlyMemory<byte>(CcDesignation.Sha256.ComputeHash(packet.Data.Memory.AsArray()))): _badSigResponse
                             };
                             
@@ -737,16 +721,27 @@ namespace zero.cocoon
                                 _logger.Trace($"{nameof(futileResponse)}: Send FAILED!; time = {ts.ElapsedMs()} ms, {ioNetSocket.Description}");
                                 return false;
                             }
+#if TRACE
+                            else
+                            {
+                                _logger.Fatal($"h/> {nameof(CcFutileResponse)}({sent}) [{futileResponseBuf.Memory.PayloadSig("D")}]: socket = {ioNetSocket.Description}");
+                            }
+#endif
                         }
                         //Race
                         //return await ConnectForTheWinAsync(CcNeighbor.Kind.Inbound, peer, packet,
                         //        (IPEndPoint)ioNetSocket.NativeSocket.RemoteEndPoint)
                         //    .FastPath().ConfigureAwait(ZC);
-                        return success = !Zeroed() && drone.Adjunct != null && !drone.Adjunct.Zeroed() && won && drone.Adjunct.Direction == IIoSource.Heading.Ingress && drone.Source.IsOperational();
+                        success = !Zeroed() && drone.Adjunct != null && !drone.Adjunct.Zeroed() && won && drone.Adjunct.Direction == IIoSource.Heading.Ingress && drone.Source.IsOperational();
+                        return success;
+                    }
+                    else
+                    {
+                        _logger.Error($"{nameof(FutileAsync)}: Bad ingress handshake request payload; {drone.Description}");
                     }
                 }
                 //-----------------------------------------------------//
-                else if (drone.MessageService?.IoNetSocket?.IsEgress??false) //Outbound
+                else if (ioNetSocket.IsEgress) //Outbound
                 {
                     var ccFutileRequest = new CcFutileRequest
                     {
@@ -758,50 +753,42 @@ namespace zero.cocoon
 
                     ts = Environment.TickCount;
                     var sent = await SendMessageAsync(drone, futileRequestBuf, nameof(CcFutileRequest)).FastPath();
-                    if (sent > 0)
+                    if (sent < 0)
                     {
-                        _logger.Trace($"h/> {nameof(SendMessageAsync)}({sent}): dest = {ioNetSocket.Description}");
-                    }
-                    else
-                    {
-                        _logger.Trace(
-                            $"Failed to send egress futile challange, socket = {ioNetSocket.Description}");
+                        _logger.Trace($"Failed to send egress futile challange, socket = {ioNetSocket.Description}");
                         return false;
                     }
+#if TRACE
+                    else
+                    {
+                        _logger.Fatal($"h/> {nameof(CcFutileRequest)}({sent}) [{futileRequestBuf.Memory.PayloadSig("D")}]: dest = {ioNetSocket.Description}");
+                    }
+#endif
 
                     int localRead;
-                    var expectedChunk = _futileRejectSize;
-                    var chunkSize = expectedChunk;
                     ts = Environment.TickCount;
                     do
                     {
-                        bytesRead += localRead = await ioNetSocket.ReceiveAsync(futileBuffer, bytesRead, chunkSize, timeout: parm_futile_timeout_ms).FastPath();
-                        if (chunkSize == _futileRejectSize)
-                        {
-                            expectedChunk = _futileResponseSize;
-                            chunkSize = expectedChunk - localRead;
-                        }
-                        else
-                            chunkSize -= localRead;
-                    } while (localRead > 0 && bytesRead < expectedChunk && ioNetSocket.NativeSocket.Available > 0 && !Zeroed());
+                        bytesRead += localRead = await ioNetSocket.ReceiveAsync(futileBuffer, bytesRead, _futileResponseSize - bytesRead, timeout: parm_futile_timeout_ms).FastPath();
+                    } while (localRead > 0 && bytesRead < _futileResponseSize && ioNetSocket.NativeSocket.Available > 0 && !Zeroed());
 
-                    if (bytesRead == 0 || bytesRead < _futileRejectSize)
+                    if (bytesRead < _futileRejectSize || !drone.Source.IsOperational())
                     {
-                        _logger.Trace($"<\\h {nameof(ioNetSocket.ReceiveAsync)}({bytesRead}): Failed to read egress futile challange response, waited = {ts.ElapsedMs()}ms, remote = {ioNetSocket.RemoteAddress}, z = {Zeroed()}");
+                        _logger.Trace($"<\\h {nameof(CcFutileResponse)}({bytesRead}) [{futileBuffer[..bytesRead].PayloadSig()}]: Failed to read egress futile challange response, available = {ioNetSocket.NativeSocket.Available}, waited = {ts.ElapsedMs()}ms, remote = {ioNetSocket.RemoteAddress}, z = {Zeroed()}");
                         return false;
                     }
-                    
-                    _logger.Trace($"<\\h {nameof(ioNetSocket.ReceiveAsync)}({bytesRead}): src = {ioNetSocket.RemoteAddress};");
-                    
+
                     var verified = false;
-                    
                     var packet = chroniton.Parser.ParseFrom(futileBuffer, 0, bytesRead);
                     
                     if (packet != null && packet.Data != null && packet.Data.Length > 0)
                     {
+#if TRACE
+                        _logger.Fatal($"<\\h {nameof(CcFutileResponse)}({bytesRead}) [{futileBuffer[..bytesRead].PayloadSig()}]: src = {ioNetSocket.RemoteAddress}; {futileBuffer[..bytesRead].Print()}");
+#endif
 
                         var packetData = packet.Data.Memory.AsArray();
-                    
+
                         //verify signature
                         if (packet.Signature != null || packet.Signature!.Length != 0)
                         {
@@ -813,16 +800,33 @@ namespace zero.cocoon
                         //Don't process unsigned or unknown messages
                         if (!verified)
                             return false;
-                        
-                        _logger.Trace($"{nameof(CcFuseRequest)}: [signed], from = egress, read = {bytesRead}, {drone.IoSource.Key}");
+#if TRACE
+                        _logger.Trace($"<h\\ {nameof(CcFutileResponse)}({packetData.Length}) [{packetData.PayloadSig("D")}]: {ioNetSocket.Description}");
+#endif
+
                         //race for connection
                         var won = ConnectForTheWin(IIoSource.Heading.Egress, drone, packet, drone.Adjunct.RemoteAddress.IpEndPoint);
                         if (!won)
                             return false;
+
                         //validate futile response
                         var futileResponse = CcFutileResponse.Parser.ParseFrom(packet.Data);
                         if (futileResponse != null)
                         {
+                            //reject old futile requests
+                            if (futileResponse.Timestamp.ElapsedUtcMs() > parm_futile_timeout_ms)
+                            {
+                                _logger.Error($"Rejected old futile response from {ioNetSocket.Key} - d = {ccFutileRequest.Timestamp.ElapsedMs()}ms, > {parm_futile_timeout_ms}");
+                                return false;
+                            }
+
+                            //reject invalid protocols
+                            if (futileResponse.Protocol != parm_version)
+                            {
+                                _logger.Error($"Invalid protocol response from  {ioNetSocket.Key} - got {futileResponse.Protocol}, wants {parm_version}");
+                                return false;
+                            }
+
                             if (futileResponse.ReqHash.Length == 32)
                             {
                                 if (!CcDesignation.Sha256
@@ -839,14 +843,19 @@ namespace zero.cocoon
                             }
                         }
 
-                        return success = !Zeroed() && drone.Adjunct != null && !drone.Adjunct.Zeroed() && drone.Adjunct?.Direction == IIoSource.Heading.Egress && drone.Source.IsOperational();
+                        success = !Zeroed() && drone.Adjunct != null && !drone.Adjunct.Zeroed() && drone.Adjunct?.Direction == IIoSource.Heading.Egress && drone.Source.IsOperational();
+                        return success;
+                    }
+                    else
+                    {
+                        _logger.Error($"{nameof(FutileAsync)}: Bad egress handshake payload response; {drone.Description}");
                     }
                 }
             }            
             catch (Exception) when (Zeroed() || drone.Zeroed() || ts.ElapsedMs() >= parm_futile_timeout_ms) { }
             catch (Exception e) when(!Zeroed() && !drone.Zeroed())
             {
-                _logger.Error(e, $"Futile request (size = {bytesRead}/{_futileRequestSize}/{_futileResponseSize}/{_futileRejectSize}) for {Description} failed with:");
+                _logger.Error(e, $"Handshake [FAILED]; {futileBuffer.PayloadSig()}; size = {bytesRead}/{_futileRequestSize}/{_futileResponseSize}/{_futileRejectSize}), {Description}:");
             }
             finally
             {

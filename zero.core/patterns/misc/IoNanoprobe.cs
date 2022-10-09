@@ -280,6 +280,9 @@ namespace zero.core.patterns.misc
         /// </summary>
         public ValueTask DisposeAsync(IIoNanite @from, string reason, [CallerFilePath] string filePath = null, [CallerMemberName] string methodName = null, [CallerLineNumber] int lineNumber = default)
         {
+            //if(GetType().ToString().Contains("CcDrone"))
+            //    _logger.Fatal($"DISPOSE FROM => reason = {reason}, {filePath}:{methodName}({lineNumber}) {@from}, {Description}");
+
             // Only once
             if (_zeroed > 0 || Interlocked.CompareExchange(ref _zeroed, 1, 0) != 0)
                 return default;
@@ -310,6 +313,15 @@ namespace zero.core.patterns.misc
                 _ = Task.Factory.StartNew(static async state =>
                 {
                     await ((IoNanoprobe)state).DisposeAsync((IIoNanite)state, "Dispose").FastPath();
+
+                    try
+                    {
+                        ((IoNanoprobe)state).ZeroUnmanaged();
+                    }
+                    catch (Exception e)
+                    {
+                        _logger.Error(e, $"{nameof(ZeroUnmanaged)}:");
+                    }
                 },this, CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Default);
             }
 
@@ -331,15 +343,18 @@ namespace zero.core.patterns.misc
                 // ignored
             }
 #endif
+            if (!managed)
+            {
+                try
+                {
+                    ZeroUnmanaged();
+                }
+                catch (Exception e)
+                {
+                    _logger.Error(e, $"{nameof(ZeroUnmanaged)}:");
+                }
+            }
 
-            try
-            {
-                ZeroUnmanaged();
-            }
-            catch (Exception e)
-            {
-                _logger.Error(e, $"{nameof(ZeroUnmanaged)}:");
-            }
         }
 
         /// <summary>

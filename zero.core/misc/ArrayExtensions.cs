@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Net;
 #if DEBUG
 using System.Security.Cryptography;
 #endif
@@ -195,14 +196,14 @@ namespace zero.core.misc
             }
             return $"{T}({Convert.ToBase64String(hash)[..7]})";
         }
-        public static string PayloadSig(this ReadOnlyMemory<byte> memory)
+        public static string PayloadSig(this ReadOnlyMemory<byte> memory, string tag = "P")
         {
-            return memory.AsArray().PayloadSig();
+            return memory.AsArray().PayloadSig(tag);
         }
 
-        public static string PayloadSig(this ReadOnlySpan<byte> span)
+        public static string PayloadSig(this ReadOnlySpan<byte> span, string tag = "P")
         {
-            return span.ToArray().PayloadSig();
+            return span.ToArray().PayloadSig(tag);
         }
 
         public static string HashSig(this byte[] hash)
@@ -230,36 +231,46 @@ namespace zero.core.misc
             return $"{T}{BitConverter.ToString(memory)}";
         }
 #else
-        public static string PayloadSig(this byte[] payload)
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static string PayloadSig(this byte[] payload, string tag = "P")
         {
             return null;
         }
 
-        public static string PayloadSig(this ReadOnlyMemory<byte> memory)
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static string PayloadSig(this ReadOnlyMemory<byte> memory, string tag = "P")
         {
             return null;
         }
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static string HashSig(this byte[] hash)
         {
             return null;
         }
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static string HashSig(this Span<byte> hash)
         {
             return null;
         }
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static string HashSig(this ReadOnlyMemory<byte> memory)
         {
             return null;
         }
 
-         public static string PayloadSig(this ReadOnlySpan<byte> span)
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static string PayloadSig(this ReadOnlySpan<byte> span, string tag = "P")
+        {
+            return null;
+        }
+
+        public static string Print(this byte[] memory, string T = "F-")
         {
             return null;
         }
 #endif
-
     }
 }

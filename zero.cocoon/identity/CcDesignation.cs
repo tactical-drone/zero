@@ -20,6 +20,8 @@ namespace zero.cocoon.identity
         private static SHA256 _sha256;
         public static SHA256 Sha256 => _sha256 ??= SHA256.Create();
 
+        public const int KeyLength = 64;
+
         private string _id;
         public byte[] PublicKey { get; set; }
         private byte[] SecretKey { get; set; }

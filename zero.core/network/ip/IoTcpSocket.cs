@@ -20,12 +20,15 @@ namespace zero.core.network.ip
     /// </summary>
     sealed class IoTcpSocket : IoNetSocket
     {
+        static IoTcpSocket()
+        {
+            _logger = LogManager.GetCurrentClassLogger();
+        }
         /// <summary>
         /// Constructs a new TCP socket from connection
         /// </summary>
         public IoTcpSocket(int concurrencyLevel) : base(SocketType.Stream, ProtocolType.Tcp, concurrencyLevel)
         {
-            _logger = LogManager.GetCurrentClassLogger();
             ConfigureSocket();
             _listenerSourceCore = new IoHeap<IIoManualResetValueTaskSourceCore<Socket>>($"{nameof(_listenerSourceCore)}: tcp", concurrencyLevel * 2, (_, _) => new IoManualResetValueTaskSourceCore<Socket> { AutoReset = true });
             _connectSourceCore= new IoHeap<IIoManualResetValueTaskSourceCore<bool>>($"{nameof(_listenerSourceCore)}: tcp", concurrencyLevel * 2, (_, _) => new IoManualResetValueTaskSourceCore<bool> { AutoReset = true });
@@ -37,10 +40,8 @@ namespace zero.core.network.ip
         /// <param name="nativeSocket">The connecting socket</param>
         public IoTcpSocket(Socket nativeSocket) : base(nativeSocket)
         {
-            _logger = LogManager.GetCurrentClassLogger();
             ConfigureSocket();
         }
-
 
         public override async ValueTask ZeroManagedAsync()
         {
@@ -59,16 +60,12 @@ namespace zero.core.network.ip
         public override void ZeroUnmanaged()
         {
             base.ZeroUnmanaged();
-
-#if SAFE_RELEASE
-            _logger = null;
-#endif
         }
 
         /// <summary>
         /// The logger
         /// </summary>
-        private Logger _logger;
+        private static readonly Logger _logger;
 
         private readonly IoHeap<IIoManualResetValueTaskSourceCore<Socket>> _listenerSourceCore;
         private readonly IoHeap<IIoManualResetValueTaskSourceCore<bool>> _connectSourceCore;
@@ -298,22 +295,14 @@ namespace zero.core.network.ip
                 _logger.Trace($"Connected to {RemoteNodeAddress}, {Description}");
                 return true;
             }
-            catch (ObjectDisposedException)
-            {
-            }
-            catch (TaskCanceledException)
-            {
-            }
-            catch (OperationCanceledException)
-            {
-            }
+            catch (ObjectDisposedException) { }
+            catch (TaskCanceledException) { }
+            catch (OperationCanceledException) { }
             catch (SocketException e)
             {
                 _logger.Trace(e, $"[FAILED] connecting to {RemoteNodeAddress}: ({Description})");
             }
-            catch when (Zeroed())
-            {
-            }
+            catch when (Zeroed()) { }
             catch (Exception e) when (!Zeroed())
             {
                 _logger.Error(e, $"[FAILED ] Connecting to {remoteAddress}: {Description}");
@@ -343,15 +332,15 @@ namespace zero.core.network.ip
         /// <param name="endPoint">not used</param>
         /// <param name="timeout"></param>
         /// <returns>The amount of bytes sent</returns>
-        public override async ValueTask<int> SendAsync(ReadOnlyMemory<byte> buffer, int offset, int length,
-            EndPoint endPoint = null, int timeout = 0)
+        public override async ValueTask<int> SendAsync(ReadOnlyMemory<byte> buffer, int offset, int length, EndPoint endPoint = null, int timeout = 0)
         {
             try
             {
                 if (!NativeSocket.Poll(parm_socket_poll_wait_ms, SelectMode.SelectWrite))
                     return 0;
-                
-                return await NativeSocket.SendAsync(buffer.Slice(offset, length), SocketFlags.None, timeout >0? new CancellationTokenSource(timeout).Token: AsyncTasks.Token).FastPath();
+
+                return await NativeSocket.SendAsync(buffer.Slice(offset, length), SocketFlags.None,
+                    timeout > 0 ? new CancellationTokenSource(timeout).Token : AsyncTasks.Token).FastPath();
             }
             catch (SocketException e)
             {
@@ -359,7 +348,9 @@ namespace zero.core.network.ip
                 if (e.SocketErrorCode != SocketError.TimedOut)
                     await DisposeAsync(this, e.Message).FastPath();
             }
-            catch (OperationCanceledException) { }
+            catch (OperationCanceledException)
+            {
+            }
             catch (ObjectDisposedException)
             {
             }
@@ -371,6 +362,13 @@ namespace zero.core.network.ip
                 var errMsg = $"{nameof(SendAsync)}: [FAILED], {Description}, l = {length}, o = {offset}: {e.Message}";
                 _logger.Trace(e, errMsg);
                 await DisposeAsync(this, errMsg).FastPath();
+            }
+            finally
+            {
+                if (timeout > 0)
+                    Interlocked.Exchange(ref _timedOp, timeout);
+                else if (_timedOp > 0)
+                    Interlocked.Exchange(ref _timedOp, 0);
             }
 
             return 0;
@@ -390,22 +388,36 @@ namespace zero.core.network.ip
         {
             try
             {
-                return await NativeSocket.ReceiveAsync(buffer.Slice(offset, length), SocketFlags.None, timeout > 0? new CancellationTokenSource(timeout).Token: AsyncTasks.Token).FastPath();
+                return await NativeSocket.ReceiveAsync(buffer.Slice(offset, length), SocketFlags.None,
+                    timeout > 0 ? new CancellationTokenSource(timeout).Token : AsyncTasks.Token).FastPath();
             }
-            catch (ObjectDisposedException) { }
-            catch (OperationCanceledException) { }
+            catch (ObjectDisposedException)
+            {
+            }
+            catch (OperationCanceledException)
+            {
+            }
             catch (SocketException e) when (!Zeroed())
             {
                 var errMsg = $"{nameof(ReceiveAsync)}: {e.Message} - {Description}";
-                _logger?.Debug(errMsg);
+                _logger.Debug(errMsg);
                 await DisposeAsync(this, errMsg).FastPath();
             }
-            catch (Exception) when (Zeroed()){}
-            catch (Exception e) when(!Zeroed())
+            catch when (Zeroed())
+            {
+            }
+            catch (Exception e) when (!Zeroed())
             {
                 var errMsg = $"{nameof(ReceiveAsync)}: [FAILED], {Description}, l = {length}, o = {offset}: {e.Message}";
-                _logger?.Error(e, errMsg);
+                _logger.Error(e, errMsg);
                 await DisposeAsync(this, errMsg).FastPath();
+            }
+            finally
+            {
+                if(timeout > 0)
+                    Interlocked.Exchange(ref _timedOp, timeout);
+                else if(_timedOp > 0)
+                    Interlocked.Exchange(ref _timedOp, 0);
             }
             return 0;
         }
@@ -419,7 +431,8 @@ namespace zero.core.network.ip
         {
             try
             {
-                return !Zeroed() && NativeSocket is { IsBound: true, Connected: true };//&& (_expensiveCheck++ % 10000 == 0 && NativeSocket.Send(_sentinelBuf, SocketFlags.None) == 0  || true);
+                return NativeSocket.RemoteEndPoint != null && NativeSocket.IsBound && NativeSocket.Connected || _timedOp > 0;
+                //return !Zeroed() && NativeSocket is { IsBound: true, Connected: true };//&& (_expensiveCheck++ % 10000 == 0 && NativeSocket.Send(_sentinelBuf, SocketFlags.None) == 0  || true);
 
                 //||
                 // IoNetSocket.NativeSocket.Poll(-1, SelectMode.SelectError) ||

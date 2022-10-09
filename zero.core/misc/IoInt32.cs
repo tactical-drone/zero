@@ -29,9 +29,8 @@ namespace zero.core.misc
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		public static implicit operator int(IoInt32 integer)
 		{
-			Interlocked.MemoryBarrier();
-			return integer._value;
-		}
+            return Volatile.Read(ref integer._value);
+        }
 
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		public static int operator +(IoInt32 one, IoInt32 two)

@@ -36,7 +36,12 @@ namespace zero.core.network.ip
         {
             
         }
-        
+
+        /// <summary>
+        /// Whether the last operation was a timed op.
+        /// </summary>
+        protected int _timedOp;
+
         /// <summary>
         /// Enable TCP keep alive
         /// </summary>

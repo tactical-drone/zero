@@ -908,7 +908,9 @@ namespace zero.cocoon.autopeer
                     {
                         var ts = Environment.TickCount;
                         AdjunctState oldState;
-                        if ((@this.CurrentState.EnterTime.ElapsedMs() == 0 || @this.State == AdjunctState.Connecting) && (oldState = @this.CompareAndEnterState(AdjunctState.Connecting, AdjunctState.Fusing)) != AdjunctState.Fusing)
+                        
+                        if ((@this.State != AdjunctState.Connecting || @this.CurrentState.EnterTime.ElapsedMs() <= @this.parm_max_network_latency_ms) &&
+                            (oldState = @this.CompareAndEnterState(AdjunctState.Connecting, AdjunctState.Fusing)) != AdjunctState.Fusing)
                         {
                             @this._logger.Trace($"{nameof(ConnectAsync)} - {@this.Description}: Invalid state, {oldState}. Wanted {nameof(AdjunctState.Fusing)}");
                             return;
@@ -918,7 +920,7 @@ namespace zero.cocoon.autopeer
                         if (!await @this.CcCollective.ConnectToDroneAsync(@this).FastPath())
                         {
                             @this.CompareAndEnterState(AdjunctState.Verified, AdjunctState.Connecting);
-                            @this._logger.Trace($"{@this.Description}: Leashing adjunct failed!");
+                            @this._logger.Trace($"{@this.Description}: Leashing adjunct failed!; state = {@this.State}");
                         }
                         else //Track some connection perf stats
                         {
@@ -1836,11 +1838,16 @@ namespace zero.cocoon.autopeer
                         continue;
 
                     //Don't add already known neighbors
-                    var id = CcDesignation.MakeKey(sweptDrone.PublicKey);
-                    if (Hub.Neighbors.Values.Any(n => ((CcAdjunct)n).Designation.IdString() == id && ((CcAdjunct)n).State > AdjunctState.Connecting))
+                    
+                    var id = CcDesignation.FromPubKey(sweptDrone.PublicKey.Memory);
+                    if (Hub.Neighbors.Values.Any(n => ((CcAdjunct)n).Designation.IdString() == id.IdString() && ((CcAdjunct)n).State > AdjunctState.Connecting))
                         continue;
 
                     var newRemoteEp = sweptDrone.Url.GetEndpoint();
+
+                    //ingest the most seductive
+                    if (processed++ == 0)
+                        await CollectAsync(newRemoteEp, id, false).FastPath();
 
                     if (!newRemoteEp.Equals(Router.MessageService.IoNetSocket.NativeSocket.RemoteEndPoint) &&
                         !await Router.ProbeAsync("SYN-DMZ-SCA", IoNodeAddress.CreateFromEndpoint("udp", newRemoteEp)).FastPath())
@@ -1849,8 +1856,6 @@ namespace zero.cocoon.autopeer
                         _logger.Trace($"-/h> Probing swept {newRemoteEp.Address} failed!, {Description}");
 #endif
                     }
-
-                    processed++;
                 }
 
                 if (processed > 0)
@@ -2230,15 +2235,14 @@ namespace zero.cocoon.autopeer
                 Interlocked.Exchange(ref _openSlots, probeMessage.Slots);
 #endif
 
-                byte[] payload;
-                if (!Zeroed() && (sent = await SendMessageAsync(data: payload = response.ToByteArray(), type: CcDiscoveries.MessageTypes.ProbeResponse).FastPath()) > 0)
+                if (!Zeroed() && (sent = await SendMessageAsync(response.ToByteArray(), type: CcDiscoveries.MessageTypes.ProbeResponse).FastPath()) > 0)
                 {
                     try
                     {
 #if DEBUG
                         _logger.Trace($"<\\- {nameof(CcProbeResponse)} ({sent}) [{payload[..payload.Length].PayloadSig()} ~ {response.ReqHash.Memory.HashSig()}]: [[SYN-ACK]], dest = {MessageService.IoNetSocket.RemoteNodeAddress}, [{Designation.IdString()}]");
 #endif
-                        //ensure ingress delta trigger
+                        //ensure ingress delta trigger (2 consecutive probes beckon an Ingress connection)
                         if (!CcCollective.ZeroDrone)
                             await SeduceAsync("SYN-DELTA", IIoSource.Heading.Both).FastPath();
 
@@ -2257,7 +2261,7 @@ namespace zero.cocoon.autopeer
                     catch when(Zeroed()){}
                     catch (Exception e)when (!Zeroed())
                     {
-                        _logger?.Error(e,$"<\\- {nameof(ProcessAsync)}: sent = {sent}, l = {payload.Length}");
+                        _logger?.Error(e,$"<\\- {nameof(SeduceAsync)}: sent = {sent}");
                     }
                 }
                 else

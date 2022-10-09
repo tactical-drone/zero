@@ -419,6 +419,9 @@ namespace zero.core.network.ip
         {
             try
             {
+                if (length == 0)
+                    return 0;
+
                 if (timeout == 0)
                 {
                     SocketAsyncEventArgs args = null;

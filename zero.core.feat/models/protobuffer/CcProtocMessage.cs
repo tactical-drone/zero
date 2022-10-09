@@ -33,8 +33,8 @@ namespace zero.core.feat.models.protobuffer
             DatumProvisionLengthMax = DatumSize;
             //Init buffers
             BufferSize = DatumSize * parm_datums_per_buffer; //SET to MTU x2 for decompression
-            //MemoryOwner = MemoryPool<byte>.Shared.Rent(BufferSize + DatumProvisionLengthMax);
 
+            //MemoryOwner = MemoryPool<byte>.Shared.Rent(BufferSize + DatumProvisionLengthMax);
             //if (MemoryMarshal.TryGetArray((ReadOnlyMemory<byte>)MemoryOwner.Memory, out var malloc))
             {
                 if (Buffer != null && Buffer.Length < BufferSize)

@@ -425,6 +425,7 @@ namespace zero.sync
                             else
                                 signal.SetException(new OperationCanceledException());
                         }
+                        catch (OperationCanceledException){}
                         catch (Exception)
                         {
                             try

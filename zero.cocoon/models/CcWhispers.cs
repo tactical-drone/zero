@@ -705,7 +705,8 @@ namespace zero.cocoon.models
                                             if (dupEndpoints?.Contains(source.IoNetSocket.Key)??false)
                                                 return;
 
-                                            if (req < @this.CcCollective.MaxReq || await source.IoNetSocket.SendAsync(socketBuf, 0, length).FastPath() <= 0)
+                                            await Task.Delay(1);
+                                            if (source.IoNetSocket == null || req < @this.CcCollective.MaxReq || await source.IoNetSocket.SendAsync(socketBuf, 0, length).FastPath() <= 0)
                                             {
                                                 //_logger.Trace($"SendAsync: FAILED; {source?.Description}");
                                                 return;
