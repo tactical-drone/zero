@@ -699,13 +699,14 @@ namespace zero.cocoon.models
                                         //update latest state
                                         try
                                         {
+                                            await Task.Delay(1);
+
                                             if (req < @this.CcCollective.MaxReq)
                                                 return;
 
                                             if (dupEndpoints?.Contains(source.IoNetSocket.Key)??false)
                                                 return;
 
-                                            await Task.Delay(1);
                                             if (source.IoNetSocket == null || req < @this.CcCollective.MaxReq || await source.IoNetSocket.SendAsync(socketBuf, 0, length).FastPath() <= 0)
                                             {
                                                 //_logger.Trace($"SendAsync: FAILED; {source?.Description}");
