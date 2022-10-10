@@ -351,7 +351,6 @@ namespace zero.core.patterns.misc
                     _logger.Error(e, $"{nameof(ZeroUnmanaged)}:");
                 }
             }
-
         }
 
         /// <summary>

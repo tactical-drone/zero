@@ -1,14 +1,11 @@
 ﻿using System;
 using System.Collections;
 using System.Collections.Generic;
-using System.Net;
 #if DEBUG
 using System.Security.Cryptography;
 #endif
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
-using System.Security.Cryptography;
-using System.Text;
 using NLog;
 
 namespace zero.core.misc

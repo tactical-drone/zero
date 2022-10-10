@@ -2235,7 +2235,7 @@ namespace zero.cocoon.autopeer
                 Interlocked.Exchange(ref _openSlots, probeMessage.Slots);
 #endif
 
-                if (!Zeroed() && (sent = await SendMessageAsync(response.ToByteArray(), type: CcDiscoveries.MessageTypes.ProbeResponse).FastPath()) > 0)
+                if ((sent = await SendMessageAsync(response.ToByteArray(), type: CcDiscoveries.MessageTypes.ProbeResponse).FastPath()) > 0)
                 {
                     try
                     {
@@ -2264,7 +2264,7 @@ namespace zero.cocoon.autopeer
                         _logger?.Error(e,$"<\\- {nameof(SeduceAsync)}: sent = {sent}");
                     }
                 }
-                else
+                else if(!Zeroed())
                 {
                     _logger.Error($"<\\- {nameof(CcProbeMessage)}: Send [FAILED] - [[SYN ACK/KEEP-ALIVE]], to = {Description}");
                 }
