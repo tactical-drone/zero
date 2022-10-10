@@ -272,7 +272,7 @@ namespace zero.test.core.patterns.semaphore
 
             var ts = Environment.TickCount;
             Assert.True(await v.WaitAsync().FastPath());
-            Assert.InRange(ts.ElapsedMs(), minDelay/2, minDelay * 3);
+            Assert.InRange(ts.ElapsedMs(), minDelay/2, minDelay + ERR_T);
 
             for (var i = 0; i < count - 1; i++)
             {

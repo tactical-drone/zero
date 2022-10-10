@@ -13,7 +13,7 @@ namespace zero.test.core.patterns.semaphore
     public class IoZeroCasTest
     {
         private long _reg;
-        private readonly int _count = 10000000;
+        private readonly int _count = 1000000;
         private readonly ITestOutputHelper _output;
 
         public IoZeroCasTest(ITestOutputHelper output)
