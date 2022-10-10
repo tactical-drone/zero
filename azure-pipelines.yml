@@ -93,6 +93,6 @@ steps:
     versioningScheme: 'byEnvVar'
 
 - task: NuGetAuthenticate@1
-displayName: nuget push
+  displayName: nuget push
   inputs:    
 - script: nuget push -ApiKey AzureArtifacts -Source "zero" $(Build.ArtifactStagingDirectory)/*.nupkg
