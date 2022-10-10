@@ -233,12 +233,7 @@ namespace zero.test.core.patterns.queue{
             Assert.NotNull(context.Q.Tail);
 
             var kops = rounds * mult * 6 / (Environment.TickCount - start + 1);
-
-#if DEBUG
-            Assert.InRange(kops, 20, int.MaxValue);
-#else
-            Assert.InRange(kops, 250, int.MaxValue);
-#endif
+            Assert.InRange(kops, 100, int.MaxValue);
 
             _output.WriteLine($"kops = {kops}");
 

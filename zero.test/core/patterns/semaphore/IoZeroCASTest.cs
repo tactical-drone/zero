@@ -21,7 +21,7 @@ namespace zero.test.core.patterns.semaphore
             _output = output;
         }
 
-        ConcurrentBag<long> _selection = new();
+        readonly ConcurrentBag<long> _selection = new();
         private int _accepted;
         private int _rejected;
 
