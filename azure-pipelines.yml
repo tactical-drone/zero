@@ -93,4 +93,12 @@ steps:
     versioningScheme: 'byEnvVar'
 
 - task: NuGetAuthenticate@1  
-- script: nuget push -ApiKey AzureArtifacts -Source "zero" $(Build.ArtifactStagingDirectory)/*.nupkg
+
+- task: NuGetCommand@2
+  displayName: nuget push
+  inputs:
+    command: 'push'
+    packagesToPush: '$(Build.ArtifactStagingDirectory)/**/*.nupkg;!$(Build.ArtifactStagingDirectory)/**/*.symbols.nupkg'
+    nuGetFeedType: 'internal'
+    publishVstsFeed: 'dc707bfc-7427-4695-985a-55d2475d9063/80d0ebf9-af8c-496d-a24d-02e3f06b856c'
+    allowPackageConflicts: true
