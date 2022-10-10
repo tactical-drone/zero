@@ -4,7 +4,7 @@
     <LangVersion>preview</LangVersion>
 	<EnablePreviewFeatures>True</EnablePreviewFeatures>
 	<GenerateRequiresPreviewFeaturesAttribute>False</GenerateRequiresPreviewFeaturesAttribute>
-    <Copyright>zero</Copyright>
+    <Copyright>unimatrix one</Copyright>
     <AssemblyVersion>0.0.0.1</AssemblyVersion>
     <FileVersion>0.0.0.1</FileVersion>
     <PackageReleaseNotes>alpha</PackageReleaseNotes>
@@ -12,6 +12,16 @@
     <PackageLicenseFile>C:\Users\skyca\source\repos\zero\LICENSE</PackageLicenseFile>
     <PackageRequireLicenseAcceptance>True</PackageRequireLicenseAcceptance>
     <Configurations>Debug;Release;Trace</Configurations>
+    <GeneratePackageOnBuild>True</GeneratePackageOnBuild>
+    <Title>μzero.core</Title>
+    <PackageId>unimatrix.$(AssemblyName)</PackageId>
+    <Authors>zerocool</Authors>
+    <Company>unimatrix one</Company>
+    <PackageProjectUrl>https://github.com/tactical-drone/zero</PackageProjectUrl>
+    <PackageIcon>zero.png</PackageIcon>
+    <PackageReadmeFile>readme.md</PackageReadmeFile>
+	<PackageLicenseFile>LICENSE</PackageLicenseFile>
+    <RepositoryUrl>https://github.com/tactical-drone/zero/tree/master/zero.core</RepositoryUrl>
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
@@ -45,7 +55,18 @@
   <ItemGroup>
     <None Include="..\.editorconfig" Link=".editorconfig" />
     <None Include="..\.gitignore" Link=".gitignore" />
-    <None Include="..\readme.md" Link="readme.md" />
+	  <None Include="..\LICENSE" Link="LICENSE"  >
+		  <Pack>True</Pack>
+		  <PackagePath>\</PackagePath>
+	  </None>
+    <None Include="..\readme.md" Link="readme.md">
+      <Pack>True</Pack>
+      <PackagePath>\</PackagePath>
+    </None>
+    <None Include="..\zero.png">
+      <Pack>True</Pack>
+      <PackagePath>\</PackagePath>
+    </None>
   </ItemGroup>
 
   <ItemGroup>    
