@@ -17,6 +17,7 @@ namespace zero.test.core.patterns.queue{
 
     public class IoQueueTest : IDisposable
     {
+        private const int ERR_T = 16 * 30;
         public IoQueueTest(ITestOutputHelper output)
         {
             _output = output;
@@ -415,7 +416,7 @@ namespace zero.test.core.patterns.queue{
                 var @this = (IoQueueTest)state!;
                 var s = Environment.TickCount;
                 var item = await @this._queuePressure.DequeueAsync().FastPath();
-                Assert.InRange(s.ElapsedMs(), (100/15)*15, 100 + 15 * 2);
+                Assert.InRange(s.ElapsedMs(), 100, 100 + ERR_T);
                 Assert.NotNull(item);
             }, this, CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Default).Unwrap();
                 
@@ -479,13 +480,13 @@ namespace zero.test.core.patterns.queue{
 
                 s = Environment.TickCount;
                 item = await @this._queuePressure.DequeueAsync().FastPath();
-                Assert.InRange(s.ElapsedMs(), 100 - 16, 2000);
+                Assert.InRange(s.ElapsedMs(), 100 - ERR_T, 2000);
 
                 await Task.Delay(100);
 
                 s = Environment.TickCount;
                 item = await @this._queuePressure.DequeueAsync().FastPath();
-                Assert.InRange(s.ElapsedMs(), 0, 500);
+                Assert.InRange(s.ElapsedMs(), 0, ERR_T);
                 Assert.Equal(2, item);
 
             }, this, CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Default).Unwrap();
@@ -507,7 +508,7 @@ namespace zero.test.core.patterns.queue{
                 var s = Environment.TickCount;
                 await Task.Delay(100, @this._blockCancellationSignal.Token);
                 await @this._queuePressure.EnqueueAsync(1).FastPath();
-                Assert.InRange(s.ElapsedMs(),  100 - 16, 10000);
+                Assert.InRange(s.ElapsedMs(),  100 - ERR_T, 10000);
                 //blocking
                 //_ = @this._queuePressure.EnqueueAsync(1).FastPath();
 
@@ -516,7 +517,7 @@ namespace zero.test.core.patterns.queue{
                 Assert.InRange(s.ElapsedMs(), 0, 10000);
 
                 await @this._queuePressure.EnqueueAsync(3).FastPath();
-                Assert.InRange(s.ElapsedMs(), 100 -16, 10000);
+                Assert.InRange(s.ElapsedMs(), 100 - ERR_T, 10000);
                 //Wait for up to 2 seconds for results
                 await Task.Delay(2000, @this._blockCancellationSignal.Token);
             }, this, CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Default).Unwrap().ContinueWith(task =>
@@ -608,7 +609,7 @@ namespace zero.test.core.patterns.queue{
                         break;
                     }
                     
-                    Assert.InRange(ts.ElapsedMs(), BlockDelay - 16, BlockDelay * 4);
+                    Assert.InRange(ts.ElapsedMs(), BlockDelay - ERR_T, BlockDelay * 4);
 
                     foreach (var t in eqList)
                     {

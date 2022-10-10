@@ -94,7 +94,7 @@ namespace zero.test.core.patterns.bushings
             await z1.WaitAsync(TimeSpan.FromMilliseconds(targetTime * 400));
 
             _output.WriteLine($"{ts.ElapsedMs()}ms ~ {targetTime}");
-            Assert.InRange(ts.ElapsedMs(), targetTime/2, targetTime * 2);
+            Assert.InRange(ts.ElapsedMs(), targetTime/2, targetTime * 3);
 
             await Task.Delay(100);
             Assert.InRange(c1.EventCount, count, count*2);

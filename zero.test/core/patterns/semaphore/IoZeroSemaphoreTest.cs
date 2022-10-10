@@ -13,6 +13,7 @@ namespace zero.test.core.patterns.semaphore
 {
     public class IoZeroSemaphoreTest
     {
+        private const int ERR_T = 16 * 30;
         public IoZeroSemaphoreTest(ITestOutputHelper output)
         {
             _output = output;
@@ -147,7 +148,7 @@ namespace zero.test.core.patterns.semaphore
             await m.WaitAsync().FastPath();
             Assert.Equal(0, m.ReadyCount);
             Assert.Equal(0, m.WaitCount);
-            Assert.InRange(ts.ElapsedMs(), 0, 50);
+            Assert.InRange(ts.ElapsedMs(), 0, ERR_T);
             await m.WaitAsync().FastPath();
             Assert.InRange(ts.ElapsedMs(),400, 2000);
             Assert.Equal(0, m.WaitCount);
@@ -174,7 +175,7 @@ namespace zero.test.core.patterns.semaphore
             await m.WaitAsync();
             await m.WaitAsync();
 
-            Assert.InRange(ts.ElapsedMs(), 0, 50);
+            Assert.InRange(ts.ElapsedMs(), 0, ERR_T);
             await m.WaitAsync();
             Assert.InRange(ts.ElapsedMs(), 400, 2000);
         }
@@ -271,7 +272,7 @@ namespace zero.test.core.patterns.semaphore
 
             var ts = Environment.TickCount;
             Assert.True(await v.WaitAsync().FastPath());
-            Assert.InRange(ts.ElapsedMs(), minDelay/2, minDelay * 2);
+            Assert.InRange(ts.ElapsedMs(), minDelay/2, minDelay * 3);
 
             for (var i = 0; i < count - 1; i++)
             {
@@ -301,7 +302,7 @@ namespace zero.test.core.patterns.semaphore
 
             var ts = Environment.TickCount;
             Assert.True(await v.WaitAsync().FastPath());
-            Assert.InRange(ts.ElapsedMs(), 0, 32);
+            Assert.InRange(ts.ElapsedMs(), 0, ERR_T);
 
             for (var i = 0; i < count - 1; i++)
             {
@@ -397,7 +398,7 @@ namespace zero.test.core.patterns.semaphore
                     Assert.Equal(0, v.ReadyCount);
                     //_output.WriteLine($"DQ[{Environment.CurrentManagedThreadId}] -> {i} -> {v.EgressCount}, r = {v.ReadyCount}");
                 }
-                Assert.InRange(ts.ElapsedMs(), minDelay / 2, minDelay * 2);
+                Assert.InRange(ts.ElapsedMs(), minDelay / 2, minDelay * 3);
             }
 
             await t;
