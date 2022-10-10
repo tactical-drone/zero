@@ -186,7 +186,7 @@ namespace zero.test.core.patterns.semaphore
             var running = true;
             var count = 10000000;
             var waits = 0;
-            var scheduler = IoZeroScheduler.ZeroDefault;
+            var scheduler = TaskScheduler.Default;
 
             var t2 = Task.Factory.StartNew(async () =>
             {

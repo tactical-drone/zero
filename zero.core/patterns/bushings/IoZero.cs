@@ -688,7 +688,18 @@ namespace zero.core.patterns.bushings
 
         public string DumpStats()
         {
-            return $"{Description} {EventCount / (double)UpTime.ElapsedUtcMsToSec():0.0} j/s, [{JobHeap.ReferenceCount} / {JobHeap.CacheSize} / {JobHeap.ReferenceCount + JobHeap.CacheSize} / {JobHeap.AvailableCapacity} / {JobHeap.Capacity}]\n" + Source.PrintCounters();
+            try
+            {
+                return $"{Description} {EventCount / (double)UpTime.ElapsedUtcMsToSec():0.0} j/s, [{JobHeap.ReferenceCount} / {JobHeap.CacheSize} / {JobHeap.ReferenceCount + JobHeap.CacheSize} / {JobHeap.AvailableCapacity} / {JobHeap.Capacity}]\n" + Source.PrintCounters();
+            }
+            catch when (Zeroed()){}
+            catch (Exception e) when (!Zeroed())
+            {
+                _logger.Error(e, $"{nameof(DumpStats)}:");
+                return e.Message;
+            }
+
+            return string.Empty;
         }
 
         /// <summary>
