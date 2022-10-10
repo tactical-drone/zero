@@ -355,7 +355,7 @@ namespace zero.test.core.patterns.semaphore
         async Task TestIoZeroSemaphoreSlimAsync()
         {
             var count = 50;
-            var minDelay = 16 * 3;
+            var minDelay = 16 * 10;
             var v = new IoZeroSemaphoreSlim(new CancellationTokenSource(), string.Empty, 1, 0);
             //v.Release(true);
             var t = Task.Factory.StartNew(async () =>
@@ -449,7 +449,7 @@ namespace zero.test.core.patterns.semaphore
                 }
             }, CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Default).Unwrap();
 
-            await Task.WhenAll(t,t2).WaitAsync(TimeSpan.FromSeconds(15));
+            await Task.WhenAll(t,t2).WaitAsync(TimeSpan.FromSeconds(60));
             
             var maps = count * 1000 / (totalTime.ElapsedMs() + 1) / 1000;
             _output.WriteLine($"MAPS = {maps} K/s, t = {totalTime.ElapsedMs()}ms");

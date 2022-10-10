@@ -224,7 +224,7 @@ namespace zero.test.core.patterns.queue{
                     //@this._output.WriteLine($"({@this.context.Q.Count})");
                 },this, CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Default).Unwrap());
             }
-            await Task.WhenAll(concurrentTasks).WaitAsync(TimeSpan.FromSeconds(15));
+            await Task.WhenAll(concurrentTasks).WaitAsync(TimeSpan.FromSeconds(60));
 
             _output.WriteLine($"count = {context.Q.Count}, Head = {context.Q?.Tail?.Value}, tail = {context.Q?.Head?.Value}, time = {Environment.TickCount - start}ms, {rounds * mult * 6 / (Environment.TickCount - start + 1)} kOPS");
 
@@ -297,7 +297,7 @@ namespace zero.test.core.patterns.queue{
                 }, (this, q, i, itemsPerThread, _output), CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Default).Unwrap());
             }
 
-            await Task.WhenAll(insert).WaitAsync(TimeSpan.FromSeconds(15));
+            await Task.WhenAll(insert).WaitAsync(TimeSpan.FromSeconds(60));
 
             Assert.Equal(capacity, _inserted);
 
@@ -452,7 +452,7 @@ namespace zero.test.core.patterns.queue{
                 }
             }, this, CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Default).Unwrap();
 
-            await Task.WhenAll(new[]{insertTask, dequeTask}).WaitAsync(TimeSpan.FromSeconds(15));
+            await Task.WhenAll(new[]{insertTask, dequeTask}).WaitAsync(TimeSpan.FromSeconds(60));
         }
 
         [Fact]
@@ -534,7 +534,7 @@ namespace zero.test.core.patterns.queue{
                 }
             }, CancellationToken.None, TaskContinuationOptions.DenyChildAttach, TaskScheduler.Default);
 
-            await Task.WhenAll(insertTask, dequeTask).WaitAsync(TimeSpan.FromSeconds(15));
+            await Task.WhenAll(insertTask, dequeTask).WaitAsync(TimeSpan.FromSeconds(60));
         }
 
         

@@ -121,9 +121,9 @@ namespace zero.test.core.patterns.queue
                 }, (this, bag), CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Default));
             }
 
-            await Task.WhenAll(insert).WaitAsync(TimeSpan.FromSeconds(15));
+            await Task.WhenAll(insert).WaitAsync(TimeSpan.FromSeconds(60));
             _smokeTestDone = true;
-            await Task.WhenAll(remove).WaitAsync(TimeSpan.FromSeconds(15));
+            await Task.WhenAll(remove).WaitAsync(TimeSpan.FromSeconds(60));
 
             Assert.Equal(0, bag.Count);
 
@@ -217,7 +217,7 @@ namespace zero.test.core.patterns.queue
 
             try
             {
-                await Task.WhenAll(spam).WaitAsync(TimeSpan.FromSeconds(15));
+                await Task.WhenAll(spam).WaitAsync(TimeSpan.FromSeconds(60));
             }
             catch (Exception e)
             {
@@ -433,12 +433,12 @@ namespace zero.test.core.patterns.queue
             }
 
             
-            await Task.WhenAll(insert).WaitAsync(TimeSpan.FromSeconds(15));
+            await Task.WhenAll(insert).WaitAsync(TimeSpan.FromSeconds(60));
             _output.WriteLine($"Inserts tasks {insert.Count}");
 
             _smokeTestDone = true;
             //bag.TryEnqueue(-1);
-            await Task.WhenAll(remove).WaitAsync(TimeSpan.FromSeconds(15));
+            await Task.WhenAll(remove).WaitAsync(TimeSpan.FromSeconds(60));
             _output.WriteLine("remove done");
 
             //Assert.Equal(threads * InsertsPerThread + 4, bag.Count);
@@ -533,11 +533,11 @@ namespace zero.test.core.patterns.queue
             }
 
             _output.WriteLine($"Inserts tasks {insert.Count}");
-            await Task.WhenAll(insert).WaitAsync(TimeSpan.FromSeconds(15));
+            await Task.WhenAll(insert).WaitAsync(TimeSpan.FromSeconds(60));
             _output.WriteLine("Inserts done");
             _smokeTestDone = true;
             await bag.ZeroManagedAsync<object>(zero:true).FastPath();
-            await Task.WhenAll(remove).WaitAsync(TimeSpan.FromSeconds(15));
+            await Task.WhenAll(remove).WaitAsync(TimeSpan.FromSeconds(60));
 
             Assert.Equal(0, bag.Count);
             Assert.Equal(threads * InsertsPerThread, SpamTestAsyncThreadId);
@@ -627,10 +627,10 @@ namespace zero.test.core.patterns.queue
             }
 
             _output.WriteLine($"Inserts tasks {insert.Count}");
-            await Task.WhenAll(remove).WaitAsync(TimeSpan.FromSeconds(15));
+            await Task.WhenAll(remove).WaitAsync(TimeSpan.FromSeconds(60));
             _output.WriteLine("Inserts done");
             _smokeTestDone = true;
-            await Task.WhenAll(insert).WaitAsync(TimeSpan.FromSeconds(15));
+            await Task.WhenAll(insert).WaitAsync(TimeSpan.FromSeconds(60));
 
             bag.TryEnqueue(-1);
             

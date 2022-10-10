@@ -69,7 +69,7 @@ namespace zero.test.core.patterns.queue
                 }, (this, bag, idx), CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Default));
             }
 
-            await Task.WhenAll(insert).WaitAsync(TimeSpan.FromSeconds(15));
+            await Task.WhenAll(insert).WaitAsync(TimeSpan.FromSeconds(60));
 
             Assert.Equal(threads, bag.Count);
 

@@ -39,7 +39,7 @@ namespace zero.test.core.patterns.heap
                 }, (this, h), CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Default));
             }
 
-            await Task.WhenAll(spamTasks).WaitAsync(TimeSpan.FromSeconds(15));
+            await Task.WhenAll(spamTasks).WaitAsync(TimeSpan.FromSeconds(60));
 
             Assert.Equal(0, h.ReferenceCount);
             Assert.InRange(h.Count, 0,_capacity * _capacity);

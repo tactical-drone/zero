@@ -16,7 +16,7 @@ namespace zero.test.core.patterns.semaphore
 {
     public class IoZeroSemCoreTest
     {
-        private const int ERR_T = 16 * 4;
+        private const int ERR_T = 16 * 10;
         private readonly ITestOutputHelper _output;
 
         public IoZeroSemCoreTest(ITestOutputHelper output)

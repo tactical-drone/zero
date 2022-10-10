@@ -13,7 +13,7 @@ namespace zero.test.core.patterns.semaphore
     public class IoZeroCasTest
     {
         private long _reg;
-        private int _count = 10000000;
+        private readonly int _count = 10000000;
         private readonly ITestOutputHelper _output;
 
         public IoZeroCasTest(ITestOutputHelper output)
@@ -35,9 +35,7 @@ namespace zero.test.core.patterns.semaphore
             {
                 tasks.Add(Task.Factory.StartNew(() =>
                 {
-                    Thread.Sleep(Random.Shared.Next(0, 50));
-                    //for (int i = 0; i < _count; i++)
-                    while (true)
+                    while (_reg < _count)
                     {
                         var l = _reg;
                         var cap = _reg + threads / 4;
@@ -55,16 +53,16 @@ namespace zero.test.core.patterns.semaphore
                             Interlocked.Increment(ref _rejected);
 
                         if (r >= _count)
-                            return;
+                            break;
 
-                        Assert.InRange(r, l, cap + 1);
+                        Assert.InRange(r, l, cap);
                     }
                 }, CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Default));
             }
 
             await Task.WhenAll(tasks).WaitAsync(TimeSpan.FromSeconds(120));
 
-            //Assert.Equal(_count, _reg);
+            Assert.Equal(_count, _reg);
             var sorted = _selection.OrderBy(i => i);
             long prev = -1;
 
@@ -79,8 +77,8 @@ namespace zero.test.core.patterns.semaphore
                 if (next == prev)
                     duplicates++;
 
-                //Assert.True(next > prev);
-                //Assert.True(next == prev + 1);
+                Assert.True(next > prev);
+                Assert.True(next == prev + 1);
                 prev = next;
             }
             _output.WriteLine($"Bad = {bad}/{_count}, {(double)bad / (_count) * 100:0.0}%, rejected = {_rejected}/{_accepted} = {(double)_rejected / _accepted * 100:0.0}%, duplicates = {duplicates}");
