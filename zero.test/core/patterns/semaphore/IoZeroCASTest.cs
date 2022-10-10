@@ -25,7 +25,7 @@ namespace zero.test.core.patterns.semaphore
         private int _accepted;
         private int _rejected;
 
-        [Fact]
+        //[Fact]
         async Task NextAsync()
         {
             var threads = Environment.ProcessorCount;
@@ -85,7 +85,7 @@ namespace zero.test.core.patterns.semaphore
             Assert.InRange(bad, 0, 0);
         }
 
-        [Fact]
+        //[Fact]
         async Task NextOneAsync()
         {
             var threads = Environment.ProcessorCount;

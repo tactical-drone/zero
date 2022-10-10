@@ -390,7 +390,8 @@ namespace zero.test.core.patterns.queue
                                     }
                                 }
                             }
-                            catch (Exception e)
+                            catch when (bag.Zeroed) { }
+                            catch (Exception e) when (!bag.Zeroed)
                             {
                                 @this._output.WriteLine(e.Message);
                             }
@@ -437,6 +438,7 @@ namespace zero.test.core.patterns.queue
             _output.WriteLine($"Inserts tasks {insert.Count}");
 
             _smokeTestDone = true;
+            await bag.ZeroManagedAsync<object>(zero: true).FastPath();
             //bag.TryEnqueue(-1);
             await Task.WhenAll(remove).WaitAsync(TimeSpan.FromSeconds(60));
             _output.WriteLine("remove done");
