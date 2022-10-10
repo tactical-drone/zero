@@ -416,7 +416,7 @@ namespace zero.test.core.patterns.queue{
                 var @this = (IoQueueTest)state!;
                 var s = Environment.TickCount;
                 var item = await @this._queuePressure.DequeueAsync().FastPath();
-                Assert.InRange(s.ElapsedMs(), 100, 100 + ERR_T);
+                Assert.InRange(s.ElapsedMs(), 75, 100 + ERR_T);
                 Assert.NotNull(item);
             }, this, CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Default).Unwrap();
                 

@@ -52,6 +52,7 @@
 	<ItemGroup>
 		<None Include="..\.editorconfig" Link=".editorconfig" />
 		<None Include="..\.gitignore" Link=".gitignore" />
+		<Content Include="..\LICENSE" Link="LICENSE" pack="true" PackagePath="\"/>
 		<None Include="..\readme.md" Link="readme.md">
 			<Pack>True</Pack>
 			<PackagePath>\</PackagePath>
