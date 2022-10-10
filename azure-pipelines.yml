@@ -80,3 +80,10 @@ steps:
     testRunTitle: 'Unit Tests'    
     publishTestResults: true
 
+- task: DotNetCoreCLI@2
+  inputs:
+    command: 'pack'
+    packagesToPack: zero.core/zero.core.csproj; zero.core.feat/zero.core.feat.csproj; zero.cocoon/zero.cocoon.csproj
+    nobuild: true
+    includesymbols: true
+    versioningScheme: 'byBuildNumber'
