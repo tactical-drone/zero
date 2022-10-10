@@ -1,92 +1,85 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
-  <PropertyGroup>
-    <TargetFramework>netstandard2.1</TargetFramework>
-    <LangVersion>preview</LangVersion>
-	<EnablePreviewFeatures>True</EnablePreviewFeatures>
-	<GenerateRequiresPreviewFeaturesAttribute>False</GenerateRequiresPreviewFeaturesAttribute>
-    <Copyright>unimatrix one</Copyright>
-    <AssemblyVersion>0.0.0.1</AssemblyVersion>
-    <FileVersion>0.0.0.1</FileVersion>
-    <PackageReleaseNotes>alpha</PackageReleaseNotes>
-    <PackageTags>zero</PackageTags>
-    <PackageLicenseFile>C:\Users\skyca\source\repos\zero\LICENSE</PackageLicenseFile>
-    <PackageRequireLicenseAcceptance>True</PackageRequireLicenseAcceptance>
-    <Configurations>Debug;Release;Trace</Configurations>
-    <GeneratePackageOnBuild>True</GeneratePackageOnBuild>
-    <Title>μzero.core</Title>
-    <PackageId>unimatrix.$(AssemblyName)</PackageId>
-    <Authors>zerocool</Authors>
-    <Company>unimatrix one</Company>
-    <PackageProjectUrl>https://github.com/tactical-drone/zero</PackageProjectUrl>
-    <PackageIcon>zero.png</PackageIcon>
-    <PackageReadmeFile>readme.md</PackageReadmeFile>
-	<PackageLicenseFile>LICENSE</PackageLicenseFile>
-    <RepositoryUrl>https://github.com/tactical-drone/zero/tree/master/zero.core</RepositoryUrl>
-  </PropertyGroup>
+	<PropertyGroup>
+		<TargetFramework>netstandard2.1</TargetFramework>
+		<LangVersion>latest</LangVersion>
+		<Configurations>Debug;Release;Trace</Configurations>
+		<AssemblyVersion>0.0.0.1</AssemblyVersion>
+		<FileVersion>0.0.0.1</FileVersion>
+		<Version>$(AssemblyVersion)-alpha</Version>
+		<Copyright>unimatrix one</Copyright>
+		<PackageReleaseNotes>alpha</PackageReleaseNotes>
+		<PackageTags>zero</PackageTags>
+		<Title>μzero.core</Title>
+		<PackageId>unimatrix.$(AssemblyName)</PackageId>
+		<Authors>zerocool</Authors>
+		<Company>unimatrix one</Company>
+		<Description>Usefull stuff</Description>
+		<PackageProjectUrl>https://github.com/tactical-drone/zero</PackageProjectUrl>
+		<PackageIcon>zero.png</PackageIcon>
+		<PackageReadmeFile>readme.md</PackageReadmeFile>
+		<RepositoryUrl>https://github.com/tactical-drone/zero/tree/master/zero.core</RepositoryUrl>
+		<PackageLicenseFile>LICENSE</PackageLicenseFile>
+	</PropertyGroup>
 
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
-    <AllowUnsafeBlocks>false</AllowUnsafeBlocks>
-    <DefineConstants>SAFE_RELEASE; DEBUG</DefineConstants>
-    <CheckForOverflowUnderflow>True</CheckForOverflowUnderflow>
-	<Optimize>False</Optimize>
-  </PropertyGroup>
+	<PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
+		<AllowUnsafeBlocks>false</AllowUnsafeBlocks>
+		<DefineConstants>SAFE_RELEASE; DEBUG</DefineConstants>
+		<CheckForOverflowUnderflow>True</CheckForOverflowUnderflow>
+		<Optimize>False</Optimize>
+	</PropertyGroup>
 
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|AnyCPU'">
-    <DefineConstants>SAFE_RELEASE</DefineConstants>
-    <CheckForOverflowUnderflow>True</CheckForOverflowUnderflow>
-    <Optimize>True</Optimize>
-  </PropertyGroup>
+	<PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|AnyCPU'">
+		<DefineConstants>SAFE_RELEASE</DefineConstants>
+		<CheckForOverflowUnderflow>True</CheckForOverflowUnderflow>
+		<Optimize>True</Optimize>
+	</PropertyGroup>
 
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Trace|AnyCPU'">
-    <DefineConstants>SAFE_RELEASE; TRACE</DefineConstants>
-    <CheckForOverflowUnderflow>True</CheckForOverflowUnderflow>
-    <Optimize>False</Optimize>
-  </PropertyGroup>
-
-  <ItemGroup>
-    <Compile Remove="api\**" />
-    <Compile Remove="com\**" />
-    <EmbeddedResource Remove="api\**" />
-    <EmbeddedResource Remove="com\**" />
-    <None Remove="api\**" />
-    <None Remove="com\**" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <None Include="..\.editorconfig" Link=".editorconfig" />
-    <None Include="..\.gitignore" Link=".gitignore" />
-	  <None Include="..\LICENSE" Link="LICENSE"  >
-		  <Pack>True</Pack>
-		  <PackagePath>\</PackagePath>
-	  </None>
-    <None Include="..\readme.md" Link="readme.md">
-      <Pack>True</Pack>
-      <PackagePath>\</PackagePath>
-    </None>
-    <None Include="..\zero.png">
-      <Pack>True</Pack>
-      <PackagePath>\</PackagePath>
-    </None>
-  </ItemGroup>
-
-  <ItemGroup>    
-	  <PackageReference Include="Microsoft.CSharp" Version="4.7.0" />    
-	  <PackageReference Include="NLog" Version="5.0.4" />    
-	  <PackageReference Include="System.Runtime.CompilerServices.Unsafe" Version="7.0.0-preview.3.22119.2" />    
-	  <PackageReference Include="System.Threading.Channels" Version="8.0.0-alpha.1.22507.5" />
-	  <PackageReference Include="xunit.abstractions" Version="2.0.3" />        
-  </ItemGroup>
-
-  <ItemGroup>    
-    <Reference Include="NLog">
-      <HintPath>..\..\..\..\.nuget\packages\nlog\4.5.0-rc03\lib\netstandard2.0\NLog.dll</HintPath>
-    </Reference>    
-  </ItemGroup>
+	<PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Trace|AnyCPU'">
+		<DefineConstants>SAFE_RELEASE; TRACE</DefineConstants>
+		<CheckForOverflowUnderflow>True</CheckForOverflowUnderflow>
+		<Optimize>False</Optimize>
+	</PropertyGroup>
 
 	<ItemGroup>
-    <Folder Include="network\extensions\" />
-    <Folder Include="patterns\cmdline\" />
-  </ItemGroup>
+		<Compile Remove="api\**" />
+		<Compile Remove="com\**" />
+		<EmbeddedResource Remove="api\**" />
+		<EmbeddedResource Remove="com\**" />
+		<None Remove="api\**" />
+		<None Remove="com\**" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<None Include="..\.editorconfig" Link=".editorconfig" />
+		<None Include="..\.gitignore" Link=".gitignore" />
+		<None Include="..\readme.md" Link="readme.md">
+			<Pack>True</Pack>
+			<PackagePath>\</PackagePath>
+		</None>
+		<None Include="..\zero.png">
+			<Pack>True</Pack>
+			<PackagePath>\</PackagePath>
+		</None>
+	</ItemGroup>
+
+	<ItemGroup>
+		<PackageReference Include="Microsoft.CSharp" Version="4.7.0" />
+		<PackageReference Include="NLog" Version="5.0.4" />
+		<PackageReference Include="System.Runtime.CompilerServices.Unsafe" Version="7.0.0-preview.3.22119.2" />
+		<PackageReference Include="System.Threading.Channels" Version="8.0.0-alpha.1.22507.5" />
+		<PackageReference Include="xunit.abstractions" Version="2.0.3" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<Reference Include="NLog">
+			<HintPath>..\..\..\..\.nuget\packages\nlog\4.5.0-rc03\lib\netstandard2.0\NLog.dll</HintPath>
+		</Reference>
+	</ItemGroup>
+
+	<ItemGroup>
+		<Folder Include="network\extensions\" />
+		<Folder Include="patterns\cmdline\" />
+	</ItemGroup>
 
 	<!--<ItemGroup>
 	  <ProjectReference Include="..\zero.unsafe\zero.unsafe.csproj" />

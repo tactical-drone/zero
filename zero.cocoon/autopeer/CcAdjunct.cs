@@ -2239,7 +2239,7 @@ namespace zero.cocoon.autopeer
                 {
                     try
                     {
-#if DEBUG
+#if TRACE
                         _logger.Trace($"<\\- {nameof(CcProbeResponse)} ({sent}) [{payload[..payload.Length].PayloadSig()} ~ {response.ReqHash.Memory.HashSig()}]: [[SYN-ACK]], dest = {MessageService.IoNetSocket.RemoteNodeAddress}, [{Designation.IdString()}]");
 #endif
                         //ensure ingress delta trigger (2 consecutive probes beckon an Ingress connection)

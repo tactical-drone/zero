@@ -139,7 +139,7 @@ namespace zero.test.core.feat
                         Assert.False(await matcher.ResponseAsync(k, UnsafeByteOperations.UnsafeWrap(dud)));
                         await Task.Delay(delay);
                         Assert.False(await matcher.ResponseAsync(k, UnsafeByteOperations.UnsafeWrap(hash)));
-                    }, (key, reqHash, m, _delayTime), CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Default).Unwrap();
+                    }, (key, reqHash, m, _delayTime * 2), CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Default).Unwrap();
 
                 }, BitConverter.GetBytes(i), CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Default));
             }

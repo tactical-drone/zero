@@ -180,8 +180,8 @@ namespace zero.test.core.patterns.queue{
         {
             var concurrentTasks = new List<Task>();
 #if DEBUG
-            var rounds = 2;
-            var mult = 10000;
+            var rounds = 4;
+            var mult = 1000;
 #else
             var rounds = 16;
             var mult = 10000;
@@ -224,7 +224,7 @@ namespace zero.test.core.patterns.queue{
                     //@this._output.WriteLine($"({@this.context.Q.Count})");
                 },this, CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Default).Unwrap());
             }
-            await Task.WhenAll(concurrentTasks).WaitAsync(TimeSpan.FromSeconds(10));
+            await Task.WhenAll(concurrentTasks).WaitAsync(TimeSpan.FromSeconds(15));
 
             _output.WriteLine($"count = {context.Q.Count}, Head = {context.Q?.Tail?.Value}, tail = {context.Q?.Head?.Value}, time = {Environment.TickCount - start}ms, {rounds * mult * 6 / (Environment.TickCount - start + 1)} kOPS");
 
@@ -297,7 +297,7 @@ namespace zero.test.core.patterns.queue{
                 }, (this, q, i, itemsPerThread, _output), CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Default).Unwrap());
             }
 
-            await Task.WhenAll(insert).WaitAsync(TimeSpan.FromSeconds(10));
+            await Task.WhenAll(insert).WaitAsync(TimeSpan.FromSeconds(15));
 
             Assert.Equal(capacity, _inserted);
 

@@ -1,28 +1,54 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
+	<PropertyGroup>
+		<TargetFramework>netstandard2.1</TargetFramework>
+		<LangVersion>latest</LangVersion>
+		<Configurations>Debug;Release;Trace</Configurations>
+		<AssemblyVersion>0.0.0.1</AssemblyVersion>
+		<FileVersion>0.0.0.1</FileVersion>
+		<Version>$(AssemblyVersion)-alpha</Version>
+		<Copyright>unimatrix one</Copyright>
+		<PackageReleaseNotes>alpha</PackageReleaseNotes>
+		<PackageTags>zero</PackageTags>
+		<Title>μzero.core.feat</Title>
+		<PackageId>unimatrix.$(AssemblyName)</PackageId>
+		<Authors>zerocool</Authors>
+		<Company>unimatrix one</Company>
+		<Description>Adds additional features to zero.core at the cost of dependencies </Description>
+		<PackageProjectUrl>https://github.com/tactical-drone/zero</PackageProjectUrl>
+		<PackageIcon>zero.png</PackageIcon>
+		<PackageReadmeFile>readme.md</PackageReadmeFile>
+		<RepositoryUrl>https://github.com/tactical-drone/zero/tree/master/zero.core.feat</RepositoryUrl>
+		<PackageLicenseFile>LICENSE</PackageLicenseFile>
+	</PropertyGroup>
 
-  <PropertyGroup>
-	  <TargetFramework>netstandard2.1</TargetFramework>
-	  <LangVersion>preview</LangVersion>
-	  <Configurations>Debug;Release;Trace</Configurations>
-  </PropertyGroup>
+	<PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
+		<DefineConstants>SAFE_RELEASE; DEBUG</DefineConstants>
+		<CheckForOverflowUnderflow>True</CheckForOverflowUnderflow>
+		<Optimize>False</Optimize>
+	</PropertyGroup>
 
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
-    <DefineConstants>SAFE_RELEASE; DEBUG</DefineConstants>
-    <CheckForOverflowUnderflow>True</CheckForOverflowUnderflow>
-	  <Optimize>False</Optimize>
-  </PropertyGroup>
+	<PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|AnyCPU'">
+		<DefineConstants>SAFE_RELEASE; </DefineConstants>
+		<CheckForOverflowUnderflow>True</CheckForOverflowUnderflow>
+		<Optimize>True</Optimize>
+	</PropertyGroup>
 
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|AnyCPU'">
-    <DefineConstants>SAFE_RELEASE; </DefineConstants>
-    <CheckForOverflowUnderflow>True</CheckForOverflowUnderflow>
-	  <Optimize>True</Optimize>
-  </PropertyGroup>
+	<PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Trace|AnyCPU'">
+		<DefineConstants>SAFE_RELEASE; TRACE</DefineConstants>
+		<Optimize>False</Optimize>
+		<CheckForOverflowUnderflow>True</CheckForOverflowUnderflow>
+	</PropertyGroup>
 
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Trace|AnyCPU'">
-    <DefineConstants>SAFE_RELEASE; TRACE</DefineConstants>
-    <Optimize>False</Optimize>
-    <CheckForOverflowUnderflow>True</CheckForOverflowUnderflow>
-  </PropertyGroup>
+	<ItemGroup>
+		<None Include="..\readme.md">
+			<Pack>True</Pack>
+			<PackagePath>\</PackagePath>
+		</None>
+		<None Include="..\zero.png">
+			<Pack>True</Pack>
+			<PackagePath>\</PackagePath>
+		</None>
+	</ItemGroup>
 
 	<ItemGroup>
 		<PackageReference Include="Google.Protobuf" Version="3.21.7" />
@@ -40,7 +66,7 @@
 	</ItemGroup>
 
 	<ItemGroup>
-	  <ProjectReference Include="..\zero.core\zero.core.csproj" />
+		<ProjectReference Include="..\zero.core\zero.core.csproj" />
 	</ItemGroup>
 
 </Project>

@@ -54,10 +54,10 @@ namespace zero.core.patterns.bushings.contracts
                     return job._produced = ((IoZeroSource)source).Produce();
                 }, this, barrier, ioZero).FastPath())
             {
-                return State;
+                return await SetStateAsync(IoJobMeta.JobState.ProduceErr);
             }
 
-            return State;
+            return await SetStateAsync(IoJobMeta.JobState.Produced);
         }
 
         public override async ValueTask<IIoHeapItem> HeapPopAsync(object context)

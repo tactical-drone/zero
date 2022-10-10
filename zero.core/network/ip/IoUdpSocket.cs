@@ -174,11 +174,10 @@ namespace zero.core.network.ip
             Func<TBoot, ValueTask> bootFunc = null,
             TBoot bootData = default)
         {
-
             //TODO sec
             _ = NativeSocket.IOControl(
                 (IOControlCode)SIO_UDP_CONNRESET,
-                "\0\0\0\0"u8.ToArray(),
+                new byte[] {0,0,0,0},
                 null
             );
 

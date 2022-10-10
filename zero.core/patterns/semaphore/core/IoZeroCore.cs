@@ -48,6 +48,9 @@ namespace zero.core.patterns.semaphore.core
             _asyncTasks = asyncTasks;
             
             _ensureMutex = (_ready = ready) == 1; //a mutex will always have a 1 here
+
+            _lifoQ = default;
+            _racedResultSyncRoot = 0;
         }
 
         public IIoZeroSemaphoreBase<T> ZeroRef(ref IIoZeroSemaphoreBase<T> @ref, Func<object, T> primeResult = default,
