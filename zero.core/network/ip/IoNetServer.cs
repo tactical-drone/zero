@@ -97,8 +97,8 @@ namespace zero.core.network.ip
         {
             if (IoListenSocket != null)
                 throw new ConstraintException($"Listener has already been started for `{ListeningAddress}'");
-            
-            return default;
+
+            return new ValueTask(Task.CompletedTask);
         }
 
         /// <summary>

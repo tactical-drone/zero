@@ -671,7 +671,7 @@ namespace zero.cocoon.autopeer
                 await _chronitonHeap.ZeroManagedAsync(static (item,@this) =>
                 {
                     ArrayPool<byte>.Shared.Return(item.Signature.Memory.AsArray());
-                    return default;
+                    return new ValueTask(Task.CompletedTask);
                 }, this);
 
                 await _sendBuf.ZeroManagedAsync<object>().FastPath();
@@ -2457,8 +2457,8 @@ namespace zero.cocoon.autopeer
                     CcCollective.EgressCount < CcCollective.parm_max_outbound &&
                     FuseCount < parm_zombie_max_connection_attempts)
                 {
-                    if (!await FuseAsync())
-                        _logger.Trace($"<\\- {nameof(FuseAsync)}: [FAILED] Send Drone request, {Description}");
+                    if (Fuse())
+                        _logger.Trace($"<\\- {nameof(Fuse)}: [FAILED] Send Drone request, {Description}");
                     else if(!force)
                         Interlocked.Exchange(ref _stealthy, Environment.TickCount);
                     
@@ -2707,12 +2707,12 @@ namespace zero.cocoon.autopeer
         /// Causes adjunct to fuse with another adjunct forming a drone. Drones are useful. 
         /// </summary>
         /// <returns>Task</returns>
-        public async ValueTask <bool> FuseAsync()
+        public bool Fuse()
         {
             if (IsDroneAttached || CcCollective.ZeroDrone || _state.Value == AdjunctState.Connected)
             {
                 if (!CcCollective.ZeroDrone)
-                    _logger.Warn($"{nameof(FuseAsync)}: [ABORTED], {Description}, s = {State}, a = {Assimilating}, D = {IsDroneConnected}, d = {IsDroneAttached}");
+                    _logger.Warn($"{nameof(Fuse)}: [ABORTED], {Description}, s = {State}, a = {Assimilating}, D = {IsDroneConnected}, d = {IsDroneAttached}");
                 return false;
             }
 
@@ -2724,7 +2724,7 @@ namespace zero.cocoon.autopeer
             if (!stateIsValid)
             {
                 if (_state.Value is >= AdjunctState.Fusing and <= AdjunctState.Connected && _state.EnterTime.ElapsedMs() > parm_max_network_latency_ms)
-                    _logger.Warn($"{nameof(FuseAsync)} - {Description}: Invalid state, {oldState}, age = {_state.EnterTime.ElapsedMs()}ms. Wanted {nameof(AdjunctState.Verified)} - [RACE OK!] ");
+                    _logger.Warn($"{nameof(Fuse)} - {Description}: Invalid state, {oldState}, age = {_state.EnterTime.ElapsedMs()}ms. Wanted {nameof(AdjunctState.Verified)} - [RACE OK!] ");
                 return false;
             }
 

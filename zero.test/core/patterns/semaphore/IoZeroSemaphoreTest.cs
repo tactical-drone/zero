@@ -11,7 +11,7 @@ using zero.core.runtime.scheduler;
 
 namespace zero.test.core.patterns.semaphore
 {
-    public class IoZeroSemaphoreTest:IDisposable
+    public class IoZeroSemaphoreTest
     {
         public IoZeroSemaphoreTest(ITestOutputHelper output)
         {
@@ -32,8 +32,6 @@ namespace zero.test.core.patterns.semaphore
             int targetSleep = 50;
 #endif
             var m = new IoZeroSemaphoreSlim(new CancellationTokenSource(), "test mutex", maxBlockers: 1, initialCount: 1);
-
-            await Task.Yield();
 
             Assert.True((await m.WaitAsync().FastPath()).ElapsedMs() < 0x7ffffff);
 
@@ -212,11 +210,7 @@ namespace zero.test.core.patterns.semaphore
                             _output.WriteLine($"RELEASE Stalled! -> {ts.ElapsedMs()} ms, waiters = {m.WaitCount}, r = {r}");
                             await Task.Delay(1000);
                         }
-                        else
-                        {
-                            await Task.Yield();
-                        }
-
+                        
                         Assert.InRange(r, -1, 1);
                         
                         //if (r != 1) 
@@ -476,11 +470,6 @@ namespace zero.test.core.patterns.semaphore
             var maps = count * 1000 / (totalTime.ElapsedMs() + 1) / 1000;
             _output.WriteLine($"MAPS = {maps} K/s, t = {totalTime.ElapsedMs()}ms");
             Assert.InRange(maps, 1, int.MaxValue);
-        }
-
-        public void Dispose()
-        {
-            
         }
     }
 }

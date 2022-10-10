@@ -101,7 +101,7 @@ namespace zero.test.core.patterns.heap
                     return new TestHeapItem(0, 0);
                 return new TestHeapItem(@this._localVar, (int)o);
             }, true, this);
-            await Task.Yield();
+            
             var i1 = h.Take(0);
             var i2 = h.Take(0);
             var i3 = h.Take(0);

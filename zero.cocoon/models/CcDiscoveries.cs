@@ -101,7 +101,7 @@ namespace zero.cocoon.models
             await _batchHeap.ZeroManagedAsync<object>(static (batch, _) =>
             {
                 batch.Dispose();
-                return default;
+                return new ValueTask(Task.CompletedTask);
             }).FastPath();
 
             _currentBatch?.Dispose();

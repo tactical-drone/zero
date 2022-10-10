@@ -361,8 +361,6 @@ namespace zero.test.core.patterns.queue{
             _blockCancellationSignal = new CancellationTokenSource();
             _queuePressure = new IoQueue<IoInt32>("test Q", 1, 2);
 
-            await Task.Yield();
-
             await _queuePressure.EnqueueAsync(0);
 
             var item = await _queuePressure.DequeueAsync().FastPath();
@@ -409,9 +407,7 @@ namespace zero.test.core.patterns.queue{
 #pragma warning restore IDE0051 // Remove unused private members
         {
             _blockCancellationSignal = new CancellationTokenSource();
-            _queuePressure = new IoQueue<IoInt32>("test Q", 1, 2, IoQueue<IoInt32>.Mode.Pressure);
-
-            await Task.Yield();
+            _queuePressure = new IoQueue<IoInt32>("test Q", 10, 2, IoQueue<IoInt32>.Mode.Pressure);
 
             await _queuePressure.EnqueueAsync(0);
 
@@ -426,7 +422,6 @@ namespace zero.test.core.patterns.queue{
                 var item = await @this._queuePressure.DequeueAsync().FastPath();
                 Assert.InRange(s.ElapsedMs(), (100/15)*15, 100 + 15 * 2);
                 Assert.NotNull(item);
-
             }, this, CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Default).Unwrap();
                 
             var dequeTask = _queueNoBlockingTask.ContinueWith((_, @this) =>
@@ -457,10 +452,7 @@ namespace zero.test.core.patterns.queue{
                 }
             }, this, CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Default).Unwrap();
 
-            await insertTask;
-            Assert.True(insertTask.IsCompletedSuccessfully);
-            await dequeTask;
-            Assert.True(dequeTask.IsCompletedSuccessfully);
+            await Task.WhenAll(new[]{insertTask, dequeTask}).WaitAsync(TimeSpan.FromSeconds(60));
         }
 
         [Fact]
@@ -558,8 +550,6 @@ namespace zero.test.core.patterns.queue{
             _blockCancellationSignal = new CancellationTokenSource();
             _queuePressure = new IoQueue<IoInt32>("test Q", Concurrency, Concurrency, IoQueue<IoInt32>.Mode.BackPressure | IoQueue<IoInt32>.Mode.Pressure);
             
-            //await Task.Yield();
-
             for (var i = 0; i < Concurrency; i++)
                 await _queuePressure.EnqueueAsync(i);
 

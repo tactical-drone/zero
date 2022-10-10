@@ -112,7 +112,7 @@ namespace zero.core.feat.models.protobuffer
         private ValueTask ClearAsync()
         {
             _batch?.Dispose();
-            return default;
+            return new ValueTask(Task.CompletedTask);
         }
 
         /// <summary>

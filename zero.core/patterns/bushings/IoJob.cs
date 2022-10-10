@@ -160,7 +160,11 @@ namespace zero.core.patterns.bushings
         /// Initializes this instance for reuse from the heap
         /// </summary>
         /// <returns>This instance</returns>
-        public virtual async ValueTask<IIoHeapItem> HeapPopAsync(object context)
+        public virtual
+#if DEBUG
+            async 
+#endif
+        ValueTask<IIoHeapItem> HeapPopAsync(object context)
         {
             try
             {
@@ -170,7 +174,7 @@ namespace zero.core.patterns.bushings
                 await StateTransitionHistory.ZeroManagedAsync(static (s, @this) =>
                 {
                     StateHeap.Return(s.Value);
-                    return default;
+                    return new ValueTask(Task.CompletedTask);
                 }, this).FastPath();
 
                 await StateTransitionHistory.ClearAsync().FastPath();
@@ -184,7 +188,11 @@ namespace zero.core.patterns.bushings
                 ZeroRecovery.Reset();
                 EnableRecoveryOneshot = false;
 
+#if DEBUG
                 return this;
+#else
+                return new ValueTask<IIoHeapItem>(this);
+#endif
             }
             catch when(Zeroed()){}
             catch (Exception e)when(!Zeroed())
@@ -239,7 +247,7 @@ namespace zero.core.patterns.bushings
             await StateTransitionHistory.ZeroManagedAsync(static (s, @this) =>
             {
                 StateHeap.Return(s.Value);
-                return default;
+                return new ValueTask(Task.CompletedTask);
             }, this, zero:true).FastPath();
 #endif
             if (PreviousJob != null)
@@ -338,7 +346,7 @@ namespace zero.core.patterns.bushings
 
 
 
-#if DEBUG 
+#if DEBUG
         /// <summary>
         /// state heap
         /// </summary>

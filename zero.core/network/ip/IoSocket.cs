@@ -266,7 +266,7 @@ namespace zero.core.network.ip
                 return new ValueTask(Task.FromException(e));
             }
 
-            return default;
+            return new ValueTask(Task.CompletedTask);
         }
 
         /// <summary>

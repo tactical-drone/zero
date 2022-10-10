@@ -81,6 +81,7 @@ steps:
     publishTestResults: true
 
 - task: DotNetCoreCLI@2
+  displayName: nuget build
   inputs:
     command: 'pack'
     packagesToPack: zero.core/zero.core.csproj; zero.core.feat/zero.core.feat.csproj; zero.cocoon/zero.cocoon.csproj

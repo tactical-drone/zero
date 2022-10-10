@@ -285,7 +285,7 @@ namespace zero.core.patterns.misc
 
             // Only once
             if (_zeroed > 0 || Interlocked.CompareExchange(ref _zeroed, 1, 0) != 0)
-                return default;
+                new ValueTask(Task.CompletedTask);
 
             ZeroedFrom = from;
 #if RELEASE
@@ -463,7 +463,7 @@ namespace zero.core.patterns.misc
             try
             {
                 if (Zeroed())
-                    return default;
+                    new ValueTask(Task.CompletedTask);
 
                 var newSub = new IoZeroSub($"zero sub> {Path.GetFileName(filePath)}:{memberName} line {lineNumber}").SetAction(sub, closureState);
                 return _zeroHive.EnqueueAsync(newSub);                
@@ -570,7 +570,7 @@ namespace zero.core.patterns.misc
             //tracks if base methods are called on teardown as they should be
             Interlocked.Increment(ref _extracted);
 #endif
-            return default;
+            return new ValueTask(Task.CompletedTask);
         }
 
         /// <summary>

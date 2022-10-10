@@ -611,8 +611,6 @@ namespace zero.cocoon
                 //inbound
                 if (ioNetSocket.IsIngress)
                 {
-                    var verified = false;
-                    
                     //read from the socket
                     int localRead;
                     do

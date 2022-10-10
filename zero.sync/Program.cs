@@ -1551,7 +1551,6 @@ namespace zero.sync
                                     }
                                     else
                                     {
-                                        //await Task.Yield();
                                         await Task.Delay(1, asyncTasks.Token);
                                         if (Interlocked.Decrement(ref totalReleases) <= 0)
                                             break;

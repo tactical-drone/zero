@@ -357,7 +357,6 @@ namespace zero.cocoon.models
         private const int MaxLogBatchSize = 10000;
         private readonly IoInt32 _logBatchNext = MaxLogBatchSize;
         private IoInt32 _logBatchTime = Environment.TickCount;
-        private const int HeartbeatTime = 3000;
         public override async ValueTask<IoJobMeta.JobState> ConsumeAsync()
         {
             //are we in recovery mode?
@@ -625,17 +624,17 @@ namespace zero.cocoon.models
                     //Console.WriteLine($"req -> {req}");
 
                     
-                    IoZeroScheduler.Zero.LoadAsyncContext(static async state =>
+                    IoZeroScheduler.Zero.LoadAsyncContext(static state =>
                     {
                         var (@this,req)  = (ValueTuple<CcWhispers, long>) state;
 
                         if (@this.Zeroed() || req < @this.CcCollective.MaxReq)
-                            return;
+                            return new ValueTask(Task.CompletedTask);
 #if THROTTLE
                         //await Task.Delay(RandomNumberGenerator.GetInt32(HeartbeatTime/2, HeartbeatTime));
                         //await Task.Delay(30);
 #endif
-                        //Console.WriteLine($"req <= {req}");
+                            //Console.WriteLine($"req <= {req}");
                         byte[] socketBuf = null;
                         var processed = 0;
                         try
@@ -787,8 +786,9 @@ namespace zero.cocoon.models
                             if (@this.CcCollective.DupChecker.TryRemove(req - 1, out var removed))
                                 @this.CcCollective.DupHeap.Return(removed);
                         }
-                    }, (this, req));
 
+                        return new ValueTask(Task.CompletedTask);
+                    }, (this, req));
                 }
 
                 ////TODO tuning

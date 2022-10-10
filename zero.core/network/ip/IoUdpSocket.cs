@@ -144,7 +144,7 @@ namespace zero.core.network.ip
                     }
                     ((IDisposable)o).Dispose();
 
-                    return default;
+                    return new ValueTask(Task.CompletedTask);
                 }, this).FastPath();
             }
             

@@ -2,8 +2,6 @@
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
-using System.Net.NetworkInformation;
-using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using Xunit;
@@ -12,13 +10,13 @@ using zero.core.patterns.semaphore.core;
 
 namespace zero.test.core.patterns.semaphore
 {
-    public class IoZeroCASTest
+    public class IoZeroCasTest
     {
         private long _reg;
         private int _count = 10000000;
         private readonly ITestOutputHelper _output;
 
-        public IoZeroCASTest(ITestOutputHelper output)
+        public IoZeroCasTest(ITestOutputHelper output)
         {
             _output = output;
         }
@@ -64,7 +62,7 @@ namespace zero.test.core.patterns.semaphore
                 }, CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Default));
             }
 
-            await Task.WhenAll(tasks).WaitAsync(TimeSpan.FromSeconds(25));
+            await Task.WhenAll(tasks).WaitAsync(TimeSpan.FromSeconds(60));
 
             //Assert.Equal(_count, _reg);
             var sorted = _selection.OrderBy(i => i);
@@ -107,7 +105,7 @@ namespace zero.test.core.patterns.semaphore
                 }, CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Default));
             }
 
-            await Task.WhenAll(tasks).WaitAsync(TimeSpan.FromSeconds(30));
+            await Task.WhenAll(tasks).WaitAsync(TimeSpan.FromSeconds(60));
 
             Assert.Equal(_count - 1, _reg);
         }

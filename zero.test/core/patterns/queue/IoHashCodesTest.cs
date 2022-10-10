@@ -51,7 +51,7 @@ namespace zero.test.core.patterns.queue
             var threads = 100;
 
             var bag = new IoHashCodes("test", threads);
-            await Task.Yield();
+            
             var c = 0;
             foreach (var ioInt32 in bag)
                 c++;

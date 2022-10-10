@@ -55,7 +55,7 @@ namespace zero.core.patterns.heap
                     await heapItem.item.ZeroSubAsync<object>((t, u) =>
                     {
                         LogManager.GetCurrentClassLogger().Fatal($"SAFE_RELEASE -> {u.ToString()}");
-                        return default;
+                        new ValueTask(Task.CompletedTask);
                     }, heapItem.item);
                 }
 #endif

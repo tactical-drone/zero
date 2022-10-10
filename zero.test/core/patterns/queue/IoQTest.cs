@@ -75,7 +75,7 @@ namespace zero.test.core.patterns.queue
             //var threads = 1;
 
             var bag = new IoZeroQ<IoInt32>("test", 8192,true);
-            await Task.Yield();
+            
             var c = 0;
             foreach (var ioInt32 in bag)
                 c++;
@@ -453,7 +453,7 @@ namespace zero.test.core.patterns.queue
 
             var cs = new CancellationTokenSource();
             var bag = new IoZeroQ<IoInt32>("test", 8192, true, cs, threads, zeroAsyncMode:true);
-            await Task.Yield();
+            
             var c = 0;
             foreach (var ioInt32 in bag)
                 c++;
@@ -546,7 +546,7 @@ namespace zero.test.core.patterns.queue
 
             var cs = new CancellationTokenSource();
             var bag = new IoZeroQ<IoInt32>("test", 8192, false, cs, threads, zeroAsyncMode:true);
-            //await Task.Yield();
+            
             var c = 0;
             foreach (var ioInt32 in bag)
                 c++;
