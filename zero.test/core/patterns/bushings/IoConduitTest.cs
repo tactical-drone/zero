@@ -80,16 +80,17 @@ namespace zero.test.core.patterns.bushings
 
             var targetTime = count * 16 * 3 / concurrencyLevel;
 
-            while (!z1.IsCompleted)
+            while (!z1.IsCompleted && !c1.Zeroed())
             {
                 if (c1.EventCount > count || ts.ElapsedMs() > targetTime * 3)
                 {
                     _output.WriteLine($"test done!!!!!!!!!!!");
-                    await c1.DisposeAsync(null, "test done");
+                    await c1.DisposeAsync(null, "test done").FastPath();
+                    break;
                 }
-                //_output.WriteLine($"{c1.EventCount}/{count}");
-                await Task.Delay(50).ConfigureAwait(true);
+                await Task.Delay(200);
             }
+
             await z1.WaitAsync(TimeSpan.FromMilliseconds(targetTime * 400));
 
             _output.WriteLine($"{ts.ElapsedMs()}ms ~ {targetTime}");

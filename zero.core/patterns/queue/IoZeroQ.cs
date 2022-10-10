@@ -793,6 +793,9 @@ namespace zero.core.patterns.queue
                 }
 #endif
                 Interlocked.Exchange(ref _clearing, 0);
+
+                if(zero)
+                    _balanceSync.ZeroSem();
             }
 
             return true;

@@ -66,15 +66,13 @@ namespace zero.core.patterns.queue
                 PushAction = 
                 node =>
                 {
-                    Interlocked.Increment(ref node.Qid);
                     node.Next = null;
                     node.Prev = null;
                     node.Value = default;
-                    Interlocked.MemoryBarrier();
+                    Interlocked.Increment(ref node.Qid);
                 },
                 PopAction = (node, _) =>
                 {
-                    //node.lastOp = -1;
                     Interlocked.Increment(ref node.Qid);
                 }
             };

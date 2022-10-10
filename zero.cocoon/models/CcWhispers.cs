@@ -41,19 +41,28 @@ namespace zero.cocoon.models
 
         public CcWhispers(string sinkDesc, string jobDesc, IoSource<CcProtocMessage<CcWhisperMsg, CcGossipBatch>> source) : base(sinkDesc, jobDesc, source)
         {
-            _m = new CcWhisperMsg { Data = UnsafeByteOperations.UnsafeWrap(new ReadOnlyMemory<byte>(_vb)) };
+            
+            try
+            {
+                _m = new CcWhisperMsg { Data = UnsafeByteOperations.UnsafeWrap(new ReadOnlyMemory<byte>(_vb)) };
 
-            retry:
-            if (Source.ObjectStorage.TryGetValue(Source.Serial.ToString(), out var nextBatch))
-            {
-                _logBatchNext = (IoInt32)nextBatch;
-            }
-            else
-            {
-                if (!Source.ObjectStorage.TryAdd(Source.Serial.ToString(), _logBatchNext))
+                retry:
+                if (Source.ObjectStorage.TryGetValue(Source.Serial.ToString(), out var nextBatch))
                 {
-                    goto retry;
+                    _logBatchNext = (IoInt32)nextBatch;
                 }
+                else
+                {
+                    if (!Source.ObjectStorage.TryAdd(Source.Serial.ToString(), _logBatchNext))
+                    {
+                        goto retry;
+                    }
+                }
+            }
+            catch when(base.Zeroed()){}
+            catch (Exception e) when (!base.Zeroed())
+            {
+                _logger.Error(e, $"{nameof(CcWhispers)}: Construction failed;");    
             }
         }
 

@@ -28,7 +28,7 @@ namespace zero.test.core.patterns.semaphore
         [Fact]
         async Task NextAsync()
         {
-            var threads = 128;
+            var threads = Environment.ProcessorCount;
 
             var tasks = new List<Task>();
             for (var t = 0; t < threads; t++)
@@ -62,7 +62,7 @@ namespace zero.test.core.patterns.semaphore
                 }, CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Default));
             }
 
-            await Task.WhenAll(tasks).WaitAsync(TimeSpan.FromSeconds(60));
+            await Task.WhenAll(tasks).WaitAsync(TimeSpan.FromSeconds(120));
 
             //Assert.Equal(_count, _reg);
             var sorted = _selection.OrderBy(i => i);
@@ -90,7 +90,7 @@ namespace zero.test.core.patterns.semaphore
         [Fact]
         async Task NextOneAsync()
         {
-            var threads = 100;
+            var threads = Environment.ProcessorCount;
 
             var tasks = new List<Task>();
             for (var t = 0; t < threads; t++)
@@ -105,7 +105,7 @@ namespace zero.test.core.patterns.semaphore
                 }, CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Default));
             }
 
-            await Task.WhenAll(tasks).WaitAsync(TimeSpan.FromSeconds(60));
+            await Task.WhenAll(tasks).WaitAsync(TimeSpan.FromSeconds(120));
 
             Assert.Equal(_count - 1, _reg);
         }

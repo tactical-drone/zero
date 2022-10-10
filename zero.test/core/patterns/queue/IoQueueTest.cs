@@ -452,7 +452,7 @@ namespace zero.test.core.patterns.queue{
                 }
             }, this, CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Default).Unwrap();
 
-            await Task.WhenAll(new[]{insertTask, dequeTask}).WaitAsync(TimeSpan.FromSeconds(60));
+            await Task.WhenAll(new[]{insertTask, dequeTask}).WaitAsync(TimeSpan.FromSeconds(15));
         }
 
         [Fact]
@@ -534,7 +534,7 @@ namespace zero.test.core.patterns.queue{
                 }
             }, CancellationToken.None, TaskContinuationOptions.DenyChildAttach, TaskScheduler.Default);
 
-            await Task.WhenAll(insertTask, dequeTask).WaitAsync(TimeSpan.FromSeconds(10));
+            await Task.WhenAll(insertTask, dequeTask).WaitAsync(TimeSpan.FromSeconds(15));
         }
 
         
@@ -634,8 +634,7 @@ namespace zero.test.core.patterns.queue{
 
             try
             {
-                await Task.WhenAll(q, dq)
-                    .WithTimeout(TimeSpan.FromMilliseconds(BlockDelay * NrOfItems / Concurrency * 4));
+                await Task.WhenAll(q, dq).WithTimeout(TimeSpan.FromMilliseconds(BlockDelay * NrOfItems / Concurrency * 4));
             }
             catch(TaskCanceledException){}
         }

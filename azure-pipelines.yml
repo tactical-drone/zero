@@ -66,7 +66,7 @@ steps:
   displayName: debug test '$(test-solution)'
   inputs:
     command: 'test'
-    arguments: '-c Debug --collect "Code coverage"'
+    arguments: '-c Debug'
     projects: '$(test-solution)'
     testRunTitle: 'Unit Tests'    
     publishTestResults: true

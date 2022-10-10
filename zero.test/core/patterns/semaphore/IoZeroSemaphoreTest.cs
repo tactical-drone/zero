@@ -182,65 +182,32 @@ namespace zero.test.core.patterns.semaphore
         [Fact]
         async Task MutexSpamAsync()
         {
-            var m = new IoZeroSemaphoreSlim(new CancellationTokenSource(), "test mutex", maxBlockers: 3, initialCount: 3, zeroAsyncMode:false);
+            var m = new IoZeroSemaphoreSlim(new CancellationTokenSource(), "test mutex", maxBlockers: 2, initialCount: 1, zeroAsyncMode:false);
             var running = true;
-
+            var count = 10000000;
             var waits = 0;
-            //var scheduler = IoZeroScheduler.ZeroDefault;
             var scheduler = IoZeroScheduler.ZeroDefault;
-            var t1 = Task.Factory.StartNew(async () =>
-            {
-
-                var ts = Environment.TickCount;
-                await Task.Delay(2000);
-                var s = 0;
-                while (running)
-                {
-                    try
-                    {
-                        //Assert.Equal(1, m.WaitCount);
-                        int r = m.Release(Environment.TickCount);
-                        if (r > 0)
-                        {
-                            Assert.InRange(ts.ElapsedMs(), 0, 16*2);
-                            ts = Environment.TickCount;
-                        }
-                        else if (++s % 1000 == 0)
-                        {
-                            _output.WriteLine($"RELEASE Stalled! -> {ts.ElapsedMs()} ms, waiters = {m.WaitCount}, r = {r}");
-                            await Task.Delay(1000);
-                        }
-                        
-                        Assert.InRange(r, -1, 1);
-                        
-                        //if (r != 1) 
-                        //    await Task.Delay(1);
-                    }
-                    catch (Exception e)
-                    {
-                        await Task.Yield();
-                        _output.WriteLine($"FAIL! -> {ts.ElapsedMs()} ms ({e.Message})");
-                        ts = Environment.TickCount;
-                    }
-                }
-
-                while(m.Release(Environment.TickCount) == 1){}
-
-                _output.WriteLine("Release done");
-            },CancellationToken.None,TaskCreationOptions.DenyChildAttach, scheduler).Unwrap();
 
             var t2 = Task.Factory.StartNew(async () =>
             {
                 while (running)
                 {
                     var ts = Environment.TickCount;
-                    Assert.True((await m.WaitAsync().FastPath()).ElapsedMs() < 0x7ffffff);
-                    if (ts.ElapsedMs() > 15*2)
+                    var r = 0;
+                    try
                     {
-                        _output.WriteLine($"DQ took {ts.ElapsedMs()} ms!!!");
+                        r = await m.WaitAsync().FastPath();
                     }
-                    //Assert.InRange(ts.ElapsedMs(), 0, 1);
+                    catch
+                    {
+                        break;
+                    }
 
+                    if (ts.ElapsedMs() > 15 * 2 || r.ElapsedMs() > 500)
+                    {
+                        _output.WriteLine($"DQ {waits} took {ts.ElapsedMs()}, r = {r.ElapsedMs()} ms!!!");
+                    }
+                    
                     waits++;
 
                     if (waits % 1000000 == 0)
@@ -249,25 +216,40 @@ namespace zero.test.core.patterns.semaphore
                     }
                 }
 
-                _output.WriteLine($"Wait done {waits/1000000}M");
-            },CancellationToken.None, TaskCreationOptions.DenyChildAttach, scheduler).Unwrap();
+                _output.WriteLine($"Wait done {waits / 1000000}M");
+            }, CancellationToken.None, TaskCreationOptions.DenyChildAttach, scheduler).Unwrap();
+
+            await Task.Delay(20);
+
+            var t1 = Task.Factory.StartNew(() =>
+            {
+                var ts = Environment.TickCount;
+                
+                while (count --> 0)
+                {
+                    try
+                    {
+                        Assert.Equal(1, m.Release(Environment.TickCount));
+                    }
+                    catch (Exception e)
+                    {
+                        _output.WriteLine($"FAIL! -> {ts.ElapsedMs()} ms ({e.Message})");
+                    }
+                }
+
+                running = false;
+                m.ZeroSem();
+
+                _output.WriteLine("Release done");
+                return Task.CompletedTask;
+            }, CancellationToken.None, TaskCreationOptions.DenyChildAttach, scheduler).Unwrap();
 
             var ts = Environment.TickCount;
+            await Task.WhenAll(t1, t2).WaitAsync(TimeSpan.FromSeconds(60));
 
-            try
-            {
-                await Task.WhenAll(t1, t2).WaitAsync(TimeSpan.FromSeconds(5));
-            }
-            catch 
-            {
-
-            }
-
-            _output.WriteLine($"Test done... {ts.ElapsedMs()}ms - {waits/((double)(ts.ElapsedMs()/1000+1))} dq/ps");
-            running = false;
-            await Task.Delay(1000);
+            _output.WriteLine($"Test done... {ts.ElapsedMs()}ms - {waits/(double)(ts.ElapsedMs()/1000+1)} dq/ps");
             Assert.Equal(0, m.WaitCount);
-            Assert.InRange(waits, 553624, int.MaxValue);
+            Assert.InRange(waits, count, int.MaxValue);
         }
 
         [Fact]
@@ -319,7 +301,7 @@ namespace zero.test.core.patterns.semaphore
 
             var ts = Environment.TickCount;
             Assert.True(await v.WaitAsync().FastPath());
-            Assert.InRange(ts.ElapsedMs(), 0, 2);
+            Assert.InRange(ts.ElapsedMs(), 0, 32);
 
             for (var i = 0; i < count - 1; i++)
             {
@@ -436,17 +418,7 @@ namespace zero.test.core.patterns.semaphore
 
             var totalTime = Environment.TickCount;
 
-            var t = Task.Factory.StartNew(async () =>
-            {
-                int i = 0;
-                while (!v.Zeroed())
-                {
-                    if (v.Release(Environment.TickCount) != 1)
-                        await Task.Yield();
-                    else
-                        i++;
-                }
-            }, CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Default).Unwrap();
+            
 
             var t2 = Task.Factory.StartNew(async () =>
             {
@@ -463,9 +435,21 @@ namespace zero.test.core.patterns.semaphore
                 v.ZeroSem();
             }, CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Default);
 
-            
-            
-            await Task.WhenAll(t,t2).WaitAsync(TimeSpan.FromSeconds(10));
+            await Task.Delay(200);
+
+            var t = Task.Factory.StartNew(async () =>
+            {
+                int i = 0;
+                while (!v.Zeroed())
+                {
+                    if (v.Release(Environment.TickCount) != 1)
+                        await Task.Yield();
+                    else
+                        i++;
+                }
+            }, CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Default).Unwrap();
+
+            await Task.WhenAll(t,t2).WaitAsync(TimeSpan.FromSeconds(15));
             
             var maps = count * 1000 / (totalTime.ElapsedMs() + 1) / 1000;
             _output.WriteLine($"MAPS = {maps} K/s, t = {totalTime.ElapsedMs()}ms");

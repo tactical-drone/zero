@@ -275,7 +275,7 @@ namespace zero.test.core.patterns.semaphore
                         {
                             Assert.Equal(0, Interlocked.Decrement(ref _exclusiveCheck));
                             await Task.Delay(delayTime);
-                            //Assert.Equal(0, m.ReadyCount);
+                            Assert.Equal(0, m.ReadyCount);
                             m.Release(Environment.TickCount, true);
                         }
                     }
