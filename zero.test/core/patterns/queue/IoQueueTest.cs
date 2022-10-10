@@ -630,7 +630,7 @@ namespace zero.test.core.patterns.queue{
 
             try
             {
-                await Task.WhenAll(q, dq).WithTimeout(TimeSpan.FromMilliseconds(BlockDelay * NrOfItems / Concurrency * 4));
+                await Task.WhenAll(q, dq).WithTimeout(TimeSpan.FromSeconds(30));
             }
             catch(TaskCanceledException){}
         }

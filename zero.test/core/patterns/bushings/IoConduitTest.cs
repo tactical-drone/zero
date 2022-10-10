@@ -136,7 +136,7 @@ namespace zero.test.core.patterns.bushings
 #if DEBUG
             Assert.InRange(fpses, 0, int.MaxValue);
 #else
-            Assert.InRange(fpses, 25, int.MaxValue);
+            Assert.InRange(fpses, 5, int.MaxValue);
 #endif
             _output.WriteLine($"FPSes = {fpses:0.0} kub/s, {ts.ElapsedMs()}ms ~ {targetTime}ms");
 
