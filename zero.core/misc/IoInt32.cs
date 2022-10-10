@@ -74,7 +74,7 @@ namespace zero.core.misc
 			return one != two._value;
 		}
 
-		[MethodImpl(MethodImplOptions.AggressiveInlining)]
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
 		public static bool operator ==(IoInt32 one, IoInt32 two)
 		{
             if ((object)one == null || (object)two == null)

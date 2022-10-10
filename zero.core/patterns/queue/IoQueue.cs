@@ -305,11 +305,7 @@ namespace zero.core.patterns.queue
 #if DEBUG
                                 Interlocked.Decrement(ref _insaneExclusive);
 #endif
-                                var async = true; //TRUE because first come first serve
-                                var ts = Environment.TickCount;
-                                _syncRoot.Release(Environment.TickCount, async);
-                                if (ts.ElapsedMs() > Qe)
-                                    LogManager.GetCurrentClassLogger().Warn($"q _syncRoot async = {async}; t = {ts.ElapsedMs()}ms");
+                                _syncRoot.Release(Environment.TickCount, true);
                             }
                         }
                     }
@@ -319,26 +315,7 @@ namespace zero.core.patterns.queue
                         LogManager.GetCurrentClassLogger().Error(e, $"{nameof(EnqueueAsync)}");
                     }
 
-                    if (_pressure != null)
-                    {
-                        //var async = _count > Q_C; //because deque feeds us threads, so we can and super fast
-                        var async = true; //because deque feeds us threads, so we can and super fast
-                        var ts = Environment.TickCount;
-                        //LogManager.GetCurrentClassLogger().Warn($"R");
-                        _pressure.Release(ts, async);
-                        if(ts.ElapsedMs() > Qe)
-                            LogManager.GetCurrentClassLogger().Warn($"q _pressure async = {async}, t = {ts.ElapsedMs()}ms");
-                    }
-                    else if(_backPressure != null) //something went wrong
-                    {
-                        //var async = _count > Q_C; //because why not; it's like a retry and super fast
-                        var async = true;
-                        var ts = Environment.TickCount;
-                        _backPressure.Release(ts, async);
-                        if (ts.ElapsedMs() > Qe)
-                            LogManager.GetCurrentClassLogger().Warn($"q _backPressure async = {async}, t = {ts.ElapsedMs()}ms");
-                    }
-                        
+                    _pressure?.Release(Environment.TickCount, true);
                 }
             }
         }
@@ -409,14 +386,7 @@ namespace zero.core.patterns.queue
                         _syncRoot.Release(Environment.TickCount, true);
                     }
 
-                    if (_pressure != null && retVal != default)
-                    {
-                        _pressure.Release(Environment.TickCount, true);
-                    }
-                    else
-                    {
-                        _backPressure?.Release(Environment.TickCount, true);
-                    }
+                    _pressure?.Release(Environment.TickCount, true);
                 }
             }
         }

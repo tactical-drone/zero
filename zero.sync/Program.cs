@@ -898,7 +898,7 @@ namespace zero.sync
             await Task.Delay(1000);
             var concurrencyLevel = Environment.ProcessorCount * 2;
             //var concurrencyLevel = 4;
-            IoQueue<int> q = new("test", 4096, concurrencyLevel);
+            IoQueue<int> q = new("test", 4096, concurrencyLevel, IoQueue<int>.Mode.BackPressure | IoQueue<int>.Mode.Pressure);
             if (!q.Configuration.HasFlag(IoQueue<int>.Mode.BackPressure))
             {
                 var head = await q.PushBackAsync(2).FastPath();

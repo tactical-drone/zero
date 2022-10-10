@@ -362,7 +362,7 @@ namespace zero.core.patterns.bushings
                             await ZeroJobAsync(nextJob, true).FastPath();
                             nextJob = null;
 
-                            Source.BackPressure(zeroAsync: true);
+                            Source.BackPressure(zeroAsync: false);
                             
                             //IsArbitrating = false;
                             //Is the producer spinning? Slow it down
@@ -406,7 +406,7 @@ namespace zero.core.patterns.bushings
                             return false;
 
                         //signal back pressure
-                        Source.BackPressure(zeroAsync: true);
+                        Source.BackPressure(zeroAsync: false);
 
                         // prefetch pressure
                         Source.PrefetchPressure(zeroAsync: false);
@@ -420,9 +420,9 @@ namespace zero.core.patterns.bushings
                     if (Zeroed() || JobHeap.Zeroed)
                         return false;
 
-                    Source.BackPressure(zeroAsync: true);
+                    Source.BackPressure(zeroAsync: false);
                     // prefetch pressure
-                    Source.PrefetchPressure(zeroAsync:false);
+                    Source.PrefetchPressure(zeroAsync: false);
                     
                     _logger.Warn($"{GetType().Name}:Q = {Source.QueueStatus}, backlog = {_previousJobFragment?.Count},  Production for: {Description} failed. Cannot allocate job resources!, heap =>  {JobHeap.Count}/{JobHeap.Capacity}");
                     await Task.Delay(parm_min_failed_production_time, AsyncTasks.Token);
@@ -621,7 +621,7 @@ namespace zero.core.patterns.bushings
                             await ZeroJobAsync(curJob, curJob.FinalState is IoJobMeta.JobState.Reject).FastPath();
 
                             //back pressure
-                            Source.BackPressure(zeroAsync: true);
+                            Source.BackPressure(zeroAsync: false);
                         }
                     }
                     catch when (Zeroed()) { }
