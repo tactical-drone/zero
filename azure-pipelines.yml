@@ -62,23 +62,23 @@ steps:
     arguments: -c $(buildConfiguration)    
     projects: '$(test-solution)'
     
-- task: DotNetCoreCLI@2
-  displayName: debug test '$(test-solution)'
-  inputs:
-    command: 'test'
-    arguments: '-c Debug'
-    projects: '$(test-solution)'
-    testRunTitle: 'Unit Tests'    
-    publishTestResults: true
+#- task: DotNetCoreCLI@2
+#  displayName: debug test '$(test-solution)'
+#  inputs:
+#    command: 'test'
+#    arguments: '-c Debug'
+#    projects: '$(test-solution)'
+#    testRunTitle: 'Unit Tests'    
+#    publishTestResults: true
 
-- task: DotNetCoreCLI@2
-  displayName: test '$(test-solution)'
-  inputs:
-    command: 'test'
-    arguments: '-c $(buildConfiguration) --collect "Code coverage"'
-    projects: '$(test-solution)'
-    testRunTitle: 'Unit Tests'    
-    publishTestResults: true
+#- task: DotNetCoreCLI@2
+#  displayName: test '$(test-solution)'
+#  inputs:
+#    command: 'test'
+#    arguments: '-c $(buildConfiguration) --collect "Code coverage"'
+#    projects: '$(test-solution)'
+#    testRunTitle: 'Unit Tests'    
+#    publishTestResults: true
 
 - task: DotNetCoreCLI@2
   displayName: nuget build
@@ -89,3 +89,10 @@ steps:
     includesymbols: true
     versionEnvVar: 'BUILD_BUILDNUMBER'
     versioningScheme: 'byEnvVar'
+
+- task: DotNetCoreCLI@2
+  inputs:
+    command: 'push'
+    packagesToPush: '$(Build.ArtifactStagingDirectory)/*.nupkg'
+    nuGetFeedType: 'internal'
+    publishVstsFeed: 'dc707bfc-7427-4695-985a-55d2475d9063/80d0ebf9-af8c-496d-a24d-02e3f06b856c'
