@@ -280,12 +280,9 @@ namespace zero.core.patterns.misc
         /// </summary>
         public ValueTask DisposeAsync(IIoNanite @from, string reason, [CallerFilePath] string filePath = null, [CallerMemberName] string methodName = null, [CallerLineNumber] int lineNumber = default)
         {
-            //if(GetType().ToString().Contains("CcDrone"))
-            //    _logger.Fatal($"DISPOSE FROM => reason = {reason}, {filePath}:{methodName}({lineNumber}) {@from}, {Description}");
-
             // Only once
             if (_zeroed > 0 || Interlocked.CompareExchange(ref _zeroed, 1, 0) != 0)
-                new ValueTask(Task.CompletedTask);
+                return new ValueTask(Task.CompletedTask);
 
             ZeroedFrom = from;
 #if RELEASE
