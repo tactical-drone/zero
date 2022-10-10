@@ -18,6 +18,8 @@ variables:
   test-solution: './zero.test'
   buildPlatform: 'Any CPU'
   buildConfiguration: 'Release'
+  NUGET_PLUGIN_REQUEST_TIMEOUT_IN_SECONDS: '30'
+  NUGET_PLUGIN_HANDSHAKE_TIMEOUT_IN_SECONDS: '30'
 
 steps:
 - task: UseDotNet@2
@@ -90,11 +92,7 @@ steps:
     versionEnvVar: 'BUILD_BUILDNUMBER'
     versioningScheme: 'byEnvVar'
 
-- task: DotNetCoreCLI@2
-  displayName: nuget push
-  inputs:
-    command: 'push'
-    allowPackageConflicts: true 
-    packagesToPush: '$(Build.ArtifactStagingDirectory)/*.nupkg'
-    nuGetFeedType: 'internal'
-    publishVstsFeed: 'dc707bfc-7427-4695-985a-55d2475d9063/80d0ebf9-af8c-496d-a24d-02e3f06b856c'
+- task: NuGetAuthenticate@1
+displayName: nuget push
+  inputs:    
+- script: nuget push -ApiKey AzureArtifacts -Source "zero" $(Build.ArtifactStagingDirectory)/*.nupkg
