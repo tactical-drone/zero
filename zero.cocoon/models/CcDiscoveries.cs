@@ -485,12 +485,10 @@ namespace zero.cocoon.models
                     try
                     {
                         var chan = ((CcProtocBatchSource<chroniton, CcDiscoveryBatch>)source).Channel;
-                        if (source == null || chan.Release(@this._currentBatch, forceAsync: true) != 1)
+                        if (chan.Release(@this._currentBatch, forceAsync: false) != 1)
                         {
-                            if (source != null && !((CcProtocBatchSource<chroniton, CcDiscoveryBatch>)source).Zeroed())
-                            {
+                            if (!((CcProtocBatchSource<chroniton, CcDiscoveryBatch>)source).Zeroed())
                                 _logger.Fatal($"{nameof(ZeroBatchAsync)}: Unable to q batch,{chan.Description} {@this.Description}");
-                            }
 
                             return new ValueTask<bool>(false);
                         }

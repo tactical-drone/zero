@@ -1039,7 +1039,7 @@ namespace zero.cocoon
                     return;
 
                 var foundVector = false;
-                foreach (var vector in Hub.Neighbors.Values.Where(n=>((CcAdjunct)n).State >= CcAdjunct.AdjunctState.Verified).OrderByDescending(n=>((CcAdjunct)n).OpenSlots))
+                foreach (var vector in Hub.Neighbors.Values.Where(n=>((CcAdjunct)n).State >= CcAdjunct.AdjunctState.Verified && ((CcAdjunct)n).Probed).OrderByDescending(n=>((CcAdjunct)n).OpenSlots))
                 {
                     var adjunct = (CcAdjunct)vector;
 
@@ -1054,9 +1054,8 @@ namespace zero.cocoon
                     else
                     {
                         foundVector = true;
+                        await Task.Delay(((CcAdjunct)vector).parm_max_network_latency_ms >> 2, AsyncTasks.Token);
                     }
-
-                    await Task.Delay(((CcAdjunct)vector).parm_max_network_latency_ms>>1, AsyncTasks.Token);
                 }
 
                 if(foundVector)
