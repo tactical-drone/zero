@@ -55,7 +55,7 @@ namespace zero.core.feat.models.protobuffer
         /// <summary>
         /// Message batch broadcast channel
         /// </summary>
-        protected volatile IoConduit<CcProtocBatchJob<TModel, TBatch>> ProtocolConduit;
+        protected IoConduit<CcProtocBatchJob<TModel, TBatch>> ProtocolConduit;
 
         /// <summary>
         /// Base source

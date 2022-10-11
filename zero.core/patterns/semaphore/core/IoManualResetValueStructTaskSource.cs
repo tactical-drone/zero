@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Threading;
 using System.Threading.Tasks.Sources;
 
 namespace zero.core.patterns.semaphore.core
@@ -25,12 +26,12 @@ namespace zero.core.patterns.semaphore.core
 
         private void ZeroRef(ref IIoManualResetValueTaskSourceCore<T> coreRef)
         {
-            _coreRef = coreRef;
+            Interlocked.Exchange(ref _coreRef, coreRef);
         }
 
         public object Ref => _coreRef;
 #if DEBUG
-        private volatile IIoManualResetValueTaskSourceCore<T> _coreRef;
+        private IIoManualResetValueTaskSourceCore<T> _coreRef;
 
         public bool RunContinuationsAsynchronously { get => _coreRef.RunContinuationsAsynchronously; set => _coreRef.RunContinuationsAsynchronously = value; }
         public void Reset() => _coreRef.Reset();

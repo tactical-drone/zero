@@ -97,10 +97,9 @@ namespace zero.core.feat.misc
 
         internal class ChallengeAsyncResponse
         {
-            //public IoZeroMatcher This;
-            public volatile string Key;
+            public string Key;
             public byte[] Body;
-            public volatile IoQueue<IoChallenge>.IoZNode Node;
+            public IoQueue<IoChallenge>.IoZNode Node;
         }
 
 
@@ -125,8 +124,8 @@ namespace zero.core.feat.misc
                 if (response == null)
                     throw new OutOfMemoryException($"{nameof(_carHeap)}, {Description}");
 
-                response.Key = key;
-                response.Body = body;
+                Interlocked.Exchange(ref response.Key, key);
+                Interlocked.Exchange(ref response.Body, body);
 
                 IoChallenge challenge = null;
                 try
@@ -176,7 +175,7 @@ namespace zero.core.feat.misc
                     {
                         challenge.Key = response.Key;
                         challenge.TimestampMs = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-                        response.Node = await _lut.EnqueueAsync(challenge).FastPath();
+                        Interlocked.Exchange(ref response.Node, await _lut.EnqueueAsync(challenge).FastPath());
                         if (response.Node == null)
                             _logger.Fatal($"{nameof(ChallengeAsync)}: unable to Q challange, {_lut.Description}");
 #if TRACE

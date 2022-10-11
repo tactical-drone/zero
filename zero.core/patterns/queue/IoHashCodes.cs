@@ -12,7 +12,7 @@ using zero.core.patterns.queue.enumerator;
 namespace zero.core.patterns.queue
 {
     /// <summary>
-    /// A lighter concurrent bag implementation
+    /// A lighter concurrent bag implementation of hashes //TODO: refactor
     /// </summary>
     public class IoHashCodes : IEnumerable<int>    
     {

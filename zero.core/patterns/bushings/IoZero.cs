@@ -667,11 +667,14 @@ namespace zero.core.patterns.bushings
                         var qid = cur.Qid;
                         if (cur.Value.Id == curJob.Id - 1)
                         {
-                            cur.Value.EnableRecoveryOneshot = true;
-                            curJob.PreviousJob = cur.Value;
-                            Interlocked.MemoryBarrier();
-                            await _previousJobFragment.RemoveAsync(cur, qid).FastPath();
-                            return cur.Value.EnableRecoveryOneshot;
+                            if (await _previousJobFragment.RemoveAsync(cur, qid).FastPath())
+                            {
+                                curJob.PreviousJob = cur.Value;
+                                cur.Value.EnableRecoveryOneshot = true;
+                                Interlocked.MemoryBarrier();
+                                return cur.Value.EnableRecoveryOneshot;
+                            }
+                            return false;
                         }
                         cur = cur.Next;
                     }

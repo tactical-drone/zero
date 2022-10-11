@@ -28,7 +28,7 @@ namespace zero.core.patterns.semaphore.core
         }
 
         private const int Redundancy = 3;
-        private static volatile int _cheapMonitor = Redundancy;
+        private static int _cheapMonitor = Redundancy;
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static long ZeroNextHard(this ref long val, long cap)

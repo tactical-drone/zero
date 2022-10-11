@@ -72,7 +72,7 @@ namespace zero.core.patterns.heap
         /// <summary>
         /// Whether this object has been cleaned up
         /// </summary>
-        private volatile int _zeroed;
+        private int _zeroed;
 
         /// <summary>
         /// The current WorkHeap size
@@ -89,7 +89,7 @@ namespace zero.core.patterns.heap
         /// <summary>
         /// The number of outstanding references
         /// </summary>
-        private volatile int _refCount;
+        private int _refCount;
 
         private long _hit;
         private long _miss;
@@ -136,7 +136,7 @@ namespace zero.core.patterns.heap
 
             await _ioHeapBuf.ZeroManagedAsync<object>(zero: true).FastPath();
 
-            _refCount = 0;
+            Volatile.Write(ref _refCount, 0);
         }
 
         /// <summary>

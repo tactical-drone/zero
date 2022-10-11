@@ -196,9 +196,9 @@ namespace zero.core.patterns.bushings
         /// </summary>
         public int BacklogCount => _backPressure?.WaitCount?? 0;
 
-        private volatile int _rate = Environment.TickCount;
+        private int _rate = Environment.TickCount;
 
-        private volatile int _rateSet;
+        private int _rateSet;
 
         /// <summary>
         /// Used to rate limit
@@ -206,7 +206,7 @@ namespace zero.core.patterns.bushings
         public int Rate
         {
             get => _rate;
-            internal set => _rate = value;
+            internal set => Volatile.Write(ref _rate, value);
         }
 
         /// <summary>
@@ -215,7 +215,7 @@ namespace zero.core.patterns.bushings
         public int RateSet
         {
             get => _rateSet;
-            internal set => _rateSet = value;
+            internal set => Volatile.Write(ref _rateSet, value);
         }
 
         private long _zeroTimeStamp = -1;

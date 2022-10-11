@@ -89,7 +89,7 @@ namespace zero.core.patterns.semaphore.core
         //private readonly int _modCapacity => _capacity;
         private readonly int ModCapacity => _capacity << 1;
         private readonly string _description;
-        private volatile int _zeroed;
+        private int _zeroed;
         private Func<object, T> _primeReady;
         private object _primeContext;
         #endregion

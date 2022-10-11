@@ -97,16 +97,16 @@ namespace zero.core.patterns.queue
 
         #region memory
         private readonly string _description; 
-        private volatile int _zeroed;
+        private int _zeroed;
         private readonly IIoZeroSemaphoreBase<int> _syncRoot;
         private readonly IIoZeroSemaphoreBase<int> _pressure;
         private readonly IIoZeroSemaphoreBase<int> _backPressure;
         private CancellationTokenSource _asyncTasks = new();
         private IoHeap<IoZNode> _nodeHeap;
         
-        private volatile IoZNode _head;
-        private volatile IoZNode _tail;
-        private volatile int _count;
+        private IoZNode _head;
+        private IoZNode _tail;
+        private int _count;
         private long _operations;
         #endregion
 
@@ -602,7 +602,7 @@ namespace zero.core.patterns.queue
                     cur = tmp;
                 }
 
-                _count = 0;
+                Interlocked.Exchange(ref _count, 0);
                 _tail = _head = null;
             }
             finally

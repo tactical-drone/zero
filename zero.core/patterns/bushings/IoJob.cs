@@ -146,7 +146,7 @@ namespace zero.core.patterns.bushings
         /// <summary>
         /// Indicates that for a particular run, the recovery be disabled. Jobs that know mark other jobs as recovery redundant    
         /// </summary>
-        protected internal volatile bool EnableRecoveryOneshot;
+        protected internal bool EnableRecoveryOneshot;
 
         /// <summary>
         /// Uses <see cref="Source"/> to produce a job
@@ -186,7 +186,7 @@ namespace zero.core.patterns.bushings
                 PreviousJob = null;
                 Id = -1;
                 ZeroRecovery.Reset();
-                EnableRecoveryOneshot = false;
+                Volatile.Write(ref EnableRecoveryOneshot, false);
 
 #if DEBUG
                 return this;

@@ -137,12 +137,12 @@ namespace zero.core.patterns.misc
         /// <summary>
         /// Are we zero primed? Before we disposed of a hierarchy, we prime it with a light weight signal (so that thread spinners can start unwinding, etc)
         /// </summary>
-        private volatile int _zeroPrimed;
+        private int _zeroPrimed;
 
         /// <summary>
         /// Are we zeroed?
         /// </summary>
-        private volatile int _zeroed;
+        private int _zeroed;
 
         /// <summary>
         /// Are we disposed?

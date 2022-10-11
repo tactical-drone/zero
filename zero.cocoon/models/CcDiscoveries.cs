@@ -52,7 +52,9 @@ namespace zero.cocoon.models
 #endif
             //Create the conduit source
             const string conduitId = nameof(CcAdjunct);
-            ProtocolConduit = await MessageService.CreateConduitOnceAsync<CcProtocBatchJob<chroniton, CcDiscoveryBatch>>(conduitId).FastPath();
+            Interlocked.Exchange(ref ProtocolConduit,
+                await MessageService.CreateConduitOnceAsync<CcProtocBatchJob<chroniton, CcDiscoveryBatch>>(conduitId)
+                    .FastPath());
 
             //Set the heap
             //TODO: tuning
@@ -62,8 +64,9 @@ namespace zero.cocoon.models
                     Context = this
                 };
 
-            // ReSharper disable once NonAtomicCompoundOperator
-            _currentBatch ??= _batchHeap.Take();
+            if (_currentBatch == null)
+                Interlocked.Exchange(ref _currentBatch, _batchHeap.Take());
+
             if (_currentBatch == null)
                 throw new OutOfMemoryException($"{Description}: {nameof(CcDiscoveries)}.{nameof(_currentBatch)}");
 
@@ -72,8 +75,11 @@ namespace zero.cocoon.models
             {
                 //TODO tuning
                 var source = new CcProtocBatchSource<chroniton, CcDiscoveryBatch>(Description, MessageService, pf, cc);
-                ProtocolConduit = await MessageService.CreateConduitOnceAsync(conduitId, source,static (ioZero, _) => 
-                    new CcProtocBatchJob<chroniton, CcDiscoveryBatch>((IoSource<CcProtocBatchJob<chroniton, CcDiscoveryBatch>>)((IIoZero)ioZero).IoSource, ((IIoZero)ioZero).ZeroConcurrencyLevel), cc).FastPath();
+                Interlocked.Exchange(ref ProtocolConduit, await MessageService.CreateConduitOnceAsync(conduitId, source,
+                    static (ioZero, _) =>
+                        new CcProtocBatchJob<chroniton, CcDiscoveryBatch>(
+                            (IoSource<CcProtocBatchJob<chroniton, CcDiscoveryBatch>>)((IIoZero)ioZero).IoSource,
+                            ((IIoZero)ioZero).ZeroConcurrencyLevel), cc).FastPath());
             }
 
             return this;
@@ -141,12 +147,12 @@ namespace zero.cocoon.models
         /// <summary>
         /// Batch of messages
         /// </summary>
-        private volatile CcDiscoveryBatch _currentBatch;
+        private CcDiscoveryBatch _currentBatch;
 
         /// <summary>
         /// Batch item heap
         /// </summary>
-        private volatile IoHeap<CcDiscoveryBatch, CcDiscoveries> _batchHeap;
+        private IoHeap<CcDiscoveryBatch, CcDiscoveries> _batchHeap;
 
         /// <summary>
         /// CC Node
@@ -493,7 +499,7 @@ namespace zero.cocoon.models
                             return new ValueTask<bool>(false);
                         }
 
-                        @this._currentBatch = @this._batchHeap.Take();
+                        Interlocked.Exchange(ref @this._currentBatch, @this._batchHeap.Take());
                         if (@this._currentBatch == null)
                             throw new OutOfMemoryException($"{@this.Description}: {nameof(@this._batchHeap)}, c = {@this._batchHeap.Count}/{@this._batchHeap.Capacity}, ref = {@this._batchHeap.ReferenceCount}");
 

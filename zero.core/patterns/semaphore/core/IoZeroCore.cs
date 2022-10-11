@@ -105,7 +105,7 @@ namespace zero.core.patterns.semaphore.core
         private object _primeContext;
         private readonly string _description;
         private readonly int _capacity;
-        private volatile int _zeroed;
+        private int _zeroed;
         private readonly int _ready;
         private readonly bool _ensureMutex;
         #endregion

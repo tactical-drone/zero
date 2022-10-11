@@ -71,7 +71,7 @@ namespace zero.core.feat.models
         /// <summary>
         /// The number of bytes read into the buffer
         /// </summary>
-        public volatile int BytesRead;
+        protected int BytesRead;
 
         /// <summary>
         /// The number of bytes left to process in this buffer
@@ -117,7 +117,7 @@ namespace zero.core.feat.models
         /// <returns>This instance</returns>
         public override ValueTask<IIoHeapItem> HeapPopAsync(object context)
         {
-            BytesRead = 0;
+            Interlocked.Exchange(ref BytesRead, 0);
             Interlocked.Exchange(ref BufferOffset, DatumProvisionLengthMax);
             Interlocked.Exchange(ref DatumFragmentLength, 0);
             return base.HeapPopAsync(context);

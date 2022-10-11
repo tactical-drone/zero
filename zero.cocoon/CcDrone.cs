@@ -117,14 +117,14 @@ namespace zero.cocoon
         //         
         //     }
         // }
-        private volatile CcAdjunct _adjunct;
+        private CcAdjunct _adjunct;
         /// <summary>
         /// The attached neighbor
         /// </summary>
         public CcAdjunct Adjunct
         {
             get => _adjunct;
-            protected internal set => _adjunct = value;
+            protected internal set => Interlocked.Exchange(ref _adjunct, value);
         }
 
         public IoNetClient<CcProtocMessage<CcWhisperMsg, CcGossipBatch>> MessageService => (IoNetClient<CcProtocMessage<CcWhisperMsg, CcGossipBatch>>)Source;

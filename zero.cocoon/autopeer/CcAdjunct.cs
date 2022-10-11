@@ -253,7 +253,7 @@ namespace zero.cocoon.autopeer
         /// <summary>
         /// The gossip drone associated with this neighbor
         /// </summary>
-        private volatile CcDrone _drone;
+        private CcDrone _drone;
 
         /// <summary>
         /// Whether The drone is attached
@@ -292,7 +292,7 @@ namespace zero.cocoon.autopeer
         /// </summary>
         public int FuseCount => _fuseCount;
 
-        private volatile int _zeroProbes;
+        private int _zeroProbes;
         /// <summary>
         /// Number of successful probes
         /// </summary>
@@ -352,7 +352,7 @@ namespace zero.cocoon.autopeer
         /// <summary>
         /// Backing cache
         /// </summary>
-        private volatile int _direction;
+        private int _direction;
 
         /// <summary>
         /// Who contacted who?
@@ -845,6 +845,7 @@ namespace zero.cocoon.autopeer
                     if (!CcCollective.ZeroDrone && AutoPeeringEventService.Operational)
                     {
                         _eventStreamAdded = true;
+                        Interlocked.MemoryBarrier();
                         AutoPeeringEventService.AddEvent(new AutoPeerEvent
                         {
                             EventType = AutoPeerEventType.AddAdjunct,
@@ -2857,7 +2858,8 @@ namespace zero.cocoon.autopeer
                     return false;
                 }
 
-                _drone = ccDrone ?? throw new ArgumentNullException($"{nameof(ccDrone)}");
+                Interlocked.Exchange(ref _drone, ccDrone);
+                
                 if(CompareAndEnterState(AdjunctState.Connected, AdjunctState.Connecting) != AdjunctState.Connecting)
                 {
                     _logger.Trace($"{nameof(AttachDrone)}: [LOST] {_drone?.Description}");

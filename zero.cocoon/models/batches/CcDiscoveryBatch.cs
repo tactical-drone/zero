@@ -28,7 +28,7 @@ namespace zero.cocoon.models.batches
         private readonly IoHeap<CcDiscoveryBatch, CcDiscoveries> _heapRef;
         private CcDiscoveryMessage[] _messages;
         private Dictionary<string, ReadOnlyMemory<CcDiscoveryMessage>> _messagesDictionary = new();
-        private volatile int _disposed;
+        private int _disposed;
 
         public CcDiscoveryMessage this[int i] => _messages[i];
 

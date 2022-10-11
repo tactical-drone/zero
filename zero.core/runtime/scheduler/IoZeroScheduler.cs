@@ -165,32 +165,31 @@ namespace zero.core.runtime.scheduler
         //private readonly IoHeap<List<int>> _diagnosticsHeap;
         private ZeroContinuation _fbQQuickSlot;
 
-        private volatile int _taskQueueLoad;
+        private int _taskQueueLoad;
         public int Load => _taskQueueLoad;
 
-        private volatile int _asyncFallBackLoad;
+        private int _asyncFallBackLoad;
         public int AsyncFallBackLoad => _asyncFallBackLoad;
 
-        private volatile int _asyncTaskWithContextLoad;
+        private int _asyncTaskWithContextLoad;
         public int AsyncTaskWithContextLoad => _asyncTaskWithContextLoad;
 
-        private volatile int _asyncTaskLoad;
+        private int _asyncTaskLoad;
         public int AsyncTaskLoad => _asyncTaskLoad;
 
-        private volatile int _asyncCallbackWithContextLoad;
+        private int _asyncCallbackWithContextLoad;
         public int AsyncCallbackWithContextLoad => _asyncCallbackWithContextLoad;
 
-        private volatile int _asyncForkLoad;
+        private int _asyncForkLoad;
         public int AsyncForkLoad => _asyncForkLoad;
 
-        private volatile int _forkLoad;
+        private int _forkLoad;
         public int ForkLoad => _forkLoad;
 
         public double AQTime => (double)_asyncCallbackWithContextTime / _asyncTaskWithContextCount;
 
-        private volatile int _lastWorkerSpawnedTime;
+        private int _lastWorkerSpawnedTime;
 
-        
         private int _asyncTaskWithContextTime;
         private int _asyncCallbackWithContextTime;
         private int _asyncTaskTime;
@@ -349,7 +348,10 @@ namespace zero.core.runtime.scheduler
                     Interlocked.Increment(ref _taskQueueLoad);
 
                     if (!TryExecuteTask(job))
-                        LogManager.GetCurrentClassLogger().Fatal($"{nameof(HandleAsyncSchedulerTask)}: Unable to execute task, id = {job.Id}, state = {job.Status}, async-state = {job.AsyncState}, success = {job.IsCompletedSuccessfully}");
+                    {
+                        if(job.Status <= TaskStatus.Running)
+                            LogManager.GetCurrentClassLogger().Fatal($"{nameof(HandleAsyncSchedulerTask)}: Unable to execute task, id = {job.Id}, state = {job.Status}, async-state = {job.AsyncState}, success = {job.IsCompletedSuccessfully}");
+                    }
                     else
                         Interlocked.Increment(ref _taskDequeueCount);
                 }
