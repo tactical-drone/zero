@@ -35,15 +35,11 @@ namespace zero.core.patterns.bushings.contracts
         {
             _constructionDelay = constructionDelay;
         }
-        public override async ValueTask<IoJobMeta.JobState> ProduceAsync<T>(IIoSource.IoZeroCongestion<T> barrier,
-            T ioZero)
+        public override async ValueTask<IoJobMeta.JobState> ProduceAsync<T>(T ioZero)
         {
-            if (!await Source.ProduceAsync(static async (source, backPressure, state, ioJob) =>
+            if (!await Source.ProduceAsync(static async (source,  ioJob) =>
                 {
                     var job = (IoZeroProduct)ioJob;
-
-                    if (!await backPressure(state).FastPath())
-                        return false;
 
                     //mock production delay
                     if (job._constructionDelay > 0)
@@ -52,7 +48,7 @@ namespace zero.core.patterns.bushings.contracts
                     job.GenerateJobId();
 
                     return job._produced = ((IoZeroSource)source).Produce();
-                }, this, barrier, ioZero).FastPath())
+                }, this).FastPath())
             {
                 return await SetStateAsync(IoJobMeta.JobState.ProduceErr);
             }

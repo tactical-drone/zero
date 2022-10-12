@@ -92,8 +92,7 @@ namespace zero.core.feat.models.protobuffer
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public TBatch Get()
         {
-            //transfer ownership
-            return Interlocked.CompareExchange(ref _batch, null, _batch);
+            return Interlocked.Exchange(ref _batch, null);
         }
 
         /// <summary>
@@ -105,8 +104,8 @@ namespace zero.core.feat.models.protobuffer
         {
             if (_batch != null)
                 await ClearAsync().FastPath();
-                    
-            _batch = batch;
+
+            Interlocked.Exchange(ref _batch, batch);
         }
         
         private ValueTask ClearAsync()
@@ -121,13 +120,10 @@ namespace zero.core.feat.models.protobuffer
         /// <returns>
         /// The state to indicated failure or success
         /// </returns>
-        public override async ValueTask<IoJobMeta.JobState> ProduceAsync<T>(IIoSource.IoZeroCongestion<T> barrier, T ioZero)
+        public override async ValueTask<IoJobMeta.JobState> ProduceAsync<T>(T ioZero)
         {
-            if (!await Source.ProduceAsync(static async (source, backPressure, state, ioJob )=>
+            if (!await Source.ProduceAsync(static async (source, ioJob )=>
             {
-                if (!await backPressure(state).FastPath())
-                    return false;
-
                 var job = (CcProtocBatchJob<TModel, TBatch>)ioJob;
 
                 try
@@ -139,15 +135,14 @@ namespace zero.core.feat.models.protobuffer
                     }
                 }
                 catch (TaskCanceledException) { }
-                catch when (job.Zeroed())
-                { }
+                catch when (job.Zeroed()) { }
                 catch (Exception e) when(!job.Zeroed())
                 {
                     _logger.Fatal(e,$"BatchChannel.TryDequeueAsync failed: {job.Description}"); 
                 }
 
                 return false;
-            }, this, barrier, ioZero).FastPath())
+            }, this).FastPath())
             {
                 _logger.Trace($"{nameof(ProduceAsync)}: Production [FAILED]; {Description}");
                 return await SetStateAsync(IoJobMeta.JobState.ProdSkipped).FastPath();

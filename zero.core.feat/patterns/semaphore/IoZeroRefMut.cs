@@ -77,6 +77,7 @@ namespace zero.core.feat.patterns.semaphore
         public int ReadyCount => 0;
         public int WaitCount { get; }
         public bool ZeroAsyncMode { get; }
+        public long TotalOps => 0;
         public string Description => nameof(AsyncAutoResetEvent);
 
 

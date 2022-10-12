@@ -349,7 +349,7 @@ namespace zero.core.runtime.scheduler
 
                     if (!TryExecuteTask(job))
                     {
-                        if(job.Status <= TaskStatus.Running)
+                        if(job.Status < TaskStatus.Running)
                             LogManager.GetCurrentClassLogger().Fatal($"{nameof(HandleAsyncSchedulerTask)}: Unable to execute task, id = {job.Id}, state = {job.Status}, async-state = {job.AsyncState}, success = {job.IsCompletedSuccessfully}");
                     }
                     else

@@ -597,7 +597,7 @@ namespace zero.cocoon.models
                     {
                         if ((_logBatchNext.AtomicCas(batchSize + MaxLogBatchSize, batchSize) == batchSize) && Source.Counters[(int)IoJobMeta.JobState.Consumed] > MaxLogBatchSize/10)
                         {
-                            _logger.Info($"[{Source.Key}]: lts = {req}, {(_logBatchNext - batchSize) * 1000 / (_logBatchTime.ElapsedMs() + 1)} t/s; dup = {CcCollective.DupChecker.Count}/{CcCollective.DupHeap.ReferenceCount}/{SendBuf.ReferenceCount}; recover = {Source.Counters[(int)IoJobMeta.JobState.Synced]}/{Source.Counters[(int)IoJobMeta.JobState.ZeroRecovery]} ({Source.Counters[(int)IoJobMeta.JobState.Synced] / (double)Source.Counters[(int)IoJobMeta.JobState.ZeroRecovery] * 100:0.0}%), frag = {Source.Counters[(int)IoJobMeta.JobState.Fragmented]}, bad = {Source.Counters[(int)IoJobMeta.JobState.BadData]}, success = {Source.Counters[(int)IoJobMeta.JobState.Consumed]}, fail = {Source.Counters[(int)IoJobMeta.JobState.Queued] - Source.Counters[(int)IoJobMeta.JobState.Consumed]}");
+                            _logger.Info($"[{Source.Key}]: lts = {req}, {(_logBatchNext - batchSize) * 1000 / (_logBatchTime.ElapsedMs() + 1)} t/s; dup = {CcCollective.DupChecker.Count}/{CcCollective.DupHeap.ReferenceCount}/{SendBuf.ReferenceCount}; recover = {Source.Counters[(int)IoJobMeta.JobState.Synced]}/{Source.Counters[(int)IoJobMeta.JobState.ZeroRecovery]} ({Source.Counters[(int)IoJobMeta.JobState.Synced] / (double)Source.Counters[(int)IoJobMeta.JobState.ZeroRecovery] * 100:0.0}%), frag = {Source.Counters[(int)IoJobMeta.JobState.Fragmented]}, bad = {Source.Counters[(int)IoJobMeta.JobState.BadData]}, success = {Source.Counters[(int)IoJobMeta.JobState.Consumed]}, fail = {Source.Counters[(int)IoJobMeta.JobState.Queued] - Source.Counters[(int)IoJobMeta.JobState.Consumed] - ZeroConcurrencyLevel}");
                             _logBatchTime = Environment.TickCount;
                         }
                     }
@@ -648,12 +648,17 @@ namespace zero.cocoon.models
                         var processed = 0;
                         try
                         {
-                            @this.CcCollective.DupChecker.TryGetValue(req, out var dupEndpoints);
-
                             var fanOut = @this.CcCollective.Neighbors.Values
                                 .Where(d => ((CcDrone)d).MessageService?.IsOperational() ?? false).ToList();
 
+                            if ((processed = fanOut.Count) == 0)
+                                return default;
+
                             socketBuf = SendBuf.Take();
+                            if (socketBuf == null)
+                                throw new OutOfMemoryException(
+                                    $"{nameof(ConsumeAsync)}: Unable to fan out gossip message; {SendBuf.Description}");
+
                             MemoryMarshal.Write(@this._vb.AsSpan(), ref req);
                             var protoBuf = @this._m.ToByteString().Memory;
                             var compressed = (ulong)LZ4Codec.Encode(protoBuf.AsArray(), 0, protoBuf.Length, socketBuf, sizeof(ulong), socketBuf.Length - sizeof(ulong));
@@ -664,8 +669,7 @@ namespace zero.cocoon.models
                             //await socketXBuf.Item1.FlushAsync();
                             //Unsafe.As<ulong[]>(socketXBuf.Item2)[0] = (ulong)(socketXBuf.Item1.BaseStream.Position - sizeof(ulong));
 
-                            if((processed = fanOut.Count) == 0)
-                                SendBuf.Return(socketBuf);
+                            @this.CcCollective.DupChecker.TryGetValue(req, out var dupEndpoints);
 
                             foreach (var fanDrone in fanOut)
                             {
@@ -707,7 +711,7 @@ namespace zero.cocoon.models
                                         //update latest state
                                         try
                                         {
-                                            await Task.Delay(1);
+                                            //await Task.Delay(1);
 
                                             if (req < @this.CcCollective.MaxReq)
                                                 return;
@@ -737,7 +741,7 @@ namespace zero.cocoon.models
                                         finally
                                         {
                                             if(cleanup)
-                                                SendBuf.Return(socketBuf);
+                                                SendBuf.Return(socketBuf, deDup:true);
                                         }
                                     }, (@this, drone, dupEndpoints, source, socketBuf, (int)(compressed + sizeof(ulong)), --processed == 0? -req:req));
                                     //if (source == null || await source.IoNetSocket

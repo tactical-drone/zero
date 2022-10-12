@@ -23,6 +23,19 @@ namespace zero.cocoon.models
 {
     public class CcDiscoveries : CcProtocMessage<chroniton, CcDiscoveryBatch>
     {
+        static CcDiscoveries()
+        {
+            BatchHeap = new IoHeap<CcDiscoveryBatch, CcDiscoveries>($"{nameof(BatchHeap)}:", 2048, static (_, _) =>
+                new CcDiscoveryBatch(4), autoScale: true)
+            {
+                PopAction = (batch, _) =>
+                {
+                    Interlocked.Exchange(ref batch.Count, 0);
+                    batch.GroupBy?.Clear();
+                }
+            };
+        }
+
         public CcDiscoveries(string sinkDesc, string jobDesc, IoSource<CcProtocMessage<chroniton, CcDiscoveryBatch>> source, bool groupByEp = false) : base(sinkDesc, jobDesc, source)
         {
             _groupByEp = groupByEp;
@@ -34,9 +47,9 @@ namespace zero.cocoon.models
                 return null;
 
             IoZero = (IoZero<CcProtocMessage<chroniton, CcDiscoveryBatch>>)context;
-            
-            var pf = Source.PrefetchSize * 3;
-            var cc = Source.ZeroConcurrencyLevel * 3; 
+
+            var pf = Source.PrefetchSize + 1;
+            var cc = Source.ZeroConcurrencyLevel + 1; 
 
             if (!Source.Proxy && Adjunct.CcCollective.ZeroDrone)
             {
@@ -45,27 +58,14 @@ namespace zero.cocoon.models
                 cc = Source.ZeroConcurrencyLevel * 3;
             }
 
-#if DEBUG
-            string bashDesc = $"{nameof(_batchHeap)}: {Description}";
-#else
-            string bashDesc = string.Empty;
-#endif
             //Create the conduit source
             const string conduitId = nameof(CcAdjunct);
             Interlocked.Exchange(ref ProtocolConduit,
                 await MessageService.CreateConduitOnceAsync<CcProtocBatchJob<chroniton, CcDiscoveryBatch>>(conduitId)
                     .FastPath());
 
-            //Set the heap
-            //TODO: tuning
-            _batchHeap = new IoHeap<CcDiscoveryBatch, CcDiscoveries>(bashDesc, IoZero.parm_io_batch_size, static (_, @this) => 
-                new CcDiscoveryBatch(@this._batchHeap, @this.parm_max_msg_batch_size, @this._groupByEp), autoScale:true)
-                {
-                    Context = this
-                };
-
             if (_currentBatch == null)
-                Interlocked.Exchange(ref _currentBatch, _batchHeap.Take());
+                Interlocked.Exchange(ref _currentBatch, BatchHeap.Take());
 
             if (_currentBatch == null)
                 throw new OutOfMemoryException($"{Description}: {nameof(CcDiscoveries)}.{nameof(_currentBatch)}");
@@ -93,7 +93,6 @@ namespace zero.cocoon.models
             base.ZeroUnmanaged();
 #if SAFE_RELEASE
             _currentBatch = null;
-            _batchHeap = null;
 #endif
         }
 
@@ -104,7 +103,7 @@ namespace zero.cocoon.models
         {
             await base.ZeroManagedAsync().FastPath();
 
-            await _batchHeap.ZeroManagedAsync<object>(static (batch, _) =>
+            await BatchHeap.ZeroManagedAsync<object>(static (batch, _) =>
             {
                 batch.Dispose();
                 return new ValueTask(Task.CompletedTask);
@@ -145,6 +144,11 @@ namespace zero.cocoon.models
         public override string Description => $"{base.Description} <- {Source?.Description}";
 
         /// <summary>
+        /// Heap access
+        /// </summary>
+        public static IoHeap<CcDiscoveryBatch, CcDiscoveries> Heap => BatchHeap;
+
+        /// <summary>
         /// Batch of messages
         /// </summary>
         private CcDiscoveryBatch _currentBatch;
@@ -152,7 +156,7 @@ namespace zero.cocoon.models
         /// <summary>
         /// Batch item heap
         /// </summary>
-        private IoHeap<CcDiscoveryBatch, CcDiscoveries> _batchHeap;
+        private static readonly IoHeap<CcDiscoveryBatch, CcDiscoveries> BatchHeap;
 
         /// <summary>
         /// CC Node
@@ -195,6 +199,7 @@ namespace zero.cocoon.models
             {
                 await ZeroBatchRequestAsync(null, chroniton.Parser).FastPath();
                 await SetStateAsync(IoJobMeta.JobState.Consumed);
+                return State;
             }
 
             try
@@ -340,8 +345,8 @@ namespace zero.cocoon.models
                 }
                 
                 //TODO tuning
-                if (_currentBatch.Count > _batchHeap.Capacity * 3 / 2)
-                    _logger.Warn($"{nameof(_batchHeap)} running lean {_currentBatch.Count}/{_batchHeap.Capacity}, {_batchHeap}, {_batchHeap.Description}");
+                if (_currentBatch.Count > BatchHeap.Capacity * 3 / 2)
+                    _logger.Warn($"{nameof(BatchHeap)} running lean {_currentBatch.Count}/{BatchHeap.Capacity}, {BatchHeap}, {BatchHeap.Description}");
 
                 //Release a waiter
                 await ZeroBatchAsync().FastPath();
@@ -440,11 +445,15 @@ namespace zero.cocoon.models
                 
                 if (request != null)
                 {
+                    if (_currentBatch.Count == 1 && _currentBatch[0].Chroniton == null)
+                    {
+                        Console.WriteLine("!!!!!!!!!!!");
+                    }
                     if (!_groupByEp)
                     {
                         var batchMsg = _currentBatch[Interlocked.Increment(ref _currentBatch.Count) - 1];
-                        batchMsg.EmbeddedMsg = request;
-                        batchMsg.Chroniton = packet;
+                        Interlocked.Exchange(ref batchMsg.EmbeddedMsg, request);
+                        Interlocked.Exchange(ref batchMsg.Chroniton, packet);
                         batchMsg.SourceState = 0;
                         RemoteEndPoint.CopyTo(batchMsg.EndPoint,0);
                     }
@@ -452,8 +461,8 @@ namespace zero.cocoon.models
                     {
                         var batchMsg = _currentBatch[Interlocked.Increment(ref _currentBatch.Count) - 1];
 
-                        batchMsg.EmbeddedMsg = request;
-                        batchMsg.Chroniton = packet;
+                        Interlocked.Exchange(ref batchMsg.EmbeddedMsg, request);
+                        Interlocked.Exchange(ref batchMsg.Chroniton, packet);
                         batchMsg.SourceState = 0;
                         var remoteEp = (byte[])RemoteEndPoint.Clone();
                         if (!_currentBatch.GroupBy.TryAdd(remoteEp, Tuple.Create(remoteEp, new List<CcDiscoveryMessage>(_currentBatch.Messages))))
@@ -485,35 +494,35 @@ namespace zero.cocoon.models
                     return;
 
                 //cog the producer
-                if (!await ProtocolConduit.Source.ProduceAsync<object>(static (source, _, _, ioJob) =>
-                {
-                    var @this = (CcDiscoveries)ioJob;
-                    try
+                if (!await ProtocolConduit.Source.ProduceAsync(static (source, ioJob) =>
                     {
-                        var chan = ((CcProtocBatchSource<chroniton, CcDiscoveryBatch>)source).Channel;
-                        if (chan.Release(@this._currentBatch, forceAsync: false) != 1)
+                        var @this = (CcDiscoveries)ioJob;
+                        try
                         {
-                            if (!((CcProtocBatchSource<chroniton, CcDiscoveryBatch>)source).Zeroed())
-                                _logger.Fatal($"{nameof(ZeroBatchAsync)}: Unable to q batch,{chan.Description} {@this.Description}");
+                            var chan = ((CcProtocBatchSource<chroniton, CcDiscoveryBatch>)source).Channel;
+                            var nextBatch = Interlocked.Exchange(ref @this._currentBatch, BatchHeap.Take());
 
-                            return new ValueTask<bool>(false);
+                            if (chan.Release(nextBatch, forceAsync: true) != 1)
+                            {
+                                if (!((CcProtocBatchSource<chroniton, CcDiscoveryBatch>)source).Zeroed() && !chan.Zeroed() && chan.TotalOps > 0)
+                                    _logger.Fatal($"{nameof(ZeroBatchAsync)}: Unable to q batch,{chan.Description} {@this.Description}");
+
+                                return new ValueTask<bool>(false);
+                            }
+
+                            if (@this._currentBatch == null)
+                                throw new OutOfMemoryException($"{@this.Description}: {nameof(BatchHeap)}, c = {BatchHeap.Count}/{BatchHeap.Capacity}, ref = {BatchHeap.ReferenceCount}");
+
+                            return new ValueTask<bool>(true);
+                        }
+                        catch (Exception) when (@this.Zeroed()) { }
+                        catch (Exception e) when (!@this.Zeroed())
+                        {
+                            _logger.Error(e, $"{@this.Description} - Forward failed!");
                         }
 
-                        Interlocked.Exchange(ref @this._currentBatch, @this._batchHeap.Take());
-                        if (@this._currentBatch == null)
-                            throw new OutOfMemoryException($"{@this.Description}: {nameof(@this._batchHeap)}, c = {@this._batchHeap.Count}/{@this._batchHeap.Capacity}, ref = {@this._batchHeap.ReferenceCount}");
-
-                        Interlocked.Exchange(ref @this._currentBatch.Count, 0);
-                        return new ValueTask<bool>(true);
-                    }
-                    catch (Exception) when (@this.Zeroed()) { }
-                    catch (Exception e) when (!@this.Zeroed())
-                    {
-                        _logger.Error(e, $"{@this.Description} - Forward failed!");
-                    }
-
-                    return new ValueTask<bool>(false);
-                }, this, null, null).FastPath())
+                        return new ValueTask<bool>(false);
+                    }, this).FastPath())
                 {
                     if (!Zeroed())
                         _logger.Trace($"{nameof(ZeroBatchAsync)}: Production [FAILED]: {ProtocolConduit.Description}");

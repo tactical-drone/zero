@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Runtime.CompilerServices;
+using System.Threading;
 using System.Threading.Tasks;
 using zero.core.patterns.bushings.contracts;
 using zero.core.patterns.heap;
@@ -75,7 +76,7 @@ namespace zero.core.patterns.bushings
         public override async ValueTask<IIoHeapItem> HeapPopAsync(object context)
         {
             await base.HeapPopAsync(context).FastPath();
-            FragmentIdx = null;
+            Interlocked.Exchange(ref FragmentIdx, null);
             return this;
         }
 

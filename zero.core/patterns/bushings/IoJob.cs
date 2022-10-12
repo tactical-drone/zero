@@ -151,10 +151,9 @@ namespace zero.core.patterns.bushings
         /// <summary>
         /// Uses <see cref="Source"/> to produce a job
         /// </summary>
-        /// <param name="barrier">Congestion control</param>
         /// <param name="ioZero">The engine producing this job at the moment</param>
         /// <returns>The current state of the job</returns>
-        public abstract ValueTask<IoJobMeta.JobState> ProduceAsync<T>(IIoSource.IoZeroCongestion<T> barrier, T ioZero);
+        public abstract ValueTask<IoJobMeta.JobState> ProduceAsync<T>(T ioZero);
 
         /// <summary>
         /// Initializes this instance for reuse from the heap

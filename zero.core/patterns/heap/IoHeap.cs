@@ -162,6 +162,7 @@ namespace zero.core.patterns.heap
         {
             try
             {
+                Interlocked.Increment(ref _refCount);
                 retry:
                 //If the heap is empty
                 if (!_ioHeapBuf.TryDequeue(out var heapItem))
@@ -170,14 +171,13 @@ namespace zero.core.patterns.heap
                         goto retry; //TODO: hack
 
                     //TODO: Leak
-                    if (_refCount >= Capacity)
+                    if (_refCount > Capacity)
                     {
                         if (!IsAutoScaling)
                         {
 #if DEBUG
                             _logger.Error($"{nameof(_ioHeapBuf)}: LEAK DETECTED!!! Heap -> {Description}: Q -> _ioHeapBuf.Description");
 #endif
-                            Thread.Yield();
                             if (_refCount >= Capacity && !IsAutoScaling) //TODO: what is going on here? The same check insta fails with huge state differences;
                                 throw new OutOfMemoryException($"{nameof(_ioHeapBuf)}: Heap -> {Description}: Q -> _ioHeapBuf.Description");
                         }
@@ -207,15 +207,14 @@ namespace zero.core.patterns.heap
                     Constructor?.Invoke(heapItem, userData);
                     PopAction?.Invoke(heapItem, userData);
 
-                    Interlocked.Increment(ref _refCount);
                     Interlocked.Increment(ref _miss);
                     return (heapItem, true);
                 }
                 else //take the item from the heap
                 {
-                    PopAction?.Invoke(heapItem, userData);
-                    Interlocked.Increment(ref _refCount);
                     Interlocked.Increment(ref _hit);
+
+                    PopAction?.Invoke(heapItem, userData);
                     return (heapItem, false);
                 }
             }
@@ -240,7 +239,7 @@ namespace zero.core.patterns.heap
                 }
 #endif
             }
-            
+            Interlocked.Decrement(ref _refCount);
             return default;
         }
 
@@ -256,8 +255,6 @@ namespace zero.core.patterns.heap
             if (item == null)
                  return;
 
-            Interlocked.Decrement(ref _refCount);
-
             PushAction?.Invoke(item);
 
             try
@@ -271,7 +268,7 @@ namespace zero.core.patterns.heap
                 {
                     if (item is not IIoHeapItem)
                     {
-                        if(item is IDisposable disposable)
+                        if (item is IDisposable disposable)
                             disposable.Dispose();
                         if (item is IAsyncDisposable asyncDisposable)
                         {
@@ -282,9 +279,10 @@ namespace zero.core.patterns.heap
                             }, asyncDisposable);
                         }
                     }
+
                     Interlocked.Increment(ref _hit);
                 }
-                    
+
             }
             catch when (_zeroed > 0)
             {
@@ -292,6 +290,10 @@ namespace zero.core.patterns.heap
             catch (Exception e) when (!Zeroed)
             {
                 _logger.Error(e, $"{GetType().Name}: Failed malloc {typeof(TItem)}");
+            }
+            finally
+            {
+                Interlocked.Decrement(ref _refCount);
             }
         }
 

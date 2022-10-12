@@ -4,30 +4,24 @@ using System.Collections.Generic;
 using System.Runtime.CompilerServices;
 using System.Threading;
 using zero.core.misc;
-using zero.core.patterns.heap;
 
 namespace zero.cocoon.models.batches
 {
     public class CcDiscoveryBatch: IDisposable
     {
-        public CcDiscoveryBatch(IoHeap<CcDiscoveryBatch, CcDiscoveries> heapRef, int size, bool groupByEp = false)
+        public CcDiscoveryBatch(int size, bool groupByEp = false)
         {
-            _heapRef = heapRef;
-            _messages = ArrayPool<CcDiscoveryMessage>.Shared.Rent(size);
+            _messages = new CcDiscoveryMessage[size];
             _groupByEpEnabled = groupByEp;
 
             for (var i = 0; i < _messages.Length; i++)
-            {
                 _messages[i] = new CcDiscoveryMessage();
-            }
 
             if (_groupByEpEnabled)
                 GroupBy = new Dictionary<byte[], Tuple<byte[], List<CcDiscoveryMessage>>>(new IoByteArrayComparer());
         }
 
-        private readonly IoHeap<CcDiscoveryBatch, CcDiscoveries> _heapRef;
         private CcDiscoveryMessage[] _messages;
-        private Dictionary<string, ReadOnlyMemory<CcDiscoveryMessage>> _messagesDictionary = new();
         private int _disposed;
 
         public CcDiscoveryMessage this[int i] => _messages[i];
@@ -43,10 +37,8 @@ namespace zero.cocoon.models.batches
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void ReturnToHeap()
         {
-            _heapRef.Return(this);
+            CcDiscoveries.Heap.Return(this, _disposed > 0);
         }
-
-        public IoHeap<CcDiscoveryBatch, CcDiscoveries> HeapRef => _heapRef;
 
         public int Capacity => _messages.Length;
         public int Count;
@@ -60,28 +52,14 @@ namespace zero.cocoon.models.batches
             if (Interlocked.CompareExchange(ref _disposed, 1, 0) != 0)
                 return;
 
-            //if (disposing)
-            {
-                try
-                {
-                    ArrayPool<CcDiscoveryMessage>.Shared.Return(_messages, true);
-                }
-                catch
-                {
-                    // ignored
-                }
-            }
-
             _messages = null;
-            _messagesDictionary.Clear();
-            _messagesDictionary = null;
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Dispose()
         {
-            GC.SuppressFinalize(this);
             Dispose(true);
+            GC.SuppressFinalize(this);
         }
 
         ~CcDiscoveryBatch()

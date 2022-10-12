@@ -95,6 +95,8 @@ namespace zero.core.patterns.semaphore.core
         #endregion
 
         #region State
+
+        public long TotalOps => 0;
         public string Description => $"{nameof(IoZeroSemCore<T>)}: {_description}, r = {ReadyCount}, w = {WaitCount}, z = {_zeroed > 0}, H = {_head % ModCapacity}, T = {_tail % ModCapacity} h = {_head}, t = {_tail}";
         public int Capacity => _capacity;
         public int ReadyCount => (int)(_tail < _head ? _head - _tail : 0);

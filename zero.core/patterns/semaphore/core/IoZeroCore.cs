@@ -1,15 +1,13 @@
 ﻿//#define TRACE
 using System;
 using System.Diagnostics;
-using System.Net.Http.Headers;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Threading;
-using System.Threading.Channels;
 using System.Threading.Tasks;
 using System.Threading.Tasks.Sources;
-using NLog;
-using NLog.Filters;
+using zero.core.misc;
+using zero.core.patterns.misc;
 using zero.core.patterns.queue;
 
 namespace zero.core.patterns.semaphore.core
@@ -51,10 +49,13 @@ namespace zero.core.patterns.semaphore.core
 
             _lifoQ = default;
             _racedResultSyncRoot = 0;
+            _curOps = 0;
+            _totalOps = 0;
+            _curOpsAnchor = 0;
+            Interlocked.Exchange(ref _curOpsAnchor, DateTimeOffset.UtcNow.ToUnixTimeMilliseconds());
         }
 
-        public IIoZeroSemaphoreBase<T> ZeroRef(ref IIoZeroSemaphoreBase<T> @ref, Func<object, T> primeResult = default,
-            object context = null)
+        public IIoZeroSemaphoreBase<T> ZeroRef(ref IIoZeroSemaphoreBase<T> @ref, Func<object, T> primeResult = default, object context = null)
         {
             if (@ref == null)
                 throw new ArgumentNullException(nameof(@ref));
@@ -108,6 +109,9 @@ namespace zero.core.patterns.semaphore.core
         private int _zeroed;
         private readonly int _ready;
         private readonly bool _ensureMutex;
+        private long _curOps;
+        private long _totalOps;
+        private long _curOpsAnchor;
         #endregion
 
         #region Properties
@@ -117,12 +121,13 @@ namespace zero.core.patterns.semaphore.core
         #endregion
 
         #region State
-        public string Description => $"{nameof(IoZeroSemCore<T>)}: r = {ReadyCount}/{_capacity}, w = {WaitCount}/{_capacity}, z = {_zeroed > 0}, heap = {_heapCore.Count}, {_description}";
+        public string Description => $"{nameof(IoZeroSemCore<T>)} ([{_totalOps}] - {Cps(true):0.0} c/s ({_curOps})): r = {ReadyCount}/{_capacity}, w = {WaitCount}/{_capacity}, z = {_zeroed > 0}, heap = {_heapCore.Count}, {_description}";
         public int WaitCount => _blockingCores.Count;
         public int ReadyCount => _results.Count;
 
         public int Capacity => _capacity;
         public bool ZeroAsyncMode { get; }
+        public long TotalOps => _totalOps;
         #endregion
 
         #region Core
@@ -189,7 +194,7 @@ namespace zero.core.patterns.semaphore.core
             var unBanked = false;
 
             //insane checks
-            if (_results.Count >= Capacity && _blockingCores.Count == 0) //TODO: if the semaphore is full, but there are waiters hanging around... unblock one. Seems legit
+            if (_results.Count >= Capacity && _blockingCores.Count == 0) 
                 return false;
 
             //try fast path
@@ -273,6 +278,8 @@ namespace zero.core.patterns.semaphore.core
             //fast path
             if (_blockingCores.Count == 0 && _results.TryDequeue(out var readyResult))
             {
+                Interlocked.Increment(ref _totalOps);
+                Interlocked.Increment(ref _curOps);
                 slowTaskCore = new ValueTask<T>(readyResult);
                 return true;
             }
@@ -284,6 +291,10 @@ namespace zero.core.patterns.semaphore.core
                 blockingCore.Reset(static state =>
                 {
                     var (@this, blockingCore) = (ValueTuple<IoZeroCore<T>, IIoManualResetValueTaskSourceCore<T>>)state;
+
+                    Interlocked.Increment(ref @this._totalOps);
+                    Interlocked.Increment(ref @this._curOps);
+
                     if (@this._heapCore.TryEnqueue(blockingCore) < 0)
                         throw new InvalidOperationException($"{nameof(@this.Block)}: unable to return memory to heap; {@this._heapCore.Description}");
                 }, (this, blockingCore));
@@ -330,11 +341,18 @@ namespace zero.core.patterns.semaphore.core
             
             //No results pending, we block
             slowTaskCore = new ValueTask<T>(blockingCore, 0);
+
+            if (slowTaskCore.IsCompleted)
+            {
+                Interlocked.Increment(ref _totalOps);
+                Interlocked.Increment(ref _curOps);
+            }
+                
             return true;
         }
 #endregion
 
-#region API
+        #region API
         public T GetResult(short token) => throw new NotImplementedException(nameof(GetResult));
 
         public ValueTaskSourceStatus GetStatus(short token) => throw new NotImplementedException(nameof(GetStatus));
@@ -386,6 +404,27 @@ namespace zero.core.patterns.semaphore.core
         int IIoZeroSemaphoreBase<T>.ZeroDecAsyncCount()
         {
             throw new NotImplementedException();
+        }
+
+        /// <summary>
+        /// The number of cores processed per second
+        /// </summary>
+        /// <param name="reset">Whether to reset hysteresis</param>
+        /// <returns>The current completions per second</returns>
+        double Cps(bool reset = false)
+        {
+            try
+            {
+                return _curOps * 1000.0 / _curOpsAnchor.ElapsedUtcMs();
+            }
+            finally
+            {
+                if (reset)
+                {
+                    Interlocked.Exchange(ref _curOpsAnchor, DateTimeOffset.UtcNow.ToUnixTimeMilliseconds());
+                    Interlocked.Exchange(ref _curOps, 0);
+                }
+            }
         }
 #endregion
     }

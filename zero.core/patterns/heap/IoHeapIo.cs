@@ -94,6 +94,7 @@ namespace zero.core.patterns.heap
         /// Takes item from the heap
         /// </summary>
         /// <returns>A new item</returns>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public ValueTask<TItem> TakeAsync()
         {
             return TakeAsync<object>();

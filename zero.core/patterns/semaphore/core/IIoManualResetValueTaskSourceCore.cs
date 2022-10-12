@@ -20,6 +20,6 @@ namespace zero.core.patterns.semaphore.core
 
         void SetResult(TResult result);
         void SetException(Exception error);
-        void Reset(Action<object> index, object context);
+        void Reset(Action<object> resetAction, object context);
     }
 }

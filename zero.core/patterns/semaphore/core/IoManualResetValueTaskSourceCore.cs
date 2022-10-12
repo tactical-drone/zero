@@ -56,7 +56,7 @@ namespace zero.core.patterns.semaphore.core
 
         /// <summary>Whether the current operation has completed.</summary>
         private bool _completed;
-        private bool _runContinuationsAsync; //Options on just in time async/sync calls
+        private int _runContinuationsAsync; //Options on just in time async/sync calls
 
 #if DEBUG
         private int _completeTime;
@@ -70,7 +70,7 @@ namespace zero.core.patterns.semaphore.core
 
         /// <summary>Gets or sets whether to force continuations to run asynchronously.</summary>
         /// <remarks>Continuations may run asynchronously if this is false, but they'll never run synchronously if this is true.</remarks>
-        public bool RunContinuationsAsynchronously { get => _runContinuationsAsync || RunContinuationsAsynchronouslyAlways; set => _runContinuationsAsync = value; }
+        public bool RunContinuationsAsynchronously { get => _runContinuationsAsync > 0 || RunContinuationsAsynchronouslyAlways; set => Interlocked.Exchange(ref _runContinuationsAsync, value ? 1 : 0); }
 
         /// <summary>
         /// Run continuations on the flowing scheduler, else on the default one
@@ -120,7 +120,7 @@ namespace zero.core.patterns.semaphore.core
             _executionContext = null;
             SyncRoot = 0;
             _completed = false;
-            _runContinuationsAsync = false;
+            Interlocked.Exchange(ref _runContinuationsAsync, 0);
 #if DEBUG
             _completeTime = 0;
             _burned = 0;
@@ -128,6 +128,7 @@ namespace zero.core.patterns.semaphore.core
             _capturedContext = _continuationState = _continuation = null;
             Interlocked.MemoryBarrier();
 
+            //allows for this core to be placed back into a heap once completed
             _heapAction?.Invoke(_heapContext);
         }
 
@@ -177,10 +178,10 @@ namespace zero.core.patterns.semaphore.core
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public void Reset(Action<object> index, object context)
+        public void Reset(Action<object> resetAction, object context)
         {
-            _heapAction = index;
-            _heapContext = context;
+            Interlocked.Exchange(ref _heapAction, resetAction);
+            Interlocked.Exchange(ref _heapContext, context);
         }
 
 #if DEBUG
@@ -232,15 +233,6 @@ namespace zero.core.patterns.semaphore.core
                 if (AutoReset)
                     Reset();
             }
-
-            //var r = _result;
-
-            //if (AutoReset)
-            //    Reset();
-
-            //_error?.Throw();
-
-            //return r;
         }
 
         /// <summary>Schedules the continuation action for this operation.</summary>

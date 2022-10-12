@@ -6,6 +6,7 @@ using System.IO;
 using System.IO.Compression;
 using System.Net;
 using System.Net.Http.Headers;
+using System.Net.Sockets;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Security.Cryptography;
@@ -111,35 +112,17 @@ namespace zero.core.feat.models.protobuffer
         /// Produce a Message
         /// </summary>
         /// <typeparam name="T"></typeparam>
-        /// <param name="barrier">The barrier that synchronizes with the consumer of the messages produced</param>
         /// <param name="ioZero">The worker</param>
         /// <returns></returns>
-        public override async ValueTask<IoJobMeta.JobState> ProduceAsync<T>(IIoSource.IoZeroCongestion<T> barrier, T ioZero)
+        public override async ValueTask<IoJobMeta.JobState> ProduceAsync<T>(T ioZero)
         {
             try
             {
-                if (await MessageService.ProduceAsync(static async (ioSocket, backPressure, ioZero, ioJob) =>
+                if (await MessageService.ProduceAsync(static async (ioSocket, ioJob) =>
                     {
                         var job = (CcProtocMessage<TModel, TBatch>)ioJob;
                         try
                         {
-                            //----------------------------------------------------------------------------
-                            // BARRIER
-                            // We are only allowed to run ahead of the consumer by some configurable
-                            // amount of steps. Instead of say just filling up memory buffers.
-                            // This allows us some kind of (anti DOS?) congestion control
-                            //----------------------------------------------------------------------------
-                            if (!await backPressure(ioZero).FastPath() || ioJob.Source.Zeroed())
-                            {
-                                if (job.Source != null && !job.Source.Zeroed())
-                                {
-                                    _logger.Trace($"{nameof(backPressure)} [FAILED]: {ioJob.Description}");
-                                    return false;
-                                }
-
-                                return false;
-                            }
-
                             //Async read the message from the message stream
                             //CryptographicOperations.ZeroMemory(job.MemoryBuffer.Span);
                             var read = await ((IoNetClient<CcProtocMessage<TModel, TBatch>>)ioSocket).IoNetSocket
@@ -150,10 +133,21 @@ namespace zero.core.feat.models.protobuffer
                             //Drop zero reads
                             if (read == 0)
                             {
-                                if (!job.MessageService.IsOperational() ||
-                                    ((IoNetClient<CcProtocMessage<TModel, TBatch>>)ioSocket).IoNetSocket.IsTcpSocket)
+                                var socket = (IoNetClient<CcProtocMessage<TModel, TBatch>>)ioSocket;
+                                if (!job.MessageService.IsOperational())
                                 {
-                                    await job.MessageService.DisposeAsync(ioJob, $"socket: {job.MessageService.IoNetSocket.LastError}").FastPath();
+                                    if (socket.IoNetSocket.IsTcpSocket)
+                                    {
+                                        if(socket.IoNetSocket.LastError != SocketError.Success)
+                                            await job.MessageService.DisposeAsync(ioJob, $"socket: {job.MessageService.IoNetSocket.LastError}").FastPath();
+                                    }
+                                    else
+                                    {
+                                        if (socket.IoNetSocket.LastError != SocketError.Success && socket.IoNetSocket.LastError != SocketError.OperationAborted)
+                                            await job.MessageService.DisposeAsync(ioJob, $"socket: {job.MessageService.IoNetSocket.LastError}").FastPath();
+                                    }
+
+                                    await ioJob.SetStateAsync(IoJobMeta.JobState.ProduceErr).FastPath();
                                     return false;
                                 }
                                 else
@@ -161,16 +155,15 @@ namespace zero.core.feat.models.protobuffer
 #if DEBUG
                                     _logger.Error($"ReceiveAsync [FAILED]: ZERO UDP READS!!! {ioJob.Description}");
 #endif
+                                    await ioJob.SetStateAsync(IoJobMeta.JobState.ProdSkipped).FastPath();
                                     return false;
                                 }
                             }
 
                             Interlocked.Add(ref job.BytesRead, read);
-
 #if TRACE
                         _logger.Trace($"<\\== {job.Buffer[job.DatumProvisionLengthMax..(job.DatumProvisionLengthMax + job.BytesRead)].PayloadSig("C")} {job.Description}; clr type = ({job.GetType().Name}), job id = {job.Id}, prev Id = {job.PreviousJob?.Id}, r = {job.BytesRead}, r = {job.BytesLeftToProcess}, dc = {job.DatumCount}, ds = {job.DatumSize}, f = {job.DatumFragmentLength}, b = {job.BytesLeftToProcess}/{job.BufferSize + job.DatumProvisionLengthMax}, b = {(int)(job.BytesLeftToProcess / (double)(job.BufferSize + job.DatumProvisionLengthMax) * 100)}%");
 #endif
-
                             return true;
                         }
                         catch when (job.Zeroed())
@@ -182,7 +175,7 @@ namespace zero.core.feat.models.protobuffer
                         }
 
                         return false;
-                    }, this, barrier, ioZero).FastPath())
+                    }, this).FastPath())
                 {
                     return await SetStateAsync(IoJobMeta.JobState.Produced).FastPath();
                 }
@@ -195,7 +188,10 @@ namespace zero.core.feat.models.protobuffer
                 _logger?.Warn(e, $"Producing job for {Description} returned with errors:");
             }
 
-            return await SetStateAsync(IoJobMeta.JobState.ProduceErr).FastPath();
+            if(State == IoJobMeta.JobState.Producing)
+                return await SetStateAsync(IoJobMeta.JobState.ProduceErr).FastPath();
+
+            return State;
         }
 
         /// <summary>

@@ -461,7 +461,7 @@ namespace zero.core.network.ip
 #endif
                         LastError = args.SocketError;
 
-                        return LastError == SocketError.Success ? args.BytesTransferred : 0;
+                        return args.BytesTransferred;
                     }
                     catch when (Zeroed())
                     {

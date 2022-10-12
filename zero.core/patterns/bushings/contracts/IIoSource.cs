@@ -36,17 +36,6 @@ namespace zero.core.patterns.bushings.contracts
         public IIoSource UpstreamSource { get; }
 
         /// <summary>
-        /// Apply source pressure
-        /// </summary>
-        public int Pressure(int releaseCount = 1);
-
-        /// <summary>
-        /// Wait for source pressure
-        /// </summary>
-        /// <returns></returns>
-        public ValueTask<int> WaitForPressureAsync();
-        
-        /// <summary>
         /// Apply sink "back" pressure
         /// </summary>
         public int BackPressure(int releaseCount = 1, bool zeroAsync = false);
@@ -60,30 +49,8 @@ namespace zero.core.patterns.bushings.contracts
         /// <summary>
         /// Enable prefetch
         /// </summary>
-        bool PressureEnabled { get; }
-
-        /// <summary>
-        /// Enable prefetch
-        /// </summary>
-        bool PrefetchEnabled { get; }
-
-
-        /// <summary>
-        /// Enable prefetch
-        /// </summary>
         bool BackPressureEnabled { get; }
 
-        /// <summary>
-        /// Apply prefetch pressure
-        /// </summary>
-        public int PrefetchPressure(int releaseCount = 1, bool zeroAsync = false);
-        
-        /// <summary>
-        /// Wait on prefetch pressure
-        /// </summary>
-        /// <returns></returns>
-        public ValueTask<int> WaitForPrefetchPressureAsync();
-        
         /// <summary>
         /// Which source job is next in line
         /// </summary>
@@ -213,13 +180,8 @@ namespace zero.core.patterns.bushings.contracts
         /// </summary>
         /// <param name="produce">A production that produces a job from the source</param>
         /// <param name="ioJob">The job instance</param>
-        /// <param name="barrier">The congestion barrier</param>
-        /// <param name="ioZero">The pattern</param>
         /// <returns></returns>
-        ValueTask<bool> ProduceAsync<T>(Func<IIoSource, IoZeroCongestion<T>, T, IIoJob, ValueTask<bool>> produce,
-            IIoJob ioJob,
-            IoZeroCongestion<T> barrier,
-            T ioZero);
+        ValueTask<bool> ProduceAsync(Func<IIoSource, IIoJob, ValueTask<bool>> produce, IIoJob ioJob);
 
         /// <summary>
         /// Producers can forward new productions types <see cref="TFJob"/> via a channels of type <see cref="IIoConduit"/> to other producers.

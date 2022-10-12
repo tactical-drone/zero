@@ -25,6 +25,7 @@ namespace zero.core.patterns.semaphore
         public int ReadyCount => _pressure.Primed? 1 : 0;
 
         public bool ZeroAsyncMode => false;
+        public long TotalOps => 0;
         public string Description => $"{nameof(IoZeroResetEvent)}";
 
         public int Capacity => 1;

@@ -24,6 +24,7 @@ namespace zero.core.patterns.semaphore.core
         int ReadyCount { get; }
         int WaitCount { get; }
         public bool ZeroAsyncMode { get; }
+        public long TotalOps { get; }
         public string Description { get; }
         public int Capacity { get; }
 

@@ -86,6 +86,7 @@ namespace zero.core.patterns.semaphore
 
         public int WaitCount => _semaphore.WaitCount;
         public bool ZeroAsyncMode => _semaphore.ZeroAsyncMode;
+        public long TotalOps => _semaphore.TotalOps;
         public int Capacity => _semaphore.Capacity;
         int IIoZeroSemaphoreBase<int>.ZeroDecAsyncCount()
         {

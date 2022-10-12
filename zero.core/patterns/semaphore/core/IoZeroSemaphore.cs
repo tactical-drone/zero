@@ -202,7 +202,9 @@ namespace zero.core.patterns.semaphore.core
         /// A semaphore description
         /// </summary>
         private readonly string _description;
-        
+
+        public long TotalOps => 0;
+
         /// <summary>
         /// A semaphore description
         /// </summary>

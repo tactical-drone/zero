@@ -21,6 +21,7 @@ namespace zero.core.patterns.semaphore
         }
 
         private readonly IIoZeroSemaphoreBase<T> _semaphore;
+        public long TotalOps => _semaphore.TotalOps;
         public override string Description => _semaphore.Description;
 
         public override void ZeroUnmanaged()
@@ -58,9 +59,10 @@ namespace zero.core.patterns.semaphore
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public int Release(T value, int releaseCount, bool forceAsync = false)
         {
-            return _semaphore.Release(value, releaseCount);
+            return _semaphore.Release(value, releaseCount, forceAsync);
         }
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public int Release(T value, bool forceAsync = false) =>_semaphore.Release(value, forceAsync);
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]

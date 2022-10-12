@@ -40,7 +40,6 @@ namespace zero.core.patterns.bushings
             //if (runContinuationsAsync > concurrencyLevel)
             //    throw new ArgumentOutOfRangeException($"{description}: invalid {nameof(concurrencyLevel)} = {concurrencyLevel}, must be at least {nameof(runContinuationsAsync)} = {runContinuationsAsync}");
 
-            PrefetchEnabled = true;
             BackPressureEnabled = true;
             PrefetchSize = prefetchSize;
             ZeroAsyncMode = zeroAsyncMode;
@@ -49,28 +48,12 @@ namespace zero.core.patterns.bushings
 
             try
             {
-                if (PressureEnabled)
-                {
-                    _pressure = new IoZeroSemaphoreSlim(AsyncTasks, $"{nameof(_pressure)}: {description}",
-                        maxBlockers: concurrencyLevel,
-                        0,
-                        zeroAsyncMode: ZeroAsyncMode); //TODO Prefetch - 1 or not?
-                }
-
                 if (BackPressureEnabled)
                 {
                     _backPressure = new IoZeroSemaphoreSlim(AsyncTasks, $"{nameof(_backPressure)}: {description}",
                         maxBlockers: PrefetchSize,
                         initialCount: concurrencyLevel,
                         zeroAsyncMode: false); //TODO Prefetch - 1 or not?
-                }
-
-                if (PrefetchEnabled)
-                {
-                    _prefetchPressure = new IoZeroSemaphoreSlim(AsyncTasks, $"{nameof(_prefetchPressure)}: {description}",
-                        maxBlockers: PrefetchSize,
-                        initialCount: PrefetchSize,
-                        zeroAsyncMode: false);
                 }
             }
             catch (Exception e)
@@ -81,7 +64,7 @@ namespace zero.core.patterns.bushings
             
         }
 
-        public string QueueStatus => $"WAITING FOR: prefetch = {_prefetchPressure?.WaitCount}/{_prefetchPressure?.Capacity}, back pressure = {_backPressure?.WaitCount}/{_backPressure?.Capacity}, pressure = {_pressure?.WaitCount}/{_pressure?.Capacity}";
+        public string QueueStatus => $"back pressure = {_backPressure?.WaitCount}/{_backPressure?.Capacity}";
 
         /// <summary>
         /// logger
@@ -125,33 +108,13 @@ namespace zero.core.patterns.bushings
         public long[] ServiceTimes { get; protected set; } = new long[Enum.GetNames(typeof(IoJobMeta.JobState)).Length];
         
         /// <summary>
-        /// The sink is being throttled against source
-        /// </summary>
-        private IoZeroSemaphoreSlim _pressure;
-        
-        /// <summary>
         /// The source is being throttled by the sink 
         /// </summary>
         private IoZeroSemaphoreSlim _backPressure;
         
-        /// <summary>
-        /// The source is bing throttled on prefetch config
-        /// </summary>
-        private IoZeroSemaphoreSlim _prefetchPressure;
-
-        public int PrefetchReady => _prefetchPressure.ReadyCount;
         public int BackPressureReady => _backPressure.ReadyCount;
 
-        /// <summary>
-        /// Enable prefetch throttling (only allow a certain amount of prefetch
-        /// in the presence of concurrent production
-        /// </summary>
-        public bool PrefetchEnabled { get; protected set; }
-
-        public bool PressureEnabled { get; protected set; }
-
         public bool BackPressureEnabled { get; protected set; }
-
 
         public bool DisableZero { get; protected set; }
         /// <summary>
@@ -272,9 +235,7 @@ namespace zero.core.patterns.bushings
 
 #if SAFE_RELEASE
             _logger = null;
-            _pressure = null;
             _backPressure = null;
-            _prefetchPressure = null;
             UpstreamSource = null;
             RecentlyProcessed = null;
             IoConduits = null;
@@ -289,12 +250,8 @@ namespace zero.core.patterns.bushings
         {
             await base.ZeroManagedAsync().FastPath();
 
-            if (_pressure != null)
-                await _pressure.DisposeAsync(this, $"{nameof(ZeroManagedAsync)}: teardown").FastPath();
             if(_backPressure != null)
                 await _backPressure.DisposeAsync(this, $"{nameof(ZeroManagedAsync)}: teardown").FastPath();
-            if(_prefetchPressure != null)
-                await _prefetchPressure.DisposeAsync(this, $"{nameof(ZeroManagedAsync)}: teardown").FastPath();
 
             var reason = $"{nameof(IoSource<TJob>)}: teardown";
 
@@ -466,18 +423,13 @@ namespace zero.core.patterns.bushings
         /// </summary>
         /// <param name="produce">The function.</param>
         /// <param name="ioJob">The job being produced on</param>
-        /// <param name="barrier">A synchronization barrier from</param>
-        /// <param name="ioZero">Optional produce state</param>
         /// <returns>True on success, false otherwise</returns>
-        public virtual ValueTask<bool> ProduceAsync<T>(
-            Func<IIoSource, IIoSource.IoZeroCongestion<T>, T, IIoJob, ValueTask<bool>> produce,
-            IIoJob ioJob,
-            IIoSource.IoZeroCongestion<T> barrier,
-            T ioZero)
+        public virtual ValueTask<bool> ProduceAsync(Func<IIoSource, IIoJob, ValueTask<bool>> produce,
+            IIoJob ioJob)
         {
             try
             {
-                return produce(this, barrier, ioZero, ioJob);
+                return produce(this, ioJob);
             }
             catch (Exception) when (Zeroed()) {}
             catch (Exception e) when (!Zeroed())
@@ -486,26 +438,6 @@ namespace zero.core.patterns.bushings
             }
 
             return new ValueTask<bool>(false);
-        }
-
-        /// <summary>
-        /// Signal source pressure
-        /// </summary>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public int Pressure(int releaseCount = 1)
-        {
-            return PressureEnabled ? _pressure.Release(Environment.TickCount, releaseCount) : releaseCount;
-        }
-
-        /// <summary>
-        /// Wait for source pressure
-        /// </summary>
-        /// <returns></returns>
-        /// <exception cref="NotImplementedException"></exception>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public ValueTask<int> WaitForPressureAsync()
-        {
-            return PressureEnabled ? _pressure.WaitAsync() : new ValueTask<int>(Environment.TickCount);
         }
 
         /// <summary>
@@ -531,27 +463,6 @@ namespace zero.core.patterns.bushings
             return BackPressureEnabled ? _backPressure.WaitAsync() : new ValueTask<int>(Environment.TickCount);
         }
         
-        /// <summary>
-        /// Signal prefetch pressures
-        /// </summary>
-        /// <exception cref="NotImplementedException"></exception>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public int PrefetchPressure(int releaseCount = 1, bool zeroAsync = false)
-        {
-            return PrefetchEnabled ? _prefetchPressure.Release(Environment.TickCount, releaseCount, zeroAsync) : releaseCount;
-        }
-
-        /// <summary>
-        /// Wait on prefetch pressure
-        /// </summary>
-        /// <returns></returns>
-        /// <exception cref="NotImplementedException"></exception>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public ValueTask<int> WaitForPrefetchPressureAsync()
-        {
-            return PrefetchEnabled ? _prefetchPressure.WaitAsync() : new ValueTask<int>(Environment.TickCount);
-        }
-
         /// <summary>
         /// Seeds job Ids
         /// </summary>

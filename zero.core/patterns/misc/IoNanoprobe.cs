@@ -288,7 +288,7 @@ namespace zero.core.patterns.misc
 #if RELEASE
             ZeroReason = $"{reason??"N/A"}"; 
 #else
-            ZeroReason = $"{methodName}:{lineNumber} - reason = {reason ?? "N/A"}";
+            ZeroReason = $"{methodName}:{lineNumber} - {reason ?? "N/A"}";
 #endif
             return DisposeAsync();
         }

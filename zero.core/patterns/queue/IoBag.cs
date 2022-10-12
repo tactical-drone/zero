@@ -420,9 +420,18 @@ namespace zero.core.patterns.queue
         {
             for (var i = _head; i < _tail; i++)
             {
-                if (_storage[i % Capacity].Equals(item))
-                    return true;
-                Console.WriteLine($"Comparing {_storage[i % Capacity].ToString()} - {item.ToString()}");
+                var index = i % Capacity;
+                try
+                {
+                    if (_bloom[index] > 0 && _storage[index].Equals(item))
+                        return true;
+                }
+                catch
+                {
+                    // ignored
+                }
+
+                //Console.WriteLine($"Comparing {_storage[i % Capacity].ToString()} - {item.ToString()}");
             }
 
             return false;

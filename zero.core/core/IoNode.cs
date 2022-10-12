@@ -331,7 +331,7 @@ namespace zero.core.core
         /// Assimilate neighbor
         /// </summary>
         /// <param name="newNeighbor"></param>
-        protected internal async ValueTask BlockOnAssimilateAsync(IoNeighbor<TJob> newNeighbor)
+        public async ValueTask BlockOnAssimilateAsync(IoNeighbor<TJob> newNeighbor)
         {
             try
             {
