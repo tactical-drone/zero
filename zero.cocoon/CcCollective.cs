@@ -685,7 +685,7 @@ namespace zero.cocoon
                             //reject old futile requests
                             if (ccFutileRequest.Timestamp.ElapsedUtcMs() > parm_futile_timeout_ms)
                             {
-                                _logger.Error($"Rejected old futile request from {ioNetSocket.Key} - d = {ccFutileRequest.Timestamp.ElapsedMs()}ms, > {parm_futile_timeout_ms}");
+                                _logger.Error($"Rejected old futile request from {ioNetSocket.Key} - d = {ccFutileRequest.Timestamp.ElapsedUtcMs()}ms, > {parm_futile_timeout_ms}");
                                 return false;
                             }
 
@@ -820,7 +820,7 @@ namespace zero.cocoon
                             //reject old futile requests
                             if (futileResponse.Timestamp.ElapsedUtcMs() > parm_futile_timeout_ms)
                             {
-                                _logger.Error($"Rejected old futile response from {ioNetSocket.Key} - d = {ccFutileRequest.Timestamp.ElapsedMs()}ms, > {parm_futile_timeout_ms}");
+                                _logger.Error($"Rejected old futile response from {ioNetSocket.Key} - d = {ccFutileRequest.Timestamp.ElapsedUtcMs()}ms, > {parm_futile_timeout_ms}");
                                 return false;
                             }
 

@@ -14,6 +14,7 @@
             ProdConnReset,
             ProduceErr,
             Queued,
+            QueuedError,
             Consuming,
             ConInlined,
             BadData,

@@ -345,7 +345,7 @@ namespace zero.core.patterns.bushings
                         {
                             ts = ts.ElapsedMs();
 
-                            await nextJob.SetStateAsync(IoJobMeta.JobState.ProduceErr).FastPath();
+                            await nextJob.SetStateAsync(IoJobMeta.JobState.QueuedError).FastPath();
                             await ZeroJobAsync(nextJob, true).FastPath();
                             nextJob = null;
 

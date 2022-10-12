@@ -146,7 +146,7 @@ namespace zero.core.patterns.queue
         {
             Debug.Assert(Zeroed || item != null);
 
-            if (Zeroed || _clearing > 0)
+            if (Zeroed || _clearing > 0 || _count >= Capacity)
                 return -1;
 
             if (deDup)

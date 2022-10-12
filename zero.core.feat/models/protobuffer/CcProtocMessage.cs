@@ -138,26 +138,29 @@ namespace zero.core.feat.models.protobuffer
                                 {
                                     if (socket.IoNetSocket.IsTcpSocket)
                                     {
-                                        if(socket.IoNetSocket.LastError != SocketError.Success)
+                                        if (socket.IoNetSocket.LastError != SocketError.Success)
+                                        {
                                             await job.MessageService.DisposeAsync(ioJob, $"socket: {job.MessageService.IoNetSocket.LastError}").FastPath();
+                                            await ioJob.SetStateAsync(IoJobMeta.JobState.ProduceErr).FastPath();
+                                            return false;
+                                        }
                                     }
                                     else
                                     {
-                                        if (socket.IoNetSocket.LastError != SocketError.Success && socket.IoNetSocket.LastError != SocketError.OperationAborted)
+                                        if (socket.IoNetSocket.LastError != SocketError.Success &&
+                                            socket.IoNetSocket.LastError != SocketError.OperationAborted)
+                                        {
                                             await job.MessageService.DisposeAsync(ioJob, $"socket: {job.MessageService.IoNetSocket.LastError}").FastPath();
+                                            await ioJob.SetStateAsync(IoJobMeta.JobState.ProduceErr).FastPath();
+                                            return false;
+                                        }
                                     }
-
-                                    await ioJob.SetStateAsync(IoJobMeta.JobState.ProduceErr).FastPath();
-                                    return false;
                                 }
-                                else
-                                {
 #if DEBUG
-                                    _logger.Error($"ReceiveAsync [FAILED]: ZERO UDP READS!!! {ioJob.Description}");
+                                _logger.Error($"ReceiveAsync [FAILED]: ZERO UDP READS!!! {ioJob.Description}");
 #endif
-                                    await ioJob.SetStateAsync(IoJobMeta.JobState.ProdSkipped).FastPath();
-                                    return false;
-                                }
+                                await ioJob.SetStateAsync(IoJobMeta.JobState.ProdSkipped).FastPath();
+                                return false;
                             }
 
                             Interlocked.Add(ref job.BytesRead, read);

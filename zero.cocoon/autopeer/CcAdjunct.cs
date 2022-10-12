@@ -2713,7 +2713,7 @@ namespace zero.cocoon.autopeer
         /// <returns>Task</returns>
         public bool Fuse()
         {
-            if (IsDroneAttached || CcCollective.ZeroDrone || _state.Value == AdjunctState.Connected)
+            if (IsDroneAttached || CcCollective.ZeroDrone || _state.Value == AdjunctState.Connected || !Probed)
             {
                 if (!CcCollective.ZeroDrone)
                     _logger.Warn($"{nameof(Fuse)}: [ABORTED], {Description}, s = {State}, a = {Assimilating}, D = {IsDroneConnected}, d = {IsDroneAttached}");

@@ -711,7 +711,7 @@ namespace zero.cocoon.models
                                         //update latest state
                                         try
                                         {
-                                            //await Task.Delay(1);
+                                            await Task.Delay(1);
 
                                             if (req < @this.CcCollective.MaxReq)
                                                 return;
@@ -741,7 +741,7 @@ namespace zero.cocoon.models
                                         finally
                                         {
                                             if(cleanup)
-                                                SendBuf.Return(socketBuf, deDup:true);
+                                                SendBuf.Return(socketBuf, deDup:false); //TODO: do we need dedup hax here?
                                         }
                                     }, (@this, drone, dupEndpoints, source, socketBuf, (int)(compressed + sizeof(ulong)), --processed == 0? -req:req));
                                     //if (source == null || await source.IoNetSocket

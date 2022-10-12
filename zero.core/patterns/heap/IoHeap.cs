@@ -1,5 +1,6 @@
 ﻿using System;
 using System.IO;
+using System.Net.Http.Headers;
 using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Channels;
@@ -7,6 +8,7 @@ using System.Threading.Tasks;
 using NLog;
 using zero.core.patterns.misc;
 using zero.core.patterns.queue;
+using zero.core.patterns.semaphore.core;
 using zero.core.runtime.scheduler;
 
 namespace zero.core.patterns.heap
@@ -162,44 +164,42 @@ namespace zero.core.patterns.heap
         {
             try
             {
-                Interlocked.Increment(ref _refCount);
+                if (_refCount.ZeroNext(Capacity) == Capacity)
+                {
+                    if (!IsAutoScaling)
+                    {
+#if DEBUG
+                        _logger.Error($"{nameof(_ioHeapBuf)}: LEAK DETECTED!!! Heap -> {Description}: Q -> _ioHeapBuf.Description");
+#endif
+                        Interlocked.Exchange(ref _refCount, _refCount / 2);
+                    }
+                    else
+                    {
+                        
+                        var prev = _ioHeapBuf;
+                        Interlocked.Exchange(ref _ioHeapBuf, new IoBag<TItem>(Description, Interlocked.Exchange(ref _capacity, _capacity * 2) * 2));
+
+                        IoZeroScheduler.Zero.LoadAsyncContext(static async state =>
+                        {
+                            try
+                            {
+                                //TODO, transfer memory to the new heap
+                                await ((IoHeap<TItem>)state).ZeroManagedAsync<object>();
+                            }
+                            catch
+                            {
+                                // ignored
+                            }
+                        }, prev);
+                    }
+                }
+
                 retry:
                 //If the heap is empty
                 if (!_ioHeapBuf.TryDequeue(out var heapItem))
                 {
                     if (_ioHeapBuf.Count > 0)
                         goto retry; //TODO: hack
-
-                    //TODO: Leak
-                    if (_refCount > Capacity)
-                    {
-                        if (!IsAutoScaling)
-                        {
-#if DEBUG
-                            _logger.Error($"{nameof(_ioHeapBuf)}: LEAK DETECTED!!! Heap -> {Description}: Q -> _ioHeapBuf.Description");
-#endif
-                            if (_refCount >= Capacity && !IsAutoScaling) //TODO: what is going on here? The same check insta fails with huge state differences;
-                                throw new OutOfMemoryException($"{nameof(_ioHeapBuf)}: Heap -> {Description}: Q -> _ioHeapBuf.Description");
-                        }
-                        else
-                        {
-                            _capacity *= 2;
-                            var prev = _ioHeapBuf;
-                            _ioHeapBuf = new IoBag<TItem>(Description, _capacity);
-                            IoZeroScheduler.Zero.LoadAsyncContext(static async state =>
-                            {
-                                try
-                                {
-                                    await ((IoHeap<TItem>)state).ZeroManagedAsync<object>();
-                                }
-                                catch
-                                {
-                                    // ignored
-                                }
-                            }, prev);
-                            
-                        }
-                    }
 
                     heapItem = Malloc(userData, Context);
 
@@ -255,14 +255,18 @@ namespace zero.core.patterns.heap
             if (item == null)
                  return;
 
-            PushAction?.Invoke(item);
-
             try
             {
+                retry:
                 if (!zero)
                 {
+                    PushAction?.Invoke(item);
                     if (_ioHeapBuf.TryEnqueue(item, deDup) < 0 && !Zeroed)
+                    {
                         _logger.Warn($"{nameof(Return)}: Unable to return {item} to the heap, {Description}");
+                        zero = true;
+                        goto retry;
+                    }
                 }
                 else
                 {
@@ -282,7 +286,6 @@ namespace zero.core.patterns.heap
 
                     Interlocked.Increment(ref _hit);
                 }
-
             }
             catch when (_zeroed > 0)
             {

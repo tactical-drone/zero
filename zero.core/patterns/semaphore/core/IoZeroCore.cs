@@ -121,7 +121,7 @@ namespace zero.core.patterns.semaphore.core
         #endregion
 
         #region State
-        public string Description => $"{nameof(IoZeroSemCore<T>)} ([{_totalOps}] - {Cps(true):0.0} c/s ({_curOps})): r = {ReadyCount}/{_capacity}, w = {WaitCount}/{_capacity}, z = {_zeroed > 0}, heap = {_heapCore.Count}, {_description}";
+        public string Description => $"{nameof(IoZeroSemCore<T>)} ([{_totalOps}] - {_curOps} @ {Cps(true):0.0} c/s): r = {ReadyCount}/{_capacity}, w = {WaitCount}/{_capacity}, z = {_zeroed > 0}, heap = {_heapCore.Count}, {_description}";
         public int WaitCount => _blockingCores.Count;
         public int ReadyCount => _results.Count;
 
