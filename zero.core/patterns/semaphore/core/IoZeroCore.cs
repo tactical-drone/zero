@@ -189,87 +189,6 @@ namespace zero.core.patterns.semaphore.core
             return false;
         }
 
-
-        /// <summary>
-        /// Dequeue a slow core and unblock it using the <see cref="value"/> provided
-        /// </summary>
-        /// <param name="value">Send this value to the blocker</param>
-        /// <param name="forceAsync"></param>
-        /// <returns>If a waiter was unblocked, false otherwise</returns>
-        //#if RELEASE
-        //        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        //#endif
-        //        private bool SetResult(T value, bool forceAsync = false)
-        //        {
-        //            retry:
-        //            //insane checks
-        //            if (_results.Count == Capacity || Zeroed())
-        //            {
-        //                //unstuck
-        //                if (_blockingCores.Count > 0 && _results.TryDequeue(out var stalled))
-        //                    Unblock(stalled, true);
-
-        //                return false;
-        //            }
-
-        //            var spinWait = new SpinWait();
-
-        //            fast://possible fast path?
-        //            if (_blockingCores.Count != 0)
-        //            {
-        //                //sync
-        //                while (Interlocked.CompareExchange(ref _syncRoot, SyncWait, SyncReady) == SyncWait)
-        //                {
-        //                    if (Zeroed())
-        //                        return false;
-
-        //                    if (_blockingCores.Count == 0)
-        //                    {
-        //                        Interlocked.Exchange(ref _syncRoot, SyncReady);
-        //                        goto fast;
-        //                    }
-
-        //                    spinWait.SpinOnce();
-        //                }
-
-        //                //fast path?
-        //                if (_results.Count == 0 && Unblock(value, forceAsync, true))
-        //                {
-        //                    Interlocked.Increment(ref _totalOps);
-        //                    Interlocked.Increment(ref _curOps);
-        //                    return true;
-        //                }
-
-        //                if (_blockingCores.Count != 0)
-        //                {
-        //                    spinWait.SpinOnce();
-        //                    //bank
-        //                    goto fast;
-        //                }
-        //            }
-
-        //            //slow path
-        //            var pos = _results.TryEnqueue(value);
-
-        //            //full
-        //            if (pos < 0)
-        //                goto retry;
-
-        //            //raced?
-        //            if (_blockingCores.Count > 0 && pos == _results.Head)
-        //            {
-        //                Interlocked.Increment(ref _totalOps);
-        //                Interlocked.Increment(ref _curOps);
-
-        //                if(_results.Drop(pos))
-        //                    return Unblock(value, forceAsync);
-        //            }
-
-        //            //banked
-        //            return true;
-        //        }
-
-
         /// <summary>
         /// Unlock <see cref="_syncRoot"/>
         /// </summary>
@@ -314,7 +233,7 @@ namespace zero.core.patterns.semaphore.core
                 return false;
 
             //unblock
-            if (Unblock(value, forceAsync, false))
+            if (Unblock(value, forceAsync))
                 return true;
 
             //synchronize
