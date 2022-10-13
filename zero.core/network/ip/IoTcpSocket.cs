@@ -431,7 +431,7 @@ namespace zero.core.network.ip
         {
             try
             {
-                return NativeSocket.RemoteEndPoint != null && NativeSocket.IsBound && NativeSocket.Connected || _timedOp > 0;
+                return Zeroed() || NativeSocket.RemoteEndPoint != null && NativeSocket.IsBound && NativeSocket.Connected || _timedOp > 0;
                 //return !Zeroed() && NativeSocket is { IsBound: true, Connected: true };//&& (_expensiveCheck++ % 10000 == 0 && NativeSocket.Send(_sentinelBuf, SocketFlags.None) == 0  || true);
 
                 //||

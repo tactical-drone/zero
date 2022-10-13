@@ -643,7 +643,6 @@ namespace zero.cocoon.models
                         //await Task.Delay(RandomNumberGenerator.GetInt32(HeartbeatTime/2, HeartbeatTime));
                         //await Task.Delay(30);
 #endif
-                            //Console.WriteLine($"req <= {req}");
                         byte[] socketBuf = null;
                         var processed = 0;
                         try
@@ -711,15 +710,17 @@ namespace zero.cocoon.models
                                         //update latest state
                                         try
                                         {
-                                            await Task.Delay(1);
+                                            //await Task.Delay(1);
 
                                             if (req < @this.CcCollective.MaxReq)
                                                 return;
 
-                                            if (dupEndpoints?.Contains(source.IoNetSocket.Key)??false)
+                                            if (dupEndpoints?.Contains(source.IoNetSocket.Key) ?? false)
                                                 return;
 
-                                            if (source.IoNetSocket == null || req < @this.CcCollective.MaxReq || await source.IoNetSocket.SendAsync(socketBuf, 0, length).FastPath() <= 0)
+                                            if (source.IoNetSocket == null || req < @this.CcCollective.MaxReq ||
+                                                await source.IoNetSocket.SendAsync(socketBuf, 0, length).FastPath() <=
+                                                0)
                                             {
                                                 //_logger.Trace($"SendAsync: FAILED; {source?.Description}");
                                                 return;
@@ -738,10 +739,15 @@ namespace zero.cocoon.models
                                                     }
                                                 });
                                         }
+                                        catch when (@this.Zeroed()) { }
+                                        catch (Exception e) when (!@this.Zeroed())
+                                        {
+                                            _logger.Error(e, $"{nameof(source.IoNetSocket.SendAsync)}: Fanout!");
+                                        }
                                         finally
                                         {
                                             if(cleanup)
-                                                SendBuf.Return(socketBuf, deDup:false); //TODO: do we need dedup hax here?
+                                                SendBuf.Return(socketBuf, deDup:true); //TODO: do we need dedup hax here?
                                         }
                                     }, (@this, drone, dupEndpoints, source, socketBuf, (int)(compressed + sizeof(ulong)), --processed == 0? -req:req));
                                     //if (source == null || await source.IoNetSocket

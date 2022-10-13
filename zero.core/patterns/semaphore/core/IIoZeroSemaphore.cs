@@ -32,5 +32,12 @@ namespace zero.core.patterns.semaphore.core
         protected internal int ZeroDecAsyncCount();
         
         bool Zeroed();
+
+        /// <summary>
+        /// The number of cores processed per second
+        /// </summary>
+        /// <param name="reset">Whether to reset hysteresis</param>
+        /// <returns>The current completions per second</returns>
+        double Cps(bool reset = false);
     }
 }

@@ -88,5 +88,8 @@ namespace zero.core.patterns.semaphore
         {
             throw new NotImplementedException();
         }
+
+        public double Cps(bool reset = false) => 0.0;
+
     }
 }

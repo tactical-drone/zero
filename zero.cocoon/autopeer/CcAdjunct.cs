@@ -734,7 +734,10 @@ namespace zero.cocoon.autopeer
                     if (@this.Zeroed())
                         break;
 
+#if TRACE
                     @this._logger.Trace($"Robo - {TimeSpan.FromMilliseconds(d)}, {@this.Description}");
+#endif
+
                     try
                     {
 #if DEBUG
@@ -1470,7 +1473,7 @@ namespace zero.cocoon.autopeer
             }
             
             //PAT
-            LastPat = Environment.TickCount;
+            //LastPat = Environment.TickCount;
 
             if (IsDroneAttached)
             {
@@ -1517,7 +1520,7 @@ namespace zero.cocoon.autopeer
             Interlocked.Increment(ref _openSlots);
 #endif
             //PAT
-            LastPat = Environment.TickCount;
+            //LastPat = Environment.TickCount;
 
             var fuseResponse = new CcFuseResponse
             {
@@ -1607,7 +1610,7 @@ namespace zero.cocoon.autopeer
             }
 
             //PAT
-            LastPat = Environment.TickCount;
+            //LastPat = Environment.TickCount;
 
             switch (response.Accept)
             {
@@ -1979,7 +1982,7 @@ namespace zero.cocoon.autopeer
                     else
                     {
                         //PAT
-                        LastPat = Environment.TickCount;
+                        //LastPat = Environment.TickCount;
 
                         //TODO: vector?
                         //set ext address as seen by neighbor
@@ -2234,7 +2237,7 @@ namespace zero.cocoon.autopeer
             }
             else //PROCESS SYN
             {
-                LastPat = Environment.TickCount;
+                //LastPat = Environment.TickCount;
 #if SLOTS
                 Interlocked.Exchange(ref _openSlots, probeMessage.Slots);
 #endif
@@ -2642,6 +2645,7 @@ namespace zero.cocoon.autopeer
                     if (_scanCount > parm_zombie_max_connection_attempts)
                     {
                         _logger.Trace($"{nameof(ScanAsync)}: [skipped], no replies {Description}, s = {State}, a = {Assimilating}");
+
                         if (!IsDroneAttached)
                         {
                             await DisposeAsync(this, $"{nameof(ScanAsync)}: Unable to scan adjunct, count = {_scanCount} << {parm_zombie_max_connection_attempts}").FastPath();
@@ -2677,7 +2681,10 @@ namespace zero.cocoon.autopeer
                 if (sent > 0)
                 {
                     Interlocked.Increment(ref _scanCount);
+
+#if TRACE
                     _logger.Trace($"-/> {nameof(CcScanRequest)} ({sent}) {sweepMsgBuf.PayloadSig()}: {RemoteAddress}, [{Designation.IdString()}]");
+#endif
 
                     //Emit message event
                     if (!CcCollective.ZeroDrone && AutoPeeringEventService.Operational)
@@ -2896,8 +2903,6 @@ namespace zero.cocoon.autopeer
                 //Scan for more...
                 IoZeroScheduler.Zero.LoadAsyncContext(static async state =>
                 {
-                    //var adjunct = (CcAdjunct)state;
-                    //await Task.Delay(RandomNumberGenerator.GetInt32(adjunct.parm_max_network_latency_ms));
                     if (!((IoNanoprobe)state).Zeroed())
                         await ((CcAdjunct)state).ScanAsync(0).FastPath();
                 }, this);

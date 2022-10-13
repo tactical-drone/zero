@@ -98,5 +98,8 @@ namespace zero.core.patterns.semaphore
         {
             return _semaphore.Zeroed() || base.Zeroed();
         }
+
+        public double Cps(bool reset = false) => _semaphore.Cps(reset);
+
     }
 }

@@ -48,8 +48,8 @@ namespace zero.cocoon.models
 
             IoZero = (IoZero<CcProtocMessage<chroniton, CcDiscoveryBatch>>)context;
 
-            var pf = Source.PrefetchSize + 1;
-            var cc = Source.ZeroConcurrencyLevel + 1; 
+            var pf = Source.PrefetchSize + 3;
+            var cc = Source.ZeroConcurrencyLevel + 3; 
 
             if (!Source.Proxy && Adjunct.CcCollective.ZeroDrone)
             {
@@ -502,10 +502,12 @@ namespace zero.cocoon.models
                             var chan = ((CcProtocBatchSource<chroniton, CcDiscoveryBatch>)source).Channel;
                             var nextBatch = Interlocked.Exchange(ref @this._currentBatch, BatchHeap.Take());
 
+                            var ready = chan.ReadyCount;
+                            var wait = chan.WaitCount;
                             if (chan.Release(nextBatch, forceAsync: true) != 1)
                             {
                                 if (!((CcProtocBatchSource<chroniton, CcDiscoveryBatch>)source).Zeroed() && !chan.Zeroed() && chan.TotalOps > 0)
-                                    _logger.Fatal($"{nameof(ZeroBatchAsync)}: Unable to q batch,{chan.Description} {@this.Description}");
+                                    _logger.Fatal($"{nameof(ZeroBatchAsync)}: Unable to q batch; had ready = {ready}, wait = {wait}; {chan.Description} {@this.Description}");
 
                                 return new ValueTask<bool>(false);
                             }

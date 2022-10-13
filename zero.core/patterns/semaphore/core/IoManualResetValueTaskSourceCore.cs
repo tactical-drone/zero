@@ -82,10 +82,11 @@ namespace zero.core.patterns.semaphore.core
         /// </summary>
         public bool AutoReset { get; set; }
 
+        private int _syncRoot;
         /// <summary>
         /// Allows the core to be synchronized. Useful when splitting the results and blockers into different queues 
         /// </summary>
-        public int SyncRoot { get; set; }
+        public int SyncRoot { get => _syncRoot; set => Interlocked.Exchange(ref _syncRoot, value); }
 
         /// <summary>
         /// Is this core primed with a sentinel?

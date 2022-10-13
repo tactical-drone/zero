@@ -282,8 +282,12 @@ namespace zero.cocoon
                 if (Interlocked.Read(ref ((CcCollective) Node).Testing) == 0)
                     return;
 
-                if(!Source.IsOperational() || Adjunct.CcCollective.TotalConnections < 1)
+                if (!Source.IsOperational() || Adjunct.CcCollective.TotalConnections < 1)
+                {
+                    _logger.Trace($"{Source.Description}");
                     return;
+                }
+                    
 
                 //if (Interlocked.Read(ref _isTesting) > 0)
                 //    return;
@@ -326,10 +330,11 @@ namespace zero.cocoon
 
                         var socket = MessageService.IoNetSocket;
                         var sent = 0;
+                        _logger.Trace($"{nameof(EmitTestGossipMsgAsync)}: hup sending {(int)compressed + sizeof(ulong)} bytes to {socket.RemoteAddress}...");
                         if ((sent = await socket.SendAsync(buf, 0, (int)compressed + sizeof(ulong), timeout: 20).FastPath()) > 0) 
                         //if (await socket.SendAsync(buf, 0, (int)bl.BaseStream.Position, timeout: 20).FastPath() > 0)
                         {
-                            _logger.Trace($"{nameof(EmitTestGossipMsgAsync)}: hup sent {sent} bytes to {socket.RemoteAddress}...");
+                            _logger.Trace($"{nameof(EmitTestGossipMsgAsync)}: hup sent {sent} bytes to {socket.RemoteAddress}; [SUCCESS]");
                             if (!Adjunct.CcCollective.ZeroDrone && AutoPeeringEventService.Operational)
                                 AutoPeeringEventService.AddEvent(new AutoPeerEvent
                                 {

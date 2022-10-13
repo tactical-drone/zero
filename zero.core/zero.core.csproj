@@ -52,7 +52,7 @@
 	<ItemGroup>
 		<None Include="..\.editorconfig" Link=".editorconfig" />
 		<None Include="..\.gitignore" Link=".gitignore" />
-		<Content Include="..\LICENSE" Link="LICENSE" pack="true" PackagePath="\"/>
+		<Content Include="..\LICENSE" Link="LICENSE" pack="true" PackagePath="\" />
 		<None Include="..\readme.md" Link="readme.md">
 			<Pack>True</Pack>
 			<PackagePath>\</PackagePath>
@@ -67,7 +67,7 @@
 		<PackageReference Include="Microsoft.CSharp" Version="4.7.0" />
 		<PackageReference Include="NLog" Version="5.0.4" />
 		<PackageReference Include="System.Runtime.CompilerServices.Unsafe" Version="7.0.0-preview.3.22119.2" />
-		<PackageReference Include="System.Threading.Channels" Version="8.0.0-alpha.1.22507.5" />
+		<PackageReference Include="System.Threading.Channels" Version="7.0.0-rtm.22511.4" />
 		<PackageReference Include="xunit.abstractions" Version="2.0.3" />
 	</ItemGroup>
 

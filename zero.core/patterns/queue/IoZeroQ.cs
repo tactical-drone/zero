@@ -497,6 +497,131 @@ namespace zero.core.patterns.queue
             }
         }
 
+#if !DEBUG
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+#endif
+        private bool AtomicDrop(long targetIndex)
+        {
+            var index = _head;
+            if (index != targetIndex)
+                return false;
+#if DEBUG
+            var ts = Environment.TickCount;
+#endif
+            try
+            {
+                
+                var modIdx = index % Capacity;
+
+                if (!IsAutoScaling)
+                {
+                    //bool readLock = false;
+                    //bool writeLock = false;
+                    //try
+                    //{
+                    //    readLock = _rwLock.TryEnterUpgradeableReadLock(_readTo);
+                    //    if (readLock && Head == index)
+                    //    {
+                    //        try
+                    //        {
+                    //            writeLock = _rwLock.TryEnterWriteLock(_writeTo);
+                    //            if (writeLock && Head == index)
+                    //            {
+                    //                value = _fastStorage[modIdx];
+                    //                _fastStorage[modIdx] = default;
+                    //                Interlocked.Decrement(ref _count);
+                    //                Interlocked.Increment(ref _head);
+                    //                Interlocked.Exchange(ref _fastBloom[modIdx], _zero);
+                    //                return true;
+                    //            }
+                    //        }
+                    //        finally
+                    //        {
+                    //            if(writeLock)
+                    //                _rwLock.ExitWriteLock();
+                    //        }
+                    //    }
+                    //}
+                    //finally
+                    //{
+                    //    if(readLock)
+                    //        _rwLock.ExitUpgradeableReadLock();
+                    //}
+
+                    //value = default;
+                    //return false;
+
+                    //lock (_syncRoot)
+                    {
+                        //if (Head == index)
+                        //{
+                        //    value = _fastStorage[modIdx];
+                        //    _fastStorage[modIdx] = default;
+                        //    Interlocked.Decrement(ref _count);
+                        //    Interlocked.Increment(ref _head);
+                        //    Interlocked.Exchange(ref _fastBloom[modIdx], _zero);
+                        //    return true;
+                        //}
+
+                        //value = default;
+                        //return false;
+
+                        ref var fastBloomPtr = ref _fastBloom[modIdx];
+                        if (Head == index && Interlocked.CompareExchange(ref fastBloomPtr, _reset, _set) == _set)
+                        {
+                            if (Head != index)
+                            {
+                                if (Interlocked.CompareExchange(ref fastBloomPtr, _set, _reset) != _reset)
+                                    LogManager.GetCurrentClassLogger().Fatal($"R> Unable to restore lock at {index} - {Description}");
+
+                                return false;
+                            }
+
+                            _fastStorage[modIdx] = default;
+                            Interlocked.Decrement(ref _count);
+                            Interlocked.Increment(ref _head);
+                            Interlocked.Exchange(ref fastBloomPtr, _zero);
+                            return true;
+                        }
+                    }
+
+                    return false;
+                }
+
+                var i = (int)(Math.Log10(modIdx + 1) / Math.Log10(2));
+                var i2 = modIdx - ((1 << i) - 1);
+                ref var bloomPtr = ref _bloom[i][i2];
+
+                if (Interlocked.CompareExchange(ref bloomPtr, _reset, _set) == _set)
+                {
+                    if (Head != index)
+                    {
+                        if (Interlocked.CompareExchange(ref bloomPtr, _set, _reset) != _reset)
+                            LogManager.GetCurrentClassLogger().Fatal($"R> Unable to restore lock at {index} - {Description}");
+                        
+                        return false;
+                    }
+
+                    _storage[i][i2] = default;
+                    Interlocked.Decrement(ref _count);
+                    Interlocked.Increment(ref _head);
+                    Interlocked.Exchange(ref bloomPtr, _zero);
+                    return true;
+                }
+
+                return false;
+            }
+            finally
+            {
+#if DEBUG
+                if (ts.ElapsedMs() > 128)
+                {
+                    LogManager.GetCurrentClassLogger().Fatal($"{nameof(AtomicRemove)}: CAS took => {ts.ElapsedMs()} ms");
+                }
+#endif
+            }
+        }
+
         /// <summary>
         /// Add item to the bag
         /// </summary>
@@ -512,7 +637,7 @@ namespace zero.core.patterns.queue
         {
             Debug.Assert(Zeroed || item != null);
 
-            if (Zeroed || _clearing > 0)
+            if (Zeroed || _clearing > 0 || _count >= Capacity)
                 return -1;
 
             //auto scale
@@ -697,6 +822,8 @@ namespace zero.core.patterns.queue
             return false;
         }
 
+        public bool Drop(long index) => AtomicDrop(index);
+        
         /// <summary>
         /// Peeks the head of the queue
         /// </summary>

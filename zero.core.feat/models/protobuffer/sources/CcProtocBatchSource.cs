@@ -28,7 +28,7 @@ namespace zero.core.feat.models.protobuffer.sources
             : base(description, false, prefetchSize, concurrencyLevel, zeroAsyncMode)//TODO config
         {
             UpstreamSource = ioSource;
-            BatchChannel = new IoZeroSemaphoreChannel<TBatch>($"{nameof(BatchChannel)}: {ioSource.Description}", concurrencyLevel);
+            BatchChannel = new IoZeroSemaphoreChannel<TBatch>($"{nameof(BatchChannel)}: {ioSource.Description}", prefetchSize);
         }
 
         /// <summary>

@@ -181,7 +181,7 @@ namespace zero.test.core.patterns.bushings
             
 
             await Task.Delay(100);
-            Assert.InRange(c1.EventCount, count, count * 1.25);
+            Assert.InRange(c1.EventCount, count, count * 3);
             _output.WriteLine($"#event = {c1.EventCount} ~ {count}");
         }
     }

@@ -190,7 +190,7 @@ namespace zero.cocoon
                 try
                 {
                     var ts = Environment.TickCount;
-                    var delay = (@this.EgressCount < @this.parm_max_outbound ? @this.parm_futile_timeout_ms/1000 : @this.parm_mean_pat_delay_s) * 1000;
+                    var delay = (@this.EgressCount < @this.parm_max_outbound ? @this.parm_mean_pat_delay_s / 10 : @this.parm_mean_pat_delay_s) * 1000;
 
                     await Task.Delay(TimeSpan.FromMilliseconds(@this._random.Next(delay) + delay / 2), @this.AsyncTasks.Token);
 
@@ -202,8 +202,10 @@ namespace zero.cocoon
                     if (@this.Zeroed())
                         break;
 
+#if TRACE
                     @this._logger.Trace($"Robo - {TimeSpan.FromMilliseconds(ts.ElapsedMs())}, {@this.Description}");
-                    
+#endif
+
                     var force = false;
                     if (@this.Hub.Neighbors.Count <= 1 || @this.TotalConnections == 0)
                     {
@@ -778,7 +780,8 @@ namespace zero.cocoon
 
                     if (bytesRead < _futileRejectSize || !drone.Source.IsOperational())
                     {
-                        _logger.Trace($"<\\h {nameof(CcFutileResponse)}({bytesRead}) [{futileBuffer[..bytesRead].PayloadSig()}]: Failed to read egress futile challange response, available = {ioNetSocket.NativeSocket.Available}, waited = {ts.ElapsedMs()}ms, remote = {ioNetSocket.RemoteAddress}, z = {Zeroed()}");
+                        if(!Zeroed())
+                            _logger.Trace($"<\\h {nameof(CcFutileResponse)}({bytesRead}) [{futileBuffer[..bytesRead].PayloadSig()}]: Failed to read egress futile challange response, available = {ioNetSocket.NativeSocket.Available}, waited = {ts.ElapsedMs()}ms, remote = {ioNetSocket.RemoteAddress}, z = {Zeroed()}");
                         return false;
                     }
 
@@ -1023,6 +1026,7 @@ namespace zero.cocoon
 
             if (Neighbors.Count > 0)
             {
+                _logger.Info($"Starting spam... nodes = {Neighbors.Count}, ready = {WhisperingDrones.Count}");
                 await WhisperingDrones[_random.Next(0, WhisperingDrones.Count)].EmitTestGossipMsgAsync(v).FastPath();
                 return true;
             }

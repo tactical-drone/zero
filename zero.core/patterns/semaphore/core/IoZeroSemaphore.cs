@@ -993,6 +993,9 @@ namespace zero.core.patterns.semaphore.core
             return _zeroed > 0;
         }
 
+        public double Cps(bool reset = false) => 0;
+        
+
         /// <summary>
         /// Throw on error
         /// </summary>

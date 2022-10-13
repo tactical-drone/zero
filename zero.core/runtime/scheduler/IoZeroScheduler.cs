@@ -121,7 +121,7 @@ namespace zero.core.runtime.scheduler
         //The maximum burst rate per WorkerSpawnBurstTimeMs tick
         private static readonly int WorkerSpawnBurstMax = Math.Max(Environment.ProcessorCount, WorkerSpawnPassThrough * WorkerSpawnPassThrough) / WorkerSpawnPassThrough * WorkerSpawnPassThrough;
         //The load threshold at which more workers are added
-        private static readonly double WorkerSpawnThreshold = 0.7;
+        private static readonly double WorkerSpawnThreshold = 0.6;
 
 
         private static volatile int _workerSpawnBurstMax = WorkerSpawnBurstMax;
@@ -236,6 +236,8 @@ namespace zero.core.runtime.scheduler
 
         //idle worker threads
         public int Idle => _taskQueue.WaitCount;
+
+        public double Rate => _taskQueue.Cps(true);
 
         //waiting program threads
         public int Wait => _taskQueue.ReadyCount;
@@ -566,17 +568,10 @@ namespace zero.core.runtime.scheduler
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         protected override void QueueTask(Task task)
         {
-
-            EnsureInit();
-
-            if (_taskQueue.Release(task, true) < 0)
-                throw new InternalBufferOverflowException($"{nameof(_taskQueue)}: {_taskQueue.Description}");
-            
-            Interlocked.Increment(ref _taskEnqueueCount);
-
             //insane checks
             if (LoadFactor > WorkerSpawnThreshold && _lastWorkerSpawnedTime.ElapsedMs() > WorkerSpawnBurstTimeMs && _taskQueueCapacity < short.MaxValue / WorkerSpawnPassThrough || LoadFactor > 0.99)
             {
+                //_lastWorkerSpawnedTime = Environment.TickCount;
                 FallbackContext(static state =>
                 {
                     var @this = (IoZeroScheduler)state;
@@ -614,7 +609,15 @@ namespace zero.core.runtime.scheduler
                             $"Adding zero thread {@this._taskQueueCapacity}, load = {@this.LoadFactor * 100:0.0}%");
                     }
                 }, this);
+
+                Thread.Yield();
             }
+
+            //scheduler the task
+            if (_taskQueue.Release(task, true) < 0)
+                throw new InternalBufferOverflowException($"{nameof(_taskQueue)}: {_taskQueue.Description}");
+
+            Interlocked.Increment(ref _taskEnqueueCount);
         }
 
         /// <summary>Tries to execute the task synchronously on this scheduler.</summary>

@@ -179,7 +179,7 @@ namespace zero.sync
             {
                 Console.WriteLine($"Starting auto peering...  {bag.Count}");
                 var c = 0;
-                var rateLimit = 4000;
+                var rateLimit = bag.Count * 10;
                 var injectionCount = Math.Max(1, bag.Count / 20);
                 var rampDelay = 50;
                 foreach (var cocoon in bag.OrderBy(e => e.Serial))
@@ -200,7 +200,7 @@ namespace zero.sync
                         Console.WriteLine($"Provisioned {c}/{total}");
                         Console.WriteLine($"Provisioned {c}/{total}");
 
-                        await Task.Delay(rateLimit -= 0).ConfigureAwait(false);
+                        await Task.Delay(rateLimit -= 1).ConfigureAwait(false);
 
                         //if (injectionCount > 50)
                         //    injectionCount--;
@@ -393,8 +393,8 @@ namespace zero.sync
             {
                 var t = j.RunAsync(async () =>
                 {
-                    //await SemTestAsync();
-                    await QueueTestAsync();
+                    await SemTestAsync();
+                    //await QueueTestAsync();
                     //await ZeroQTestAsync();
                     //await BagTestAsync();
                 });
@@ -607,7 +607,7 @@ namespace zero.sync
 
                     if (line == "L")
                     {
-                        Console.WriteLine($"[{IoZeroScheduler.Zero.Load}/{IoZeroScheduler.Zero.AsyncTaskWithContextLoad}/{IoZeroScheduler.Zero.ForkLoad}/{IoZeroScheduler.Zero.Capacity}] load = {IoZeroScheduler.Zero.Load/ IoZeroScheduler.Zero.Capacity * 100:0.0}%, aq time = {IoZeroScheduler.Zero.AQTime:0.0}ms, poll% = {((IoZeroScheduler.Zero.AsyncForkCount - LOrig - LC) - (IoZeroScheduler.Zero.TaskDequeueCount - QC)) / (double)(IoZeroScheduler.Zero.AsyncForkCount - LC) * 100.0:0.0}%, ({(IoZeroScheduler.Zero.AsyncForkCount - LOrig - (IoZeroScheduler.Zero.TaskDequeueCount - QOrig)) / (double)(IoZeroScheduler.Zero.AsyncForkCount - LOrig) * 100.0:0.00}%), Q = {IoZeroScheduler.Zero.Wait}/{IoZeroScheduler.Zero.Idle}, F = {IoZeroScheduler.Zero.ForkLoad}, C = {IoZeroScheduler.Zero.TaskDequeueCount - QOrig}, {(IoZeroScheduler.Zero.AsyncForkCount - QOrig) / (double)QSOrig.ElapsedMsToSec():0.0} ops, c = {IoZeroScheduler.Zero.TaskDequeueCount- QC}, {(IoZeroScheduler.Zero.TaskDequeueCount - QC) / (double)QS.ElapsedMsToSec():0.0} tps, {(IoZeroScheduler.Zero.AsyncTaskWithContextCount - AC) / (double)AS.ElapsedMsToSec():0.0} async/s ({IoZeroScheduler.Zero.AsyncTaskWithContextCount - AC})[{IoZeroScheduler.Zero.AsyncTaskWithContextCount}]");
+                        Console.WriteLine($"[{IoZeroScheduler.Zero.Load}/{IoZeroScheduler.Zero.AsyncTaskWithContextLoad}/{IoZeroScheduler.Zero.ForkLoad}/{IoZeroScheduler.Zero.Capacity}] load = {IoZeroScheduler.Zero.Load/ IoZeroScheduler.Zero.Capacity * 100:0.0}%, aq time = {IoZeroScheduler.Zero.AQTime:0.0}ms, poll% = {((IoZeroScheduler.Zero.AsyncForkCount - LOrig - LC) - (IoZeroScheduler.Zero.TaskDequeueCount - QC)) / (double)(IoZeroScheduler.Zero.AsyncForkCount - LC) * 100.0:0.0}%, ({(IoZeroScheduler.Zero.AsyncForkCount - LOrig - (IoZeroScheduler.Zero.TaskDequeueCount - QOrig)) / (double)(IoZeroScheduler.Zero.AsyncForkCount - LOrig) * 100.0:0.00}%), Q = {IoZeroScheduler.Zero.Wait}/{IoZeroScheduler.Zero.Idle} ({IoZeroScheduler.Zero.Rate:0.0} q/s), F = {IoZeroScheduler.Zero.ForkLoad}, C = {IoZeroScheduler.Zero.TaskDequeueCount - QOrig}, {(IoZeroScheduler.Zero.AsyncForkCount - QOrig) / (double)QSOrig.ElapsedMsToSec():0.0} ops, c = {IoZeroScheduler.Zero.TaskDequeueCount- QC}, {(IoZeroScheduler.Zero.TaskDequeueCount - QC) / (double)QS.ElapsedMsToSec():0.0} tps, {(IoZeroScheduler.Zero.AsyncTaskWithContextCount - AC) / (double)AS.ElapsedMsToSec():0.0} async/s ({IoZeroScheduler.Zero.AsyncTaskWithContextCount - AC})[{IoZeroScheduler.Zero.AsyncTaskWithContextCount}]");
                         QS = Environment.TickCount;
                         AS = Environment.TickCount;
                         LS = Environment.TickCount;

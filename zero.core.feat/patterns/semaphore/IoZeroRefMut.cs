@@ -94,6 +94,9 @@ namespace zero.core.feat.patterns.semaphore
             throw new NotImplementedException();
         }
 
+        public double Cps(bool reset = false) => 0.0;
+        
+
         public long DecWaitCount()
         {
             throw new NotImplementedException();
