@@ -145,26 +145,24 @@ namespace zero.core.patterns.semaphore.core
             IIoManualResetValueTaskSourceCore<T> blockingCore;
 
             retry:
-
             //fetch a blocking core from the Q
             while (!_blockingCores.TryDequeue(out blockingCore))
             {
                 if (_blockingCores.Count == 0)
                 {
                     if (sync)
-                        Interlocked.Exchange(ref _syncRoot, SyncReady);
+                        Unlock();
                     return false;
                 }
 
                 if (Zeroed())
                     return false;
 
-                if (!spinWait.NextSpinWillYield)
-                    spinWait.SpinOnce();
+                spinWait.SpinOnce();
             }
 
             if (sync)
-                Interlocked.Exchange(ref _syncRoot, SyncReady);
+                Unlock();
 
             //wait for the blocking core to synchronize
             while (blockingCore.SyncRoot == SyncWait)
@@ -172,8 +170,7 @@ namespace zero.core.patterns.semaphore.core
                 if (Zeroed())
                     return false;
 
-                if (!spinWait.NextSpinWillYield)
-                    spinWait.SpinOnce();
+                spinWait.SpinOnce();
             }
 
             switch (blockingCore.SyncRoot)
