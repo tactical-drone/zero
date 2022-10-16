@@ -133,6 +133,9 @@ namespace zero.core.feat.models.protobuffer
                             //Drop zero reads
                             if (read == 0)
                             {
+                                if (ioSocket.Zeroed())
+                                    return false;
+
                                 var socket = (IoNetClient<CcProtocMessage<TModel, TBatch>>)ioSocket;
                                 if (!job.MessageService.IsOperational())
                                 {
@@ -157,7 +160,7 @@ namespace zero.core.feat.models.protobuffer
                                     }
                                 }
 #if DEBUG
-                                _logger.Error($"ReceiveAsync [FAILED]: ZERO UDP READS!!! {ioJob.Description}");
+                                _logger.Error($"ReceiveAsync [FAILED]: ZERO {socket.IoNetSocket.ProtocolType} READS!!! {ioJob.Description}");
 #endif
                                 await ioJob.SetStateAsync(IoJobMeta.JobState.ProdSkipped).FastPath();
                                 return false;

@@ -490,7 +490,7 @@ namespace zero.core.patterns.misc
         public async ValueTask<(T target, bool success, IoQueue<IIoNanite>.IoZNode sub)> ZeroHiveAsync<T>(T target,
             bool twoWay = false) where T : IIoNanite
         {
-            if (_zeroed > 0 || target == null)
+            if (_zeroed > 0 || target == null || target.Zeroed())
                 return (default, false, null);
 
             var zNode = await _zeroHiveMind.EnqueueAsync(target).FastPath();

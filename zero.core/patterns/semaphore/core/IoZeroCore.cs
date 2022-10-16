@@ -233,26 +233,28 @@ namespace zero.core.patterns.semaphore.core
             if (Unblock(value, forceAsync))
                 return true;
 
-            //synchronize
-            if (!Lock())
-                return false;
-
+            bank:
             //queue result for future blocker
             var pos = _results.TryEnqueue(value);
 
             //saturated
             if (pos < 0)
-            {
-                Unlock();
                 return false;
-            }
+            
+            //synchronize
+            if (!Lock())
+                return false;
 
             //race
             if (_blockingCores.Count != 0 && pos == _results.Head)
             {
                 if (_results.Drop(pos))
-                    return Unblock(value, forceAsync, true);
-
+                {
+                    if (Unblock(value, forceAsync, true))
+                        return true;
+                    goto bank;
+                }
+                
                 Unlock();
                 return true;
             }
@@ -298,15 +300,12 @@ namespace zero.core.patterns.semaphore.core
                 };
                 blockingCore.Reset(static state =>
                 {
-                    var (@this, blockingCore) =
-                        (ValueTuple<IoZeroCore<T>, IIoManualResetValueTaskSourceCore<T>>)state;
+                    var (@this, blockingCore) = (ValueTuple<IoZeroCore<T>, IIoManualResetValueTaskSourceCore<T>>)state;
 
                     Interlocked.Increment(ref @this._totalOps);
                     Interlocked.Increment(ref @this._curOps);
 
-                    if (@this._heapCore.TryEnqueue(blockingCore) < 0)
-                        throw new InvalidOperationException(
-                            $"{nameof(@this.Block)}: unable to return memory to heap; {@this._heapCore.Description}");
+                    @this._heapCore.TryEnqueue(blockingCore);
                 }, (this, blockingCore));
             }
 

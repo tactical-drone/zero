@@ -153,12 +153,15 @@ namespace zero.core.patterns.semaphore.core
             if (val + 1 > cap)
                 return cap;
 
-            int inc;
+            var spinWait = new SpinWait();
+
             int latch;
-            while ((inc = (latch = val) + 1) > cap || Interlocked.CompareExchange(ref val, inc, latch) != latch)
+            while ((latch = val) + 1 > cap || Interlocked.CompareExchange(ref val, latch + 1, latch) != latch)
             {
-                if (inc > cap)
+                if (val + 1 > cap)
                     return cap;
+
+                spinWait.SpinOnce();
             }
 
             return latch;

@@ -213,7 +213,7 @@ namespace zero.core.patterns.bushings
         /// </summary>
         [IoParameter]
         // ReSharper disable once InconsistentNaming
-        public int parm_min_failed_production_time = 16 * 3;
+        public int parm_min_failed_production_time = 1000;
 
         /// <summary>
         /// The time a source will wait for a consumer to release it before aborting in ms

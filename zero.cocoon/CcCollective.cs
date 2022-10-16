@@ -125,7 +125,7 @@ namespace zero.cocoon
 
         private async ValueTask StartHubAsync(int udpPrefetch, int udpConcurrencyLevel)
         {
-            if (_autoPeering != null)
+            if (_autoPeering != null || (!_autoPeering?.Zeroed()?? false))
                 await _autoPeering.DisposeAsync(this, "RESTART!").FastPath();
 
             Interlocked.Exchange(ref _autoPeering, new CcHub(this, _peerAddress, static (node, client, extraData) => new CcAdjunct((CcHub)node, client, extraData), udpPrefetch, udpConcurrencyLevel));
@@ -185,6 +185,7 @@ namespace zero.cocoon
         /// <returns></returns>
         private static async ValueTask RoboAsync(CcCollective @this)
         {
+            var noHub = 3;
             while (!@this.Zeroed())
             {
                 try
@@ -194,13 +195,18 @@ namespace zero.cocoon
 
                     await Task.Delay(TimeSpan.FromMilliseconds(@this._random.Next(delay) + delay / 2), @this.AsyncTasks.Token);
 
-#if DEBUG
-                    if (@this.Hub == null)
-                        continue;
-#endif
-
                     if (@this.Zeroed())
                         break;
+
+                    if (@this.Hub == null)
+                    {
+                        if(noHub-->0)
+                            continue;
+                        noHub = 3;
+                        @this._logger.Warn($"{nameof(RoboAsync)}: Restarting missing hub; {@this.Description}");
+                        await @this.StartHubAsync(@this._udpPrefetch, @this.ZeroConcurrencyLevel).FastPath();
+                        continue;
+                    }
 
 #if TRACE
                     @this._logger.Trace($"Robo - {TimeSpan.FromMilliseconds(ts.ElapsedMs())}, {@this.Description}");
@@ -211,8 +217,11 @@ namespace zero.cocoon
                     {
                         //restart useless hubs
                         if (@this.UpTime.ElapsedMsToSec() > @this.parm_mean_pat_delay_s)
-                            await @this.StartHubAsync(@this.Hub.PreFetch, @this.Hub.ZeroConcurrencyLevel).FastPath();
-
+                        {
+                            @this._logger.Warn($"{nameof(RoboAsync)}: Restarting useless hub; {@this.Hub.Description}");
+                            await @this.Hub.DisposeAsync(@this, "useless");
+                            continue;
+                        }
                         force = true;
                     }
 
@@ -418,7 +427,7 @@ namespace zero.cocoon
         /// </summary>
         [IoParameter]
         // ReSharper disable once InconsistentNaming
-        public int parm_max_inbound = 5;
+        public int parm_max_inbound = 6;
 
         /// <summary>
         /// Max outbound neighbors
@@ -432,14 +441,14 @@ namespace zero.cocoon
         /// </summary>
         [IoParameter]
         // ReSharper disable once InconsistentNaming
-        public int parm_max_drone = 8;
+        public int parm_max_drone = 9;
 
         /// <summary>
         /// Max adjuncts
         /// </summary>
         [IoParameter]
         // ReSharper disable once InconsistentNaming
-        public int parm_max_adjunct = 10;
+        public int parm_max_adjunct = 12;
 
         /// <summary>
         /// Protocol version

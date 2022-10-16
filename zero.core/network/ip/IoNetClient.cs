@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Runtime.CompilerServices;
 using System.Threading.Tasks;
 using NLog;
 using zero.core.conf;
@@ -7,6 +8,7 @@ using zero.core.misc;
 using zero.core.patterns.bushings;
 using zero.core.patterns.bushings.contracts;
 using zero.core.patterns.misc;
+using zero.core.runtime.scheduler;
 
 namespace zero.core.network.ip
 {
@@ -48,7 +50,14 @@ namespace zero.core.network.ip
         /// <param name="proxy">Whether this source is a proxy</param>
         protected IoNetClient(string description, IoNetSocket netSocket, int prefetchSize, int concurrencyLevel, bool zeroAsyncMode, bool proxy = false) : base(description, proxy, prefetchSize, concurrencyLevel, zeroAsyncMode)
         {
+            IoZeroScheduler.Zero.LoadAsyncContext(static async state =>
+            {
+                var (@this, netSocket) = (ValueTuple<IoNetClient<TJob>, IoNetSocket>)state;
+                await @this.ZeroHiveAsync(netSocket, true).FastPath();
+            }, (this, netSocket));
+
             IoNetSocket = netSocket;
+
             _logger = LogManager.GetCurrentClassLogger();
             Direction = IIoSource.Heading.Ingress;
         }
@@ -155,11 +164,6 @@ namespace zero.core.network.ip
         }
 
         /// <summary>
-        /// Rate limit socket health checks
-        /// </summary>
-        private long _lastSocketHealthCheck = Environment.TickCount;
-        
-        /// <summary>
         /// Detects socket drops
         /// </summary>
         /// <returns>True it the connection is up, false otherwise</returns>
@@ -167,38 +171,7 @@ namespace zero.core.network.ip
         {
             try
             {
-                //fail fast
-                if (Zeroed())
-                    return false;
-
-                //check TCP
-                if (IoNetSocket.IsTcpSocket)
-                {
-                    //rate limit
-                    if (_lastSocketHealthCheck.ElapsedMs() < 5000)
-                    {
-                        if (IoNetSocket.NativeSocket.Connected && IoNetSocket.NativeSocket.IsBound)
-                            return true;
-                    }
-                        
-
-                    _lastSocketHealthCheck = Environment.TickCount;
-                    //TODO more checks?
-                    if (!IoNetSocket.IsConnected())
-                    {
-                        if (UpTime.ElapsedUtcMsToSec() > 5)
-                            _logger.Error($"DC {IoNetSocket.RemoteNodeAddress} from {IoNetSocket.LocalNodeAddress}, uptime = {TimeSpan.FromMilliseconds(UpTime.ElapsedUtcMs())}");
-
-                        Dispose();
-                        
-                        return false;
-                    }
-
-                    return true;
-                }
-
-                //Check UDP
-                return IoNetSocket.IsConnected();
+                return Zeroed() || (IoNetSocket?.IsConnected()??false);
             }
             catch when (Zeroed())
             {

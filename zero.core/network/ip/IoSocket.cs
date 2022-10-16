@@ -25,7 +25,7 @@ namespace zero.core.network.ip
         protected IoSocket(SocketType socketType, ProtocolType protocolType, int concurrencyLevel) : base($"{nameof(IoSocket)}", concurrencyLevel)
         {
             _logger = LogManager.GetCurrentClassLogger();
-            NativeSocket = new Socket(AddressFamily.InterNetwork, socketType, protocolType);
+            NativeSocket = new Socket(AddressFamily.InterNetwork, socketType, ProtocolType = protocolType);
         }
 
         /// <inheritdoc />
@@ -61,7 +61,7 @@ namespace zero.core.network.ip
             }
 
             Kind = Connection.Ingress;
-
+            ProtocolType = NativeSocket.ProtocolType;
         }
 
         /// <summary>
@@ -151,10 +151,17 @@ namespace zero.core.network.ip
         /// </summary>
         public bool IsEgress => Kind == Connection.Egress;
 
+        public ProtocolType ProtocolType { get; private set; }
+
         /// <summary>
         /// Returns true if this is a TCP socket
         /// </summary>
-        public bool IsTcpSocket => NativeSocket?.ProtocolType == ProtocolType.Tcp;
+        public bool IsTcpSocket => ProtocolType == ProtocolType.Tcp;
+
+        /// <summary>
+        /// Returns true if this is a TCP socket
+        /// </summary>
+        public bool IsUdpSocket => ProtocolType == ProtocolType.Udp;
 
         [IoParameter]
         // ReSharper disable once InconsistentNaming

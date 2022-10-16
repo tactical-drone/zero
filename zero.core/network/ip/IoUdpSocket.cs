@@ -327,13 +327,12 @@ namespace zero.core.network.ip
         public override async ValueTask<int> SendAsync(ReadOnlyMemory<byte> buffer, int offset, int length,
             EndPoint endPoint, int timeout = 0)
         {
-
-            if (!NativeSocket.Poll(parm_socket_poll_wait_ms, SelectMode.SelectWrite))
-                return 0;
-
             SocketAsyncEventArgs args = default;
             try
             {
+                //if (!NativeSocket.Poll(parm_socket_poll_wait_ms, SelectMode.SelectWrite))
+                //    return 0;
+
                 args = _argsHeap.Take();
                 if (args == null)
                     throw new OutOfMemoryException(nameof(_argsHeap));
