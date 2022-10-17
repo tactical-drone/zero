@@ -390,9 +390,14 @@ namespace zero.cocoon.autopeer
         private readonly IoZeroResetValueTaskSource<bool> _zeroSync;
 
         /// <summary>
-        /// Seconds since pat
+        /// Time since last trigger
         /// </summary>
-        private long _lastPat = Environment.TickCount;
+        private long _lastDelta = Environment.TickCount;
+
+        /// <summary>
+        /// Time since pat
+        /// </summary>
+        private long _lastPat = Environment.TickCount - (int)TimeSpan.FromHours(1).TotalMilliseconds;
 
         /// <summary>
         /// Total pats
@@ -2211,9 +2216,11 @@ namespace zero.cocoon.autopeer
                         _logger.Trace($"<\\- {nameof(CcProbeResponse)} ({sent}) [{payload[..payload.Length].PayloadSig()} ~ {response.ReqHash.Memory.HashSig()}]: [[SYN-ACK]], dest = {MessageService.IoNetSocket.RemoteNodeAddress}, [{Designation.IdString()}]");
 #endif
                         //ensure ingress delta trigger (2 consecutive probes beckon an Ingress connection)
-                        if (!CcCollective.ZeroDrone)
-                            await SeduceAsync("SYN-DELTA", IIoSource.Heading.Egress).FastPath();
+                        if (!CcCollective.ZeroDrone && _lastDelta.ElapsedMs() > parm_max_network_latency_ms)
+                            await SeduceAsync("SYN-DELTA", IIoSource.Heading.Ingress).FastPath();
 
+                        Interlocked.Exchange(ref _lastDelta, Environment.TickCount);
+                        
                         if (!CcCollective.ZeroDrone && AutoPeeringEventService.Operational)
                             AutoPeeringEventService.AddEvent(new AutoPeerEvent
                             {
@@ -2353,8 +2360,6 @@ namespace zero.cocoon.autopeer
 
                 if (!Verified) //Process ACK
                 {
-                    //PAT
-                    LastPat = Environment.TickCount;
 #if DEBUG
                     //TODO: vector?
                     //set ext address as seen by neighbor
@@ -2376,10 +2381,9 @@ namespace zero.cocoon.autopeer
                 else 
                 {
                     //#if DEBUG
-                    //                    _sibling = (CcAdjunct)GCHandle.FromIntPtr(new IntPtr(response.DbgPtr)).Target;
+                    //_sibling = (CcAdjunct)GCHandle.FromIntPtr(new IntPtr(response.DbgPtr)).Target;
                     //#endif
                     //PAT
-                    LastPat = Environment.TickCount;
 #if DEBUG
                     if(NatAddress == null)
                         NatAddress = IoNodeAddress.CreateFromEndpoint("udp", src);
@@ -2394,13 +2398,14 @@ namespace zero.cocoon.autopeer
 #if TRACE
                 _logger.Trace($"<\\- {nameof(CcProbeResponse)} [{response.ToByteArray().PayloadSig()} ~ {response.ReqHash.Memory.HashSig()}]: Processed <<ACK>>; stealth = ({_stealthy.ElapsedMs()}/{parm_max_network_latency_ms}) ms {Description}");
 #endif
-
                 if (!CcCollective.ZeroDrone)
-                    await SeduceAsync("SYN-POK", IIoSource.Heading.Both).FastPath();
+                    await SeduceAsync("SYN-POK", _lastPat.ElapsedMs() < parm_max_network_latency_ms? IIoSource.Heading.Egress : IIoSource.Heading.Both).FastPath();
+
+                LastPat = Environment.TickCount;
 
                 //eradicate zombie drones
                 if (((DroneStatus)response.Status).HasFlag(DroneStatus.Drone) && !IsDroneAttached && UpTime.ElapsedUtcMs() > parm_min_uptime_ms)
-                    await DeFuseAsync().FastPath();
+                    await DetachDroneAsync().FastPath();
             }
             catch when(Zeroed()){}
             catch (Exception e) when (!Zeroed())
