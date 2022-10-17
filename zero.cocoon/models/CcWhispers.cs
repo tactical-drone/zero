@@ -710,7 +710,7 @@ namespace zero.cocoon.models
                                         //update latest state
                                         try
                                         {
-                                            //await Task.Delay(1);
+                                            await Task.Delay(500);
 
                                             if (req < @this.CcCollective.MaxReq)
                                                 return;

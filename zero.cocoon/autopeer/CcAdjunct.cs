@@ -489,6 +489,17 @@ namespace zero.cocoon.autopeer
         /// </summary>
         private int _vFlush = Environment.TickCount;
 
+        public long Lamport => _lamport;
+        private long _lamport;
+        public bool LivenessTest
+        {
+            get
+            {
+                var c = CcCollective.Lamport;
+                return Math.Abs(_lamport - c) >= c / 2;
+            }
+        }
+
         /// <summary>
         /// The adjunct services
         /// </summary>
@@ -1902,6 +1913,7 @@ namespace zero.cocoon.autopeer
                             {
                                 //drop something
                                 var bad = @this.Hub.Neighbors.Values.Where(n =>
+                                        !((CcAdjunct)n).LivenessTest ||
                                         ((CcAdjunct)n).IsProxy &&
                                         ((CcAdjunct)n).UpTime.ElapsedUtcMs() > @this.parm_min_uptime_ms &&
                                         ((CcAdjunct)n).State < AdjunctState.Verified
@@ -1926,8 +1938,8 @@ namespace zero.cocoon.autopeer
                                     var dropped = badList.FirstOrDefault();
                                     if (dropped != default && ((CcAdjunct)dropped).State < AdjunctState.Verified)
                                     {
-                                        await ((CcAdjunct)dropped).DisposeAsync(@this, "collected").FastPath();
-                                        @this._logger.Debug($"@ {dropped.Description}");
+                                        await ((CcAdjunct)dropped).DisposeAsync(@this, $"collected - liveness = {((CcAdjunct)dropped).LivenessTest}").FastPath();
+                                        @this._logger.Debug($"@ liveness = {((CcAdjunct)dropped).LivenessTest}; {dropped.Description}");
                                     }
                                 }
                                 else //try harder 
@@ -2085,7 +2097,11 @@ namespace zero.cocoon.autopeer
                 _logger.Trace($"{nameof(CcProbeMessage)}: dropped probe from {remoteEp}; [FULL]");
                 return;
             }
-            
+
+            //liveness boost
+            if(probeMessage.Lamport > 0 && probeMessage.Lamport <= CcCollective.Lamport * 2)
+                Interlocked.Exchange(ref _lamport, probeMessage.Lamport);
+
             var response = new CcProbeResponse
             {
                 Protocol = parm_protocol_version,
@@ -2484,7 +2500,8 @@ namespace zero.cocoon.autopeer
                 {
                     Protocol = parm_protocol_version,
                     Timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
-                    Slots = CcCollective.parm_max_drone - CcCollective.TotalConnections
+                    Slots = CcCollective.parm_max_drone - CcCollective.TotalConnections,
+                    Lamport = CcCollective.MaxReq
                 };
 
                 var probeMsgBuf = probeMessage.ToByteArray();

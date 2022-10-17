@@ -191,7 +191,7 @@ namespace zero.cocoon
                 try
                 {
                     var ts = Environment.TickCount;
-                    var delay = (@this.EgressCount < @this.parm_max_outbound ? @this.parm_mean_pat_delay_s / 10 : @this.parm_mean_pat_delay_s) * 1000;
+                    var delay = (@this.TotalConnections < @this.parm_max_outbound ? @this.parm_mean_pat_delay_s / 10 : @this.parm_mean_pat_delay_s) * 1000;
 
                     await Task.Delay(TimeSpan.FromMilliseconds(@this._random.Next(delay) + delay / 2), @this.AsyncTasks.Token);
 
@@ -225,7 +225,7 @@ namespace zero.cocoon
                         force = true;
                     }
 
-                    if (@this.EgressCount < @this.parm_max_outbound || @this.IngressCount == 0) 
+                    if (@this.TotalConnections < @this.parm_max_outbound || @this.IngressCount == 0) 
                         await @this.DeepScanAsync(force).FastPath();
                 }
                 catch when(@this.Zeroed()){}
@@ -427,7 +427,7 @@ namespace zero.cocoon
         /// </summary>
         [IoParameter]
         // ReSharper disable once InconsistentNaming
-        public int parm_max_inbound = 5;
+        public int parm_max_inbound = 9;
 
         /// <summary>
         /// Max outbound neighbors
@@ -441,14 +441,14 @@ namespace zero.cocoon
         /// </summary>
         [IoParameter]
         // ReSharper disable once InconsistentNaming
-        public int parm_max_drone = 7;
+        public int parm_max_drone = 11;
 
         /// <summary>
         /// Max adjuncts
         /// </summary>
         [IoParameter]
         // ReSharper disable once InconsistentNaming
-        public int parm_max_adjunct = 9;
+        public int parm_max_adjunct = 12;
 
         /// <summary>
         /// Protocol version
@@ -959,7 +959,7 @@ namespace zero.cocoon
                     adjunct.Assimilating &&
                     !adjunct.IsDroneConnected &&
                     adjunct.State == CcAdjunct.AdjunctState.Connecting &&
-                    EgressCount < parm_max_outbound &&
+                    TotalConnections < parm_max_outbound &&
                     _currentOutboundConnectionAttempts < MaxAsyncConnectionAttempts
                 )
             {
@@ -1003,6 +1003,8 @@ namespace zero.cocoon
         /// Whether the drone complete the bootstrap process
         /// </summary>
         public bool Online { get; private set; }
+
+        public long Lamport => (long)Hub.Neighbors.Average(n=>((CcAdjunct)n.Value).Lamport);
 
         public long MaxReq = 0;
 

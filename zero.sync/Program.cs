@@ -61,7 +61,7 @@ namespace zero.sync
         static void Bootstrap(out ConcurrentBag<CcCollective> concurrentBag, int total, int portOffset = 7051, int localPort = -1, int[] remotePort = null)
         {
             var maxDrones = 4;
-            var maxAdjuncts = 9;
+            var maxAdjuncts = 12;
 
             var oldBoot = localPort == -1;
             var queens = false;
