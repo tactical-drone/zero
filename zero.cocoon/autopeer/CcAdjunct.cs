@@ -2008,7 +2008,7 @@ namespace zero.cocoon.autopeer
 
             var count = 0;
             var certified = Hub.Neighbors.Values.Where(
-                    n => n != this && ((CcAdjunct) n).Assimilating)
+                    n => n != this && ((CcAdjunct)n).LivenessTest && ((CcAdjunct) n).Assimilating)
                 .OrderByDescending(n => ((CcAdjunct)n).IsDroneConnected ? 0 : 1)
                 .ThenByDescending(n => ((CcAdjunct) n)._openSlots)
                 .ThenBy(n => ((CcAdjunct)n).UpTime.ElapsedUtcMs()).ToList();
