@@ -20,6 +20,7 @@ using zero.cocoon.identity;
 using zero.core.feat.patterns.time;
 using zero.core.misc;
 using zero.core.network.ip;
+using zero.core.network.tools;
 using zero.core.patterns.misc;
 using zero.core.patterns.queue;
 using zero.core.patterns.semaphore;
@@ -860,7 +861,14 @@ namespace zero.sync
                         Console.WriteLine("gc                  - Force a full generation garbage collect");
                         Console.WriteLine("L                   - Display zero scheduler stats");
                         Console.WriteLine("t                   - Display runtime scheduler stats");
+                        Console.WriteLine("pid                 - Display process id");
+                        Console.WriteLine("gateway info        - Display ip gateway info");
                         Console.WriteLine("quit                - quit");
+                    }
+
+                    if (line == "gw")
+                    {
+                        Console.WriteLine(IoPing.Info());
                     }
                 }
                 catch (Exception e)
