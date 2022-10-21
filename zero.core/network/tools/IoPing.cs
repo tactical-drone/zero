@@ -1,5 +1,7 @@
 ﻿using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Linq;
 using System.Net.NetworkInformation;
 using System.Net;
 using System.Text;
@@ -130,6 +132,44 @@ namespace zero.core.network.tools
             }
 
             return IPAddress.Any;
+        }
+
+        private static readonly ConcurrentDictionary<string, NetworkInterface> _interfaces = new();
+        public ConcurrentDictionary<string, NetworkInterface> Interfaces => _interfaces;
+
+        public static string Description()
+        {
+            _interfaces.Clear();
+            var sb = new StringBuilder();
+            foreach (var nic in NetworkInterface.GetAllNetworkInterfaces())
+            {
+                var ip = nic.GetIPProperties();
+                if (!ip.UnicastAddresses.Any())
+                    continue;
+
+                _interfaces.TryAdd(nic.Id, nic);
+
+                sb.Append($"{nic.Description} ip://{ip.UnicastAddresses.Last().Address}) mask://{ip.UnicastAddresses.Last().IPv4Mask}");
+
+                try
+                {
+                    var hasGw = false;
+                    foreach(var gw in nic.GetIPProperties().GatewayAddresses)
+                    {
+                        sb.AppendLine($"gw://{gw.Address}");
+                        hasGw = true;
+                    }
+
+                    if (!hasGw)
+                        sb.AppendLine();
+                }
+                catch
+                {
+                    // ignored
+                }
+            }
+
+            return sb.ToString();
         }
 
         public static string Info()

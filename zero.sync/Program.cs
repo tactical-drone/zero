@@ -3,6 +3,7 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
+using System.Net;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Hosting;
@@ -869,6 +870,7 @@ namespace zero.sync
                     if (line == "gw")
                     {
                         Console.WriteLine(IoPing.Info());
+                        Console.WriteLine(IoPing.Description());
                     }
                 }
                 catch (Exception e)
