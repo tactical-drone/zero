@@ -134,12 +134,11 @@ namespace zero.core.network.tools
             return IPAddress.Any;
         }
 
-        private static readonly ConcurrentDictionary<string, NetworkInterface> _interfaces = new();
-        public ConcurrentDictionary<string, NetworkInterface> Interfaces => _interfaces;
+        public static ConcurrentDictionary<string, NetworkInterface> Interfaces { get; protected set; }
 
         public static string Description()
         {
-            _interfaces.Clear();
+            Interfaces.Clear();
             var sb = new StringBuilder();
             foreach (var nic in NetworkInterface.GetAllNetworkInterfaces())
             {
@@ -147,7 +146,7 @@ namespace zero.core.network.tools
                 if (!ip.UnicastAddresses.Any())
                     continue;
 
-                _interfaces.TryAdd(nic.Id, nic);
+                Interfaces.TryAdd(nic.Id, nic);
 
                 sb.Append($"{nic.Description} ip://{ip.UnicastAddresses.Last().Address}) mask://{ip.UnicastAddresses.Last().IPv4Mask}");
 
