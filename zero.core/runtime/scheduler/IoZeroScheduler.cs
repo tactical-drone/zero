@@ -58,7 +58,7 @@ namespace zero.core.runtime.scheduler
             _asyncForkCapacity = _taskQueueCapacity / 5;
             _forkCapacity = _taskQueueCapacity / 5;
 
-            var size = ushort.MaxValue; //TODO: tuning
+            var size = _taskQueueCapacity * 5; //TODO: tuning
             _taskQueue = new IoZeroSemaphoreChannel<Task>($"{nameof(_taskQueue)}", size, 0, false);
             _asyncFallbackQueue = new IoZeroSemaphoreChannel<ZeroContinuation>($"{nameof(_asyncFallbackQueue)}", size, 0, false);
 
@@ -70,7 +70,7 @@ namespace zero.core.runtime.scheduler
             _asyncForkQueue = new IoZeroSemaphoreChannel<Func<ValueTask>>($"{nameof(_asyncForkQueue)}", size, 0, false);
             _forkQueue = new IoZeroSemaphoreChannel<Action>($"{nameof(_forkQueue)}", size, 0, false);
             
-            var initialCap = 2048;
+            var initialCap = size;
             _callbackHeap = new IoHeap<ZeroContinuation>($"{nameof(_callbackHeap)}", initialCap, (_, _) => new ZeroContinuation(), autoScale:true)
             {
                 PopAction = (signal, _) =>
