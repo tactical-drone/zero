@@ -34,7 +34,7 @@ namespace zero.cocoon
     public class CcCollective : IoNode<CcProtocMessage<CcWhisperMsg, CcGossipBatch>>
     {
         public CcCollective(CcDesignation ccDesignation, IoNodeAddress gossipAddress, IoNodeAddress peerAddress,
-            IoNodeAddress fpcAddress, IoNodeAddress extAddress, List<IoNodeAddress> bootstrap, int udpPrefetch,
+            IoNodeAddress extAddress, List<IoNodeAddress> bootstrap, int udpPrefetch,
             int tcpPrefetch, int udpConcurrencyLevel, int tcpConcurrencyLevel, bool zeroDrone)
             : base(gossipAddress, static (node, ioNetClient, extraData) => new CcDrone((CcCollective)node, (CcAdjunct)extraData, ioNetClient), tcpPrefetch, tcpConcurrencyLevel, 16 * 2) //TODO config
         {
@@ -61,7 +61,6 @@ namespace zero.cocoon
 
             Services.CcRecord.Endpoints.TryAdd(CcService.Keys.Peering, _peerAddress);
             Services.CcRecord.Endpoints.TryAdd(CcService.Keys.Gossip, _gossipAddress);
-            Services.CcRecord.Endpoints.TryAdd(CcService.Keys.Fpc, fpcAddress);
 
             DupSyncRoot = new IoZeroSemaphoreSlim(AsyncTasks,  $"Dup checker for {ccDesignation.IdString()}", maxBlockers: Math.Max(MaxDrones * tcpConcurrencyLevel,1), initialCount: 1);
             

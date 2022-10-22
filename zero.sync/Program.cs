@@ -1105,7 +1105,7 @@ namespace zero.sync
             var concurrencyLevel = Environment.ProcessorCount * 2;
             IoZeroQ<int> q = new("test", concurrencyLevel * 2);
 
-            var _concurrentTasks = new List<Task>();
+            var concurrentTasks = new List<Task>();
 
             var start = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
             var rounds = concurrencyLevel;
@@ -1119,7 +1119,7 @@ namespace zero.sync
                 Console.Write(".");
                 var i3 = i;
                 var maxDiff = rounds * 4;
-                _concurrentTasks.Add(Task.Factory.StartNew(() =>
+                concurrentTasks.Add(Task.Factory.StartNew(() =>
                 {
                     for (int j = 0; j < mult; j++)
                     {
@@ -1174,7 +1174,7 @@ namespace zero.sync
                 }, new CancellationToken(), TaskCreationOptions.DenyChildAttach, IoZeroScheduler.ZeroDefault).Unwrap());
             }
 
-            await Task.WhenAll(_concurrentTasks);
+            await Task.WhenAll(concurrentTasks);
 
             Console.WriteLine($"count = {q.Count}, Head = {q?.Tail}, tail = {q?.Head}, time = {DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() - start}ms, {rounds * mult * 6 / (DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() - start)} kOPS");
 
@@ -1683,7 +1683,6 @@ namespace zero.sync
             var cocoon = new CcCollective(ccDesignation,
                 IoNodeAddress.Create(gossipAddress),
                 IoNodeAddress.Create(peerAddress),
-                IoNodeAddress.Create(fpcAddress),
                 IoNodeAddress.Create(extAddress),
                 bootStrapAddress.Select(IoNodeAddress.Create).Where(a => a.Port.ToString() != peerAddress.Split(":")[2]).ToList(),
                 2, 2, 1, 1, zeroDrone);
