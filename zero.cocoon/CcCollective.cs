@@ -1001,8 +1001,6 @@ namespace zero.cocoon
         private readonly bool _zeroDrone;
         public bool ZeroDrone => _zeroDrone;
 
-        private bool _online;
-
         /// <summary>
         /// Whether the drone complete the bootstrap process
         /// </summary>

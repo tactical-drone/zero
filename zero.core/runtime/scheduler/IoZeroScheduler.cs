@@ -47,18 +47,18 @@ namespace zero.core.runtime.scheduler
             //_asyncCallbackWithContextCapacity = _asyncTaskCapacity = _asyncTaskWithContextCapacity = _taskQueueCapacity * 2;
             //_asyncFallbackCapacity = _forkCapacity = _asyncCallbackWithContextCapacity * 2;
 
-            _taskQueueCapacity = Environment.ProcessorCount * 5;
+            _taskQueueCapacity = Environment.ProcessorCount * 3;
             _asyncFallbackCapacity = _taskQueueCapacity;
 
             _asyncTaskWithContextCapacity = _taskQueueCapacity;
-            _asyncTaskCapacity = _taskQueueCapacity / 2;
+            _asyncTaskCapacity = _taskQueueCapacity;
 
-            _asyncCallbackWithContextCapacity = _taskQueueCapacity / 5;
+            _asyncCallbackWithContextCapacity = _taskQueueCapacity;
 
-            _asyncForkCapacity = _taskQueueCapacity / 5;
-            _forkCapacity = _taskQueueCapacity / 5;
+            _asyncForkCapacity = _taskQueueCapacity;
+            _forkCapacity = _taskQueueCapacity;
 
-            var size = _taskQueueCapacity * 5; //TODO: tuning
+            var size = _taskQueueCapacity * 4; //TODO: tuning
             _taskQueue = new IoZeroSemaphoreChannel<Task>($"{nameof(_taskQueue)}", size, 0, false);
             _asyncFallbackQueue = new IoZeroSemaphoreChannel<ZeroContinuation>($"{nameof(_asyncFallbackQueue)}", size, 0, false);
 
