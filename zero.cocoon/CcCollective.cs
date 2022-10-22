@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.Diagnostics;
 using System.Linq;
 using System.Net;
@@ -31,7 +32,7 @@ namespace zero.cocoon
     /// <summary>
     /// Connects to cocoon
     /// </summary>
-    public class CcCollective : IoNode<CcProtocMessage<CcWhisperMsg, CcGossipBatch>>
+    public class CcCollective : IoNode<CcProtocMessage<CcWhisperMsg, CcGossipBatch>>, INotifyPropertyChanged
     {
         public CcCollective(CcDesignation ccDesignation, IoNodeAddress gossipAddress, IoNodeAddress peerAddress,
             IoNodeAddress extAddress, List<IoNodeAddress> bootstrap, int udpPrefetch,
@@ -569,6 +570,8 @@ namespace zero.cocoon
                         // ignored
                     }
                 }
+
+                collective.OnPropertyChanged(nameof(Online));
             }
         }
 
@@ -998,10 +1001,12 @@ namespace zero.cocoon
         private readonly bool _zeroDrone;
         public bool ZeroDrone => _zeroDrone;
 
+        private bool _online;
+
         /// <summary>
         /// Whether the drone complete the bootstrap process
         /// </summary>
-        public bool Online { get; private set; }
+        public bool Online => TotalConnections > 0;
 
         public long Lamport => (long)Hub.Neighbors.Average(n=>((CcAdjunct)n.Value).Lamport);
 
@@ -1204,5 +1209,11 @@ namespace zero.cocoon
             }
         }
 
+        public event PropertyChangedEventHandler PropertyChanged;
+
+        protected virtual void OnPropertyChanged([CallerMemberName] string propertyName = null)
+        {
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
+        }
     }
 }
