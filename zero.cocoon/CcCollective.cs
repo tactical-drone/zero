@@ -1110,7 +1110,6 @@ namespace zero.cocoon
 
                                 if (ZeroDrone && !Online)
                                 {
-                                    Online = true;
                                     _logger.Warn($"Queen brought Online, {Description}");
                                 }
                                     
