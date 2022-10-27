@@ -2,7 +2,7 @@ syntax = "proto3";
 
 package zero.models.protobuf;
 
-import "models/protobuf/core/net.proto";
+//import "models/protobuf/core/net.proto";
 
 message CcAdjunctModel {	  
   bytes public_key = 1;
@@ -38,9 +38,8 @@ message CcDefuseRequest {
 	int64 timestamp = 1;
 }
 
-message CcScanRequest {  
-  z_header header = 1;
-  int64 timestamp = 2;
+message CcScanRequest {    
+  int64 timestamp = 1;
 }
 
 message CcAdjunctResponse {    

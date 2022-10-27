@@ -175,11 +175,11 @@ namespace zero.core.network.ip
             TBoot bootData = default)
         {
             //TODO sec
-            _ = NativeSocket.IOControl(
-                (IOControlCode)SIO_UDP_CONNRESET,
-                new byte[] {0,0,0,0},
-                null
-            );
+            //_ = NativeSocket.IOControl(
+            //    (IOControlCode)SIO_UDP_CONNRESET,
+            //    new byte[] {0,0,0,0},
+            //    null
+            //);
 
             //configure the socket
             ConfigureSocket();

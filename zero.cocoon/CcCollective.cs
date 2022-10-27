@@ -26,6 +26,7 @@ using zero.core.patterns.heap;
 using zero.core.patterns.misc;
 using zero.core.patterns.semaphore;
 using Zero.Models.Protobuf;
+using Logger = NLog.Logger;
 
 namespace zero.cocoon
 {
@@ -151,6 +152,9 @@ namespace zero.cocoon
                     spinWait.SpinOnce();
 
                 await @this.DeepScanAsync().FastPath();
+                Volatile.Write(ref @this._ready, true);                
+                @this.OnPropertyChanged(nameof(Ready));
+                @this.OnPropertyChanged(nameof(Online));
             }, this).AsTask();
         }
 
@@ -175,7 +179,7 @@ namespace zero.cocoon
 
                 await @this.StartHubAsync(@this._udpPrefetch, @this._udpConcurrencyLevel).FastPath();
 
-            }, (this, bootFunc, bootData)).FastPath();
+            }, (this, bootFunc: bootFunc, bootData)).FastPath();
         }
 
         /// <summary>
@@ -265,6 +269,9 @@ namespace zero.cocoon
         public override async ValueTask ZeroManagedAsync()
         {
             await base.ZeroManagedAsync().FastPath();
+
+            OnPropertyChanged(nameof(Ready));
+            OnPropertyChanged(nameof(Online));
 
             var autoPeeringDesc = _autoPeering.Description;
             await _autoPeering.DisposeAsync(this, $"{nameof(ZeroManagedAsync)}: teardown").FastPath();
@@ -1005,6 +1012,10 @@ namespace zero.cocoon
         /// Whether the drone complete the bootstrap process
         /// </summary>
         public bool Online => TotalConnections > 0;
+
+
+        private bool _ready;
+        public bool Ready => Server?.Online?? false && _ready;
 
         public long Lamport => (long)Hub.Neighbors.Average(n=>((CcAdjunct)n.Value).Lamport);
 

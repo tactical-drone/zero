@@ -93,9 +93,9 @@ namespace zero.cocoon.autopeer
         {
             return base.BlockOnListenerAsync(static async (router, state) =>
             {
-                var (@this, nanite, acceptConnection) = state;
+                var (@this, nanite, handshake) = state;
                 @this.Router ??= (CcAdjunct)router;
-                return acceptConnection == null || await acceptConnection(router,nanite).FastPath();
+                return handshake == null || await handshake(router,nanite).FastPath();
             }, ValueTuple.Create(this, context, handshake), bootFunc, bootData);
         }
     }

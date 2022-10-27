@@ -2,6 +2,7 @@
 using System.Runtime.CompilerServices;
 using System.Threading.Tasks;
 using Google.Protobuf;
+using zero.core.feat.models.bundle;
 using zero.core.patterns.bushings;
 using zero.core.patterns.bushings.contracts;
 using zero.core.patterns.misc;
@@ -14,7 +15,7 @@ namespace zero.core.feat.models.protobuffer.sources
     /// </summary>
     public class CcProtocBatchSource<TModel, TBatch> : IoSource<CcProtocBatchJob<TModel, TBatch>>
     where TModel : IMessage
-    where TBatch : class, IDisposable
+    where TBatch : class, IIoMessageBundle
     {
         /// <summary>
         /// ctor

@@ -1,6 +1,7 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 	<PropertyGroup>
 		<TargetFramework>netstandard2.1</TargetFramework>
+		
 		<LangVersion>latest</LangVersion>
 		<Configurations>Debug;Release;Trace</Configurations>
 		<AssemblyVersion>0.0.0.1</AssemblyVersion>
@@ -40,6 +41,11 @@
 	</PropertyGroup>
 
 	<ItemGroup>
+	  <None Remove="models\protobuffer\core\chroniton.proto" />
+	  <None Remove="models\protobuffer\core\net.proto" />
+	</ItemGroup>
+
+	<ItemGroup>
 		<Content Include="..\LICENSE" Link="LICENSE" pack="true" PackagePath="\" />
 		<None Include="..\readme.md">
 			<Pack>True</Pack>
@@ -52,14 +58,14 @@
 	</ItemGroup>
 
 	<ItemGroup>
-		<PackageReference Include="Google.Protobuf" Version="3.21.7" />
+		<PackageReference Include="Google.Protobuf" Version="3.21.8" />
 		<PackageReference Include="CassandraCSharpDriver" Version="3.18.0" />
 		<PackageReference Include="Microsoft.AspNetCore.Mvc.Abstractions" Version="2.2.0" />
 		<PackageReference Include="Microsoft.Extensions.Caching.Redis" Version="2.2.0" />
-		<PackageReference Include="Microsoft.VisualStudio.Threading" Version="17.3.44" />
-		<PackageReference Include="System.Text.Json" Version="7.0.0-rtm.22511.4" />
+		<PackageReference Include="Microsoft.VisualStudio.Threading" Version="17.3.48" />
+		<PackageReference Include="System.Text.Json" Version="8.0.0-alpha.1.22524.1" />
 		<PackageReference Include="NLog" Version="5.0.4" />
-		<PackageReference Include="Grpc.Tools" Version="2.50.0-pre1">
+		<PackageReference Include="Grpc.Tools" Version="2.50.0">
 			<PrivateAssets>all</PrivateAssets>
 			<IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
 		</PackageReference>
@@ -68,6 +74,11 @@
 
 	<ItemGroup>
 		<ProjectReference Include="..\zero.core\zero.core.csproj" />
+	</ItemGroup>
+
+	<ItemGroup>
+	  <Protobuf Include="models\protobuffer\core\chroniton.proto" />
+	  <Protobuf Include="models\protobuffer\core\net.proto" />
 	</ItemGroup>
 
 </Project>

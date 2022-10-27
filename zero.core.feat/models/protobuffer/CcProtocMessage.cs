@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Buffers;
 using System.CodeDom;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.IO.Compression;
@@ -14,16 +15,20 @@ using System.Threading;
 using System.Threading.Tasks;
 using Google.Protobuf;
 using zero.core.conf;
+using zero.core.feat.models.bundle;
+using zero.core.feat.models.protobuffer.sources;
 using zero.core.misc;
 using zero.core.network.ip;
 using zero.core.patterns.bushings;
 using zero.core.patterns.bushings.contracts;
+using zero.core.patterns.heap;
 using zero.core.patterns.misc;
+using Zero.Models.Protobuf;
 
 namespace zero.core.feat.models.protobuffer
 {
     public abstract class CcProtocMessage<TModel, TBatch> : IoMessage<CcProtocMessage<TModel, TBatch>>
-    where TModel:IMessage where TBatch : class, IDisposable
+    where TModel: class, IMessage where TBatch : class, IIoMessageBundle
     {
         protected CcProtocMessage(string sinkDesc, string jobDesc, IoSource<CcProtocMessage<TModel, TBatch>> source)
             : base(sinkDesc, jobDesc, source)
@@ -59,10 +64,29 @@ namespace zero.core.feat.models.protobuffer
         protected IoConduit<CcProtocBatchJob<TModel, TBatch>> ProtocolConduit;
 
         /// <summary>
+        /// Heap access
+        /// </summary>
+        public static IoHeap<TBatch, TModel> Heap => BatchHeap;
+
+        /// <summary>
+        /// Batch of messages
+        /// </summary>
+        protected TBatch CurrentBatch;
+
+        /// <summary>
+        /// Whether grouping by endpoint is supported
+        /// </summary>
+        private readonly bool _groupByEp;
+
+        /// <summary>
+        /// Batch item heap
+        /// </summary>
+        protected static IoHeap<TBatch, TModel> BatchHeap;
+
+        /// <summary>
         /// Base source
         /// </summary>
         protected IoNetClient<CcProtocMessage<TModel, TBatch>> MessageService => (IoNetClient<CcProtocMessage<TModel, TBatch>>)Source;
-
 
         /// <summary>
         /// The time a consumer will wait for a source to release it before aborting in ms
@@ -100,6 +124,7 @@ namespace zero.core.feat.models.protobuffer
             ReadOnlySequence = default;
             MemoryBuffer = null;
             ByteStream = null;
+            CurrentBatch = null;
 #endif
         }
 
@@ -235,6 +260,84 @@ namespace zero.core.feat.models.protobuffer
             }
 
             return -1;
+        }
+
+        /// <summary>
+        /// Processes a generic request and adds it to a batch
+        /// </summary>
+        /// <param name="packet">The packet</param>
+        /// <typeparam name="T">The expected type</typeparam>
+        /// <returns>The task</returns>
+        protected async ValueTask ZeroBatchRequestAsync(chroniton packet)
+        {
+            try
+            {
+                var next = CurrentBatch.Feed;
+                next.Zero = packet;
+                RemoteEndPoint.CopyTo(next.EndPoint, 0);
+                if (CurrentBatch.Flush)
+                    await ZeroBatchAsync().FastPath();
+            }
+            catch when (Zeroed()) { }
+            catch (Exception e) when (!Zeroed())
+            {
+                _logger.Error(e, $"{nameof(ZeroBatchRequestAsync)}");
+            }
+        }
+
+        /// <summary>
+        /// Forwards a batch of messages
+        /// </summary>
+        /// <returns>Task</returns>
+        protected async ValueTask ZeroBatchAsync()
+        {
+            try
+            {
+                if (CurrentBatch.Count == 0 || Zeroed())
+                    return;
+
+                //cog the producer
+                if (!await ProtocolConduit.Source.ProduceAsync(static (source, ioJob) =>
+                {
+                    var @this = (CcProtocMessage<TModel, TBatch>)ioJob;
+                    try
+                    {
+                        var chan = ((CcProtocBatchSource<chroniton, TBatch>)source).Channel;
+                        var nextBatch = Interlocked.Exchange(ref @this.CurrentBatch, BatchHeap.Take());
+
+                        if (chan.Release(nextBatch, forceAsync: true) != 1)
+                        {
+                            var ready = chan.ReadyCount;
+                            var wait = chan.WaitCount;
+                            if (!((CcProtocBatchSource<chroniton, IIoMessageBundle>)source).Zeroed() && !chan.Zeroed() && chan.TotalOps > 0)
+                                _logger.Fatal($"{nameof(ZeroBatchAsync)}: Unable to q batch; had ready = {ready}, wait = {wait}; {chan.Description} {@this.Description}");
+
+                            return new ValueTask<bool>(false);
+                        }
+
+                        if (@this.CurrentBatch == null)
+                            throw new OutOfMemoryException($"{@this.Description}: {nameof(BatchHeap)}, c = {BatchHeap.Count}/{BatchHeap.Capacity}, ref = {BatchHeap.ReferenceCount}");
+
+                        return new ValueTask<bool>(true);
+                    }
+                    catch (Exception) when (@this.Zeroed()) { }
+                    catch (Exception e) when (!@this.Zeroed())
+                    {
+                        _logger.Error(e, $"{@this.Description} - Forward failed!");
+                    }
+
+                    return new ValueTask<bool>(false);
+                }, this).FastPath())
+                {
+                    if (!Zeroed())
+                        _logger.Trace($"{nameof(ZeroBatchAsync)}: Production [FAILED]: {ProtocolConduit.Description}");
+                }
+            }
+            catch when (Zeroed()) { }
+            catch (Exception e) when (!Zeroed())
+            {
+                _logger.Fatal(e, $"Forwarding from {Description} to {ProtocolConduit.Description} failed");
+            }
         }
     }
 }

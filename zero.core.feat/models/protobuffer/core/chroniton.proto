@@ -2,7 +2,7 @@ syntax = "proto3";
 
 package zero.models.protobuf;
 
-import "models/protobuf/core/net.proto";
+import "models/protobuffer/core/net.proto";
 
 message chroniton {	
 	z_header  header = 1;  

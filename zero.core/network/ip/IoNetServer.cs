@@ -87,6 +87,8 @@ namespace zero.core.network.ip
         // ReSharper disable once InconsistentNaming
         protected int parm_connection_timeout = 2000;
 
+        public bool Online { get; protected set; }
+
         /// <summary>
         /// Listens for new connections
         /// </summary>
@@ -97,6 +99,8 @@ namespace zero.core.network.ip
         {
             if (IoListenSocket != null)
                 throw new ConstraintException($"Listener has already been started for `{ListeningAddress}'");
+
+            Online = true;
 
             return new ValueTask(Task.CompletedTask);
         }
@@ -194,6 +198,7 @@ namespace zero.core.network.ip
         {
             await base.ZeroManagedAsync().FastPath();
             _connectionAttempts.Clear();
+            Online = false;
         }
 
         /// <summary>

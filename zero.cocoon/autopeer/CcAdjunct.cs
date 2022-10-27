@@ -977,7 +977,7 @@ namespace zero.cocoon.autopeer
         /// <returns>Task</returns>
         private async ValueTask ZeroUnBatchAsync<T>(IoSink<CcProtocBatchJob<chroniton, CcDiscoveryBatch>> batchJob,
             IoConduit<CcProtocBatchJob<chroniton, CcDiscoveryBatch>> channel,
-            Func<CcDiscoveryMessage, T, CcAdjunct, IPEndPoint, ValueTask> processCallback, T nanite)
+            Func<CcBatchMessage, T, CcAdjunct, IPEndPoint, ValueTask> processCallback, T nanite)
         {
             if (batchJob == null)
                 return;
@@ -987,6 +987,9 @@ namespace zero.cocoon.autopeer
             {
                 var job = (CcProtocBatchJob<chroniton, CcDiscoveryBatch>)batchJob;
                 msgBatch = job.Get();
+
+                if(msgBatch == null)
+                    return;
 
                 //Grouped by ingress endpoint batches (this needs to make sense or disable)
                 if (msgBatch.GroupByEpEnabled)
@@ -1001,33 +1004,33 @@ namespace zero.cocoon.autopeer
                                 continue;
 
                             var srcEndPoint = epGroups.Value.Item1.GetEndpoint();
-                            var proxy = await RouteAsync(srcEndPoint, epGroups.Value.Item2[0].Chroniton.PublicKey).FastPath();
+                            var proxy = await RouteAsync(srcEndPoint, epGroups.Value.Item2[0].Zero.PublicKey).FastPath();
                             if (proxy != null)
                             {
                                 foreach (var message in msgGroup.Item2)
                                 {
-                                    if (message.SourceState > 0)
-                                    {
-                                        var routed = Router._routingTable.TryGetValue(message.EndPoint.GetEndpoint().ToString(), out var zombie);
-                                        if (routed)
-                                        {
-                                            await zombie.DisposeAsync(this, "Connection RESET!!!");
-                                            break;
-                                        }
-                                        continue;
-                                    }
+                                    //if (message.SourceState > 0)
+                                    //{
+                                    //    var routed = Router._routingTable.TryGetValue(message.EndPoint.GetEndpoint().ToString(), out var zombie);
+                                    //    if (routed)
+                                    //    {
+                                    //        await zombie.DisposeAsync(this, "Connection RESET!!!");
+                                    //        break;
+                                    //    }
+                                    //    continue;
+                                    //}
 
 
                                     if (Zeroed())
                                         break;
                                     try
                                     {
-                                        if (Equals(message.Chroniton.Header.Ip.Dst.GetEndpoint(),
+                                        if (Equals(message.Zero.Header.Ip.Dst.GetEndpoint(),
                                                 Router.MessageService.IoNetSocket.NativeSocket.LocalEndPoint))
                                         {
                                             IoZeroScheduler.Zero.LoadAsyncContext(static async state =>
                                             {
-                                                var (processCallback, message, nanite, proxy, srcEndPoint) = (ValueTuple< Func < CcDiscoveryMessage, T, CcAdjunct, IPEndPoint, ValueTask > , CcDiscoveryMessage, T, CcAdjunct, IPEndPoint>)state;
+                                                var (processCallback, message, nanite, proxy, srcEndPoint) = (ValueTuple< Func < CcBatchMessage, T, CcAdjunct, IPEndPoint, ValueTask > , CcBatchMessage, T, CcAdjunct, IPEndPoint>)state;
                                                 await processCallback(message, nanite, proxy, srcEndPoint).FastPath();
                                             }, (processCallback, message, nanite, proxy, srcEndPoint));
                                         }
@@ -1039,8 +1042,7 @@ namespace zero.cocoon.autopeer
                                     }
                                     finally
                                     {
-                                        message.Chroniton = null;
-                                        message.EmbeddedMsg = null;
+                                        message.Zero = null;
                                     }
                                 }
                             }
@@ -1062,33 +1064,33 @@ namespace zero.cocoon.autopeer
                         if (Zeroed())
                             break;
 
-                        var message = msgBatch[i];
+                        var message = msgBatch.Messages[i];
                         try
                         {
                             //TODO, is this caching a good idea? 
                             if (!_enableBatchEpCache || proxy is not { IsProxy: true } || cachedEp == null ||
                                 !cachedEp.ArrayEqual(message.EndPoint) && cachedPk == null ||
-                                !cachedPk.Memory.Span.ArrayEqual(message.Chroniton.PublicKey.Span))
+                                !cachedPk.Memory.Span.ArrayEqual(message.Zero.PublicKey.Span))
                             {
 
                                 cachedEp = message.EndPoint;
 
-                                if (message.SourceState > 0)
-                                {
-                                    var routed = Router._routingTable.TryGetValue(cachedEp.GetEndpoint().ToString(),
-                                        out var zombie);
-                                    if (routed)
-                                    {
-                                        await zombie.DisposeAsync(this, "Connection RESET!!!");
-                                        break;
-                                    }
+                                //if (message.SourceState > 0)
+                                //{
+                                //    var routed = Router._routingTable.TryGetValue(cachedEp.GetEndpoint().ToString(),
+                                //        out var zombie);
+                                //    if (routed)
+                                //    {
+                                //        await zombie.DisposeAsync(this, "Connection RESET!!!");
+                                //        break;
+                                //    }
 
-                                    continue;
-                                }
+                                //    continue;
+                                //}
 
-                                cachedPk = message.Chroniton.PublicKey;
+                                cachedPk = message.Zero.PublicKey;
 #if DEBUG
-                                proxy = await RouteAsync(cachedEp.GetEndpoint(), cachedPk, message.Chroniton.Header.Ip.Src.GetEndpoint()).FastPath();
+                                proxy = await RouteAsync(cachedEp.GetEndpoint(), cachedPk, message.Zero.Header.Ip.Src.GetEndpoint()).FastPath();
 #else
                                 //proxy = RouteAsync(message.Chroniton.Header.Ip.Src.GetEndpoint(), cachedPk);
                                 //proxy = RouteAsync(cachedEp.GetEndpoint(), cachedPk, message.Chroniton.Header.Ip.Src.GetEndpoint());
@@ -1098,19 +1100,19 @@ namespace zero.cocoon.autopeer
                                 if (proxy == null)
                                     continue;
 
-                                if (message.SourceState > 0)
-                                {
-                                    await proxy.DisposeAsync(this, "Connection has been reset!!!").FastPath();
-                                    break;
-                                }
+                                //if (message.SourceState > 0)
+                                //{
+                                //    await proxy.DisposeAsync(this, "Connection has been reset!!!").FastPath();
+                                //    break;
+                                //}
                             }
 
-                            if (Equals(message.Chroniton.Header.Ip.Dst.GetEndpoint(),
+                            if (Equals(message.Zero.Header.Ip.Dst.GetEndpoint(),
                                     Router.MessageService.IoNetSocket.NativeSocket.LocalEndPoint))
                             {
                                 IoZeroScheduler.Zero.LoadAsyncContext(static async state =>
                                 {
-                                    var (processCallback, message, nanite, proxy, srcEndPoint) = (ValueTuple<Func<CcDiscoveryMessage, T, CcAdjunct, IPEndPoint, ValueTask>, CcDiscoveryMessage, T, CcAdjunct, IPEndPoint>)state;
+                                    var (processCallback, message, nanite, proxy, srcEndPoint) = (ValueTuple<Func<CcBatchMessage, T, CcAdjunct, IPEndPoint, ValueTask>, CcBatchMessage, T, CcAdjunct, IPEndPoint>)state;
                                     await processCallback(message, nanite, proxy, srcEndPoint).FastPath();
                                 }, (processCallback, message, nanite, proxy, message.EndPoint.GetEndpoint()));
                             }
@@ -1248,26 +1250,18 @@ namespace zero.cocoon.autopeer
                 {
                     await @this.ZeroUnBatchAsync(batchJob, @this._protocolConduit, static async (batchItem, @this, currentRoute, srcEndPoint) =>
                     {
-                        IMessage message = default;
-                        chroniton packet = default;
+                        chroniton zero = default;
                         try
                         {
-                            message = Interlocked.Exchange(ref batchItem.EmbeddedMsg, null);
-                            packet = Interlocked.Exchange(ref batchItem.Chroniton, null);
+                            zero = batchItem.Zero;
 
-                            if (message == null || packet == null)
+                            if (zero == null)
                                 return;
 
-                            if (batchItem.SourceState > 0)
+                            
+                            if (zero.Data.Length == 0)
                             {
-                                batchItem.SourceState = 0;
-                                await currentRoute.DisposeAsync(@this, "Connection has been reset!!!").FastPath();
-                                return;
-                            }
-
-                            if (packet.Data.Length == 0)
-                            {
-                                @this._logger.Warn($"Got zero message from {CcDesignation.MakeKey(packet.PublicKey.Memory.AsArray())}");
+                                @this._logger.Warn($"Got zero message from {CcDesignation.MakeKey(zero.PublicKey.Memory.AsArray())}");
                                 return;
                             }
 
@@ -1276,15 +1270,17 @@ namespace zero.cocoon.autopeer
                                 try
                                 {
                                     //switch ((CcDiscoveries.MessageTypes)MemoryMarshal.Read<int>(packet.Signature.Span))
-                                    switch ((CcDiscoveries.MessageTypes)packet.Type)
+                                    switch ((CcDiscoveries.MessageTypes)zero.Type)
                                     {
                                         case CcDiscoveries.MessageTypes.Probe:
-                                            if (((CcProbeMessage)message).Timestamp.ElapsedUtcMs() < @this.parm_max_network_latency_ms * 2)
-                                                await currentRoute.ProcessAsync((CcProbeMessage)message, srcEndPoint, packet).FastPath();
+                                            var probe = CcProbeMessage.Parser.ParseFrom(zero.Data);
+                                            if (probe.Timestamp.ElapsedUtcMs() < @this.parm_max_network_latency_ms * 2)
+                                                await currentRoute.ProcessAsync((CcProbeMessage)probe, srcEndPoint, zero).FastPath();
                                             break;
                                         case CcDiscoveries.MessageTypes.ProbeResponse:
-                                            if (((CcProbeResponse)message).Timestamp.ElapsedUtcMs() < @this.parm_max_network_latency_ms * 2)
-                                                await currentRoute.ProcessAsync((CcProbeResponse)message, srcEndPoint, packet).FastPath();
+                                            var probeResponse = CcProbeResponse.Parser.ParseFrom(zero.Data);
+                                            if (probeResponse.Timestamp.ElapsedUtcMs() < @this.parm_max_network_latency_ms * 2)
+                                                await currentRoute.ProcessAsync((CcProbeResponse)probeResponse, srcEndPoint, zero).FastPath();
                                             break;
                                         case CcDiscoveries.MessageTypes.Scan:
                                             if (!currentRoute.Verified && !@this.CcCollective.ZeroDrone)
@@ -1295,8 +1291,10 @@ namespace zero.cocoon.autopeer
 #endif
                                                 break;
                                             }
-                                            if (((CcScanRequest)message).Timestamp.ElapsedUtcMs() < @this.parm_max_network_latency_ms * 2)
-                                                await currentRoute.ProcessAsync((CcScanRequest)message, srcEndPoint, packet).FastPath();
+
+                                            var scan = CcScanRequest.Parser.ParseFrom(zero.Data);
+                                            if (scan.Timestamp.ElapsedUtcMs() < @this.parm_max_network_latency_ms * 2)
+                                                await currentRoute.ProcessAsync(scan, srcEndPoint, zero).FastPath();
                                             break;
                                         case CcDiscoveries.MessageTypes.ScanResponse:
                                             if (!currentRoute.Verified)
@@ -1306,8 +1304,9 @@ namespace zero.cocoon.autopeer
 #endif
                                                 break;
                                             }
-                                            if (((CcAdjunctResponse)message).Timestamp.ElapsedUtcMs() < @this.parm_max_network_latency_ms * 2)
-                                                await currentRoute.ProcessAsync((CcAdjunctResponse)message, srcEndPoint, packet).FastPath();
+                                            var adjunctResponse = CcAdjunctResponse.Parser.ParseFrom(zero.Data);
+                                            if (adjunctResponse.Timestamp.ElapsedUtcMs() < @this.parm_max_network_latency_ms * 2)
+                                                await currentRoute.ProcessAsync(adjunctResponse, srcEndPoint, zero).FastPath();
                                             break;
                                         case CcDiscoveries.MessageTypes.Fuse:
                                             if (!currentRoute.Verified)
@@ -1324,20 +1323,21 @@ namespace zero.cocoon.autopeer
                                                 break;
                                             }
 
-                                            if (((CcFuseRequest)message).Timestamp.ElapsedUtcMs() < @this.parm_max_network_latency_ms * 2)
-                                                await currentRoute.ProcessAsync((CcFuseRequest)message, srcEndPoint, packet).FastPath();
+                                            var fuse = CcFuseRequest.Parser.ParseFrom(zero.Data);
+                                            if (fuse.Timestamp.ElapsedUtcMs() < @this.parm_max_network_latency_ms * 2)
+                                                await currentRoute.ProcessAsync(fuse, srcEndPoint, zero).FastPath();
                                             break;
                                         case CcDiscoveries.MessageTypes.FuseResponse:
                                             if (!currentRoute.Verified)
                                             {
 #if DEBUG
-                                                @this._logger.Warn($"{nameof(CcDiscoveries.MessageTypes.FuseResponse)}: p = {currentRoute.IsProxy}: Unrouted request from {srcEndPoint} ~> {@this.MessageService.IoNetSocket.LocalNodeAddress.IpPort}, {((CcFuseResponse)message).Timestamp.ElapsedUtcMs()}ms");
+                                                @this._logger.Warn($"{nameof(CcDiscoveries.MessageTypes.FuseResponse)}: p = {currentRoute.IsProxy}: Unrouted request from {srcEndPoint} ~> {@this.MessageService.IoNetSocket.LocalNodeAddress.IpPort}");
 #endif
                                                 break;
                                             }
-
-                                            if (((CcFuseResponse)message).Timestamp.ElapsedUtcMs() < @this.parm_max_network_latency_ms * 2)
-                                                await currentRoute.ProcessAsync((CcFuseResponse)message, srcEndPoint, packet).FastPath();
+                                            var fuseResponse = CcFuseResponse.Parser.ParseFrom(zero.Data);
+                                            if (fuseResponse.Timestamp.ElapsedUtcMs() < @this.parm_max_network_latency_ms * 2)
+                                                await currentRoute.ProcessAsync(fuseResponse, srcEndPoint, zero).FastPath();
                                             break;
                                         case CcDiscoveries.MessageTypes.Defuse:
                                             if (@this.CcCollective.ZeroDrone || !currentRoute.Verified)
@@ -1348,22 +1348,23 @@ namespace zero.cocoon.autopeer
                                                 break;
                                             }
 
-                                            if (((CcDefuseRequest)message).Timestamp.ElapsedUtcMs() < @this.parm_max_network_latency_ms * 2)
-                                                await currentRoute.ProcessAsync((CcDefuseRequest)message, srcEndPoint, packet).FastPath();
+                                            var deFuse = CcDefuseRequest.Parser.ParseFrom(zero.Data);
+                                            if (deFuse.Timestamp.ElapsedUtcMs() < @this.parm_max_network_latency_ms * 2)
+                                                await currentRoute.ProcessAsync(deFuse, srcEndPoint, zero).FastPath();
                                             break;
                                     }
                                 }
                                 catch when (@this.Zeroed() || currentRoute.Zeroed()) { }
                                 catch (Exception e) when (!@this.Zeroed() && !currentRoute.Zeroed())
                                 {
-                                    @this._logger?.Error(e, $"{message!.GetType().Name} [FAILED]: l = {packet!.Data.Length}, {@this.Key}");
+                                    @this._logger?.Error(e, $"{(CcDiscoveries.MessageTypes)zero.Type} [FAILED]: l = {zero!.Data.Length}, {@this.Key}");
                                 }
                             }
                         }
                         catch when (@this.Zeroed()) { }
                         catch (Exception e) when (!@this.Zeroed())
                         {
-                            @this._logger?.Error(e, $"{message!.GetType().Name} [FAILED]: l = {packet!.Data.Length}, {@this.Key}");
+                            @this._logger?.Error(e, $"{zero} [FAILED]: l = {zero?.Data.Length}, {@this.Key}");
                         }
                     }, @this).FastPath();
                 }
