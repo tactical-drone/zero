@@ -531,11 +531,17 @@ namespace zero.cocoon.autopeer
 #endif
 
         /// <summary>
+        /// Time allowed before webbing
+        /// </summary>
+        [IoParameter]
+        public int parm_web_settle_ms = 250;
+
+        /// <summary>
         /// Maximum number of drones in discovery response
         /// </summary>
         [IoParameter]
         // ReSharper disable once InconsistentNaming
-        public int parm_max_v_heuristic_ms = 10000;
+        public int parm_max_v_heuristic_ms = 2000;
 
         /// <summary>
         /// Maximum number of drones in discovery response
@@ -1275,12 +1281,12 @@ namespace zero.cocoon.autopeer
                                         case CcDiscoveries.MessageTypes.Probe:
                                             var probe = CcProbeMessage.Parser.ParseFrom(zero.Data);
                                             if (probe.Timestamp.ElapsedUtcMs() < @this.parm_max_network_latency_ms * 2)
-                                                await currentRoute.ProcessAsync((CcProbeMessage)probe, srcEndPoint, zero).FastPath();
+                                                await currentRoute.ProcessAsync(probe, srcEndPoint, zero).FastPath();
                                             break;
                                         case CcDiscoveries.MessageTypes.ProbeResponse:
                                             var probeResponse = CcProbeResponse.Parser.ParseFrom(zero.Data);
                                             if (probeResponse.Timestamp.ElapsedUtcMs() < @this.parm_max_network_latency_ms * 2)
-                                                await currentRoute.ProcessAsync((CcProbeResponse)probeResponse, srcEndPoint, zero).FastPath();
+                                                await currentRoute.ProcessAsync(probeResponse, srcEndPoint, zero).FastPath();
                                             break;
                                         case CcDiscoveries.MessageTypes.Scan:
                                             if (!currentRoute.Verified && !@this.CcCollective.ZeroDrone)
@@ -1904,6 +1910,9 @@ namespace zero.cocoon.autopeer
 
             try
             {
+                if (!verified && Hub.Neighbors.ContainsKey(designation.IdString()))
+                    return false;
+
                 var newAdjunct = (CcAdjunct)Hub.MallocNeighbor(Hub, MessageService, Tuple.Create(designation, newRemoteEp, verified));
                 if (!Zeroed() && await Hub.ZeroAtomicAsync(static async (s, state, ___) =>
                     {
@@ -1966,7 +1975,7 @@ namespace zero.cocoon.autopeer
                             @this._logger.Debug($"* {nameof(CollectAsync)}: {(verified?"Egress":"Ingress")} {newAdjunct.Description}");
                             if(verified)
                                 await @this.RouteAsync(newAdjunct.RemoteAddress.IpEndPoint, ByteString.CopyFrom(newAdjunct.Designation.PublicKey)).FastPath();
-                            @this.Router._routingTable.TryAdd(newAdjunct.RemoteAddress.IpPort, newAdjunct);
+                            
                             return true;
                         }
                         catch when (@this.Zeroed()) { }
@@ -2192,6 +2201,9 @@ namespace zero.cocoon.autopeer
                         try
                         {
                             await Task.Delay(@this.parm_max_v_heuristic_ms, @this.AsyncTasks.Token);
+
+                            if (@this.State == AdjunctState.Connected)
+                                return;
 
                             if (!await @this.Router.ProbeAsync("SYN-DC", toAddress))
                             {
@@ -2445,7 +2457,7 @@ namespace zero.cocoon.autopeer
                 if (!CcCollective.ZeroDrone && Probed &&
                     heading > IIoSource.Heading.Ingress &&
                     Direction == IIoSource.Heading.Undefined &&
-                    CcCollective.EgressCount < CcCollective.parm_max_outbound &&
+                    CcCollective.TotalConnections < CcCollective.parm_max_outbound &&
                     FuseCount < parm_zombie_max_connection_attempts
                    )
                 {
@@ -2887,7 +2899,7 @@ namespace zero.cocoon.autopeer
                 IoZeroScheduler.Zero.LoadAsyncContext(static async state =>
                 {
                     var @this = (CcAdjunct)state;
-                    await Task.Delay(@this.parm_max_network_latency_ms/2);
+                    await Task.Delay(@this.parm_web_settle_ms);
                     if (!((IoNanoprobe)state).Zeroed())
                         await ((CcAdjunct)state).ScanAsync(0).FastPath();
                 }, this);

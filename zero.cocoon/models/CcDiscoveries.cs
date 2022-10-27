@@ -1,15 +1,12 @@
 ﻿using System;
-using System.Collections.Generic;
 using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Threading.Tasks.Sources;
-using Google.Protobuf;
 using K4os.Compression.LZ4;
 using zero.cocoon.autopeer;
 using zero.cocoon.identity;
 using zero.cocoon.models.batches;
-using zero.core.conf;
 using zero.core.feat.models.protobuffer;
 using zero.core.feat.models.protobuffer.sources;
 using zero.core.misc;
@@ -48,12 +45,11 @@ namespace zero.cocoon.models
 
             IoZero = (IoZero<CcProtocMessage<chroniton, CcDiscoveryBatch>>)context;
 
-            var pf = Source.PrefetchSize + 3;
-            var cc = Source.ZeroConcurrencyLevel + 3; 
+            var pf = Source.PrefetchSize;
+            var cc = Source.ZeroConcurrencyLevel; 
 
             if (!Source.Proxy && Adjunct.CcCollective.ZeroDrone)
             {
-                parm_max_msg_batch_size *= 2;
                 pf = Source.PrefetchSize * 3;
                 cc = Source.ZeroConcurrencyLevel * 3;
             }
@@ -167,14 +163,6 @@ namespace zero.cocoon.models
         /// The adjunct this job belongs to
         /// </summary>
         public CcAdjunct Adjunct => (CcAdjunct)IoZero;
-
-        /// <summary>
-        /// Maximum number of datums this buffer can hold
-        /// </summary>
-        [IoParameter]
-        // ReSharper disable once InconsistentNaming
-        public int parm_max_msg_batch_size = 4;
-        //TODO: tuning. The showcase implementation never goes beyond 1 because of how UDP delivers packets from the same endpoint... batching is pointless here.
 
         /// <summary>
         /// Whether grouping by endpoint is supported
