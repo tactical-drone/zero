@@ -138,13 +138,20 @@ namespace zero.sync
             }
             else
             {
-                var count = remotePort.Count(p => p > 0);
-                StartCocoon(CoCoon(CcDesignation.Generate(), $"tcp://0.0.0.0:{localPort}",
-                    $"udp://0.0.0.0:{localPort}",
-                    $"tcp://127.0.0.1:{localPort}", $"udp://127.0.0.1:{localPort}",
-                    remotePort.Take(count).Select(p => $"udp://10.0.0.6:{p}, udp://10.0.0.5:{p}").ToList(), false));
+                //var count = remotePort.Count(p => p > 0);
+                //StartCocoon(CoCoon(CcDesignation.Generate(), $"tcp://0.0.0.0:{localPort}",
+                //    $"udp://0.0.0.0:{localPort}",
+                //    $"tcp://127.0.0.1:{localPort}", $"udp://127.0.0.1:{localPort}",
+                //    //remotePort.Take(count).Select(p => $"udp://10.0.0.6:{p}, udp://10.0.0.5:{p}").ToList(), false));
+                //    remotePort.Take(count).Select(p => $"udp://10.0.0.6:{p}, udp://10.0.0.5:{p}").ToList(), false));
 
-                Console.WriteLine($"starting udp://127.0.0.1:{localPort} -> {string.Join(", ", remotePort.Take(count).Select(port => $"udp://127.0.0.1:{port}"))}");
+                var count = remotePort.Count(p => p > 0);
+                StartCocoon(CoCoon(CcDesignation.Generate(), $"tcp://127.0.0.1:{localPort}",
+                    $"udp://127.0.0.1:{localPort}",
+                    $"tcp://127.0.0.1:{localPort}", $"udp://127.0.0.1:{localPort}",
+                    remotePort.Take(count).Select(p => $"udp://127.0.0.1:{p}").ToList(), false));
+
+                    Console.WriteLine($"starting udp://127.0.0.1:{localPort} -> {string.Join(", ", remotePort.Take(count).Select(port => $"udp://127.0.0.1:{port}"))}");
                 return;
             }
 

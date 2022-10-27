@@ -168,7 +168,8 @@ namespace zero.core.feat.models.protobuffer
                                     {
                                         if (socket.IoNetSocket.LastError != SocketError.Success)
                                         {
-                                            await job.MessageService.DisposeAsync(ioJob, $"socket: {job.MessageService.IoNetSocket.LastError}").FastPath();
+                                            await job.MessageService.DisposeAsync(ioJob,
+                                                $"socket: {job.MessageService.IoNetSocket.LastError}").FastPath();
                                             await ioJob.SetStateAsync(IoJobMeta.JobState.ProduceErr).FastPath();
                                             return false;
                                         }
@@ -176,13 +177,21 @@ namespace zero.core.feat.models.protobuffer
                                     else
                                     {
                                         if (socket.IoNetSocket.LastError != SocketError.Success &&
-                                            socket.IoNetSocket.LastError != SocketError.OperationAborted)
+                                            socket.IoNetSocket.LastError != SocketError.OperationAborted &&
+                                            socket.IoNetSocket.LastError != SocketError.ConnectionReset)
                                         {
-                                            await job.MessageService.DisposeAsync(ioJob, $"socket: {job.MessageService.IoNetSocket.LastError}").FastPath();
+                                            await job.MessageService.DisposeAsync(ioJob,
+                                                $"socket: {job.MessageService.IoNetSocket.LastError}").FastPath();
                                             await ioJob.SetStateAsync(IoJobMeta.JobState.ProduceErr).FastPath();
                                             return false;
                                         }
                                     }
+                                }
+
+                                if (!socket.IoNetSocket.IsTcpSocket && socket.IoNetSocket.LastError == SocketError.ConnectionReset)
+                                {
+                                    await ioJob.SetStateAsync(IoJobMeta.JobState.ProdSkipped).FastPath();
+                                    return false;
                                 }
 #if DEBUG
                                 _logger.Error($"ReceiveAsync [FAILED]: ZERO {socket.IoNetSocket.ProtocolType} READS!!! {ioJob.Description}");

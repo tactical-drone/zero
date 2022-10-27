@@ -373,10 +373,14 @@ namespace zero.core.patterns.bushings
                     }
                     else //produce job returned with errors or nothing...
                     {
-                        IsArbitrating = false;
-
+                        var accept = false;
                         if (nextJob.State == IoJobMeta.JobState.ProdSkipped)
+                        {
                             await nextJob.SetStateAsync(IoJobMeta.JobState.Accept).FastPath();
+                            accept = true;
+                        }
+                        else
+                            IsArbitrating = false;
 
                         await ZeroJobAsync(nextJob, nextJob.FinalState != IoJobMeta.JobState.Accept).FastPath();
                         nextJob = null;
@@ -385,7 +389,7 @@ namespace zero.core.patterns.bushings
                         if (Zeroed())
                             return false;
 
-                        return false;
+                        return accept;
                     }
                 }
                 else

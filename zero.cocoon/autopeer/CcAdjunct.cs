@@ -1424,7 +1424,7 @@ namespace zero.cocoon.autopeer
                             {
                                 @this._logger?.Error(e, $"{@this.Description}");
                             }
-                        }, (this,i), TaskCreationOptions.DenyChildAttach).FastPath();
+                        }, (this,i)).FastPath();
 
                     //producer;
                     width = _protocolConduit.Source.PrefetchSize;

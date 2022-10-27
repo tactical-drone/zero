@@ -380,7 +380,7 @@ namespace zero.core.network.ip
             try
             {
                 var tcs = (IIoManualResetValueTaskSourceCore<bool>)eventArgs.UserToken;
-                if(eventArgs.SocketError == SocketError.Success)
+                if(eventArgs.SocketError is SocketError.Success or SocketError.ConnectionReset)
                     tcs.SetResult(!Zeroed());
                 else
                     tcs.SetException(new SocketException((int)eventArgs.SocketError));
@@ -455,9 +455,10 @@ namespace zero.core.network.ip
 
                         args.RemoteEndPoint.AsBytes(remoteEp);
 #if DEBUG
-                        if (args.SocketError != SocketError.Success && args.SocketError != SocketError.OperationAborted)
+                        if (args.SocketError != SocketError.Success && args.SocketError != SocketError.OperationAborted && args.SocketError != SocketError.ConnectionReset)
                             _logger.Error($"{nameof(ReceiveAsync)}: socket error = {args.SocketError}");
 #endif
+
                         LastError = args.SocketError;
 
                         return args.BytesTransferred;
