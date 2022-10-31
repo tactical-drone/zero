@@ -63,7 +63,7 @@
 		<PackageReference Include="Microsoft.AspNetCore.Mvc.Abstractions" Version="2.2.0" />
 		<PackageReference Include="Microsoft.Extensions.Caching.Redis" Version="2.2.0" />
 		<PackageReference Include="Microsoft.VisualStudio.Threading" Version="17.3.48" />
-		<PackageReference Include="System.Text.Json" Version="7.0.0-rtm.22511.4" />
+		<PackageReference Include="System.Text.Json" Version="8.0.0-alpha.1.22530.1" />
 		<PackageReference Include="NLog" Version="5.0.5" />
 		<PackageReference Include="Grpc.Tools" Version="2.50.0">
 			<PrivateAssets>all</PrivateAssets>
