@@ -19,7 +19,7 @@ namespace zero.core.feat.misc
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static ByteString AsByteString(this IPEndPoint address)
+        public static ByteString ToByteString(this IPEndPoint address)
         {
             var buf = new byte[(address.AddressFamily == AddressFamily.InterNetworkV6? IPv6AddressBytes : IPv4AddressBytes) + 2];
             address.Address.TryWriteBytes(buf, out var w);
@@ -31,6 +31,9 @@ namespace zero.core.feat.misc
         [MethodImpl(MethodImplOptions.AggressiveInlining)]  
         public static IPEndPoint GetEndpoint(this ByteString address)
         {
+            if (address.Length == 0)
+                return null;
+
             var buf = address.Memory.AsArray(); 
             return new IPEndPoint(new IPAddress(buf[..^2]), (buf[^1] << 8 | buf[^2]) & 0x0FFFF);
         }

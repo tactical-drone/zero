@@ -205,13 +205,10 @@ namespace zero.core.core
                     var (@this, newSocket,listenerContext, handshake) = state;
                     IoNeighbor<TJob> n;
                     if (!await ZeroEnsureConnAsync(@this, n = @this.MallocNeighbor(@this, newSocket, null), handshake, listenerContext).FastPath())
-                    {
-                        @this._logger.Trace($"{nameof(ZeroEnsureConnAsync)}: Accepted connection; {n.Description}");
-                    }
+                        @this._logger.Trace($"{nameof(ZeroEnsureConnAsync)}: Rejected connection; from = {newSocket}");
                     else
-                    {
-                        @this._logger.Trace($"{nameof(ZeroEnsureConnAsync)}: Rejected connection from {newSocket}; {n.Description}");
-                    }
+                        @this._logger.Trace($"{nameof(ZeroEnsureConnAsync)}: Accepted connection from {newSocket}; {n.Description}");
+
                 }, (@this, newSocket, listenerContext, handshake));
             }, (this, context, handshake), bootFunc, bootData).FastPath();
         }

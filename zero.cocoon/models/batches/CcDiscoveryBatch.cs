@@ -42,8 +42,7 @@ namespace zero.cocoon.models.batches
             CcDiscoveries.Heap.Return(this, _disposed > 0);
         }
 
-        public int _count;
-
+        private int _count;
         IIoBundleMessage IIoMessageBundle.this[int i]
         {
             get => _messages[i];

@@ -10,6 +10,6 @@ namespace zero.cocoon.models.batches
     {
         private chroniton _zero;
         public chroniton Zero { get => _zero; set => Interlocked.Exchange(ref _zero, value); }
-        public byte[] EndPoint { get; protected set; } = new IPEndPoint(IPAddress.Any, 0).AsBytes();
+        public byte[] EndPoint { get; } = new IPEndPoint(IPAddress.Any, 0).AsBytes();
     }
 }

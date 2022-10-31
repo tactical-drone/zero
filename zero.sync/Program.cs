@@ -61,7 +61,7 @@ namespace zero.sync
 
         static void Bootstrap(out ConcurrentBag<CcCollective> concurrentBag, int total, int portOffset = 7051, int localPort = -1, int[] remotePort = null)
         {
-            var maxDrones = 4;
+            var maxDrones = 6;
             var maxAdjuncts = 12;
 
             var oldBoot = localPort == -1;
@@ -158,7 +158,7 @@ namespace zero.sync
             portOffset += 2;
             for (var i = 0; i < total; i++)
             {
-                var range = 20;
+                var range = i;
 
                 var o1 = Random.Shared.Next(portOffset, portOffset + range);
                 var o2 = Random.Shared.Next(portOffset, portOffset + range);
@@ -172,7 +172,7 @@ namespace zero.sync
                     $"udp://127.0.0.1:{1234 + portOffset + i}",
                     new[]
                     {
-                            //$"udp://127.0.0.1:{1234 + portOffset + i - 1}",
+                            $"udp://127.0.0.1:{1234 + portOffset + i - 2}",
                             extra,
                             $"udp://127.0.0.1:{1234 + o1}", $"udp://127.0.0.1:{1234 + o2}",
                             $"udp://127.0.0.1:{1234 + o3}", $"udp://127.0.0.1:{1234 + o4}"
@@ -401,8 +401,8 @@ namespace zero.sync
             {
                 var t = j.RunAsync(async () =>
                 {
-                    //await SemTestAsync();
-                    await QueueTestAsync();
+                    await SemTestAsync();
+                    //await QueueTestAsync();
                     //await ZeroQTestAsync();
                     //await BagTestAsync();
                 });
@@ -457,12 +457,14 @@ namespace zero.sync
         static void StartGRPC()
         {
             //BOOSTRAP GRPC
-            
-            var grpc = Task.Factory.StartNew(() =>
+            if (AutoPeeringEventService.Operational)
             {
-                _host = CreateHostBuilder(AutoPeeringEventService.Port = 27021).Build();
-                _host.Run();
-            }, CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Default);
+                var grpc = Task.Factory.StartNew(() =>
+                {
+                    _host = CreateHostBuilder(AutoPeeringEventService.Port = 27021).Build();
+                    _host.Run();
+                }, CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Default);
+            }
         }
 
         /// <summary>
@@ -892,8 +894,12 @@ namespace zero.sync
             _nodes?.Clear();
             _nodes = null;
 
-            var s = _host.StopAsync();
-            _host = null;
+            if (_host != null)
+            {
+                var s = _host.StopAsync();
+                _host = null;
+            }
+            
             LogManager.Shutdown();
 
             Console.WriteLine("## - done");

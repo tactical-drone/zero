@@ -25,7 +25,7 @@ namespace zero.test.core.patterns.semaphore
         private int _accepted;
         private int _rejected;
 
-        //[Fact]
+        [Fact]
         async Task NextAsync()
         {
             var threads = Environment.ProcessorCount;

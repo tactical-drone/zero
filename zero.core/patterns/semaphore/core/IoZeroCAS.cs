@@ -101,9 +101,9 @@ namespace zero.core.patterns.semaphore.core
 
             long latch;
             var spinWait = new SpinWait();
-            while ((latch = val) + 1 > cap || Interlocked.CompareExchange(ref val, latch + 1, latch) != latch)
+            while ((latch = Interlocked.Read(ref val)) + 1 > cap || Interlocked.CompareExchange(ref val, latch + 1, latch) != latch)
             {
-                if (val + 1 > cap)
+                if (Interlocked.Read(ref val) + 1 > cap)
                     return cap;
 
                 spinWait.SpinOnce();

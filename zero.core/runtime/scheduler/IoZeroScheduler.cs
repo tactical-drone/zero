@@ -331,6 +331,14 @@ namespace zero.core.runtime.scheduler
             public Func<object, ValueTask> ValueFunc;
             public object Context;
             public int Timestamp;
+
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            public ZeroValueContinuation Prime(Func<object, ValueTask> valueFunc, object context)
+            {
+                Interlocked.Exchange(ref ValueFunc, valueFunc);
+                Interlocked.Exchange(ref Context, context);
+                return this;
+            }
         }
 
         private void TrackInit()
@@ -568,8 +576,12 @@ namespace zero.core.runtime.scheduler
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         protected override void QueueTask(Task task)
         {
+            //scheduler the task
+            if (_taskQueue.Release(task, true) < 0)
+                throw new InternalBufferOverflowException($"{nameof(_taskQueue)}: {_taskQueue.Description}");
+
             //insane checks
-            if (LoadFactor > WorkerSpawnThreshold && _lastWorkerSpawnedTime.ElapsedMs() > WorkerSpawnBurstTimeMs && _taskQueueCapacity < short.MaxValue / WorkerSpawnPassThrough || LoadFactor > 0.99)
+            if (Load > Environment.ProcessorCount && LoadFactor > WorkerSpawnThreshold && _lastWorkerSpawnedTime.ElapsedMs() > WorkerSpawnBurstTimeMs && _taskQueueCapacity < short.MaxValue / WorkerSpawnPassThrough || LoadFactor > 0.99)
             {
                 //_lastWorkerSpawnedTime = Environment.TickCount;
                 FallbackContext(static state =>
@@ -612,10 +624,6 @@ namespace zero.core.runtime.scheduler
 
                 Thread.Yield();
             }
-
-            //scheduler the task
-            if (_taskQueue.Release(task, true) < 0)
-                throw new InternalBufferOverflowException($"{nameof(_taskQueue)}: {_taskQueue.Description}");
 
             Interlocked.Increment(ref _taskEnqueueCount);
         }
@@ -674,8 +682,6 @@ namespace zero.core.runtime.scheduler
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public bool QueueCallback(Action<object> callback, object state)
         {
-            if (Zeroed)
-                return false;
             ZeroContinuation handler = null;
             try
             {
@@ -695,18 +701,8 @@ namespace zero.core.runtime.scheduler
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public bool LoadAsyncContext<T>(Func<object,ValueTask> valueTask, T context)
-        {
-            if (Zeroed)
-                return false;
-
-            var c = _contextHeap.Take();
-            if (c == null) throw new OutOfMemoryException(nameof(LoadAsyncContext));
-            c.ValueFunc = valueTask;
-            c.Context = context;
-            return _asyncTaskWithContextQueue.Release(c, true) >= 0;
-        }
-
+        public bool LoadAsyncContext<T>(Func<object,ValueTask> valueTask, T context) => _asyncTaskWithContextQueue.Release(_contextHeap.Take().Prime(valueTask, context), true) >= 0;
+        
         //API
         public void TryExecuteTaskInline(Task task) => TryExecuteTaskInline(task, false);
         public void Queue(Task task) => QueueTask(task);

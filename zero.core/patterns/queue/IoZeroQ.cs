@@ -137,10 +137,8 @@ namespace zero.core.patterns.queue
         private const int _reset = 3;
         private const int YieldRetryCount = 4;
 
-        //public long Tail => Interlocked.Read(ref _tail);
-        //public long Head => Interlocked.Read(ref _head);
-        public long Tail => _tail;
-        public long Head => _head;
+        public long Tail => Interlocked.Read(ref _tail);
+        public long Head => Interlocked.Read(ref _head);
 
         /// <summary>
         /// ZeroAsync status
@@ -449,6 +447,7 @@ namespace zero.core.patterns.queue
                                 return false;
                             }
 
+                            Interlocked.MemoryBarrier();
                             value = _fastStorage[modIdx];
                             _fastStorage[modIdx] = default;
                             Interlocked.Decrement(ref _count);
@@ -475,6 +474,7 @@ namespace zero.core.patterns.queue
                         return false;
                     }
 
+                    Interlocked.MemoryBarrier();
                     value = _storage[i][i2];
                     _storage[i][i2] = default;
                     Interlocked.Decrement(ref _count);
@@ -723,7 +723,8 @@ namespace zero.core.patterns.queue
                     if (Zeroed)
                         return -1;
 
-                    yield.SpinOnce();
+                    if (!yield.NextSpinWillYield)
+                        yield.SpinOnce();
 #if DEBUG
                     if(yield.Count % 1000 == 0)
                         Console.WriteLine($"Z-> {Description}");
@@ -808,7 +809,8 @@ namespace zero.core.patterns.queue
                         return false;
                     }
 
-                    yield.SpinOnce();
+                    if (!yield.NextSpinWillYield)
+                        yield.SpinOnce();
                 }
                
                 return true;

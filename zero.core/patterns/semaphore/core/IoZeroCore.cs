@@ -309,7 +309,15 @@ namespace zero.core.patterns.semaphore.core
                 }, (this, blockingCore));
             }
 
-            Debug.Assert(blockingCore != null);
+#if DEBUG
+            if (blockingCore == null)
+            {
+                Thread.Sleep(1000);
+                Debug.Assert(blockingCore != null || Zeroed());
+            }
+                
+#endif
+            blockingCore.IsBlocking(true);
 
             //core waiting to sync
             blockingCore.SyncRoot = SyncWait;

@@ -140,7 +140,7 @@ namespace zero.cocoon
                 if (_key != null)
                     return _key;
 
-                Volatile.Write(ref _key, Source?.Key??"zero-key");
+                Volatile.Write(ref _key, $"{Source.Key}`{Adjunct?.Key}");
                 return _key;
             }
         }

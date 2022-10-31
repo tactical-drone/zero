@@ -18,6 +18,7 @@ using zero.cocoon.models.batches;
 using zero.cocoon.models.services;
 using zero.core.conf;
 using zero.core.core;
+using zero.core.feat.misc;
 using zero.core.feat.models.protobuffer;
 using zero.core.misc;
 using zero.core.network.ip;
@@ -75,10 +76,11 @@ namespace zero.cocoon
 
             var protocolMsg = new chroniton
             {
+                Type = 1,
+                Header = new z_header { Ip = new net_header{Src = UnsafeByteOperations.UnsafeWrap(new byte[6])}},
                 Signature = UnsafeByteOperations.UnsafeWrap(BitConverter.GetBytes((int)CcDiscoveries.MessageTypes.Handshake)),
                 PublicKey = UnsafeByteOperations.UnsafeWrap(new ReadOnlyMemory<byte>(CcId.PublicKey)),
                 Data = futileRequest.ToByteString(),
-                Type = 1
             };
             protocolMsg.Signature = UnsafeByteOperations.UnsafeWrap(new ReadOnlyMemory<byte>(CcId.Sign(protocolMsg.Data.Memory.ToArray(), 0, protocolMsg.Data.Length)));
 
@@ -93,10 +95,11 @@ namespace zero.cocoon
 
             protocolMsg = new chroniton
             {
+                Type = (int)CcDiscoveries.MessageTypes.Handshake,
+                Header = new z_header { Ip = new net_header { Src = UnsafeByteOperations.UnsafeWrap(new byte[6]) } },
                 Signature = UnsafeByteOperations.UnsafeWrap(BitConverter.GetBytes((int)CcDiscoveries.MessageTypes.Handshake)),
                 Data = futileResponse.ToByteString(),
                 PublicKey = UnsafeByteOperations.UnsafeWrap(new ReadOnlyMemory<byte>(CcId.PublicKey)),
-                Type = (int)CcDiscoveries.MessageTypes.Handshake
             };
 
             protocolMsg.Signature = UnsafeByteOperations.UnsafeWrap(new ReadOnlyMemory<byte>(CcId.Sign(protocolMsg.Data.Memory.AsArray(), 0, protocolMsg.Data.Length)));
@@ -229,7 +232,7 @@ namespace zero.cocoon
                         force = true;
                     }
 
-                    if (@this.TotalConnections < @this.parm_max_outbound || @this.IngressCount == 0) 
+                    if (@this.TotalConnections < @this.MaxDrones>>1) 
                         await @this.DeepScanAsync(force).FastPath();
                 }
                 catch when(@this.Zeroed()){}
@@ -441,14 +444,14 @@ namespace zero.cocoon
         /// </summary>
         [IoParameter]
         // ReSharper disable once InconsistentNaming
-        public int parm_max_outbound = 2;
+        public int parm_max_outbound = 3;
 
         /// <summary>
         /// Max drones
         /// </summary>
         [IoParameter]
         // ReSharper disable once InconsistentNaming
-        public int parm_max_drone = 11;
+        public int parm_max_drone = 12;
 
         /// <summary>
         /// Max adjuncts
@@ -591,11 +594,13 @@ namespace zero.cocoon
         /// <returns>The number of bytes sent</returns>
         private async ValueTask<int> SendMessageAsync(CcDrone drone, ByteString msg, string type, int timeout = 0)
         {
+
             var responsePacket = new chroniton
             {
+                Type = (int)CcDiscoveries.MessageTypes.Handshake,
+                Header = new z_header{Ip = new net_header{ Src = UnsafeByteOperations.UnsafeWrap(drone.Adjunct?.ReverseAddress??Array.Empty<byte>()) } },
                 Data = msg,
                 PublicKey = UnsafeByteOperations.UnsafeWrap(new ReadOnlyMemory<byte>(CcId.PublicKey)),
-                Type = (int)CcDiscoveries.MessageTypes.Handshake
             };
 
             responsePacket.Signature = UnsafeByteOperations.UnsafeWrap(new ReadOnlyMemory<byte>(CcId.Sign(responsePacket.Data.Memory.AsArray(), 0, responsePacket.Data.Length)));
@@ -607,7 +612,7 @@ namespace zero.cocoon
             {
                 //_logger.Trace($"~/> {type}({sent}) [{protocolRaw.PayloadSig()} {msg.Memory.PayloadSig("D")}]: {drone.MessageService.IoNetSocket.LocalAddress} ~> {drone.MessageService.IoNetSocket.RemoteAddress} ({Enum.GetName(typeof(CcDiscoveries.MessageTypes), responsePacket.Type)}); {protocolRaw.Print()}");
                 _logger.Trace($"~/> {type}({sent}) [{protocolRaw.PayloadSig()} {msg.Memory.PayloadSig("D")}]: {drone.MessageService.IoNetSocket.LocalAddress} ~> {drone.MessageService.IoNetSocket.RemoteAddress} ({Enum.GetName(typeof(CcDiscoveries.MessageTypes), responsePacket.Type)})");
-                return msg.Length;
+                return sent;
             }
 
             if(!drone.Zeroed())
@@ -650,6 +655,13 @@ namespace zero.cocoon
                         return false;
                     }
 
+#if TRACE
+                        if (bytesRead > 0)
+                        {
+                            _logger.Fatal($"<h\\ {nameof(CcFutileRequest)}({bytesRead}) [{futileBuffer[..bytesRead].PayloadSig()}]: socket = {ioNetSocket.Description}");
+                        }
+#endif 
+
                     //parse a packet
                     var packet = chroniton.Parser.ParseFrom(futileBuffer, 0, bytesRead);
                     if (packet != null && packet.Data != null && packet.Data.Length > 0)
@@ -662,9 +674,9 @@ namespace zero.cocoon
 #endif
                         ////verify the public key
                         CcDesignation id = null;
-                        if (packet.PublicKey.Length <= 0 || !Hub.Neighbors.TryGetValue((id = CcDesignation.FromPubKey(packet.PublicKey.Memory)).IdString(), out var adjunct))
+                        if (packet.PublicKey.Length <= 0 || !Hub.Neighbors.TryGetValue($"udp://{packet.Header.Ip.Src.Memory.AsArray().GetEndpoint()}`{(id = CcDesignation.FromPubKey(packet.PublicKey.Memory)).IdString()}", out var adjunct))
                         {
-                            _logger.Error($"bad public key: id = `{id?.IdString() ?? "null"}' not found in {Adjuncts.Count} adjuncts, {Description}");
+                            _logger.Error($"bad public key: id = udp://{packet.Header.Ip.Src.Memory.AsArray().GetEndpoint()}`{id?.IdString() ?? "null"} not found in {Adjuncts.Count} adjuncts, {Description}");
                             return false;
                         }
 
@@ -798,8 +810,9 @@ namespace zero.cocoon
 
                     if (bytesRead < _futileRejectSize || !drone.Source.IsOperational())
                     {
-                        if(!Zeroed())
+                        if(!Zeroed() && !drone.Zeroed())
                             _logger.Trace($"<\\h {nameof(CcFutileResponse)}({bytesRead}) [{futileBuffer[..bytesRead].PayloadSig()}]: Failed to read egress futile challange response, available = {ioNetSocket.NativeSocket.Available}, waited = {ts.ElapsedMs()}ms, remote = {ioNetSocket.RemoteAddress}, z = {Zeroed()}");
+
                         return false;
                     }
 
@@ -830,7 +843,7 @@ namespace zero.cocoon
 #endif
 
                         //race for connection
-                        var won = ConnectForTheWin(IIoSource.Heading.Egress, drone, packet, drone.Adjunct.RemoteAddress.IpEndPoint);
+                        var won = ConnectForTheWin(IIoSource.Heading.Egress, drone, packet, drone.Adjunct.DmzAddress.IpEndPoint);
                         if (!won)
                             return false;
 
@@ -925,7 +938,7 @@ namespace zero.cocoon
             if (adjunct == null)
             {
                 Debug.Assert(direction == IIoSource.Heading.Ingress);
-                var id = CcDesignation.MakeKey(packet.PublicKey.Memory.AsArray());
+                var id = $"udp://{packet.Header.Ip.Src.Memory.AsArray().GetEndpoint()}`{CcDesignation.MakeKey(packet.PublicKey.Memory.AsArray())}";
 
                 if (!_autoPeering.Neighbors.TryGetValue(id, out var existingAdjunct))
                 {
@@ -976,7 +989,7 @@ namespace zero.cocoon
                 {
                     Interlocked.Increment(ref _currentOutboundConnectionAttempts);
 
-                    var drone = await ConnectAsync(ZeroAcceptConAsync,this, IoNodeAddress.CreateFromEndpoint("tcp", adjunct.RemoteAddress.IpEndPoint) , adjunct, false, parm_futile_timeout_ms).FastPath();
+                    var drone = await ConnectAsync(ZeroAcceptConAsync,this, IoNodeAddress.CreateFromEndpoint("tcp", adjunct.DmzAddress.IpEndPoint) , adjunct, false, parm_futile_timeout_ms).FastPath();
                     if (Zeroed() || drone == null || ((CcDrone)drone).Adjunct.Zeroed())
                     {
                         if (drone != null) await drone.DisposeAsync(this, $"{nameof(ConnectAsync)} was not successful [OK]").FastPath();

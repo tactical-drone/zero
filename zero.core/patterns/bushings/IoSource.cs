@@ -110,7 +110,7 @@ namespace zero.core.patterns.bushings
         /// <summary>
         /// The source is being throttled by the sink 
         /// </summary>
-        private IoZeroSemaphoreSlim _backPressure;
+        private readonly IoZeroSemaphoreSlim _backPressure;
         
         public int BackPressureReady => _backPressure.ReadyCount;
 
@@ -235,7 +235,6 @@ namespace zero.core.patterns.bushings
 
 #if SAFE_RELEASE
             _logger = null;
-            _backPressure = null;
             UpstreamSource = null;
             RecentlyProcessed = null;
             IoConduits = null;

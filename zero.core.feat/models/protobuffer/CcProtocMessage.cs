@@ -131,7 +131,7 @@ namespace zero.core.feat.models.protobuffer
         /// <summary>
         /// User data in the source
         /// </summary>
-        protected byte[] RemoteEndPoint { get; } = new IPEndPoint(IPAddress.Any, 0).AsBytes();
+        protected byte[] RemoteEndPoint = new IPEndPoint(IPAddress.Any, 0).AsBytes();
 
         /// <summary>
         /// Produce a Message
@@ -158,7 +158,7 @@ namespace zero.core.feat.models.protobuffer
                             //Drop zero reads
                             if (read == 0)
                             {
-                                if (ioSocket.Zeroed())
+                                if (ioSocket.Zeroed() || job.Zeroed() || job.IoZero.Zeroed())
                                     return false;
 
                                 var socket = (IoNetClient<CcProtocMessage<TModel, TBatch>>)ioSocket;
@@ -197,6 +197,7 @@ namespace zero.core.feat.models.protobuffer
                                 _logger.Error($"ReceiveAsync [FAILED]: ZERO {socket.IoNetSocket.ProtocolType} READS!!! {ioJob.Description}");
 #endif
                                 await ioJob.SetStateAsync(IoJobMeta.JobState.ProdSkipped).FastPath();
+                                await Task.Delay(250);
                                 return false;
                             }
 
@@ -283,6 +284,7 @@ namespace zero.core.feat.models.protobuffer
             {
                 var next = CurrentBatch.Feed;
                 next.Zero = packet;
+
                 RemoteEndPoint.CopyTo(next.EndPoint, 0);
                 if (CurrentBatch.Flush)
                     await ZeroBatchAsync().FastPath();
@@ -318,7 +320,7 @@ namespace zero.core.feat.models.protobuffer
                         {
                             var ready = chan.ReadyCount;
                             var wait = chan.WaitCount;
-                            if (!((CcProtocBatchSource<chroniton, IIoMessageBundle>)source).Zeroed() && !chan.Zeroed() && chan.TotalOps > 0)
+                            if (!((CcProtocBatchSource<chroniton, TBatch>)source).Zeroed() && !chan.Zeroed() && chan.TotalOps > 0)
                                 _logger.Fatal($"{nameof(ZeroBatchAsync)}: Unable to q batch; had ready = {ready}, wait = {wait}; {chan.Description} {@this.Description}");
 
                             return new ValueTask<bool>(false);

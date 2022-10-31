@@ -1,13 +1,16 @@
 ﻿using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Collections.Specialized;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Linq;
+using System.Net.Http.Headers;
 using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
 using NLog;
+using NLog.LayoutRenderers;
 using zero.core.misc;
 using zero.core.patterns.misc;
 using zero.core.patterns.queue.enumerator;
@@ -82,8 +85,8 @@ namespace zero.core.patterns.queue
         private int _count;
         #endregion
 
-        public long Tail => _tail;
-        public long Head => _head;
+        public long Tail => Interlocked.Read(ref _tail);
+        public long Head => Interlocked.Read(ref _head);
 
         /// <summary>
         /// ZeroAsync status
@@ -118,6 +121,7 @@ namespace zero.core.patterns.queue
             get
             {
                 Debug.Assert(idx >= 0);
+                Interlocked.MemoryBarrier();
                 return _storage[idx % _capacity];
             }
 #if !DEBUG
@@ -126,8 +130,8 @@ namespace zero.core.patterns.queue
             set
             {
                 Debug.Assert(idx >= 0);
-                idx %= _capacity;
-                _storage[idx] = value;
+                _storage[idx % _capacity] = value;
+                Interlocked.MemoryBarrier();
             }
         }
 
@@ -172,11 +176,14 @@ namespace zero.core.patterns.queue
                 }
 
                 long latch;
-                var next = _tail.ZeroNext(latch = Interlocked.Read(ref _head) + Capacity);
+                var next = _tail.ZeroNext(latch = Head + Capacity);
                 if (next < latch)
                 {
                     var spinWait = new SpinWait();
-                    while (_bloom[next % Capacity] != 0)
+                    
+                    ref var fastBloom = ref _bloom[next % Capacity];
+
+                    while (fastBloom != 0)
                     {
                         if (Zeroed)
                             return -1;
@@ -184,20 +191,14 @@ namespace zero.core.patterns.queue
                         spinWait.SpinOnce();
                     }
 
-                    long prevBloom;
-                    if ((prevBloom = Interlocked.CompareExchange(ref _bloom[next % Capacity], 1, 0)) == 0)
+                    if (Interlocked.CompareExchange(ref fastBloom, 1, 0) == 0)
                     {
-                        this[next] = item;
                         Interlocked.Increment(ref _count);
-                        var prev = Interlocked.Exchange(ref _bloom[next % Capacity], 2);
-                        //Debug.Assert(prev == 1, $"next = {this[next]}, bloom = {_bloom[next % Capacity]}, h = {_head}, t = {_tail}, delta = {_tail - _head}, cap = {Capacity}");
-                        Debug.Assert(prev == 1);
+                        this[next] = item;
+                        Interlocked.Exchange(ref fastBloom, 2);
                     }
-                    else
-                    {
-                        throw new InvalidOperationException($"{nameof(TryEnqueue)}: Control should never reach here; next = {next}({next%Capacity}), bloom = {prevBloom}, {Description}");
-                    }
-                        
+                    else if(!Zeroed)
+                        throw new InvalidOperationException($"{nameof(TryEnqueue)}: Control should never reach here; next = {next}({next%Capacity}), bloom = {fastBloom}, {Description}");
                 }
                 else
                     return -1;
@@ -261,9 +262,6 @@ namespace zero.core.patterns.queue
 #endif
         public bool TryDequeue([MaybeNullWhen(false)] out T slot)
         {
-            retry:
-            slot = default;
-            
             try
             {
                 if (Count == 0)
@@ -273,55 +271,38 @@ namespace zero.core.patterns.queue
                 }
 
                 long latch;
-                var next = _head.ZeroNext(latch = Interlocked.Read(ref _tail));
+                var next = _head.ZeroNext(latch = Tail);
+                
                 if (next < latch) 
                 {
-                    var idx = next % Capacity;
                     var spinWait = new SpinWait();
-                    int cur;
-                    while ((cur = _bloom[idx]) != 2)
+                    ref var fastBloom = ref _bloom[next % Capacity];
+
+                    while (fastBloom != 2)
                     {
                         if (Zeroed)
+                        {
+                            slot = default;
                             return false;
+                        }
 
                         spinWait.SpinOnce();
                     }
 
-                    if (cur != 2)
-                    {
-#if TRACE
-                        var i = 0;
-                        var count = _auditLog.Reader.Count;
-                        while (_auditLog.Reader.TryRead(out var entry))
-                        {
-                            if (i++ < count - Environment.ProcessorCount * 2)
-                                continue;
-                            Console.WriteLine($"[{i % Capacity}] = {entry % Capacity}");
-                        }
-#endif
-                        var zombie = next < _tail + Capacity;
-                        if(!zombie)
-                            throw new InvalidOperationException($"{nameof(TryDequeue)}[RACE]: zombie = {zombie}, next = {next}({next%Capacity}), latch = {latch}({latch%Capacity}), bloom = {cur}, {Description}");
-#if TRACE
-                        else
-                            LogManager.GetCurrentClassLogger().Warn($"{nameof(TryDequeue)}[ZOMBIE]: zombie = {zombie}, next = {next}({next % Capacity}), latch = {latch}({latch % Capacity}), bloom = {cur}, {Description}");
-#endif
-                        //slot = default;
-                        //return false;
-                        goto retry;
-                    }
-                    
-                    Interlocked.MemoryBarrier();
-                    slot = this[next];
-                    this[next] = default;
-                    long prev;
-                    if ((prev = Interlocked.Exchange(ref _bloom[idx], 0)) == 2)
+                    //if (Interlocked.Exchange(ref _bloom[idx], 0) == 2)
+                    int prev;
+                    if((prev = Interlocked.CompareExchange(ref fastBloom, 3, 2)) == 2)
                     {
                         Interlocked.Decrement(ref _count);
+                        slot = this[next];
+                        this[next] = default;
+
+                        Interlocked.Exchange(ref fastBloom, 0);
                         return true;
                     }
-
-                    throw new InvalidOperationException($"{nameof(TryDequeue)}[SET]: Control should never reach here; bloom was = {prev}, {Description}");
+                    
+                    if(!Zeroed)
+                        throw new InvalidOperationException($"{nameof(TryDequeue)}[SET]: Control should never reach here; next = {next}({next % Capacity}), bloom = {fastBloom}, was = {prev}, {Description}");
                 }
             }
             catch (Exception e)
@@ -423,7 +404,7 @@ namespace zero.core.patterns.queue
                 var index = i % Capacity;
                 try
                 {
-                    if (_bloom[index] > 0 && _storage[index].Equals(item))
+                    if (_bloom[index] > 0 && (_storage[index]?.Equals(item)??false))
                         return true;
                 }
                 catch

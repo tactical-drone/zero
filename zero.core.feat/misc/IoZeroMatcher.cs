@@ -260,6 +260,18 @@ namespace zero.core.feat.misc
                         return true;
                     }
 
+                    if (cur.Value == null)
+                    {
+                        if (_lut.Modified)
+                        {
+                            _lut.Modified = false;
+                            cur = _lut.Head;
+                            continue;
+                        }
+
+                        break;
+                    }
+
                     if (cur.Value.TimestampMs.ElapsedUtcMs() > _ttlMs)
                     {
                         var value = Volatile.Read(ref cur.Value);

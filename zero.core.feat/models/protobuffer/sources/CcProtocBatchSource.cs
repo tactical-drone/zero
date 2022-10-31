@@ -45,7 +45,7 @@ namespace zero.core.feat.models.protobuffer.sources
         /// <summary>
         /// Keys this instance.
         /// </summary>
-        public override string Key => $"{nameof(CcProtocBatchSource<TModel, TBatch>)}({UpstreamSource?.Key})";
+        public override string Key => UpstreamSource?.Key;
 
         private string _description;
         /// <summary>

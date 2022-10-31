@@ -120,14 +120,14 @@ namespace zero.core.patterns.semaphore.core
             _error = null;
             _executionContext = null;
             SyncRoot = 0;
-            _completed = false;
-            Interlocked.Exchange(ref _runContinuationsAsync, 0);
+            _runContinuationsAsync = 0;
 #if DEBUG
             _completeTime = 0;
             _burned = 0;
 #endif
-            _capturedContext = _continuationState = _continuation = null;
-            Interlocked.MemoryBarrier();
+            _capturedContext = _continuationState = null;
+            _completed = false;
+            Interlocked.Exchange(ref _continuation, null);
 
             //allows for this core to be placed back into a heap once completed
             _heapAction?.Invoke(_heapContext);
