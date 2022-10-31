@@ -179,7 +179,7 @@ namespace zero.core.patterns.queue
                 var next = _tail.ZeroNext(latch = Head + Capacity);
                 if (next < latch)
                 {
-                    if (next < Head - Capacity)//slow threads
+                    if (next < Tail - Capacity)//slow threads
                         goto retry;
 
                     var spinWait = new SpinWait();
@@ -200,7 +200,7 @@ namespace zero.core.patterns.queue
                         this[next] = item;
                         Interlocked.Exchange(ref fastBloom, 2);
                     }
-                    else if (next < Head - Capacity)
+                    else if (next < Tail - Capacity)
                     {
                         goto retry;
                     }
