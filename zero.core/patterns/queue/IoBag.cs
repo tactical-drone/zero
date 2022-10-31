@@ -149,7 +149,7 @@ namespace zero.core.patterns.queue
         public long TryEnqueue<TC>(T item, bool deDup = false, Action<TC> onAtomicAdd = null, TC context = default)
         {
             Debug.Assert(Zeroed || item != null);
-
+            retry:
             if (Zeroed || _clearing > 0 || _count >= Capacity)
                 return -1;
 
@@ -179,6 +179,9 @@ namespace zero.core.patterns.queue
                 var next = _tail.ZeroNext(latch = Head + Capacity);
                 if (next < latch)
                 {
+                    if (next < Head - Capacity)//slow threads
+                        goto retry;
+
                     var spinWait = new SpinWait();
                     
                     ref var fastBloom = ref _bloom[next % Capacity];
@@ -196,6 +199,10 @@ namespace zero.core.patterns.queue
                         Interlocked.Increment(ref _count);
                         this[next] = item;
                         Interlocked.Exchange(ref fastBloom, 2);
+                    }
+                    else if (next < Head - Capacity)
+                    {
+                        goto retry;
                     }
                     else if(!Zeroed)
                         throw new InvalidOperationException($"{nameof(TryEnqueue)}: Control should never reach here; next = {next}({next%Capacity}), bloom = {fastBloom}, {Description}");
