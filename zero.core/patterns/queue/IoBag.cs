@@ -179,7 +179,7 @@ namespace zero.core.patterns.queue
                 var next = _tail.ZeroNext(latch = Head + Capacity);
                 if (next < latch)
                 {
-                    if (next < Tail - Capacity)//slow threads
+                    if (next < Tail - Capacity)//slow thread resurrections are retried, not ideal but nothing you can do
                         goto retry;
 
                     var spinWait = new SpinWait();
@@ -271,7 +271,8 @@ namespace zero.core.patterns.queue
         {
             try
             {
-                if (Count == 0)
+                retry:
+                if (Count == 0 || Zeroed)
                 {
                     slot = default;
                     return false;
@@ -282,6 +283,9 @@ namespace zero.core.patterns.queue
                 
                 if (next < latch) 
                 {
+                    if (next < Tail - Capacity)//slow thread resurrections are retried, not ideal but nothing you can do
+                        goto retry;
+
                     var spinWait = new SpinWait();
                     ref var fastBloom = ref _bloom[next % Capacity];
 
@@ -307,8 +311,11 @@ namespace zero.core.patterns.queue
                         Interlocked.Exchange(ref fastBloom, 0);
                         return true;
                     }
-                    
-                    if(!Zeroed)
+
+                    if (next < Tail - Capacity)//slow threads
+                        goto retry;
+
+                    if (!Zeroed)
                         throw new InvalidOperationException($"{nameof(TryDequeue)}[SET]: Control should never reach here; next = {next}({next % Capacity}), bloom = {fastBloom}, was = {prev}, {Description}");
                 }
             }
