@@ -417,13 +417,13 @@ namespace zero.cocoon.models
                                 break;
                             }
 
-                            byte[] buf = null;
+                            //byte[] buf = null;
                             try
                             {
                                 var unpackOffset = DatumProvisionLengthMax << 2;
                                 var packetLen = LZ4Codec.Decode(Buffer, BufferOffset + sizeof(ulong), length, Buffer, unpackOffset, Buffer.Length - unpackOffset - 1);
 
-                                buf = SendBuf.Take();
+                                //buf = SendBuf.Take();
                                 //BufferBrotliStream.BaseStream.Seek(BufferOffset + sizeof(ulong), SeekOrigin.Begin);
                                 //var packetLen = await BufferBrotliStream.ReadAsync(buf, 0, buf.Length, AsyncTasks.Token);
                                 ////var packetLen = await BufferBrotliStream.ReadAsync(buf).FastPath();
@@ -461,7 +461,7 @@ namespace zero.cocoon.models
 #endif
                             finally
                             {
-                                SendBuf.Return(buf);
+                                //SendBuf.Return(buf);
                             }
                         }
 
@@ -682,8 +682,7 @@ namespace zero.cocoon.models
                                     var source = drone.MessageService;
                                     if (source == null)
                                     {
-                                        if (processed > 1)
-                                            processed--;
+                                        processed--;
                                         continue;
                                     }
                                         
@@ -694,8 +693,7 @@ namespace zero.cocoon.models
 
                                     if (dupEndpoints?.Contains(source.IoNetSocket.Key) ?? false)
                                     {
-                                        if(processed > 1)
-                                            processed--;
+                                        processed--;
                                         continue;
                                     }
 #endif
@@ -719,8 +717,7 @@ namespace zero.cocoon.models
                                                 return;
 
                                             if (source.IoNetSocket == null || req < @this.CcCollective.MaxReq ||
-                                                await source.IoNetSocket.SendAsync(socketBuf, 0, length).FastPath() <=
-                                                0)
+                                                await source.IoNetSocket.SendAsync(socketBuf, 0, length).FastPath() <= 0)
                                             {
                                                 //_logger.Trace($"SendAsync: FAILED; {source?.Description}");
                                                 return;

@@ -48,7 +48,7 @@
 
   <ItemGroup>
     <PackageReference Include="Grpc.AspNetCore" Version="2.49.0" />
-    <PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" Version="8.0.0-alpha.1.22530.1" />
+    <PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" Version="8.0.0-alpha.1.22531.8" />
     <PackageReference Include="NLog" Version="5.0.5" />
     <PackageReference Include="NLog.Extensions.Logging" Version="5.1.0" />
     <PackageReference Include="NLog.Web.AspNetCore" Version="5.1.5" />
