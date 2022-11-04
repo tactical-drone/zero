@@ -709,7 +709,8 @@ namespace zero.cocoon.models
                                         //update latest state
                                         try
                                         {
-                                            await Task.Delay(RandomNumberGenerator.GetInt32(500,1500));
+                                            //await Task.Delay(RandomNumberGenerator.GetInt32(500,1500));
+                                            //await Task.Delay(RandomNumberGenerator.GetInt32(500, 1500));
 
                                             if (req < @this.CcCollective.MaxReq)
                                                 return;

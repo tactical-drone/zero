@@ -189,7 +189,7 @@ namespace zero.sync
                 var c = 0;
                 var rateLimit = bag.Count * 20;
                 var injectionCount = Math.Max(1, bag.Count / 20);
-                var rampDelay = 5000;
+                var rampDelay = 100;
                 foreach (var cocoon in bag.OrderBy(e => e.Serial))
                 {
                     await Task.Delay(rampDelay).ConfigureAwait(false);
@@ -723,7 +723,7 @@ namespace zero.sync
                             }
 
                             long v = 1;
-                            _rampDelay = 5000;
+                            _rampDelay = 100;
                             _rampTarget = 1000;
                             var start = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
                             var threads = 3;
