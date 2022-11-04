@@ -5,6 +5,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
+using System.Security.Cryptography;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Threading.Tasks.Sources;
@@ -708,7 +709,7 @@ namespace zero.cocoon.models
                                         //update latest state
                                         try
                                         {
-                                            await Task.Delay(1);
+                                            await Task.Delay(RandomNumberGenerator.GetInt32(500,1500));
 
                                             if (req < @this.CcCollective.MaxReq)
                                                 return;

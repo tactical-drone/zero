@@ -52,17 +52,17 @@ namespace zero.sync
                         .UseNLog()
                     .ConfigureLogging(builder =>
                     {
-                        builder.AddFilter(level => level > LogLevel.Error);
+                        builder.AddFilter(level => level > LogLevel.Trace);
                         builder.ClearProviders();
-                        builder.SetMinimumLevel(LogLevel.Error);
+                        builder.SetMinimumLevel(LogLevel.Trace);
                     });
 
                 });
 
         static void Bootstrap(out ConcurrentBag<CcCollective> concurrentBag, int total, int portOffset = 7051, int localPort = -1, int[] remotePort = null)
         {
-            var maxDrones = 6;
-            var maxAdjuncts = 12;
+            var maxDrones = 4;
+            var maxAdjuncts = 13;
 
             var oldBoot = localPort == -1;
             var queens = false;
@@ -189,7 +189,7 @@ namespace zero.sync
                 var c = 0;
                 var rateLimit = bag.Count * 20;
                 var injectionCount = Math.Max(1, bag.Count / 20);
-                var rampDelay = 50;
+                var rampDelay = 5000;
                 foreach (var cocoon in bag.OrderBy(e => e.Serial))
                 {
                     await Task.Delay(rampDelay).ConfigureAwait(false);

@@ -437,21 +437,21 @@ namespace zero.cocoon
         /// </summary>
         [IoParameter]
         // ReSharper disable once InconsistentNaming
-        public int parm_max_inbound = 9;
+        public int parm_max_inbound = 11;
 
         /// <summary>
         /// Max outbound neighbors
         /// </summary>
         [IoParameter]
         // ReSharper disable once InconsistentNaming
-        public int parm_max_outbound = 3;
+        public int parm_max_outbound = 2;
 
         /// <summary>
         /// Max drones
         /// </summary>
         [IoParameter]
         // ReSharper disable once InconsistentNaming
-        public int parm_max_drone = 12;
+        public int parm_max_drone = 13;
 
         /// <summary>
         /// Max adjuncts
