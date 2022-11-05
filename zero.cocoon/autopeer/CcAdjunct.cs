@@ -2198,16 +2198,8 @@ namespace zero.cocoon.autopeer
                         
                         if (!await CollectAsync(remoteEp, ccId, false).FastPath())
                         {
-                            var key = $"udp://{remoteEp}`{ccId.IdString()}";
-
-                            if (Hub.Neighbors.TryGetValue(key, out var adjunct))
-                            {
-                                await ((CcAdjunct)adjunct).ProcessAsync(response, remoteEp.AsBytes(), packet, true);
-                                return;
-                            }
 #if DEBUG
-                            _logger.Trace(
-                                $"{nameof(CcProbeResponse)}: Collecting {remoteEp} failed!, {Description}");
+                            _logger.Trace($"{nameof(CcProbeResponse)}: Collecting {remoteEp} failed!, {Description}");
 #endif
                         }
 
@@ -2422,18 +2414,8 @@ namespace zero.cocoon.autopeer
                         
                         if (!await CollectAsync(dest.IpEndPoint, ccId, true).FastPath())
                         {
-                            var key = $"udp://{dest.IpEndPoint}`{ccId.IdString()}";
-                            if (Hub.Neighbors.ContainsKey(key))
-                                return;
-
-                            if (Hub.Neighbors.TryGetValue(key, out var adjunct))
-                            {
-                                await ((CcAdjunct)adjunct).ProcessAsync(response, src, packet, true);
-                                return;
-                            }
 #if DEBUG
-                            _logger.Trace(
-                                $"{nameof(CcProbeResponse)}: Collecting {dest.IpEndPoint} failed!, {Description}");
+                            _logger.Trace($"{nameof(CcProbeResponse)}: Collecting {dest.IpEndPoint} failed!, {Description}");
 #endif
                         }
                     }
@@ -2508,28 +2490,28 @@ namespace zero.cocoon.autopeer
                         return true;
                 }
 
-                //wait for adjunct to spin up
-                var ts = Environment.TickCount;
-                
-                while (!Probed && ts.ElapsedMs() < parm_max_network_latency_ms)
-                {
-#if DEBUG
-                    Console.Write(".");
-#endif
-                    await Task.Delay(parm_max_network_latency_ms / 4);
-                }
-                    
 
-                if (!CcCollective.ZeroDrone && Probed &&
+                if (!CcCollective.ZeroDrone &&
                     heading > IIoSource.Heading.Ingress &&
                     Direction == IIoSource.Heading.Undefined &&
                     CcCollective.TotalConnections < CcCollective.parm_max_outbound &&
                     FuseCount < parm_zombie_max_connection_attempts)
                 {
-                    if (!Fuse())
-                        _logger.Trace($"<\\- {nameof(Fuse)}: [FAILED] Send Drone request, {Description}");
+                    //wait for adjunct to spin up
+                    var ts = Environment.TickCount;
 
-                    return true;
+                    while (!Probed && ts.ElapsedMs() < parm_max_network_latency_ms / 2)
+                    {
+#if DEBUG
+                        Console.Write(".");
+#endif
+                        await Task.Delay(parm_max_network_latency_ms / 8);
+                    }
+
+                    if (Fuse()) return true;
+
+                    _logger.Trace($"<\\- {nameof(Fuse)}: [FAILED] Send Drone request, {Description}");
+                    return false;
                 }
             }
             catch when(Zeroed()){}
