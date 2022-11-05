@@ -133,7 +133,6 @@ namespace zero.cocoon.autopeer
                 {
                     return new chroniton
                     {
-                        Header = new z_header { Ip = new net_header() },
                         PublicKey = UnsafeByteOperations.UnsafeWrap(@this.CcCollective.CcId.PublicKey)
                     };
                 }, true, this);
@@ -1115,14 +1114,9 @@ namespace zero.cocoon.autopeer
                                 //}
 
                                 cachedPk = message.Zero.PublicKey;
-#if DEBUG
-                                proxy = await RouteAsync(cachedEp.GetEndpoint(), cachedPk, message.Zero.Header.Ip.Src.GetEndpoint()).FastPath();
-#else
-                                //proxy = RouteAsync(message.Chroniton.Header.Ip.Src.GetEndpoint(), cachedPk);
-                                //proxy = RouteAsync(cachedEp.GetEndpoint(), cachedPk, message.Chroniton.Header.Ip.Src.GetEndpoint());
-                                //TODO route issue
+
                                 proxy = await RouteAsync(cachedEp.GetEndpoint(), cachedPk).FastPath();
-#endif
+
                                 if (proxy == null)
                                     continue;
 
@@ -1717,6 +1711,7 @@ namespace zero.cocoon.autopeer
                 dest ??= DmzAddress;
 
                 chroniton packet = null;
+                
                 try
                 { 
                     packet = _chronitonHeap.Take();
@@ -1724,17 +1719,8 @@ namespace zero.cocoon.autopeer
                     if (packet == null)
                         throw new OutOfMemoryException($"{nameof(_chronitonHeap)}: {_chronitonHeap.Description}, {Description}");
 
-                    packet.Header.Ip.Dst = UnsafeByteOperations.UnsafeWrap(NatAddress[0] == 0 ? dest.IpEndPoint.AsBytes() : NatAddress);
 
-                    if (ReverseAddress != null)
-                        packet.Header.Ip.Src = UnsafeByteOperations.UnsafeWrap(ReverseAddress);
 
-                    //#if DEBUG
-                    //                    packet.Header.Ip.Src = ((IPEndPoint)MessageService.IoNetSocket.NativeSocket.LocalEndPoint).ToByteString();
-                    //#else
-                    //                    //TODO routing bug
-                    //                    //packet.Header.Ip.Src = ((IPEndPoint)Router.MessageService.IoNetSocket.NativeSocket.LocalEndPoint).ToByteString();
-                    //#endif
                     packet.Data = UnsafeByteOperations.UnsafeWrap(data);
                     packet.Type = (int)type;
                     
@@ -1834,7 +1820,7 @@ namespace zero.cocoon.autopeer
                     {
                         packet.Data = ByteString.Empty;
                         packet.Signature = ByteString.Empty;
-                        packet.Header.Ip.Dst = ByteString.Empty;
+                        //packet.Header.Ip.Dst = ByteString.Empty;
                         _chronitonHeap.Return(packet);
                     }
                 }
@@ -2145,6 +2131,7 @@ namespace zero.cocoon.autopeer
                 Protocol = parm_protocol_version,
                 Timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
                 ReqHash = UnsafeByteOperations.UnsafeWrap(CcDesignation.Sha256.ComputeHash(packet.Data.Memory.AsArray())),
+                Nat = UnsafeByteOperations.UnsafeWrap(remoteEp.AsBytes()),
                 Status = (long)(IsDroneAttached? DroneStatus.Drone : DroneStatus.Undefined),
 #if DEBUG
                 DbgPtr = GCHandle.ToIntPtr(GCHandle.Alloc(this, GCHandleType.WeakTrackResurrection)).ToInt64() 
@@ -2394,7 +2381,7 @@ namespace zero.cocoon.autopeer
                         {
                             _logger.Error(
                                 $"-/> {nameof(CcProbeResponse)} {packet.Data.Memory.PayloadSig()},{response.ReqHash.Memory.HashSig()}: SEC! age = {response.Timestamp.ElapsedUtcMs()}ms, matcher = ({_probeRequest.Count}, {Router._probeRequest.Count}), d = {_probeRequest.Count}, pats = {TotalPats},  " +
-                                $"PK={Designation.IdString()} != {CcDesignation.MakeKey(packet.PublicKey)} (proxy = {IsProxy}),  ssp = {SecondsSincePat}, d = {(AttachTimestamp > 0 ? (AttachTimestamp - LastPat).ToString() : "N/A")}, v = {Verified}, s = {srcEp}, nat = {NatAddress}, dmz = {packet.Header.Ip.Src.GetEndpoint()}");
+                                $"PK={Designation.IdString()} != {CcDesignation.MakeKey(packet.PublicKey)} (proxy = {IsProxy}),  ssp = {SecondsSincePat}, d = {(AttachTimestamp > 0 ? (AttachTimestamp - LastPat).ToString() : "N/A")}, v = {Verified}, s = {srcEp}, nat = {NatAddress}");
                             _probeRequest.DumpToLog();
                         }
 #endif
@@ -2437,8 +2424,8 @@ namespace zero.cocoon.autopeer
                 }
 
                 //update net mechanics
-                if (!ReverseAddress.ArrayEqual(packet.Header.Ip.Dst.Memory))
-                    packet.Header.Ip.Dst.CopyTo(ReverseAddress, 0);
+                if (!ReverseAddress.ArrayEqual(response.Nat.Memory))
+                    response.Nat.CopyTo(ReverseAddress, 0);
 
                 //conn track
                 if (NatAddress == null || !NatAddress.ArrayEqual(src))

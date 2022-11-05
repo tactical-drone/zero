@@ -4,7 +4,8 @@ package zero.models.protobuf;
 
 message CcFutileRequest {  
 	int32 protocol = 1;
-	int64 timestamp = 2;  
+	int64 timestamp = 2;
+	bytes session = 3;
 }
 
 message CcFutileResponse {  

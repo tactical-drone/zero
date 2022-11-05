@@ -71,13 +71,13 @@ namespace zero.cocoon
             var futileRequest = new CcFutileRequest
             {
                 Protocol = parm_version,
-                Timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()
+                Timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(), 
+                Session = UnsafeByteOperations.UnsafeWrap(new byte[6]),
             };
 
             var protocolMsg = new chroniton
             {
                 Type = 1,
-                Header = new z_header { Ip = new net_header{Src = UnsafeByteOperations.UnsafeWrap(new byte[6])}},
                 Signature = UnsafeByteOperations.UnsafeWrap(BitConverter.GetBytes((int)CcDiscoveries.MessageTypes.Handshake)),
                 PublicKey = UnsafeByteOperations.UnsafeWrap(new ReadOnlyMemory<byte>(CcId.PublicKey)),
                 Data = futileRequest.ToByteString(),
@@ -90,13 +90,12 @@ namespace zero.cocoon
             {
                 Timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
                 Protocol = parm_version,
-                ReqHash = UnsafeByteOperations.UnsafeWrap(new ReadOnlyMemory<byte>(CcDesignation.Sha256.ComputeHash(protocolMsg.Data.Memory.AsArray())))
+                ReqHash = UnsafeByteOperations.UnsafeWrap(new ReadOnlyMemory<byte>(CcDesignation.Sha256.ComputeHash(protocolMsg.Data.Memory.AsArray()))),
             };
 
             protocolMsg = new chroniton
             {
                 Type = (int)CcDiscoveries.MessageTypes.Handshake,
-                Header = new z_header { Ip = new net_header { Src = UnsafeByteOperations.UnsafeWrap(new byte[6]) } },
                 Signature = UnsafeByteOperations.UnsafeWrap(BitConverter.GetBytes((int)CcDiscoveries.MessageTypes.Handshake)),
                 Data = futileResponse.ToByteString(),
                 PublicKey = UnsafeByteOperations.UnsafeWrap(new ReadOnlyMemory<byte>(CcId.PublicKey)),
@@ -569,7 +568,7 @@ namespace zero.cocoon
             }
             finally
             {
-                if (!success)
+                if (!success && ccDrone.Adjunct != null)
                 {
                     try
                     {
@@ -598,7 +597,6 @@ namespace zero.cocoon
             var responsePacket = new chroniton
             {
                 Type = (int)CcDiscoveries.MessageTypes.Handshake,
-                Header = new z_header{Ip = new net_header{ Src = UnsafeByteOperations.UnsafeWrap(drone.Adjunct?.ReverseAddress??Array.Empty<byte>()) } },
                 Data = msg,
                 PublicKey = UnsafeByteOperations.UnsafeWrap(new ReadOnlyMemory<byte>(CcId.PublicKey)),
             };
@@ -672,31 +670,6 @@ namespace zero.cocoon
                             _logger.Fatal($"<h\\ {nameof(CcFutileRequest)}({bytesRead}) [{futileBuffer[..bytesRead].PayloadSig()} {packet.Data.Memory.PayloadSig("D")}]: socket = {ioNetSocket.Description}");
                         }
 #endif
-                        ////verify the public key
-                        CcDesignation id = null;
-                        if (packet.PublicKey.Length <= 0 || !Hub.Neighbors.TryGetValue($"udp://{packet.Header.Ip.Src.Memory.AsArray().GetEndpoint()}`{(id = CcDesignation.FromPubKey(packet.PublicKey.Memory)).IdString()}", out var adjunct))
-                        {
-                            _logger.Error($"bad public key: id = udp://{packet.Header.Ip.Src.Memory.AsArray().GetEndpoint()}`{id?.IdString() ?? "null"} not found in {Adjuncts.Count} adjuncts, {Description}");
-                            return false;
-                        }
-
-                        drone.Adjunct = (CcAdjunct)adjunct;
-                        var prevState = drone.Adjunct.CurrentState;
-                        var stateIsValid = drone.Adjunct.CompareAndEnterState(CcAdjunct.AdjunctState.Connecting, CcAdjunct.AdjunctState.Fusing, overrideHung: parm_futile_timeout_ms) == CcAdjunct.AdjunctState.Fusing;
-
-                        if (!stateIsValid)
-                        {
-                            stateIsValid = drone.Adjunct.CompareAndEnterState(CcAdjunct.AdjunctState.Connecting, CcAdjunct.AdjunctState.Verified, overrideHung: parm_futile_timeout_ms) == CcAdjunct.AdjunctState.Verified;
-                            if (!stateIsValid)
-                            {
-                                if (drone.Adjunct.CurrentState.EnterTime.ElapsedMs() > parm_futile_timeout_ms)
-                                {
-                                    _logger.Warn($"{nameof(FutileAsync)} - {Description}: Invalid state, {prevState}, age = {prevState.EnterTime.ElapsedMs()}ms. Wanted {nameof(CcAdjunct.AdjunctState.Fusing)} - [RACE OK!]");
-                                }
-                                else 
-                                    return false;
-                            }
-                        }
                         
                         //verify the signature
                         var packetData = packet.Data.Memory.AsArray();
@@ -726,6 +699,32 @@ namespace zero.cocoon
                             {
                                 _logger.Error($"Invalid protocol version from  {ioNetSocket.Key} - got {ccFutileRequest.Protocol}, wants {parm_version}");
                                 return false;
+                            }
+
+                            ////verify the public key
+                            CcDesignation id = null;
+                            if (!Hub.Neighbors.TryGetValue($"udp://{ccFutileRequest.Session.Memory.AsArray().GetEndpoint()}`{(id = CcDesignation.FromPubKey(packet.PublicKey.Memory)).IdString()}", out var adjunct))
+                            {
+                                _logger.Error($"bad public key: id = udp://{ccFutileRequest.Session.Memory.AsArray().GetEndpoint()}`{id?.IdString() ?? "null"} not found in {Adjuncts.Count} adjuncts, {Description}");
+                                return false;
+                            }
+
+                            drone.Adjunct = (CcAdjunct)adjunct;
+                            var prevState = drone.Adjunct.CurrentState;
+                            var stateIsValid = drone.Adjunct.CompareAndEnterState(CcAdjunct.AdjunctState.Connecting, CcAdjunct.AdjunctState.Fusing, overrideHung: parm_futile_timeout_ms) == CcAdjunct.AdjunctState.Fusing;
+
+                            if (!stateIsValid)
+                            {
+                                stateIsValid = drone.Adjunct.CompareAndEnterState(CcAdjunct.AdjunctState.Connecting, CcAdjunct.AdjunctState.Verified, overrideHung: parm_futile_timeout_ms) == CcAdjunct.AdjunctState.Verified;
+                                if (!stateIsValid)
+                                {
+                                    if (drone.Adjunct.CurrentState.EnterTime.ElapsedMs() > parm_futile_timeout_ms)
+                                    {
+                                        _logger.Warn($"{nameof(FutileAsync)} - {Description}: Invalid state, {prevState}, age = {prevState.EnterTime.ElapsedMs()}ms. Wanted {nameof(CcAdjunct.AdjunctState.Fusing)} - [RACE OK!]");
+                                    }
+                                    else
+                                        return false;
+                                }
                             }
 
                             //reject requests to invalid ext ip
@@ -783,6 +782,7 @@ namespace zero.cocoon
                     {
                         Protocol = parm_version,
                         Timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
+                        Session = UnsafeByteOperations.UnsafeWrap(drone.Adjunct?.ReverseAddress ?? Array.Empty<byte>())
                     };
                     
                     var futileRequestBuf = ccFutileRequest.ToByteString();
@@ -934,36 +934,9 @@ namespace zero.cocoon
             if(Equals(_gossipAddress.IpEndPoint, remoteEp) || packet.PublicKey.Memory.ArrayEqual(CcId.PublicKey))
                 throw new ApplicationException($"Connection inception from {remoteEp} (pk = {CcDesignation.FromPubKey(packet.PublicKey.Memory).IdString()}) on {_gossipAddress.IpEndPoint}: {Description}");
 
-            var adjunct = drone.Adjunct;
-            if (adjunct == null)
-            {
-                Debug.Assert(direction == IIoSource.Heading.Ingress);
-                var id = $"udp://{packet.Header.Ip.Src.Memory.AsArray().GetEndpoint()}`{CcDesignation.MakeKey(packet.PublicKey.Memory.AsArray())}";
-
-                if (!_autoPeering.Neighbors.TryGetValue(id, out var existingAdjunct))
-                {
-                    _logger.Error($"Adjunct [{id}] not found, dropping {direction} connection to {remoteEp}");
-                    return false;
-                }
-
-                drone.Adjunct = adjunct = (CcAdjunct)existingAdjunct;
-
-                var stateIsValid = adjunct.CompareAndEnterState(CcAdjunct.AdjunctState.Connecting, CcAdjunct.AdjunctState.Fusing) == CcAdjunct.AdjunctState.Fusing;
-                if (!stateIsValid)
-                {
-                    stateIsValid = adjunct.CompareAndEnterState(CcAdjunct.AdjunctState.Connecting, CcAdjunct.AdjunctState.Verified) == CcAdjunct.AdjunctState.Verified;
-                    if (!stateIsValid)
-                    {
-                        if (adjunct.CurrentState.Value != CcAdjunct.AdjunctState.Connected)
-                            _logger.Warn($"{nameof(ConnectForTheWin)} - {Description}: Invalid state, {adjunct.CurrentState.Value}, age = {adjunct.CurrentState.EnterTime.ElapsedMs()}ms. Wanted {nameof(CcAdjunct.AdjunctState.Fusing)} - [RACE OK!]");
-                        return false;
-                    }
-                }
-            }
-
             if (drone.AttachViaAdjunct(direction)) return true;
 
-            adjunct.CompareAndEnterState(CcAdjunct.AdjunctState.Verified, CcAdjunct.AdjunctState.Connecting);
+            drone.Adjunct.CompareAndEnterState(CcAdjunct.AdjunctState.Verified, CcAdjunct.AdjunctState.Connecting);
 
             _logger.Trace($"{direction} futile request [LOST] {CcDesignation.FromPubKey(packet.PublicKey.Memory.AsArray())} - {remoteEp}: s = {drone.Adjunct.State}, a = {drone.Adjunct.Assimilating}, p = {drone.Adjunct.IsDroneConnected}, pa = {drone.Adjunct.IsDroneAttached}, ut = {drone.Adjunct.UpTime.ElapsedUtcMs()}ms");
             return false;

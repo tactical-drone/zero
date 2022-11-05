@@ -5,9 +5,8 @@ package zero.models.protobuf;
 import "models/protobuffer/core/net.proto";
 
 message chroniton {	
-    int32 type = 1;
-	z_header  header = 2;
-    bytes signature = 3;
-    bytes PublicKey = 4;
-    bytes data = 5;
+    int32 type = 1;	
+    bytes signature = 2;
+    bytes PublicKey = 3;    
+    bytes data = 4;
 }
