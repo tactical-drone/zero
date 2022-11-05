@@ -1,7 +1,6 @@
 ﻿using System;
 using System.Buffers;
 using System.Diagnostics;
-using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Security.Cryptography;
@@ -21,6 +20,7 @@ namespace zero.cocoon.identity
         public static SHA256 Sha256 => _sha256 ??= SHA256.Create();
 
         public const int KeyLength = 64;
+        public const int IdLength = 10;
 
         private string _id;
         public byte[] PublicKey { get; set; }
@@ -35,10 +35,8 @@ namespace zero.cocoon.identity
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static string MakeKey(ByteString keyBytes)
-        {
-            return Convert.ToBase64String(keyBytes.Span[..10])[..^2];
-        }
+        public static string MakeKey(ByteString keyBytes) => MakeKey(keyBytes.Memory.AsArray());
+        
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public string IdString()
