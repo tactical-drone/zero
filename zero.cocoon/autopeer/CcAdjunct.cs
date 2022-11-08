@@ -1730,6 +1730,11 @@ namespace zero.cocoon.autopeer
                     else
                         CcCollective.CcId.Sign(packetMsgRaw, packet.Signature.Memory.AsArray(), 0, packet.Signature.Length);
 
+                    if (packet.Sabot == null || packet.Sabot.Length == 0)
+                        packet.Sabot = UnsafeByteOperations.UnsafeWrap(CcDesignation.HashRe(packetMsgRaw, 0, packetMsgRaw.Length));
+                    else
+                        CcDesignation.Hash(packetMsgRaw, 0, packetMsgRaw.Length, packet.Sabot.Memory.AsArray());
+
                     Tuple<byte[],byte[]> buf = null;
                     try
                     {

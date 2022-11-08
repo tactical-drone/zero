@@ -7,6 +7,7 @@ import "models/protobuffer/core/net.proto";
 message chroniton {	
     int32 type = 1;	
     bytes signature = 2;
-    bytes PublicKey = 3;    
-    bytes data = 4;
+    bytes PublicKey = 3;
+    bytes sabot = 4;
+    bytes data = 5;
 }

@@ -8,6 +8,7 @@ using System.Text;
 using Google.Protobuf;
 using Org.BouncyCastle.Math.EC.Rfc8032;
 using Org.BouncyCastle.Security;
+using sabot;
 using zero.core.misc;
 
 namespace zero.cocoon.identity
@@ -73,6 +74,45 @@ namespace zero.cocoon.identity
                 SecretKey = skBuf
             };
         }
+
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static byte[] HashRe(byte[] buffer, int offset, int len)
+        {
+            return Sabot.ComputeHash(buffer, offset, len, raw: true);
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public byte[] Hash(byte[] buffer, int offset, int len)
+        {
+            return Sabot.ComputeHash(buffer, offset, len);
+        }
+
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static byte[] Hash(byte[] array, int offset, int len, byte[] hash)
+        {
+            return Sabot.ComputeHash(array, offset, len, hash, raw:true);
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static bool Hashed(byte[] array, int offset, int len, byte[] dest, int destOffset, int destLen)
+        {
+            return array[offset..len].ArrayEqual(dest[destOffset..destLen]);
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static bool Hashed(byte[] array, byte[] dest, int keySize)
+        {
+            return array[..(keySize>>3)].ArrayEqual(dest);
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static bool Hashed(byte[] array, byte[] dest)
+        {
+            return array.ArrayEqual(dest);
+        }
+
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public byte[] Sign(byte[] buffer, int offset, int len)

@@ -4,6 +4,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Threading.Tasks.Sources;
 using K4os.Compression.LZ4;
+using sabot;
 using zero.cocoon.autopeer;
 using zero.cocoon.identity;
 using zero.cocoon.models.batches;
@@ -288,7 +289,11 @@ namespace zero.cocoon.models
 
                     var packetMsgRaw = packet.Data.Memory.AsArray();
                     var verified = CcDesignation.Verify(packetMsgRaw, 0, packetMsgRaw.Length, packet.PublicKey.Memory.AsArray(), 0, packet.Signature.Memory.AsArray(), 0);
-                    
+
+                    var hash = Sabot.ComputeHash(packetMsgRaw);
+
+                    verified &= CcDesignation.Hashed(packet.Sabot.Memory.AsArray(), hash, 256);
+
                     var messageType = Enum.GetName(typeof(MessageTypes), packet.Type);
 #if TRACE
                     _logger.Trace($"<\\= {messageType ?? "Unknown"} [{RemoteEndPoint.GetEndpoint()} ~> {MessageService.IoNetSocket.LocalNodeAddress}], ({CcCollective.CcId.IdString()})<<[{(verified ? "signed" : "un-signed")}]{packet.Data.Memory.PayloadSig()}: <{MessageService.Description}> id = {Id}, r = {BytesRead}");

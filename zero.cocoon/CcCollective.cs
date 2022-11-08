@@ -83,6 +83,7 @@ namespace zero.cocoon
                 Data = futileRequest.ToByteString(),
             };
             protocolMsg.Signature = UnsafeByteOperations.UnsafeWrap(new ReadOnlyMemory<byte>(CcId.Sign(protocolMsg.Data.Memory.ToArray(), 0, protocolMsg.Data.Length)));
+            protocolMsg.Sabot = UnsafeByteOperations.UnsafeWrap(new ReadOnlyMemory<byte>(CcId.Hash(protocolMsg.Data.Memory.ToArray(), 0, protocolMsg.Data.Length)));
 
             _futileRequestSize = protocolMsg.CalculateSize();
 
@@ -102,6 +103,7 @@ namespace zero.cocoon
             };
 
             protocolMsg.Signature = UnsafeByteOperations.UnsafeWrap(new ReadOnlyMemory<byte>(CcId.Sign(protocolMsg.Data.Memory.AsArray(), 0, protocolMsg.Data.Length)));
+            protocolMsg.Sabot = UnsafeByteOperations.UnsafeWrap(new ReadOnlyMemory<byte>(CcId.Hash(protocolMsg.Data.Memory.AsArray(), 0, protocolMsg.Data.Length)));
 
             _futileResponseSize = protocolMsg.CalculateSize();
 
@@ -601,7 +603,9 @@ namespace zero.cocoon
                 PublicKey = UnsafeByteOperations.UnsafeWrap(new ReadOnlyMemory<byte>(CcId.PublicKey)),
             };
 
+            //TODO: tuning
             responsePacket.Signature = UnsafeByteOperations.UnsafeWrap(new ReadOnlyMemory<byte>(CcId.Sign(responsePacket.Data.Memory.AsArray(), 0, responsePacket.Data.Length)));
+            responsePacket.Sabot = UnsafeByteOperations.UnsafeWrap(new ReadOnlyMemory<byte>(CcId.Hash(responsePacket.Data.Memory.AsArray(), 0, responsePacket.Data.Length)));
 
             var protocolRaw = responsePacket.ToByteArray();
 
