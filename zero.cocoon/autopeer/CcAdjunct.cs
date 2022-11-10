@@ -3,6 +3,7 @@ using System;
 using System.Buffers;
 using System.CodeDom;
 using System.Collections.Concurrent;
+using System.IO;
 using System.Linq;
 using System.Net;
 using System.Net.Http.Headers;
@@ -57,10 +58,7 @@ namespace zero.cocoon.autopeer
             (
                 node,
                 ioNetClient,
-                static (ioZero, _) => new CcDiscoveries("discovery msg",
-                    $"{((CcAdjunct)ioZero)?.Source.Key}",
-                    // ReSharper disable once PossibleInvalidCastException
-                    ((CcAdjunct)ioZero)?.Source, groupByEp: false),
+                static (ioZero, _) => new CcDiscoveries((CcAdjunct)ioZero, "discovery msg", groupByEp: false),
                 extraData == null, false, concurrencyLevel:ioNetClient.ZeroConcurrencyLevel
             )
         {
@@ -84,12 +82,13 @@ namespace zero.cocoon.autopeer
 
             if (extraData != null)
             {
-                IsProxy = true;
                 var (item1, ipEndPoint, verified) = (Tuple<CcDesignation, IPEndPoint, bool>) extraData;
 
+                IsProxy = true;
+                
                 Designation = item1;
                 Key = $"udp://{ipEndPoint}`{Designation.IdString()}";
-                
+
                 _dmzAddress = IoNodeAddress.CreateFromEndpoint("udp", ipEndPoint);
 
                 //to prevent cascading into the hub we clone the source.
@@ -1719,21 +1718,24 @@ namespace zero.cocoon.autopeer
                     if (packet == null)
                         throw new OutOfMemoryException($"{nameof(_chronitonHeap)}: {_chronitonHeap.Description}, {Description}");
 
-
-
                     packet.Data = UnsafeByteOperations.UnsafeWrap(data);
                     packet.Type = (int)type;
+                    if(Designation.Primed)
+                        packet.Sabot = UnsafeByteOperations.UnsafeWrap(Designation.Sabot(packet.Data.Memory.AsArray()));
                     
-                    var packetMsgRaw = packet.Data.Memory.AsArray();
+                    //ed25519
                     if(packet.Signature == null || packet.Signature.Length == 0)
-                        packet.Signature = UnsafeByteOperations.UnsafeWrap(CcCollective.CcId.Sign(packetMsgRaw, 0, packetMsgRaw.Length));
+                        packet.Signature = UnsafeByteOperations.UnsafeWrap(CcCollective.CcId.Sign(data, 0, data.Length));
                     else
-                        CcCollective.CcId.Sign(packetMsgRaw, packet.Signature.Memory.AsArray(), 0, packet.Signature.Length);
+                        CcCollective.CcId.Sign(data, packet.Signature.Memory.AsArray(), 0, packet.Signature.Length);
 
+                    CcDesignation.HashRe(data, 0, data.Length);
+
+                    //sabot
                     if (packet.Sabot == null || packet.Sabot.Length == 0)
-                        packet.Sabot = UnsafeByteOperations.UnsafeWrap(CcDesignation.HashRe(packetMsgRaw, 0, packetMsgRaw.Length));
+                        packet.Sabot = UnsafeByteOperations.UnsafeWrap(CcDesignation.HashRe(data, 0, data.Length));
                     else
-                        CcDesignation.Hash(packetMsgRaw, 0, packetMsgRaw.Length, packet.Sabot.Memory.AsArray());
+                        CcDesignation.Hash(data, 0, data.Length, packet.Sabot.Memory.AsArray());
 
                     Tuple<byte[],byte[]> buf = null;
                     try
@@ -2131,7 +2133,7 @@ namespace zero.cocoon.autopeer
             if(probeMessage.Lamport > 0 && probeMessage.Lamport <= CcCollective.Lamport * 2)
                 Interlocked.Exchange(ref _lamport, probeMessage.Lamport);
 
-            var response = new CcProbeResponse
+            var probeResponse = new CcProbeResponse
             {
                 Protocol = parm_protocol_version,
                 Timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
@@ -2179,13 +2181,13 @@ namespace zero.cocoon.autopeer
                 {
                     //SEND SYN-ACK
                     byte[] payload;
-                    if ((sent = await SendMessageAsync(payload = response.ToByteArray(), CcDiscoveries.MessageTypes.ProbeResponse, srcNodeAddress).FastPath()) > 0)
+                    if ((sent = await SendMessageAsync(payload = probeResponse.ToByteArray(), CcDiscoveries.MessageTypes.ProbeResponse, srcNodeAddress).FastPath()) > 0)
                     {
                         _v.TryUpdate(vKey, Environment.TickCount & (++spam << (sizeof(int) * 8)), spam);
 
                         var ccId = CcDesignation.FromPubKey(packet.PublicKey.Memory);
 #if DEBUG
-                        _logger.Trace($"<\\- {nameof(CcProbeResponse)} ({sent}) [{payload.PayloadSig()} ~ {response.ReqHash.Memory.HashSig()}]: [[SYN-ACK]], dest = {srcNodeAddress}, [{ccId.IdString()}]");
+                        _logger.Trace($"<\\- {nameof(CcProbeResponse)} ({sent}) [{payload.PayloadSig()} ~ {probeResponse.ReqHash.Memory.HashSig()}]: [[SYN-ACK]], dest = {srcNodeAddress}, [{ccId.IdString()}]");
 #endif
                         
                         if (!await CollectAsync(remoteEp, ccId, false).FastPath())
@@ -2271,7 +2273,11 @@ namespace zero.cocoon.autopeer
 #if SLOTS
                 Interlocked.Exchange(ref _openSlots, probeMessage.Slots);
 #endif
-            if ((sent = await SendMessageAsync(response.ToByteArray(), type: CcDiscoveries.MessageTypes.ProbeResponse).FastPath()) > 0)
+
+            if (_probed == 0)
+                probeResponse.Nsec = UnsafeByteOperations.UnsafeWrap(Designation.PrimedSabot);
+
+            if ((sent = await SendMessageAsync(probeResponse.ToByteArray(), type: CcDiscoveries.MessageTypes.ProbeResponse).FastPath()) > 0)
             {
                 try
                 {
@@ -2428,6 +2434,8 @@ namespace zero.cocoon.autopeer
                         _logger.Warn($"Verified with queen `{srcEp}'");
                 }
 
+                Designation.EnsureSabot(response.Nsec.Memory.AsArray());
+                
                 //update net mechanics
                 if (!ReverseAddress.ArrayEqual(response.Nat.Memory))
                     response.Nat.CopyTo(ReverseAddress, 0);

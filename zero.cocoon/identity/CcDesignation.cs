@@ -5,16 +5,22 @@ using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Security.Cryptography;
 using System.Text;
+using System.Threading;
 using Google.Protobuf;
+using MathNet.Numerics;
 using Org.BouncyCastle.Math.EC.Rfc8032;
 using Org.BouncyCastle.Security;
-using sabot;
 using zero.core.misc;
 
 namespace zero.cocoon.identity
 {
     public class CcDesignation
     {
+        public CcDesignation()
+        {
+            _dh = ECDiffieHellman.Create();
+            _publicKey = _dh.PublicKey.ToByteArray();
+        }
 
         [ThreadStatic]
         private static SHA256 _sha256;
@@ -28,6 +34,14 @@ namespace zero.cocoon.identity
         private byte[] SecretKey { get; set; }
 
         private const string DevKey = "2BgzYHaa9Yp7TW6QjCe7qWb2fJxXg8xAeZpohW3BdqQZp41g3u";
+
+        private readonly ECDiffieHellman _dh;
+        private readonly byte[] _publicKey;
+
+        private byte[] _ssf;
+
+        public bool Primed => _ssf != null;
+        public byte[] PrimedSabot => _dh.PublicKey.ToByteArray();
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static string MakeKey(byte[] keyBytes)
@@ -71,7 +85,7 @@ namespace zero.cocoon.identity
             return new CcDesignation
             {
                 PublicKey = pkBuf,
-                SecretKey = skBuf
+                SecretKey = skBuf,
             };
         }
 
@@ -79,20 +93,20 @@ namespace zero.cocoon.identity
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static byte[] HashRe(byte[] buffer, int offset, int len)
         {
-            return Sabot.ComputeHash(buffer, offset, len, raw: true);
+            return sabot.Sabot.ComputeHash(buffer, offset, len, raw: true);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public byte[] Hash(byte[] buffer, int offset, int len)
         {
-            return Sabot.ComputeHash(buffer, offset, len);
+            return sabot.Sabot.ComputeHash(buffer, offset, len);
         }
 
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static byte[] Hash(byte[] array, int offset, int len, byte[] hash)
         {
-            return Sabot.ComputeHash(array, offset, len, hash, raw:true);
+            return sabot.Sabot.ComputeHash(array, offset, len, hash, raw:true);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -105,6 +119,12 @@ namespace zero.cocoon.identity
         public static bool Hashed(byte[] array, byte[] dest, int keySize)
         {
             return array[..(keySize>>3)].ArrayEqual(dest);
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static bool Signed(byte[] array, byte[] dest, int keySize)
+        {
+            return array[..keySize].ArrayEqual(dest);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -135,6 +155,34 @@ namespace zero.cocoon.identity
             return Ed25519.Verify(signature, sigOffset, pubKey, keyOffset, msg, offset, len);
             //return true;
         }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public void EnsureSabot(byte[] msg, int offset = 0, int len = 0)
+        {
+            //if primed do nothing
+            if (_ssf != null)
+                return;
+
+            len = len switch
+            {
+                0 => msg.Length,
+                _ => len
+            };
+
+            //if (len != _dh.KeySize >> 3)
+            //    throw new ArgumentException($"{nameof(EnsureSabot)}: Invalid key size: got {len}, wanted {_dh.KeySize >> 3}");
+
+            var key = ECDiffieHellmanCngPublicKey.FromByteArray(msg[offset..len], CngKeyBlobFormat.EccPublicBlob);
+            var frequency = _dh.DeriveKeyFromHash(key, HashAlgorithmName.SHA512);
+
+            Interlocked.Exchange(ref _ssf, new byte[frequency.Length + sabot.Sabot.BlockLength]);
+            frequency.CopyTo(_ssf.AsSpan());
+        }
+
+        private byte[] LoadSabot(byte[] round) => sabot.Sabot.ComputeHash(round, output: (byte[])_ssf.Clone(), hashLength: _ssf.Length - sabot.Sabot.BlockLength);
+
+        public byte[] Sabot(byte[] round) => LoadSabot(LoadSabot(round));
+
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public override bool Equals(object obj)

@@ -4,7 +4,6 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Threading.Tasks.Sources;
 using K4os.Compression.LZ4;
-using sabot;
 using zero.cocoon.autopeer;
 using zero.cocoon.identity;
 using zero.cocoon.models.batches;
@@ -15,6 +14,7 @@ using zero.core.patterns.bushings;
 using zero.core.patterns.bushings.contracts;
 using zero.core.patterns.heap;
 using zero.core.patterns.misc;
+using zero.core.patterns.queue;
 using Zero.Models.Protobuf;
 
 namespace zero.cocoon.models
@@ -34,8 +34,9 @@ namespace zero.cocoon.models
             };
         }
 
-        public CcDiscoveries(string sinkDesc, string jobDesc, IoSource<CcProtocMessage<chroniton, CcDiscoveryBatch>> source, bool groupByEp = false) : base(sinkDesc, jobDesc, source)
+        public CcDiscoveries(CcAdjunct ioZero, string sinkDesc, bool groupByEp = false) : base(sinkDesc, $"{ioZero?.Source.Key}",  ioZero?.Source)
         {
+            IoZero = ioZero;
             _groupByEp = groupByEp;
         }
 
@@ -44,7 +45,7 @@ namespace zero.cocoon.models
             if (ProtocolConduit != null)
                 return null;
 
-            IoZero = (IoZero<CcProtocMessage<chroniton, CcDiscoveryBatch>>)context;
+            //IoZero = (IoZero<CcProtocMessage<chroniton, CcDiscoveryBatch>>)context;
 
             var pf = Source.PrefetchSize * 7;
             var cc = Source.ZeroConcurrencyLevel * 6; 
@@ -289,10 +290,9 @@ namespace zero.cocoon.models
 
                     var packetMsgRaw = packet.Data.Memory.AsArray();
                     var verified = CcDesignation.Verify(packetMsgRaw, 0, packetMsgRaw.Length, packet.PublicKey.Memory.AsArray(), 0, packet.Signature.Memory.AsArray(), 0);
-
-                    var hash = Sabot.ComputeHash(packetMsgRaw);
-
-                    verified &= CcDesignation.Hashed(packet.Sabot.Memory.AsArray(), hash, 256);
+                    
+                    if(Adjunct.Designation.Primed)
+                        verified &= CcDesignation.Signed(packet.Sabot.Memory.AsArray(), Adjunct.Designation.Sabot(packetMsgRaw), packet.Sabot.Length);
 
                     var messageType = Enum.GetName(typeof(MessageTypes), packet.Type);
 #if TRACE

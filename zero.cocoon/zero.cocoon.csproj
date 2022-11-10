@@ -56,6 +56,7 @@
 	</ItemGroup>
 
 	<ItemGroup>
+		<ProjectReference Include="..\..\sabot\sabot\sabot.csproj" />
 		<ProjectReference Include="..\zero.core.feat\zero.core.feat.csproj" />
 		<ProjectReference Include="..\zero.core\zero.core.csproj" />
 	</ItemGroup>
@@ -96,7 +97,8 @@
 		</PackageReference>
 		<PackageReference Include="K4os.Compression.LZ4" Version="1.2.16" />
 		<PackageReference Include="MathNet.Numerics" Version="5.0.0" />
-		<PackageReference Include="unimatrix.sabot" Version="20221108.8.0" />
+		<PackageReference Include="System.Security.Cryptography.Cng" Version="5.0.0" />
+		<!--<PackageReference Include="unimatrix.sabot" Version="20221110.1.0" />-->
 		<!--<PackageReference Include="SecurityCodeScan.VS2019" Version="5.2.1">
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
