@@ -90,7 +90,7 @@ namespace zero.cocoon.autopeer
                 Key = $"udp://{ipEndPoint}`{Designation.IdString()}";
 
                 _dmzAddress = IoNodeAddress.CreateFromEndpoint("udp", ipEndPoint);
-
+                
                 //to prevent cascading into the hub we clone the source.
                 Source = new IoUdpClient<CcProtocMessage<chroniton, CcDiscoveryBatch>>($"UDP Proxy ~> {base.Description}", MessageService, _dmzAddress.IpEndPoint);
                 IoZeroScheduler.Zero.LoadAsyncContext(static async state =>
@@ -102,7 +102,10 @@ namespace zero.cocoon.autopeer
                 CompareAndEnterState(verified ? AdjunctState.Verified : AdjunctState.Unverified, AdjunctState.Undefined);
 
                 if (verified)
+                {
+                    ReverseAddress = ipEndPoint.AsBytes();
                     Interlocked.Increment(ref _probed);
+                }
             }
             else
             {
@@ -2439,7 +2442,7 @@ namespace zero.cocoon.autopeer
                 //update net mechanics
                 if (!ReverseAddress.ArrayEqual(response.Nat.Memory))
                     response.Nat.CopyTo(ReverseAddress, 0);
-
+                
                 //conn track
                 if (NatAddress == null || !NatAddress.ArrayEqual(src))
                     src.CopyTo(NatAddress, 0);

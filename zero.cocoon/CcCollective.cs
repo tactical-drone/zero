@@ -709,7 +709,7 @@ namespace zero.cocoon
                             CcDesignation id = null;
                             if (!Hub.Neighbors.TryGetValue($"udp://{ccFutileRequest.Session.Memory.AsArray().GetEndpoint()}`{(id = CcDesignation.FromPubKey(packet.PublicKey.Memory)).IdString()}", out var adjunct))
                             {
-                                _logger.Error($"bad public key: id = udp://{ccFutileRequest.Session.Memory.AsArray().GetEndpoint()}`{id?.IdString() ?? "null"} not found in {Adjuncts.Count} adjuncts, {Description}");
+                                _logger.Trace($"bad key: id = udp://{ccFutileRequest.Session.Memory.AsArray().GetEndpoint()}`{id?.IdString() ?? "null"} not found in {Adjuncts.Count} adjuncts, {Description}");
                                 return false;
                             }
 
