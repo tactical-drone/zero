@@ -119,7 +119,7 @@ namespace zero.core.network.ip
         /// <summary>
         /// Last socket error
         /// </summary>
-        public SocketError LastError { get; protected set; } = SocketError.Success;
+        public SocketError LastError { get; protected set; } = SocketError.NotConnected;
 
         //Lan Address string
         public string LocalAddress => Kind < Connection.Listener || LocalNodeAddress == null ? "(zero)" : LocalNodeAddress.ToString();

@@ -166,25 +166,19 @@ namespace zero.core.feat.models.protobuffer
                                 {
                                     if (socket.IoNetSocket.IsTcpSocket)
                                     {
-                                        if (socket.IoNetSocket.LastError != SocketError.Success)
-                                        {
-                                            await job.MessageService.DisposeAsync(ioJob,
-                                                $"socket: {job.MessageService.IoNetSocket.LastError}").FastPath();
-                                            await ioJob.SetStateAsync(IoJobMeta.JobState.ProduceErr).FastPath();
-                                            return false;
-                                        }
+                                        await job.MessageService.DisposeAsync(ioJob,$"socket: {job.MessageService.IoNetSocket.LastError}").FastPath();
+                                        await ioJob.SetStateAsync(IoJobMeta.JobState.ProduceErr).FastPath();
+                                        return false;
                                     }
-                                    else
+
+                                    if (socket.IoNetSocket.LastError != SocketError.Success &&
+                                        socket.IoNetSocket.LastError != SocketError.OperationAborted &&
+                                        socket.IoNetSocket.LastError != SocketError.ConnectionReset)
                                     {
-                                        if (socket.IoNetSocket.LastError != SocketError.Success &&
-                                            socket.IoNetSocket.LastError != SocketError.OperationAborted &&
-                                            socket.IoNetSocket.LastError != SocketError.ConnectionReset)
-                                        {
-                                            await job.MessageService.DisposeAsync(ioJob,
-                                                $"socket: {job.MessageService.IoNetSocket.LastError}").FastPath();
-                                            await ioJob.SetStateAsync(IoJobMeta.JobState.ProduceErr).FastPath();
-                                            return false;
-                                        }
+                                        await job.MessageService.DisposeAsync(ioJob,
+                                            $"socket: {job.MessageService.IoNetSocket.LastError}").FastPath();
+                                        await ioJob.SetStateAsync(IoJobMeta.JobState.ProduceErr).FastPath();
+                                        return false;
                                     }
                                 }
 
