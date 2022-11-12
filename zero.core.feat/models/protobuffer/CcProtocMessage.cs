@@ -162,7 +162,7 @@ namespace zero.core.feat.models.protobuffer
                                     return false;
 
                                 var socket = (IoNetClient<CcProtocMessage<TModel, TBatch>>)ioSocket;
-                                if (!job.MessageService.IsOperational())
+                                if (!job.MessageService.IsOperational() || socket.IoNetSocket.IsTcpSocket)
                                 {
                                     if (socket.IoNetSocket.IsTcpSocket)
                                     {
