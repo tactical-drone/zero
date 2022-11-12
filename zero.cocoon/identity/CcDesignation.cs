@@ -19,7 +19,7 @@ namespace zero.cocoon.identity
         public CcDesignation()
         {
             _dh = ECDiffieHellman.Create();
-            _publicKey = _dh.PublicKey.ToByteArray();
+            PrimedSabot = _dh.PublicKey.ToByteArray();
         }
 
         [ThreadStatic]
@@ -36,12 +36,11 @@ namespace zero.cocoon.identity
         private const string DevKey = "2BgzYHaa9Yp7TW6QjCe7qWb2fJxXg8xAeZpohW3BdqQZp41g3u";
 
         private readonly ECDiffieHellman _dh;
-        private readonly byte[] _publicKey;
 
         private byte[] _ssf;
 
         public bool Primed => _ssf != null;
-        public byte[] PrimedSabot => _dh.PublicKey.ToByteArray();
+        public byte[] PrimedSabot { get; }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static string MakeKey(byte[] keyBytes)
@@ -160,7 +159,7 @@ namespace zero.cocoon.identity
         public void EnsureSabot(byte[] msg, int offset = 0, int len = 0)
         {
             //if primed do nothing
-            if (_ssf != null)
+            if (_ssf != null || msg?.Length == 0)
                 return;
 
             len = len switch
