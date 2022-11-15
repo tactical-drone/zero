@@ -1,11 +1,13 @@
 ﻿using System;
 using System.Buffers;
 using System.Diagnostics;
+using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Security.Cryptography;
 using System.Text;
 using System.Threading;
+using System.Xml.Serialization;
 using Google.Protobuf;
 using MathNet.Numerics;
 using Org.BouncyCastle.Math.EC.Rfc8032;
@@ -19,7 +21,7 @@ namespace zero.cocoon.identity
         public CcDesignation()
         {
             _dh = ECDiffieHellman.Create();
-            PrimedSabot = _dh.PublicKey.ToByteArray();
+            PrimedSabot = _dh.ExportSubjectPublicKeyInfo();
         }
 
         [ThreadStatic]
@@ -159,7 +161,7 @@ namespace zero.cocoon.identity
         public void EnsureSabot(byte[] msg, int offset = 0, int len = 0)
         {
             //if primed do nothing
-            if (_ssf != null || msg?.Length == 0)
+            if (_ssf != null || msg == null || msg.Length == 0)
                 return;
 
             len = len switch
@@ -171,11 +173,16 @@ namespace zero.cocoon.identity
             //if (len != _dh.KeySize >> 3)
             //    throw new ArgumentException($"{nameof(EnsureSabot)}: Invalid key size: got {len}, wanted {_dh.KeySize >> 3}");
 
-            var key = ECDiffieHellmanCngPublicKey.FromByteArray(msg[offset..len], CngKeyBlobFormat.EccPublicBlob);
-            var frequency = _dh.DeriveKeyFromHash(key, HashAlgorithmName.SHA512);
+            var alice = ECDiffieHellman.Create();
+            alice.ImportSubjectPublicKeyInfo(msg[offset..len], out var read);
+            if (read > 0)
+            {
+                //var key = ECDiffieHellmanCngPublicKey.FromByteArray(msg[offset..len], CngKeyBlobFormat.EccPublicBlob);
+                var frequency = _dh.DeriveKeyFromHash(alice.PublicKey, HashAlgorithmName.SHA512);
 
-            Interlocked.Exchange(ref _ssf, new byte[frequency.Length + sabot.Sabot.BlockLength]);
-            frequency.CopyTo(_ssf.AsSpan());
+                Interlocked.Exchange(ref _ssf, new byte[frequency.Length + sabot.Sabot.BlockLength]);
+                frequency.CopyTo(_ssf.AsSpan());
+            }
         }
 
         private byte[] LoadSabot(byte[] round) => sabot.Sabot.ComputeHash(round, output: (byte[])_ssf.Clone(), hashLength: _ssf.Length - sabot.Sabot.BlockLength);
