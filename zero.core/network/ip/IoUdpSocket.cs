@@ -37,9 +37,12 @@ namespace zero.core.network.ip
         /// <param name="nativeSocket">The listening address</param>
         /// <param name="remoteEndPoint">The remote endpoint</param>
         /// <param name="concurrencyLevel"></param>
+        /// <param name="kind"></param>
         /// <param name="clone">Operator overloaded, parm not used</param>
 #pragma warning disable IDE0060 // Remove unused parameter
-        public IoUdpSocket(Socket nativeSocket, IPEndPoint remoteEndPoint, int concurrencyLevel, bool clone = false) : base(nativeSocket, remoteEndPoint, concurrencyLevel)
+        public IoUdpSocket(Socket nativeSocket, IPEndPoint remoteEndPoint, int concurrencyLevel,
+            Connection kind,
+            bool clone = false) : base(nativeSocket, kind, remoteEndPoint, concurrencyLevel)
 #pragma warning restore IDE0060 // Remove unused parameter
         {
             try
@@ -61,7 +64,7 @@ namespace zero.core.network.ip
         /// <param name="nativeSocket">The listening address</param>
         /// <param name="remoteEndPoint">The remote endpoint</param>
         /// <param name="concurrencyLevel"></param>
-        public IoUdpSocket(Socket nativeSocket, IPEndPoint remoteEndPoint, int concurrencyLevel) : base(nativeSocket, remoteEndPoint, concurrencyLevel)
+        public IoUdpSocket(Socket nativeSocket, IPEndPoint remoteEndPoint, int concurrencyLevel) : base(nativeSocket, Connection.Ingress, remoteEndPoint, concurrencyLevel)
         {
             try
             {

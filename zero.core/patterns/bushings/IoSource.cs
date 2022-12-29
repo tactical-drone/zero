@@ -250,7 +250,7 @@ namespace zero.core.patterns.bushings
             await base.ZeroManagedAsync().FastPath();
 
             if(_backPressure != null)
-                await _backPressure.DisposeAsync(this, $"{nameof(ZeroManagedAsync)}: teardown").FastPath();
+                await _backPressure.DisposeAsync(this, $"teardown; {ZeroReason}, {Description}").FastPath();
 
             var reason = $"{nameof(IoSource<TJob>)}: teardown";
 

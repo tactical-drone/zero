@@ -67,7 +67,7 @@
 
 	<ItemGroup>
 		<PackageReference Include="Microsoft.CSharp" Version="4.7.0" />
-		<PackageReference Include="NLog" Version="5.0.5" />
+		<PackageReference Include="NLog" Version="5.1.0" />
 		<PackageReference Include="System.Runtime.CompilerServices.Unsafe" Version="7.0.0-preview.3.22119.2" />
 		<PackageReference Include="System.Threading.Channels" Version="7.0.0" />
 		<PackageReference Include="xunit.abstractions" Version="2.0.3" />

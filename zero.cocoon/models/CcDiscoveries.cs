@@ -47,14 +47,23 @@ namespace zero.cocoon.models
 
             //IoZero = (IoZero<CcProtocMessage<chroniton, CcDiscoveryBatch>>)context;
 
-            var pf = Source.PrefetchSize * 7;
-            var cc = Source.ZeroConcurrencyLevel * 6; 
+            //var pf = Source.PrefetchSize * 7;
+            //var cc = Source.ZeroConcurrencyLevel * 6; 
 
-            if (!Source.Proxy && Adjunct.CcCollective.ZeroDrone)
-            {
-                pf = Source.PrefetchSize * 3;
-                cc = Source.ZeroConcurrencyLevel * 3;
-            }
+            //if (!Source.Proxy && Adjunct.CcCollective.ZeroDrone)
+            //{
+            //    pf = Source.PrefetchSize * 3;
+            //    cc = Source.ZeroConcurrencyLevel * 3;
+            //}
+
+            var pf = Source.PrefetchSize * 4;
+            var cc = Source.ZeroConcurrencyLevel * 2;
+
+            //if (!Source.Proxy && Adjunct.CcCollective.ZeroDrone)
+            //{
+            //    pf = Source.PrefetchSize * 3;
+            //    cc = Source.ZeroConcurrencyLevel * 3;
+            //}
 
             //Create the conduit source
             const string conduitId = nameof(CcAdjunct);

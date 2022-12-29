@@ -48,7 +48,9 @@ namespace zero.core.network.ip
         /// <param name="description"></param>
         /// <param name="clone"></param>
         /// <param name="newRemoteEp"></param>
-        public IoUdpClient(string description, IoNetClient<TJob> clone, IPEndPoint newRemoteEp) : base(description , new IoUdpSocket(clone.IoNetSocket.NativeSocket, newRemoteEp, clone.PrefetchSize, true), clone.PrefetchSize, clone.ZeroConcurrencyLevel, false,true)
+        /// <param name="kind"></param>
+        public IoUdpClient(string description, IoNetClient<TJob> clone, IPEndPoint newRemoteEp,
+            IoSocket.Connection kind) : base(description , new IoUdpSocket(clone.IoNetSocket.NativeSocket, newRemoteEp, clone.PrefetchSize, kind, true), clone.PrefetchSize, clone.ZeroConcurrencyLevel, false,true)
         {
             
         }

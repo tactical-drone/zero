@@ -31,7 +31,7 @@ namespace zero.core.network.ip
             ListeningAddress = listeningAddress;
             Prefetch = prefetch;
             ConcurrencyLevel = concurrencyLevel;
-
+            
             _logger = LogManager.GetCurrentClassLogger();
         }
 

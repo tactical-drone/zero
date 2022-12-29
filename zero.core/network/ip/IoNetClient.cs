@@ -140,7 +140,7 @@ namespace zero.core.network.ip
         public override async ValueTask ZeroManagedAsync()
         {
             await base.ZeroManagedAsync();
-            await IoNetSocket.DisposeAsync(this, $"{nameof(ZeroManagedAsync)}: teardown");
+            await IoNetSocket.DisposeAsync(this, $"teardown; {ZeroReason}, {Description}");
         }
 
         /// <summary>

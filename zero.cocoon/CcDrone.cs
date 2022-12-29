@@ -231,14 +231,9 @@ namespace zero.cocoon
                 //Attach the other way
                 var attached = Adjunct.AttachDrone(this, direction);
 
-                if (attached)
-                {
-                    _logger?.Trace($"{nameof(AttachViaAdjunct)}: {direction} attach to adjunct {Adjunct.Description}");
-                }
-                else
-                {
-                    _logger?.Trace($"{nameof(AttachViaAdjunct)}: [RACE LOST]{direction} attach to adjunct {Adjunct.Description}, {Adjunct.MetaDesc}");
-                }
+                _logger?.Trace(attached
+                    ? $"{nameof(AttachViaAdjunct)}: {direction} attach to adjunct {Adjunct.Description}"
+                    : $"{nameof(AttachViaAdjunct)}: [RACE LOST]{direction} attach to adjunct {Adjunct.Description}, {Adjunct.MetaDesc}");
 
                 return attached;
             }

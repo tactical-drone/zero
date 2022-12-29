@@ -712,7 +712,7 @@ namespace zero.cocoon.models
                                         try
                                         {
                                             //await Task.Delay(RandomNumberGenerator.GetInt32(500,1500));
-                                            await Task.Delay(1);
+                                            //await Task.Delay(1);
 
                                             if (req < @this.CcCollective.MaxReq)
                                                 return;

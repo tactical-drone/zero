@@ -268,7 +268,7 @@ namespace zero.core.patterns.bushings
             await base.ZeroManagedAsync().FastPath();
 
             if(Source != null) //TODO: how can this be?
-                await Source.DisposeAsync(this, $"{nameof(ZeroManagedAsync)}: teardown").FastPath();
+                await Source.DisposeAsync(this, $"teardown; {ZeroReason}, {Description}").FastPath();
 
             _queue?.ZeroSem();
 
@@ -276,13 +276,13 @@ namespace zero.core.patterns.bushings
             {
                 await JobHeap.ZeroManagedAsync(static async (sink, @this) =>
                 {
-                    await sink.DisposeAsync(@this, $"{nameof(ZeroManagedAsync)}: teardown").FastPath();
+                    await sink.DisposeAsync(@this, $"teardown; {@this.Description}").FastPath();
                 }, this).FastPath();
             }
             
             if (_previousJobFragment != null)
             {
-                await _previousJobFragment.ZeroManagedAsync(static (sink, @this) => sink.Value.DisposeAsync(@this, $"{nameof(ZeroManagedAsync)}: teardown").FastPath(), this, zero: true).FastPath();
+                await _previousJobFragment.ZeroManagedAsync(static (sink, @this) => sink.Value.DisposeAsync(@this, $"teardown; {@this.Description}").FastPath(), this, zero: true).FastPath();
             }
 
 #if DEBUG

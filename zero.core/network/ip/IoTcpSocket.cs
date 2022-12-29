@@ -38,7 +38,7 @@ namespace zero.core.network.ip
         /// A copy constructor used by the listener to spawn new TCP connections
         /// </summary>
         /// <param name="nativeSocket">The connecting socket</param>
-        public IoTcpSocket(Socket nativeSocket) : base(nativeSocket)
+        public IoTcpSocket(Socket nativeSocket) : base(nativeSocket, Connection.Ingress)
         {
             ConfigureSocket();
         }
