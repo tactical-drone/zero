@@ -93,7 +93,6 @@ namespace zero.cocoon.identity
         public static bool Verify(byte[] msg, int offset, int len, byte[] pubKey, int keyOffset, byte[] signature, int sigOffset)
         {
             return Ed25519.Verify(signature, sigOffset, pubKey, keyOffset, msg, offset, len);
-            //return true;
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]

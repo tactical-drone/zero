@@ -61,8 +61,8 @@ namespace zero.sync
 
         static void Bootstrap(out ConcurrentBag<CcCollective> concurrentBag, int total, int portOffset = 7051, int localPort = -1, int[] remotePort = null)
         {
-            var maxDrones = 4;
-            var maxAdjuncts = 13;
+            var maxDrones = 6;
+            var maxAdjuncts = 8;
 
             var oldBoot = localPort == -1;
             var queens = false;
@@ -433,17 +433,18 @@ namespace zero.sync
                             else
                                 signal.SetException(new OperationCanceledException());
                         }
-                        catch (OperationCanceledException){}
-                        catch (Exception)
+                        //catch (OperationCanceledException){}
+                        catch //(Exception)
                         {
-                            try
-                            {
-                                signal.SetException(new OperationCanceledException());
-                            }
-                            catch (Exception e)
-                            {
-                                Console.WriteLine(e);
-                            }
+                            break;
+                            //try
+                            //{
+                            //    signal.SetException(new OperationCanceledException());
+                            //}
+                            //catch (Exception e)
+                            //{
+                            //    Console.WriteLine(e);
+                            //}
                         }
                     }
                 });

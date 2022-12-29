@@ -16,7 +16,7 @@ namespace zero.core.network.ip
     {
         /// <inheritdoc />
         /// <summary>
-        /// Constructor, used to create local clients
+        /// Constructor, used to create listeners
         /// </summary>
         /// <param name="socketType">The socket type</param>
         /// <param name="protocolType">The protocol type, <see cref="F:System.Net.Sockets.ProtocolType.Tcp" /> or <see cref="F:System.Net.Sockets.ProtocolType.Udp" /></param>
@@ -25,16 +25,18 @@ namespace zero.core.network.ip
         {
             _logger = LogManager.GetCurrentClassLogger();
             NativeSocket = new Socket(AddressFamily.InterNetwork, socketType, ProtocolType = protocolType);
+            Kind = Connection.Egress;
         }
 
         /// <inheritdoc />
         /// <summary>
-        /// Used by (UDP) listeners to create ingress proxy
+        /// Create socket
         /// </summary>
         /// <param name="nativeSocket">The socket to proxy to</param>
         /// <param name="concurrencyLevel">The hub concurrency level</param>
+        /// <param name="kind">Incoming or outgoing</param>
         /// <param name="remoteEndPoint">The remote endpoint of this connection in the case of a UDP. TCP unused.</param>
-        protected IoSocket(Socket nativeSocket, int concurrencyLevel, EndPoint remoteEndPoint = null) : base($"{nameof(IoSocket)}", concurrencyLevel)
+        protected IoSocket(Socket nativeSocket, int concurrencyLevel, Connection kind, EndPoint remoteEndPoint = null) : base($"{nameof(IoSocket)}", concurrencyLevel)
         {
             NativeSocket = nativeSocket ?? throw new ArgumentNullException($"{nameof(nativeSocket)}");
 
@@ -59,7 +61,7 @@ namespace zero.core.network.ip
                 _logger.Error(e, $"{nameof(IoSocket)}: ");
             }
 
-            Kind = Connection.Ingress;
+            Kind = kind;
             ProtocolType = NativeSocket.ProtocolType;
         }
 
@@ -200,7 +202,7 @@ namespace zero.core.network.ip
 
             Close();
 #if DEBUG
-            _logger.Trace($"Closed {Description}");
+            _logger.Trace($"reason = {ZeroReason}, {Description}");
 #endif
         }
 
@@ -247,9 +249,6 @@ namespace zero.core.network.ip
             if (NativeSocket.IsBound)
                 throw new InvalidOperationException($"Starting listener failed, socket `{listeningAddress}' is already bound!");
 
-            if (Kind != Connection.Undefined)
-                throw new InvalidOperationException($"This socket was already used to connect to `{listeningAddress}'. Make a new one!");
-
             try
             {
                 NativeSocket.Bind(listeningAddress.IpEndPoint);
@@ -291,12 +290,10 @@ namespace zero.core.network.ip
             if (NativeSocket.IsBound)
                 throw new InvalidOperationException("Cannot connect, socket is already bound!");
 
-            if (Kind != Connection.Undefined)
+            if (IsIngress)
                 throw new InvalidOperationException($"This socket was already used to listen at `{LocalNodeAddress}'. Make a new one ore reset this one!");
 
             Key = remoteAddress.Key;
-
-            Kind = Connection.Egress;
 
             return true;
         }

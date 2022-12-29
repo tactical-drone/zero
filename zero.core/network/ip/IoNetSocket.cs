@@ -30,9 +30,11 @@ namespace zero.core.network.ip
         /// Used by listeners
         /// </summary>
         /// <param name="nativeSocket">The socket to wrap</param>
+        /// <param name="kind"></param>
         /// <param name="remoteEndPoint">Optional remote endpoint specification</param>
         /// <param name="concurrencyLevel"></param>
-        protected IoNetSocket(Socket nativeSocket, EndPoint remoteEndPoint = null, int concurrencyLevel = 1) : base(nativeSocket, concurrencyLevel,remoteEndPoint)
+        protected IoNetSocket(Socket nativeSocket, Connection kind, EndPoint remoteEndPoint = null,
+            int concurrencyLevel = 1) : base(nativeSocket, concurrencyLevel, kind, remoteEndPoint)
         {
             
         }

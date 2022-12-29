@@ -75,7 +75,7 @@ namespace zero.core.core
                     if (Node?.Neighbors?.TryRemove(Key, out var zeroNeighbor) ?? false)
                     {
                         _logger.Trace($"Removed {zeroNeighbor.Description}");
-                        await zeroNeighbor.DisposeAsync(this, $"{nameof(ZeroManagedAsync)}: teardown").FastPath();
+                        await zeroNeighbor.DisposeAsync(this, $"teardown; {ZeroReason}, {Description}").FastPath();
                     }
                     else
                     {

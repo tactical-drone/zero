@@ -26,6 +26,7 @@ using zero.core.patterns.bushings.contracts;
 using zero.core.patterns.heap;
 using zero.core.patterns.misc;
 using zero.core.patterns.semaphore;
+using zero.core.runtime.scheduler;
 using Zero.Models.Protobuf;
 using Logger = NLog.Logger;
 
@@ -153,10 +154,11 @@ namespace zero.cocoon
                 while (@this.Hub.Router == null)
                     spinWait.SpinOnce();
 
-                await @this.DeepScanAsync().FastPath();
-                Volatile.Write(ref @this._ready, true);                
+                Volatile.Write(ref @this._ready, true);
                 @this.OnPropertyChanged(nameof(Ready));
                 @this.OnPropertyChanged(nameof(Online));
+
+                await @this.DeepScanAsync().FastPath();
             }, this).AsTask();
         }
 
@@ -276,7 +278,7 @@ namespace zero.cocoon
             OnPropertyChanged(nameof(Online));
 
             var autoPeeringDesc = _autoPeering.Description;
-            await _autoPeering.DisposeAsync(this, $"{nameof(ZeroManagedAsync)}: teardown").FastPath();
+            await _autoPeering.DisposeAsync(this, $"teardown; {ZeroReason}, {Description}").FastPath();
 
 //#pragma warning disable VSTHRD103 // Call async methods when in an async method
 //            if (!_autoPeeringTask.Wait(TimeSpan.FromSeconds(parm_hub_teardown_timeout_s)))
@@ -285,7 +287,7 @@ namespace zero.cocoon
 //            }
 //#pragma warning restore VSTHRD103 // Call async methods when in an async method
 
-            await DupSyncRoot.DisposeAsync(this, $"{nameof(ZeroManagedAsync)}: teardown").FastPath();
+            await DupSyncRoot.DisposeAsync(this, $"teardown; {ZeroReason}, {Description}").FastPath();
             await DupHeap.ZeroManagedAsync<object>().FastPath();
             DupChecker.Clear();
 
@@ -436,28 +438,28 @@ namespace zero.cocoon
         /// </summary>
         [IoParameter]
         // ReSharper disable once InconsistentNaming
-        public int parm_max_inbound = 11;
+        public int parm_max_inbound = 4;
 
         /// <summary>
         /// Max outbound neighbors
         /// </summary>
         [IoParameter]
         // ReSharper disable once InconsistentNaming
-        public int parm_max_outbound = 2;
+        public int parm_max_outbound = 3;
 
         /// <summary>
         /// Max drones
         /// </summary>
         [IoParameter]
         // ReSharper disable once InconsistentNaming
-        public int parm_max_drone = 13;
+        public int parm_max_drone = 7;
 
         /// <summary>
         /// Max adjuncts
         /// </summary>
         [IoParameter]
         // ReSharper disable once InconsistentNaming
-        public int parm_max_adjunct = 12;
+        public int parm_max_adjunct = 8;
 
         /// <summary>
         /// Protocol version
@@ -1001,7 +1003,7 @@ namespace zero.cocoon
 
 
         private bool _ready;
-        public bool Ready => Server?.Online?? false && _ready;
+        public bool Ready => Server?.Online?? _ready;
 
         public long Lamport => (long)Hub.Neighbors.Average(n=>((CcAdjunct)n.Value).Lamport);
 
@@ -1165,6 +1167,37 @@ namespace zero.cocoon
                         }
                     },
                 });
+        }
+
+        /// <summary>
+        /// Allows the collective to adapt to network failure
+        /// </summary>
+        internal void Adapt()
+        {
+            if (TotalConnections < MaxDrones)
+            {
+                IoZeroScheduler.Zero.LoadAsyncContext(static async state =>
+                {
+                    var @this = (CcCollective)state;
+                    try
+                    {
+                        //load hot backup
+                        await @this.Adjuncts
+                                   .Where(static a => a.State is >= CcAdjunct.AdjunctState.Verified and < CcAdjunct.AdjunctState.Connected).ToList()
+                                   .ForEachAsync<CcAdjunct, IIoNanite>(static async (@this, _) =>
+                                   {
+                                       await @this.ProbeAsync("SYN-HOT").FastPath();
+                                   }).FastPath();
+                    }
+                    catch when (@this.Zeroed())
+                    {
+                    }
+                    catch (Exception e) when (!@this.Zeroed())
+                    {
+                        @this._logger.Error(e, $"{nameof(Adapt)}:");
+                    }
+                }, this);
+            }
         }
 
         public void PrintNeighborhood()

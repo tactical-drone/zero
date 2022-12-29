@@ -169,7 +169,7 @@ namespace zero.core.patterns.heap
                     if (!IsAutoScaling)
                     {
 #if DEBUG
-                        _logger.Error($"{nameof(_ioHeapBuf)}: LEAK DETECTED!!! Heap -> {Description}: Q -> _ioHeapBuf.Description");
+                        _logger.Error($"{nameof(_ioHeapBuf)}: LEAK DETECTED!!! Heap -> {Description}");
 #endif
                         Interlocked.Exchange(ref _refCount, _refCount / 2);
                     }

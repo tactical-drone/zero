@@ -155,12 +155,12 @@ namespace zero.core.core
 
             foreach (var ioNeighbor in Neighbors.Values)
             {
-                await ioNeighbor.DisposeAsync(this, $"{nameof(ZeroManagedAsync)}: teardown").FastPath();
+                await ioNeighbor.DisposeAsync(this, $"teardown; {ZeroReason}, {Description}").FastPath();
             }
 
             Neighbors.Clear();
 
-            await _netServer.DisposeAsync(this, $"{nameof(ZeroManagedAsync)}: teardown").FastPath();
+            await _netServer.DisposeAsync(this, $"teardown; {ZeroReason}, {Description}").FastPath();
 
             //await NeighborTasks.ZeroManagedAsync(static (neighborTask, @this) =>
             //{
@@ -194,7 +194,7 @@ namespace zero.core.core
             _logger.Trace($"Starting lisener, {Description}");
 #endif
             ////start the listener
-            _netServer = IoNetServer<TJob>.GetKindFromUrl(_address, _preFetch, ZeroConcurrencyLevel);
+            _netServer = IoNetServer<TJob>.GetKindFromUrl(_address,  _preFetch + 1, ZeroConcurrencyLevel + 1);
             await _netServer.ZeroHiveAsync(this).FastPath();
 
             await _netServer.BlockOnListenAsync(static async (state, newSocket) =>

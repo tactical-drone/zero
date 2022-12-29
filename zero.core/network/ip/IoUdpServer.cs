@@ -66,7 +66,7 @@ namespace zero.core.network.ip
                     catch (Exception e)
                     {
                         @this._logger.Error(e, $"Accept udp connection failed: {@this.Description}");
-                        await ioSocket.DisposeAsync(@this, $"{nameof(ZeroManagedAsync)}: teardown").FastPath();
+                        await ioSocket.DisposeAsync(@this, $"Accept udp connection failed; {@this.Description}").FastPath();
                     }
                 },(this, context, connectionReceivedAction), bootFunc, bootData).FastPath();
             }
