@@ -35,7 +35,7 @@ namespace zero.cocoon
     /// <summary>
     /// Connects to cocoon
     /// </summary>
-    public class CcCollective : IoNode<CcProtocMessage<CcWhisperMsg, CcGossipBatch>>, INotifyPropertyChanged
+    public class CcCollective : IoNode<CcProtocMessage<chroniton, CcFrameBatch>>, INotifyPropertyChanged
     {
         public CcCollective(CcDesignation ccDesignation, IoNodeAddress gossipAddress, IoNodeAddress peerAddress,
             IoNodeAddress extAddress, List<IoNodeAddress> bootstrap, int udpPrefetch,
@@ -518,7 +518,7 @@ namespace zero.cocoon
         /// <param name="bootFunc"></param>
         /// <param name="bootData"></param>
         /// <returns>ValueTask</returns>
-        protected override ValueTask BlockOnListenerAsync<T, TContext>(Func<IoNeighbor<CcProtocMessage<CcWhisperMsg, CcGossipBatch>>, T, ValueTask<bool>> handshake = null, T context = default, Func<TContext, ValueTask> bootFunc = null, TContext bootData = default)=>
+        protected override ValueTask BlockOnListenerAsync<T, TContext>(Func<IoNeighbor<CcProtocMessage<chroniton, CcFrameBatch>>, T, ValueTask<bool>> handshake = null, T context = default, Func<TContext, ValueTask> bootFunc = null, TContext bootData = default)=>
             base.BlockOnListenerAsync(ZeroAcceptConAsync,this, bootFunc, bootData);
 
         /// <summary>
@@ -527,7 +527,7 @@ namespace zero.cocoon
         /// <param name="drone">The drone holding the meta</param>
         /// <param name="collective">The collective this drone belongs to</param>
         /// <returns>True on success, false otherwise</returns>
-        private static async ValueTask<bool> ZeroAcceptConAsync(IoNeighbor<CcProtocMessage<CcWhisperMsg, CcGossipBatch>> drone, CcCollective collective)
+        private static async ValueTask<bool> ZeroAcceptConAsync(IoNeighbor<CcProtocMessage<chroniton, CcFrameBatch>> drone, CcCollective collective)
         {
             var ccDrone = (CcDrone)drone;
             if (drone == null || (collective?.Zeroed()??true) || ccDrone.Zeroed())
@@ -611,7 +611,9 @@ namespace zero.cocoon
             if (!drone.Zeroed() && (sent = await drone.MessageService.IoNetSocket.SendAsync(protocolRaw, 0, protocolRaw.Length, timeout: timeout).FastPath()) == protocolRaw.Length)
             {
                 //_logger.Trace($"~/> {type}({sent}) [{protocolRaw.PayloadSig()} {msg.Memory.PayloadSig("D")}]: {drone.MessageService.IoNetSocket.LocalAddress} ~> {drone.MessageService.IoNetSocket.RemoteAddress} ({Enum.GetName(typeof(CcDiscoveries.MessageTypes), responsePacket.Type)}); {protocolRaw.Print()}");
+#if TRACE
                 _logger.Trace($"~/> {type}({sent}) [{protocolRaw.PayloadSig()} {msg.Memory.PayloadSig("D")}]: {drone.MessageService.IoNetSocket.LocalAddress} ~> {drone.MessageService.IoNetSocket.RemoteAddress} ({Enum.GetName(typeof(CcDiscoveries.MessageTypes), responsePacket.Type)})");
+#endif
                 return sent;
             }
 

@@ -1008,7 +1008,7 @@ namespace zero.cocoon.autopeer
                                 continue;
 
                             var srcEndPoint = epGroups.Value.Item1.GetEndpoint();
-                            var proxy = await RouteAsync(srcEndPoint, epGroups.Value.Item2[0].Zero.PublicKey).FastPath();
+                            var proxy = await RouteAsync(srcEndPoint, epGroups.Value.Item2[0].Payload.PublicKey).FastPath();
                             if (proxy != null)
                             {
                                 foreach (var message in msgGroup.Item2)
@@ -1046,7 +1046,7 @@ namespace zero.cocoon.autopeer
                                     }
                                     finally
                                     {
-                                        message.Zero = null;
+                                        message.Payload = null;
                                     }
                                 }
                             }
@@ -1074,7 +1074,7 @@ namespace zero.cocoon.autopeer
                             //TODO, is this caching a good idea? 
                             if (!_enableBatchEpCache || proxy is not { IsProxy: true } || cachedEp == null ||
                                 !cachedEp.ArrayEqual(message.EndPoint) && cachedPk == null ||
-                                !cachedPk.Memory.Span.ArrayEqual(message.Zero.PublicKey.Span))
+                                !cachedPk.Memory.Span.ArrayEqual(message.Payload.PublicKey.Span))
                             {
 
                                 cachedEp = message.EndPoint;
@@ -1092,7 +1092,7 @@ namespace zero.cocoon.autopeer
                                 //    continue;
                                 //}
 
-                                cachedPk = message.Zero.PublicKey;
+                                cachedPk = message.Payload.PublicKey;
 
                                 proxy = await RouteAsync(cachedEp.GetEndpoint(), cachedPk).FastPath();
 
@@ -1135,7 +1135,7 @@ namespace zero.cocoon.autopeer
             {
                 try
                 {
-                    msgBatch!.ReturnToHeap();
+                    CcDiscoveries.Heap.Return(msgBatch);
                 }
                 catch
                 {
@@ -1237,7 +1237,6 @@ namespace zero.cocoon.autopeer
             return proxy;
         }
 
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private static async ValueTask ProcessMessagesAsync(IoSink<CcProtocBatchJob<chroniton, CcDiscoveryBatch>> batchJob, CcAdjunct @this)
         {
             //IoZeroScheduler.Zero.LoadAsyncContext(static async state =>
@@ -1250,7 +1249,7 @@ namespace zero.cocoon.autopeer
                         chroniton zero = default;
                         try
                         {
-                            zero = batchItem.Zero;
+                            zero = batchItem.Payload;
 
                             if (zero == null)
                                 return;

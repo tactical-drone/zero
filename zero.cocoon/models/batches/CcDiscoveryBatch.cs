@@ -32,16 +32,6 @@ namespace zero.cocoon.models.batches
 
         public Dictionary<byte[], Tuple<byte[], List<CcBatchMessage>>> GroupBy;
 
-        /// <summary>
-        /// Return this instance to the heap
-        /// </summary>
-        /// <returns></returns>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public void ReturnToHeap()
-        {
-            CcDiscoveries.Heap.Return(this, _disposed > 0);
-        }
-
         private int _count;
         IIoBundleMessage IIoMessageBundle.this[int i]
         {

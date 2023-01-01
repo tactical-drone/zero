@@ -4,7 +4,7 @@ namespace zero.core.feat.models.bundle
 {
     public interface IIoBundleMessage
     {
-        public chroniton Zero { get; set; }
+        public chroniton Payload { get; set; }
         public byte[] EndPoint { get; }
     }
 }

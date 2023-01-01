@@ -130,7 +130,8 @@ namespace zero.cocoon.models
         /// <summary>
         /// The drone this whisper belongs too
         /// </summary>
-        private CcDrone CcDrone => (CcDrone)IoZero;
+        //private CcDrone CcDrone => (CcDrone)IoZero;
+        private CcDrone CcDrone => throw new NotImplementedException("DEPRICATED");
 
         /// <summary>
         /// The adjunct this job belongs too
@@ -472,6 +473,7 @@ namespace zero.cocoon.models
                             break;
                         }
                     }
+                    catch when (Zeroed()){}
                     catch (Exception e) when (!Zeroed())
                     {
                         await SetStateAsync(IoJobMeta.JobState.ConsumeErr).FastPath();

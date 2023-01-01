@@ -50,6 +50,7 @@
 
 	<ItemGroup>
 		<None Remove="events\chroniton.proto" />
+		<None Remove="models\protobuf\gossip\bridge.proto" />
 		<None Remove="models\protobuf\msg\adjunct.proto" />
 		<None Remove="models\protobuf\msg\drone.proto" />
 		<None Remove="models\protobuf\gossip\gossip.proto" />
@@ -80,6 +81,7 @@
 
 	<ItemGroup>
 		<Protobuf Include="events\models\proto\autopeering.proto" GrpcServices="Both" />
+		<Protobuf Include="models\protobuf\gossip\bridge.proto" />
 		<Protobuf Include="models\protobuf\msg\adjunct.proto" />
 		<Protobuf Include="models\protobuf\msg\drone.proto" />
 		<Protobuf Include="models\protobuf\gossip\gossip.proto" />

@@ -69,7 +69,7 @@ namespace zero.core.patterns.bushings.contracts
         public override ValueTask<IoJobMeta.JobState> ConsumeAsync()
         {
             _consumed = true;
-            return SetStateAsync (IoJobMeta.JobState.Consumed);
+            return SetStateAsync (IoJobMeta.JobState.ConInlined);
         }
 
         protected internal override ValueTask AddRecoveryBitsAsync()

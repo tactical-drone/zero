@@ -1,0 +1,19 @@
+﻿syntax = "proto3";
+
+package zero.models.protobuf;
+
+enum Direction{
+	Ingress	= 0;
+	Egress	= 1;
+	Push	= 2;
+	Pop     = 3;
+}
+
+message CcBridgeFrame {
+	int64		timestamp	= 1;
+	Direction	direction	= 2;
+	bytes		src			= 3;
+	bytes		dst			= 4;
+	string		uri			= 5;
+}
+

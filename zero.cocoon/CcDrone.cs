@@ -22,7 +22,7 @@ using Logger = NLog.Logger;
 
 namespace zero.cocoon
 {
-    public class CcDrone : IoNeighbor<CcProtocMessage<CcWhisperMsg, CcGossipBatch>>
+    public class CcDrone : IoNeighbor<CcProtocMessage<chroniton, CcFrameBatch>>
     {
         /// <summary>
         /// Ctor
@@ -30,13 +30,13 @@ namespace zero.cocoon
         /// <param name="node">The node this peer belongs to </param>
         /// <param name="adjunct">Optional neighbor association</param>
         /// <param name="ioNetClient">The peer transport carrier</param>
-        public CcDrone(IoNode<CcProtocMessage<CcWhisperMsg, CcGossipBatch>> node, CcAdjunct adjunct,
-            IoNetClient<CcProtocMessage<CcWhisperMsg, CcGossipBatch>> ioNetClient)
+        public CcDrone(IoNode<CcProtocMessage<chroniton, CcFrameBatch>> node, CcAdjunct adjunct,
+            IoNetClient<CcProtocMessage<chroniton, CcFrameBatch>> ioNetClient)
             : base
             (
                 node,
                 ioNetClient,
-                static (ioZero, _) => new CcWhispers(string.Empty, string.Empty, ((CcDrone)ioZero)?.MessageService), false
+                static (ioZero, _) => new CcBridgeMessages((CcDrone)ioZero), false
             )
         {
             _logger = LogManager.GetCurrentClassLogger();
@@ -127,7 +127,7 @@ namespace zero.cocoon
             protected internal set => Interlocked.Exchange(ref _adjunct, value);
         }
 
-        public IoNetClient<CcProtocMessage<CcWhisperMsg, CcGossipBatch>> MessageService => (IoNetClient<CcProtocMessage<CcWhisperMsg, CcGossipBatch>>)Source;
+        public IoNetClient<CcProtocMessage<chroniton, CcFrameBatch>> MessageService => (IoNetClient<CcProtocMessage<chroniton, CcFrameBatch>>)Source;
 
         private string _key;
         /// <summary>

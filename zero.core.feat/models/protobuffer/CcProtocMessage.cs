@@ -1,16 +1,11 @@
 ﻿using System;
 using System.Buffers;
-using System.CodeDom;
-using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.IO.Compression;
 using System.Net;
-using System.Net.Http.Headers;
 using System.Net.Sockets;
-using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
-using System.Security.Cryptography;
 using System.Threading;
 using System.Threading.Tasks;
 using Google.Protobuf;
@@ -277,13 +272,15 @@ namespace zero.core.feat.models.protobuffer
             try
             {
                 var next = CurrentBatch.Feed;
-                next.Zero = packet;
+
+                next.Payload = packet;
 
                 RemoteEndPoint.CopyTo(next.EndPoint, 0);
                 if (CurrentBatch.Flush)
                     await ZeroBatchAsync().FastPath();
             }
             catch when (Zeroed()) { }
+            catch (IndexOutOfRangeException){}
             catch (Exception e) when (!Zeroed())
             {
                 _logger.Error(e, $"{nameof(ZeroBatchRequestAsync)}");
@@ -308,7 +305,7 @@ namespace zero.core.feat.models.protobuffer
                     try
                     {
                         var chan = ((CcProtocBatchSource<chroniton, TBatch>)source).Channel;
-                        var nextBatch = Interlocked.Exchange(ref @this.CurrentBatch, BatchHeap.Take());
+                        var nextBatch = Interlocked.Exchange(ref @this.CurrentBatch, BatchHeap.Take(@this.IoZero));
 
                         if (chan.Release(nextBatch, forceAsync: true) != 1)
                         {

@@ -9,7 +9,7 @@ namespace zero.cocoon.models.batches
     public class CcBatchMessage :IIoBundleMessage
     {
         private chroniton _zero;
-        public chroniton Zero { get => _zero; set => Interlocked.Exchange(ref _zero, value); }
+        public chroniton Payload { get => _zero; set => Interlocked.Exchange(ref _zero, value); }
         public byte[] EndPoint { get; } = new IPEndPoint(IPAddress.Any, 0).AsBytes();
     }
 }

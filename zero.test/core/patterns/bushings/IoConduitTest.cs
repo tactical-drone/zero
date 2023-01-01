@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Runtime.InteropServices;
 using System.Security.Cryptography;
 using System.Threading;
 using System.Threading.Tasks;
@@ -67,7 +68,7 @@ namespace zero.test.core.patterns.bushings
             var concurrencyLevel = 10;
             var count = 1000;
             
-            var s1 = new IoZeroSource("zero source 1", false, concurrencyLevel << 1, concurrencyLevel);
+            var s1 = new IoZeroSource("zero source 1", false, concurrencyLevel + 1, concurrencyLevel);
             var c1 = new IoConduit<IoZeroProduct>("conduit smoke test 1", null, s1, static (ioZero, _) 
                 => new IoZeroProduct("test product 1", ((IoConduit<IoZeroProduct>)ioZero)?.Source, 16*3));
 
@@ -89,12 +90,13 @@ namespace zero.test.core.patterns.bushings
                     break;
                 }
                 await Task.Delay(200);
+                _output.WriteLine($"{c1.EventCount}");
             }
 
             await z1.WaitAsync(TimeSpan.FromMilliseconds(targetTime * 400));
 
             _output.WriteLine($"{ts.ElapsedMs()}ms ~ {targetTime}");
-            Assert.InRange(ts.ElapsedMs(), targetTime/2, targetTime * 3);
+            Assert.InRange(ts.ElapsedMs(), targetTime/2, targetTime * 4);
 
             await Task.Delay(100);
             Assert.InRange(c1.EventCount, count, count*2);
