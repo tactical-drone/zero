@@ -18,6 +18,10 @@ namespace zero.core.runtime.scheduler
     /// </summary>
     public class IoZeroScheduler : TaskScheduler, IDisposable
     {
+        static IoZeroScheduler()
+        {
+            _ = ZeroDefault;
+        }
         public static bool Enabled = true;
 
 //        public static IoZeroScheduler Default 
