@@ -204,7 +204,7 @@ namespace zero.cocoon.identity
             else
                 _ssf.CopyTo(hash, 0);
 
-            return sabot.Sabot.ComputeHash(round, output: hash, hashLength: _ssf.Length - sabot.Sabot.BlockLength, raw:true);
+            return sabot.Sabot.ComputeHash(round, output: hash, hashLength: _ssf.Length - sabot.Sabot.BlockLength, raw:false);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
