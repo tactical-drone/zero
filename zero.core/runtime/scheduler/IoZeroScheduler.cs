@@ -580,7 +580,7 @@ namespace zero.core.runtime.scheduler
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         protected override void QueueTask(Task task)
         {
-            //scheduler the task
+            //schedule the task
             if (_taskQueue.Release(task, true) < 0)
                 throw new InternalBufferOverflowException($"{nameof(_taskQueue)}: {_taskQueue.Description}");
 
