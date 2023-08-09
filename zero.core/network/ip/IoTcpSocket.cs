@@ -7,6 +7,7 @@ using System.Threading.Tasks;
 using System.Threading.Tasks.Sources;
 using zero.core.patterns.misc;
 using NLog;
+using NLog.LayoutRenderers;
 using zero.core.conf;
 using zero.core.misc;
 using zero.core.patterns.heap;
@@ -332,7 +333,7 @@ namespace zero.core.network.ip
         /// <param name="endPoint">not used</param>
         /// <param name="timeout"></param>
         /// <returns>The amount of bytes sent</returns>
-        public override async ValueTask<int> SendAsync(ReadOnlyMemory<byte> buffer, int offset, int length, EndPoint endPoint = null, int timeout = 0)
+        public async ValueTask<int> SendAsync(ReadOnlyMemory<byte> buffer, int offset, int length, EndPoint endPoint = null, int timeout = 0)
         {
             try
             {
@@ -372,6 +373,26 @@ namespace zero.core.network.ip
             }
 
             return 0;
+        }
+
+        /// <summary>
+        /// Sends data over TCP async
+        /// </summary>
+        /// <param name="buffer">The buffer containing the data</param>
+        /// <param name="offset">The offset into the buffer to start reading from</param>
+        /// <param name="length">The length of the data to be sent</param>
+        /// <param name="endPoint">not used</param>
+        /// <param name="crc">a crc</param>
+        /// <param name="timeout"></param>
+        /// <returns>The amount of bytes sent</returns>
+        public override ValueTask<int> SendAsync(ReadOnlyMemory<byte> buffer, int offset, int length,
+            EndPoint endPoint = null, long crc = 0,
+            int timeout = 0)
+        {
+            if (crc == 0)
+                return SendAsync(buffer, offset, length, endPoint, timeout);
+
+            return DupChecker.TryAdd(crc, Environment.TickCount) ? SendAsync(buffer, offset, length, endPoint, timeout) : new ValueTask<int>(length);
         }
 
         /// <inheritdoc />

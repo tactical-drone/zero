@@ -67,6 +67,8 @@ namespace zero.cocoon.models
             }
         }
 
+        public override long Signature { get; protected set; }
+
         private static readonly IoHeap<byte[]> SendBuf;
         //private static readonly IoHeap<Tuple<BrotliStream, byte[]>> _sendBuffer;
         private readonly byte[] _vb = new byte[sizeof(ulong)];
@@ -295,8 +297,8 @@ namespace zero.cocoon.models
 #endif
                     //await Task.Delay(1000);
                     //Console.WriteLine(".");
-                    IoZero.IncEventCounter();
-                    CcCollective.IncEventCounter();
+                    IoZero.Message();
+                    CcCollective.Message();
 
                     req++;
                     MemoryMarshal.Write(Buffer[(BufferOffset - read)..], ref req);
@@ -489,7 +491,7 @@ namespace zero.cocoon.models
                         continue;
                     }
 
-
+                    Signature = MemoryMarshal.Read<long>(packet.Data.Span);
 
                     //if(Id % 5 != 0)
                     //await Task.Delay(1000/64);
@@ -580,12 +582,12 @@ namespace zero.cocoon.models
 
                             //best effort
                             if (CcCollective.DupChecker.TryGetValue(req, out dupEndpoints))
-                                dupEndpoints.Add(endpoint);
+                                dupEndpoints.Add(new CcRadar{Source = endpoint});
                         }
                     }
                     else
                     {
-                        dupEndpoints.Add(endpoint);
+                        dupEndpoints.Add(new CcRadar { Source = endpoint });
                     }
 #endif
                     if (CcCollective.MaxReq > 1000 && req < 500)
@@ -621,7 +623,7 @@ namespace zero.cocoon.models
                     //entropy
                     IoZero.IoSource.ZeroTimeStamp = Environment.TickCount;
                     IoZero.IncEventCounter();
-                    CcCollective.IncEventCounter();
+                    //CcCollective.Message(whis);
 
                     //broadcast not seen
 #if THROTTLE
@@ -694,11 +696,11 @@ namespace zero.cocoon.models
                                     //This trick has the added bonus of using congestion as a governor to catch more of those overlaps, 
                                     //which in turn lowers the traffic causing less congestion
 
-                                    if (dupEndpoints?.Contains(source.IoNetSocket.Key) ?? false)
-                                    {
-                                        processed--;
-                                        continue;
-                                    }
+                                    //if (dupEndpoints?.Contains(source.IoNetSocket.Key) ?? false)
+                                    //{
+                                    //    processed--;
+                                    //    continue;
+                                    //}
 #endif
                                     IoZeroScheduler.Zero.LoadAsyncContext(static async context =>
                                     {

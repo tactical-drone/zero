@@ -90,24 +90,29 @@ namespace zero.cocoon.identity
             };
         }
 
-
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static byte[] HashRe(byte[] buffer, int offset, int len)
         {
-            return sabot.Sabot.ComputeHash(buffer, offset, len, raw: true);
+            return sabot.Sabot.ComputeHash(buffer, offset, len, raw:true);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public byte[] Hash(byte[] buffer, int offset, int len)
+        public static byte[] Hash(byte[] buffer, int offset, int len)
         {
             return sabot.Sabot.ComputeHash(buffer, offset, len);
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static byte[] Hash(ReadOnlyMemory<byte> buffer, int offset, int len)
+        {
+            return sabot.Sabot.ComputeHash(buffer.Span, offset, len);
         }
 
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static byte[] Hash(byte[] array, int offset, int len, byte[] hash)
         {
-            return sabot.Sabot.ComputeHash(array, offset, len, hash, raw:true);
+            return sabot.Sabot.ComputeHash(array, offset, len, hash, hash.Length - sabot.Sabot.BlockLength);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -184,10 +189,23 @@ namespace zero.cocoon.identity
             }
         }
 
-        private byte[] LoadSabot(byte[] round) => sabot.Sabot.ComputeHash(round, output: (byte[])_ssf.Clone(), hashLength: _ssf.Length - sabot.Sabot.BlockLength);
 
-        public byte[] Sabot(byte[] round) => LoadSabot(LoadSabot(round));
+        public byte[] Sabot(byte[] round) => sabot.Sabot.ComputeHash(round, output: (byte[])_ssf.Clone(), hashLength: _ssf.Length - sabot.Sabot.BlockLength);
 
+        public byte[] Sabot(ReadOnlySpan<byte> round) => sabot.Sabot.ComputeHash(round, output: (byte[])_ssf.Clone(), hashLength: _ssf.Length - sabot.Sabot.BlockLength);
+
+        public byte[] Sabot(ReadOnlySpan<byte> round, byte[] hash)
+        {
+            if (hash == null || _ssf == null)
+                return Sabot(round);
+
+            if (hash.Length != _ssf.Length)
+                hash = (byte[])_ssf.Clone();
+            else
+                _ssf.CopyTo(hash, 0);
+
+            return sabot.Sabot.ComputeHash(round, output: hash, hashLength: _ssf.Length - sabot.Sabot.BlockLength, raw:true);
+        }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public override bool Equals(object obj)
@@ -195,7 +213,7 @@ namespace zero.cocoon.identity
             if (obj is not CcDesignation id)
                 throw new ArgumentNullException(nameof(obj));
 
-            return id == this || id.PublicKey.ArrayEqual(PublicKey);
+            return id == this || id.PublicKey.SequenceEqual(PublicKey);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]

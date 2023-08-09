@@ -305,9 +305,12 @@ namespace zero.core.network.ip
         /// <param name="offset">Start at offset</param>
         /// <param name="length">The number of bytes to send</param>
         /// <param name="endPoint">endpoint when required by the socket</param>
+        /// <param name="crc">crc</param>
         /// <param name="timeout">Send timeout</param>
         /// <returns></returns>
-        public abstract ValueTask<int> SendAsync(ReadOnlyMemory<byte> buffer, int offset, int length, EndPoint endPoint = null, int timeout = 0);
+        public abstract ValueTask<int> SendAsync(ReadOnlyMemory<byte> buffer, int offset, int length,
+            EndPoint endPoint = null, long crc = 0,
+            int timeout = 0);
 
         /// <summary>
         /// Reads a message from the socket

@@ -130,12 +130,9 @@ namespace zero.cocoon.autopeer
 
             //TODO tuning:
             _chronitonHeap = new IoHeap<chroniton, CcAdjunct>(packetHeapDesc, CcCollective.ZeroDrone & !IsProxy ? 32 : 16,
-                static (_, @this) =>
+                static (_, @this) => new chroniton
                 {
-                    return new chroniton
-                    {
-                        PublicKey = UnsafeByteOperations.UnsafeWrap(@this.CcCollective.CcId.PublicKey)
-                    };
+                    PublicKey = UnsafeByteOperations.UnsafeWrap(@this.CcCollective.CcId.PublicKey)
                 }, true, this);
 
             _sendBuf = new IoHeap<Tuple<byte[],byte[]>>(protoHeapDesc, CcCollective.ZeroDrone & !IsProxy ? 32 : 16, static (_, _) => Tuple.Create(new byte[1492 / 2], new byte[1492 / 2]), autoScale: true);
@@ -1687,8 +1684,8 @@ namespace zero.cocoon.autopeer
 
                     packet.Data = UnsafeByteOperations.UnsafeWrap(data);
                     packet.Type = (int)type;
-                    if(Designation.Primed)
-                        packet.Sabot = UnsafeByteOperations.UnsafeWrap(Designation.Sabot(packet.Data.Memory.AsArray()));
+                    if (Designation.Primed)
+                        packet.Sabot = UnsafeByteOperations.UnsafeWrap(Designation.Sabot(packet.Data.Span, packet.Sabot?.Memory.AsArray()));
                     
                     //ed25519
                     if(packet.Signature == null || packet.Signature.Length == 0)
@@ -1696,11 +1693,9 @@ namespace zero.cocoon.autopeer
                     else
                         CcCollective.CcId.Sign(data, packet.Signature.Memory.AsArray(), 0, packet.Signature.Length);
 
-                    CcDesignation.HashRe(data, 0, data.Length);
-
                     //sabot
                     if (packet.Sabot == null || packet.Sabot.Length == 0)
-                        packet.Sabot = UnsafeByteOperations.UnsafeWrap(CcDesignation.HashRe(data, 0, data.Length));
+                        packet.Sabot = UnsafeByteOperations.UnsafeWrap(CcDesignation.HashRe(data, 0, data.Length ));
                     else
                         CcDesignation.Hash(data, 0, data.Length, packet.Sabot.Memory.AsArray());
 
@@ -1774,7 +1769,7 @@ namespace zero.cocoon.autopeer
                             return await MessageService.IoNetSocket.SendAsync(buf.Item2, 0, (int)length + sizeof(ulong), dest.IpEndPoint);
                         }
 #else
-                        return await MessageService.IoNetSocket.SendAsync(buf.Item2, 0, (int)length + sizeof(ulong), dest.IpEndPoint).FastPath();
+                        return await MessageService.IoNetSocket.SendAsync(buf.Item2, 0, (int)length + sizeof(long), dest.IpEndPoint, MemoryMarshal.Read<long>(packet.Sabot.Span)).FastPath();
 #endif
                     }
                     finally

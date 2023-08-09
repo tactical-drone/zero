@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
 using Google.Protobuf;
@@ -36,7 +37,8 @@ namespace zero.cocoon
             (
                 node,
                 ioNetClient,
-                static (ioZero, _) => new CcWhispers(string.Empty, string.Empty, ((CcDrone)ioZero)?.MessageService), false
+                //static (ioZero, _) => new CcWhispers(string.Empty, string.Empty, ((CcDrone)ioZero)?.MessageService), false
+                static (ioZero, _) => new CcSubnet(string.Empty, string.Empty, ((CcDrone)ioZero)?.MessageService), false
             )
         {
             _logger = LogManager.GetCurrentClassLogger();
@@ -149,6 +151,29 @@ namespace zero.cocoon
         /// Used for testing
         /// </summary>
         public volatile bool AccountingBit = true;
+
+        private int _zeroSyncRemote;
+        private int _zeroSyncHost;
+        
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public bool ZeroSynced(int time)
+        {
+            if (_zeroSyncHost == 0)
+            {
+                _zeroSyncRemote = time;
+                _zeroSyncHost = Environment.TickCount;
+                return true;
+            }
+
+            var diff = time - _zeroSyncRemote - (Environment.TickCount - _zeroSyncHost);
+            
+            _zeroSyncRemote = time;
+            Interlocked.MemoryBarrier();
+            _zeroSyncHost = Environment.TickCount;
+            
+
+            return diff * diff < _adjunct.CcCollective.parm_time_e * _adjunct.CcCollective.parm_time_e * 1000000;
+        }
 
 #if DEBUG
         /// <summary>
@@ -321,7 +346,6 @@ namespace zero.cocoon
                     if (!Zeroed())
                     {
                         //Interlocked.Increment(ref AccountingBit);
-                        Adjunct.CcCollective.IncEventCounter();
 
                         var socket = MessageService.IoNetSocket;
                         var sent = 0;

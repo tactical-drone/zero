@@ -1,8 +1,11 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Concurrent;
+using System.Collections.Generic;
 using System.Net;
 using System.Net.Sockets;
 using System.Threading.Tasks;
 using zero.core.conf;
+using zero.core.misc;
 using zero.core.patterns.bushings.contracts;
 using zero.core.patterns.misc;
 
@@ -45,6 +48,11 @@ namespace zero.core.network.ip
         protected int _timedOp;
 
         /// <summary>
+        /// DupChecker on send
+        /// </summary>
+        protected ConcurrentDictionary<long, long> DupChecker = new();
+
+            /// <summary>
         /// Enable TCP keep alive
         /// </summary>
         [IoParameter]
@@ -129,6 +137,22 @@ namespace zero.core.network.ip
             //              $"  SendTimeout {socket.SendTimeout}" +
             //              $"  Ttl {socket.Ttl}" +
             //              $"  IsBound {socket.IsBound}");
+        }
+
+        private async ValueTask PruneDupCheckerAsync()
+        {
+            await ZeroAsync(static async @this =>
+            {
+                while (!@this.Zeroed())
+                {
+                    await Task.Delay(60000);
+                    foreach (var entry in @this.DupChecker)
+                    {
+                        if (entry.Value.ElapsedMs() > 120000)
+                            @this.DupChecker.TryRemove(entry.Key, out _);
+                    }
+                }
+            }, this);
         }
     }
 }

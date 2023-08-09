@@ -3,7 +3,8 @@
 package zero.models.protobuf;
 
 message CcWhisperMsg {
-    bytes data = 1;
+    bytes id = 1;
+    bytes data = 2;
 }
 
 message CcWhisperReq {

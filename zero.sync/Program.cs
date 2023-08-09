@@ -480,8 +480,7 @@ namespace zero.sync
             if (prime.Id > 1)
                 Console.WriteLine("using IoZeroScheduler");
 
-            LogManager.LoadConfiguration("nlog.config");
-
+            LogManager.Setup().LoadConfigurationFromFile("nlog.config");
             Console.WriteLine("Type 'help' for a list of test commands");
             
             //Tune dotnet for large tests
@@ -510,7 +509,7 @@ namespace zero.sync
                 }
             }
 
-            ConcurrentBag<CcCollective> tasks = new ConcurrentBag<CcCollective>();
+            ConcurrentBag<CcCollective> tasks = new ();
 
             if (localPort != -1)
             {

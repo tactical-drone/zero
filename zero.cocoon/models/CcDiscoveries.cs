@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Threading.Tasks.Sources;
@@ -39,6 +40,8 @@ namespace zero.cocoon.models
             IoZero = ioZero;
             _groupByEp = groupByEp;
         }
+
+        public override long Signature { get; protected set; }
 
         public override async ValueTask<IIoHeapItem> HeapConstructAsync(object context)
         {
@@ -296,6 +299,8 @@ namespace zero.cocoon.models
                         await SetStateAsync(IoJobMeta.JobState.BadData).FastPath();
                         continue;
                     }
+
+                    Signature = MemoryMarshal.Read<long>(packet.Sabot.Span);
 
                     var packetMsgRaw = packet.Data.Memory.AsArray();
                     var verified = CcDesignation.Verify(packetMsgRaw, 0, packetMsgRaw.Length, packet.PublicKey.Memory.AsArray(), 0, packet.Signature.Memory.AsArray(), 0);

@@ -74,6 +74,11 @@ namespace zero.core.feat.models
         protected int BytesRead;
 
         /// <summary>
+        /// signature
+        /// </summary>
+        public abstract long Signature { get; protected set; }
+
+        /// <summary>
         /// The number of bytes left to process in this buffer
         /// </summary>
         public int BytesLeftToProcess => BytesRead - (BufferOffset - DatumProvisionLengthMax);

@@ -230,7 +230,7 @@ namespace zero.core.feat.models.protobuffer
         }
 
         /// <summary>
-        /// Synchronizes the byte stream, expects a frame = [ uint64 size, byte[] compressed_or_encrypted_payload ].
+        /// Synchronizes the byte stream, expects a frame = [ uint64 size, int64 crc, byte[] compressed_or_encrypted_payload ].
         ///
         /// Sync scans for the inefficiencies in uint64 to find the frame start. It is assumed
         /// such an inefficiency wont exist in compressed/encrypted payloads. If it does, syncing

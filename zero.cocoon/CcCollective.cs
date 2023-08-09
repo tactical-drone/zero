@@ -1,15 +1,22 @@
 ﻿using System;
+using System.Buffers;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Diagnostics;
+using System.IO;
 using System.Linq;
 using System.Net;
 using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
+using Cassandra;
 using Google.Protobuf;
 using NLog;
+using Org.BouncyCastle.Bcpg;
+using Org.BouncyCastle.Crypto.Paddings;
+using sabot;
 using zero.cocoon.autopeer;
 using zero.cocoon.events.services;
 using zero.cocoon.identity;
@@ -25,6 +32,7 @@ using zero.core.network.ip;
 using zero.core.patterns.bushings.contracts;
 using zero.core.patterns.heap;
 using zero.core.patterns.misc;
+using zero.core.patterns.queue;
 using zero.core.patterns.semaphore;
 using zero.core.runtime.scheduler;
 using Zero.Models.Protobuf;
@@ -67,7 +75,13 @@ namespace zero.cocoon
             Services.CcRecord.Endpoints.TryAdd(CcService.Keys.Gossip, _gossipAddress);
 
             DupSyncRoot = new IoZeroSemaphoreSlim(AsyncTasks,  $"Dup checker for {ccDesignation.IdString()}", maxBlockers: Math.Max(MaxDrones * tcpConcurrencyLevel,1), initialCount: 1);
-            
+            RadarHeap = new IoHeap<CcRadar>($"{nameof(RadarHeap)}:", 16, autoScale: true, malloc:(_, _) => new CcRadar());
+            RadarHeap.PopAction += static (radar, endpoint) =>
+            {
+                radar.Source = (string)endpoint;
+                radar.Timestamp = Environment.TickCount;
+                radar.Count = 1;
+            };
             // Calculate max handshake
             var futileRequest = new CcFutileRequest
             {
@@ -84,7 +98,7 @@ namespace zero.cocoon
                 Data = futileRequest.ToByteString(),
             };
             protocolMsg.Signature = UnsafeByteOperations.UnsafeWrap(new ReadOnlyMemory<byte>(CcId.Sign(protocolMsg.Data.Memory.ToArray(), 0, protocolMsg.Data.Length)));
-            protocolMsg.Sabot = UnsafeByteOperations.UnsafeWrap(new ReadOnlyMemory<byte>(CcId.Hash(protocolMsg.Data.Memory.ToArray(), 0, protocolMsg.Data.Length)));
+            protocolMsg.Sabot = UnsafeByteOperations.UnsafeWrap(new ReadOnlyMemory<byte>(CcDesignation.Hash(protocolMsg.Data.Memory, 0, protocolMsg.Data.Length)));
 
             _futileRequestSize = protocolMsg.CalculateSize();
 
@@ -104,7 +118,7 @@ namespace zero.cocoon
             };
 
             protocolMsg.Signature = UnsafeByteOperations.UnsafeWrap(new ReadOnlyMemory<byte>(CcId.Sign(protocolMsg.Data.Memory.AsArray(), 0, protocolMsg.Data.Length)));
-            protocolMsg.Sabot = UnsafeByteOperations.UnsafeWrap(new ReadOnlyMemory<byte>(CcId.Hash(protocolMsg.Data.Memory.AsArray(), 0, protocolMsg.Data.Length)));
+            protocolMsg.Sabot = UnsafeByteOperations.UnsafeWrap(CcDesignation.Hash(protocolMsg.Data.Memory, 0, protocolMsg.Data.Length));
 
             _futileResponseSize = protocolMsg.CalculateSize();
 
@@ -119,14 +133,22 @@ namespace zero.cocoon
                 throw new ApplicationException($"{nameof(_fuseBufSize)} > {parm_max_handshake_bytes}");
 
             _dupPoolFpsTarget = 8192;  
-            DupHeap = new IoHeap<List<string>, CcCollective>($"{nameof(DupHeap)}: {_description}", _dupPoolFpsTarget, static (_, @this) => new List<string>(@this.MaxDrones), autoScale: true)
+            DupHeap = new IoHeap<List<CcRadar>, CcCollective>($"{nameof(DupHeap)}: {_description}", _dupPoolFpsTarget, static (_, @this) => new List<CcRadar>(@this.MaxDrones), autoScale: true)
             {
                 PopAction = (popped, endpoint) =>
                 {
-                    popped.Add((string)endpoint);
+                    popped.Add((CcRadar)endpoint);
                 },
                 Context = this
             };//ensure robotics
+
+            _zeroQueue = new IoZeroQ<CcWhisperMsg>($"{nameof(_zeroQueue)}:", 16, true, AsyncTasks, parm_max_drone * 2);
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public override bool Zeroed()
+        {
+            return base.Zeroed() || (Hub?.Zeroed()??false);
         }
 
         private async ValueTask StartHubAsync(int udpPrefetch, int udpConcurrencyLevel)
@@ -153,14 +175,17 @@ namespace zero.cocoon
                 var spinWait = new SpinWait();
 
                 //wait for the router to become available
-                while (@this.Hub.Router == null)
+                while (@this.Hub.Router == null && !@this.Zeroed())
                     spinWait.SpinOnce();
 
-                Volatile.Write(ref @this._ready, true);
-                @this.OnPropertyChanged(nameof(Ready));
-                @this.OnPropertyChanged(nameof(Online));
+                if (@this.Hub?.Router != null && !@this.Hub.Router.Zeroed())
+                {
+                    Volatile.Write(ref @this._ready, true);
+                    @this.OnPropertyChanged(nameof(Ready));
+                    @this.OnPropertyChanged(nameof(Online));
 
-                await @this.DeepScanAsync().FastPath();
+                    await @this.DeepScanAsync().FastPath();
+                }
             }, this).AsTask();
         }
 
@@ -185,7 +210,7 @@ namespace zero.cocoon
 
                 await @this.StartHubAsync(@this._udpPrefetch, @this._udpConcurrencyLevel).FastPath();
 
-            }, (this, bootFunc: bootFunc, bootData)).FastPath();
+            }, (this, bootFunc, bootData)).FastPath();
         }
 
         /// <summary>
@@ -195,6 +220,16 @@ namespace zero.cocoon
         /// <returns></returns>
         private static async ValueTask RoboAsync(CcCollective @this)
         {
+            IoZeroScheduler.Zero.LoadAsyncContext(async state =>
+            {
+                var ccCollective = (CcCollective)state;
+                while (!ccCollective.Zeroed())
+                {
+                    ccCollective.CollectDupChecks();
+                    await Task.Delay(ccCollective.parm_time_e * 1000);
+                }
+            }, @this);
+
             var noHub = 3;
             while (!@this.Zeroed())
             {
@@ -243,6 +278,28 @@ namespace zero.cocoon
                 {
                     @this._logger.Error(e, "Error while scanning DMZ!");
                 }
+            }
+        }
+
+        private void CollectDupChecks()
+        {
+            var culList = new List<CcRadar>(16);
+
+            foreach (var duplicate in DupChecker)
+            {
+                foreach (var ccRadar in duplicate.Value)
+                {
+                    if (ccRadar.Timestamp.ElapsedMs() > parm_time_e * 1000)
+                        culList.Add(ccRadar);
+                }
+
+                foreach (var ccRadar in culList)
+                    duplicate.Value.Remove(ccRadar);
+            }
+
+            foreach (var ccRadar in culList)
+            {
+                RadarHeap.Return(ccRadar);
             }
         }
 
@@ -347,8 +404,9 @@ namespace zero.cocoon
 
         Random _random = new((int)DateTime.Now.Ticks);
         public IoZeroSemaphoreSlim DupSyncRoot { get; protected set; }
-        public ConcurrentDictionary<long, List<string>> DupChecker { get; private set; } = new();
-        public IoHeap<List<string>, CcCollective> DupHeap { get; protected set; }
+        public ConcurrentDictionary<long, List<CcRadar>> DupChecker { get; private set; } = new();
+        public IoHeap<List<CcRadar>, CcCollective> DupHeap { get; protected set; }
+        public IoHeap<CcRadar> RadarHeap { get; protected set; }
         private readonly int _dupPoolFpsTarget;
         public int DupPoolFpsTarget => _dupPoolFpsTarget;
 
@@ -607,7 +665,7 @@ namespace zero.cocoon
 
             //TODO: tuning
             responsePacket.Signature = UnsafeByteOperations.UnsafeWrap(new ReadOnlyMemory<byte>(CcId.Sign(responsePacket.Data.Memory.AsArray(), 0, responsePacket.Data.Length)));
-            responsePacket.Sabot = UnsafeByteOperations.UnsafeWrap(new ReadOnlyMemory<byte>(CcId.Hash(responsePacket.Data.Memory.AsArray(), 0, responsePacket.Data.Length)));
+            responsePacket.Sabot = UnsafeByteOperations.UnsafeWrap(new ReadOnlyMemory<byte>(CcDesignation.Hash(responsePacket.Data.Memory, 0, responsePacket.Data.Length)));
 
             var protocolRaw = responsePacket.ToByteArray();
 
@@ -623,6 +681,84 @@ namespace zero.cocoon
                 _logger.Error($"~/> {type}({sent}) [{protocolRaw.PayloadSig()} {msg.Memory.PayloadSig("D")}]:  {drone.MessageService.IoNetSocket.LocalAddress} ~> {drone.MessageService.IoNetSocket.RemoteAddress};");
             
             return 0;
+        }
+
+
+
+        /// <summary>
+        /// Broadcasts a msg to all drones
+        /// </summary>
+        /// <param name="msg">The message</param>
+        /// <param name="timeout">Timeout per send</param>
+        /// <returns>Total bytes send</returns>
+        public async ValueTask<int> BroadcastMsgAsync(ReadOnlyMemory<byte> msg, byte[] dest, int timeout = 0)
+        {
+            var totalSent = 0;
+            const int headerSize = sizeof(int) + 3 * sizeof(long);
+
+            //msg.Signature = UnsafeByteOperations.UnsafeWrap(new ReadOnlyMemory<byte>(CcId.Sign(msg.Data.Memory.AsArray(), 0, msg.Data.Length)));
+            //msg.Sabot = UnsafeByteOperations.UnsafeWrap(new ReadOnlyMemory<byte>(CcId.Hash(msg.Data.Memory.AsArray(), 0, msg.Data.Length)));
+
+            var whisperMsg = new CcWhisperMsg
+            {
+                Data = UnsafeByteOperations.UnsafeWrap(msg),
+                Id = UnsafeByteOperations.UnsafeWrap(dest)
+            };
+
+            var bodySize = (long)whisperMsg.CalculateSize();
+            var buffer = new byte[headerSize];
+
+            try
+            {
+                var memoryStream = new MemoryStream(buffer);
+                memoryStream.Seek(headerSize, SeekOrigin.Begin);
+                var codedOutputStream = new CodedOutputStream(memoryStream);
+
+                MemoryMarshal.Write(buffer, ref bodySize);
+
+                var tickCount = Environment.TickCount;
+                MemoryMarshal.Write(buffer[(2 * sizeof(long))..],ref tickCount);
+
+                var unixTimeMilliseconds = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+                MemoryMarshal.Write(buffer[(sizeof(int) + 2 * sizeof(long))..],ref unixTimeMilliseconds);
+
+                whisperMsg.WriteTo(codedOutputStream);
+                await memoryStream.FlushAsync();
+
+                var hash = Sabot.ComputeHashRollup(buffer, headerSize - sizeof(long), (int)bodySize + sizeof(long));
+
+                MemoryMarshal.Write(buffer[sizeof(long)..], ref hash);
+
+                foreach (var ccDrone in Drones)
+                {
+                    int sent;
+
+                    if (!ccDrone.Zeroed() &&
+                        (sent = await ccDrone.MessageService.IoNetSocket
+                            .SendAsync(buffer, 0, buffer.Length, crc: hash, timeout: timeout).FastPath()) == buffer.Length)
+                    {
+                        totalSent += sent;
+#if TRACE
+                    _logger.Trace($"~/> ({sent}) [{protocolRaw.PayloadSig()} {msg.Data.Memory.PayloadSig("D")}]: {ccDrone.MessageService.IoNetSocket.LocalAddress} ~> {ccDrone.MessageService.IoNetSocket.RemoteAddress} ({Enum.GetName(typeof(CcDiscoveries.MessageTypes), msg.Type)})");
+#endif
+                    }
+
+                    if (!ccDrone.Zeroed())
+                        _logger.Error(
+                            $"~/> ({totalSent}) [{buffer.PayloadSig()} {whisperMsg.Data.Memory.PayloadSig("D")}]:  {ccDrone.MessageService.IoNetSocket.LocalAddress} ~> {ccDrone.MessageService.IoNetSocket.RemoteAddress};");
+                }
+            }
+            catch (Exception e)
+            {
+                Console.WriteLine(e);
+                throw;
+            }
+            finally
+            {
+                ArrayPool<byte>.Shared.Return(buffer);
+            }
+
+            return totalSent;
         }
 
         /// <summary>
@@ -664,7 +800,7 @@ namespace zero.cocoon
                         {
                             _logger.Fatal($"<h\\ {nameof(CcFutileRequest)}({bytesRead}) [{futileBuffer[..bytesRead].PayloadSig()}]: socket = {ioNetSocket.Description}");
                         }
-#endif 
+#endif
 
                     //parse a packet
                     var packet = chroniton.Parser.ParseFrom(futileBuffer, 0, bytesRead);
@@ -1052,6 +1188,7 @@ namespace zero.cocoon
 
         private readonly int _udpPrefetch;
         private readonly int _udpConcurrencyLevel;
+        private readonly IoZeroQ<CcWhisperMsg> _zeroQueue;
 
         /// <summary>
         /// Bootstrap node
@@ -1214,9 +1351,29 @@ namespace zero.cocoon
             }
         }
 
+        private readonly ConcurrentDictionary<string, Tuple<Func<object, CcWhisperMsg, ValueTask>, object>> _whitelist = new ();
+        public bool AddWhiteListEntry(string whitelist, Func<object, CcWhisperMsg, ValueTask> callback, object context)
+        => _whitelist.TryAdd(whitelist, new Tuple<Func<object, CcWhisperMsg, ValueTask>, object>(callback, context));
+
+        public void RemoveWhiteListEntry(string entry) => _whitelist.TryRemove(entry, out _);
+
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public void IncEventCounter()
+        public void BroadcastReceived(CcWhisperMsg ccWhisperMsg)
         {
+            IoZeroScheduler.Zero.LoadAsyncContext(static async context =>
+            {
+                var (@this, ccWhisperMsg) = (ValueTuple<CcCollective,CcWhisperMsg>)context;
+
+                if (@this.CcId.PublicKey.SequenceEqual(ccWhisperMsg.Id))
+                {
+                    @this._zeroQueue.TryEnqueue(ccWhisperMsg);
+                }
+                else if (@this._whitelist.TryGetValue(ccWhisperMsg.Id.ToBase64(), out var whitelist))
+                {
+                    await whitelist.Item1(whitelist.Item2, ccWhisperMsg).FastPath();
+                }
+            }, (this, ccWhisperMsg));
+            
             Interlocked.Increment(ref _eventCounter);
         }
 

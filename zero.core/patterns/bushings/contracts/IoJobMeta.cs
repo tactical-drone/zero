@@ -17,6 +17,7 @@
             QueuedError,
             Consuming,
             ConInlined,
+            ZeroSec,
             BadData,
             Fragmented,
             ZeroRecovery,

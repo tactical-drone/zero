@@ -327,8 +327,7 @@ namespace zero.core.network.ip
         /// <param name="endPoint">A destination, used for UDP connections</param>
         /// <param name="timeout">Send timeout</param>
         /// <returns></returns>
-        public override async ValueTask<int> SendAsync(ReadOnlyMemory<byte> buffer, int offset, int length,
-            EndPoint endPoint, int timeout = 0)
+        public async ValueTask<int> SendAsync(ReadOnlyMemory<byte> buffer, int offset, int length, EndPoint endPoint, int timeout = 0)
         {
             SocketAsyncEventArgs args = default;
             try
@@ -366,6 +365,18 @@ namespace zero.core.network.ip
             }
 
             return 0;
+        }
+
+
+        public override ValueTask<int> SendAsync(ReadOnlyMemory<byte> buffer, int offset, int length,
+            EndPoint endPoint,
+            long crc = 0,
+            int timeout = 0)
+        {
+            if (crc == 0)
+                return SendAsync(buffer, offset, length, endPoint, timeout);
+
+            return DupChecker.TryAdd(crc, Environment.TickCount) ? SendAsync(buffer, offset, length, endPoint, timeout) : new ValueTask<int>(0);
         }
 
         /// <summary>

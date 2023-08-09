@@ -568,8 +568,8 @@ namespace zero.test.core.patterns.queue{
                     foreach (var t in dqList)
                     {
 #pragma warning disable VSTHRD103 // Call async methods when in an async method
-                        Assert.NotNull(t.Result);
-                        Assert.True(t.Result < count + Concurrency);
+                        Assert.NotNull(await t);
+                        Assert.True(await t< count + Concurrency);
 #pragma warning restore VSTHRD103 // Call async methods when in an async method
                     }
 
