@@ -70,7 +70,7 @@ namespace zero.core.patterns.semaphore.core
 
         /// <summary>Gets or sets whether to force continuations to run asynchronously.</summary>
         /// <remarks>Continuations may run asynchronously if this is false, but they'll never run synchronously if this is true.</remarks>
-        public bool RunContinuationsAsynchronously { get => _runContinuationsAsync > 0 || RunContinuationsAsynchronouslyAlways; set => Interlocked.Exchange(ref _runContinuationsAsync, value ? 1 : 0); }
+        public bool RunContinuationsAsynchronously { readonly get => _runContinuationsAsync > 0 || RunContinuationsAsynchronouslyAlways; set => Interlocked.Exchange(ref _runContinuationsAsync, value ? 1 : 0); }
 
         /// <summary>
         /// Run continuations on the flowing scheduler, else on the default one
@@ -86,23 +86,23 @@ namespace zero.core.patterns.semaphore.core
         /// <summary>
         /// Allows the core to be synchronized. Useful when splitting the results and blockers into different queues 
         /// </summary>
-        public int SyncRoot { get => _syncRoot; set => Interlocked.Exchange(ref _syncRoot, value); }
+        public int SyncRoot { readonly get => _syncRoot; set => Interlocked.Exchange(ref _syncRoot, value); }
 
         /// <summary>
         /// Is this core primed with a sentinel?
         /// </summary>
-        public bool Primed => _continuation != null && _continuation == ManualResetValueTaskSourceCoreShared.SSentinel;
+        public readonly bool Primed => _continuation != null && _continuation == ManualResetValueTaskSourceCoreShared.SSentinel;
 
         /// <summary>
         /// Is this core blocking?
         /// </summary>
-        public bool Blocking => _continuation != null && _continuation != ManualResetValueTaskSourceCoreShared.SSentinel && !_completed;
+        public readonly bool Blocking => _continuation != null && _continuation != ManualResetValueTaskSourceCoreShared.SSentinel && !_completed;
 
         /// <summary>
         /// Is this core Burned?
         /// </summary>
 #if DEBUG
-        public bool Burned => _burned > 0;
+        public readonly bool Burned => _burned > 0;
 #endif
 
         //public object BurnContext
@@ -196,7 +196,7 @@ namespace zero.core.patterns.semaphore.core
 #if !DEBUG
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
 #endif
-        public ValueTaskSourceStatus GetStatus(short token = 0)
+        public readonly ValueTaskSourceStatus GetStatus(short token = 0)
         {
 #if DEBUG
             //ValidateToken(token);   
@@ -388,7 +388,7 @@ namespace zero.core.patterns.semaphore.core
 #if !DEBUG
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
 #endif
-        private void InvokeContinuation()
+        private readonly void InvokeContinuation()
         {
             //Debug.Assert(_continuation != null && _continuationState != null);
             switch (_capturedContext)
