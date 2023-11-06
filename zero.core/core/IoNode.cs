@@ -205,9 +205,9 @@ namespace zero.core.core
                     var (@this, newSocket,listenerContext, handshake) = state;
                     IoNeighbor<TJob> n;
                     if (!await ZeroEnsureConnAsync(@this, n = @this.MallocNeighbor(@this, newSocket, null), handshake, listenerContext).FastPath())
-                        @this._logger.Trace($"{nameof(ZeroEnsureConnAsync)}: Rejected connection; from = {newSocket}");
+                        @this._logger.Warn($"{nameof(ZeroEnsureConnAsync)}: Rejected connection; from = {newSocket}");
                     else
-                        @this._logger.Trace($"{nameof(ZeroEnsureConnAsync)}: Accepted connection from {newSocket}; {n.Description}");
+                        @this._logger.Debug($"{nameof(ZeroEnsureConnAsync)}: Accepted connection from {newSocket}; {n.Description}");
 
                 }, (@this, newSocket, listenerContext, handshake));
             }, (this, context, handshake), bootFunc, bootData).FastPath();
@@ -308,6 +308,7 @@ namespace zero.core.core
 
                     //Start processing
                     await @this.ZeroAsync(@this.BlockOnAssimilateAsync, newNeighbor).FastPath();
+                    return true;
                 }
                 else
                 {
@@ -404,7 +405,7 @@ namespace zero.core.core
                 await @this.BlockOnListenerAsync<object,TBoot>(bootFunc: bootFunc, bootData: bootData).FastPath();
                 
                 Interlocked.Exchange(ref @this._activated, 0);
-            },(this, bootFunc: bootFunc, bootData), TaskCreationOptions.DenyChildAttach, customScheduler??IoZeroScheduler.ZeroDefault, true).FastPath();
+            },(this, bootFunc, bootData), TaskCreationOptions.DenyChildAttach, customScheduler??IoZeroScheduler.ZeroDefault, true).FastPath();
         }
 
         public bool WhiteList(IoNodeAddress address)

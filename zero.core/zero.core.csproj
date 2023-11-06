@@ -20,7 +20,7 @@
 		<PackageReadmeFile>readme.md</PackageReadmeFile>
 		<RepositoryUrl>https://github.com/tactical-drone/zero/tree/master/zero.core</RepositoryUrl>
 		<PackageLicenseFile>LICENSE</PackageLicenseFile>
-		<PackageRequireLicenseAcceptance>True</PackageRequireLicenseAcceptance>
+		<PackageRequireLicenseAcceptance>True</PackageRequireLicenseAcceptance>		
 	</PropertyGroup>
 
 	<PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
@@ -67,9 +67,9 @@
 
 	<ItemGroup>
 		<PackageReference Include="Microsoft.CSharp" Version="4.7.0" />
-		<PackageReference Include="NLog" Version="5.2.3" />
+		<PackageReference Include="NLog" Version="5.2.5" />
 		<PackageReference Include="System.Runtime.CompilerServices.Unsafe" Version="7.0.0-preview.3.22119.2" />
-		<PackageReference Include="System.Threading.Channels" Version="8.0.0-preview.7.23375.6" />
+		<PackageReference Include="System.Threading.Channels" Version="8.0.0-rc.2.23479.6" />
 		<PackageReference Include="xunit.abstractions" Version="2.0.3" />
 	</ItemGroup>
 

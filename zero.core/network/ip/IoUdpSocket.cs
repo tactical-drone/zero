@@ -4,6 +4,7 @@ using System.Net;
 using System.Net.Sockets;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
+using System.Threading;
 using System.Threading.Tasks;
 using NLog;
 using zero.core.conf;
@@ -351,11 +352,20 @@ namespace zero.core.network.ip
 
                 return args.SocketError == SocketError.Success ? args.BytesTransferred : 0;
             }
-            catch(ObjectDisposedException){}
-            catch (Exception) when (Zeroed()) { }
+            catch (ObjectDisposedException)
+            {
+            }
+            catch (Exception) when (Zeroed())
+            {
+            }
+            catch (SocketException e) when (!Zeroed() && e.ErrorCode == (int)SocketError.AddressNotAvailable)
+            {
+                var errMsg = $"Sending to {NativeSocket.LocalAddress()} ~> udp://{endPoint} failed ({args!.RemoteEndPoint}), z = {Zeroed()}, zf = {ZeroedFrom?.Description}:";
+                _logger.Warn(e, errMsg);
+            }       
             catch (Exception e) when (!Zeroed())
             {
-                var errMsg = $"Sending to {NativeSocket.LocalAddress()} ~> udp://{endPoint} failed, z = {Zeroed()}, zf = {ZeroedFrom?.Description}:";
+                var errMsg = $"Sending to {NativeSocket.LocalAddress()} ~> udp://{endPoint} failed ({args?.RemoteEndPoint}), z = {Zeroed()}, zf = {ZeroedFrom?.Description}:";
                 _logger.Error(e, errMsg);
                 await DisposeAsync(this, errMsg).FastPath();
             }

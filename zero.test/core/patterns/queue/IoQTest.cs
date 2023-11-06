@@ -417,7 +417,6 @@ namespace zero.test.core.patterns.queue
                         }
                         else
                         {
-                            Thread.Yield();
                             Interlocked.Decrement(ref @this.SpamTestAsyncThreadId);
                         }
                     }
