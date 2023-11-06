@@ -26,7 +26,7 @@ namespace zero.cocoon.identity
         public byte[] PublicKey { get; set; }
         private byte[] SecretKey { get; set; }
 
-        private const string DevKey = "2BgzYHaa9Yp7TW6QjCe7qWb2fJxXg8xAeZpohW3BdqQZp41g3u";
+        private const string DevKey = "2BgzYHaa9YpTW6QCe7qWb2JxXg8xAeZq";
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static string MakeKey(byte[] keyBytes)

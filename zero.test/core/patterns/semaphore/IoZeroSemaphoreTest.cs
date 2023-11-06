@@ -1,7 +1,6 @@
 ﻿using System;
 using System.Threading;
 using System.Threading.Tasks;
-using NuGet.Frameworks;
 using Xunit;
 using Xunit.Abstractions;
 using zero.core.misc;
@@ -304,7 +303,7 @@ namespace zero.test.core.patterns.semaphore
             Assert.True(await v.WaitAsync().FastPath());
             Assert.InRange(ts.ElapsedMs(), 0, ERR_T);
 
-            for (var i = 0; i < count - 1; i++)
+            for (var i = 0; i < count; i++)
             {
                 ts = Environment.TickCount;
                 Assert.True(await v.WaitAsync().FastPath());

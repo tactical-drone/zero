@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Concurrent;
 using System.Data;
+using System.Net;
 using System.Net.Sockets;
 using System.Threading.Tasks;
 using NLog;
@@ -215,7 +216,11 @@ namespace zero.core.network.ip
 
 
             if (address.Protocol() == ProtocolType.Udp)
-                return new IoUdpServer<TJob>(address, prefetch, concurrencyLevel);
+            {
+                var udpAddr = IoNodeAddress.CreateFromEndpoint("udp", new IPEndPoint(IPAddress.Any, address.Port));
+                return new IoUdpServer<TJob>(udpAddr, prefetch, concurrencyLevel);
+            }
+                
 
             return null;
         }

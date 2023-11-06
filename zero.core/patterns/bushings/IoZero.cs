@@ -341,7 +341,7 @@ namespace zero.core.patterns.bushings
                         if (nextJob.State != IoJobMeta.JobState.ProdConnReset)
                             await nextJob.SetStateAsync(IoJobMeta.JobState.Queued).FastPath();
 
-                        if(_queue.Release(nextJob, true) < 0)
+                        if(_queue.Release(nextJob, false) < 0)
                         {
                             ts = ts.ElapsedMs();
 
@@ -530,7 +530,7 @@ namespace zero.core.patterns.bushings
             {
                 //A job was produced. Dequeue it and process
                 var curJob = await _queue.WaitAsync().FastPath();
-
+                
                 try
                 {
                     if (Zeroed())
@@ -727,7 +727,7 @@ namespace zero.core.patterns.bushings
                         {
                             @this._logger.Error(e, $"Consumption failed! {@this.Description}");
                         }
-                    }, (this, i), TaskCreationOptions.DenyChildAttach).FastPath(); //TODO tuningO tuning
+                    }, (this, i)).FastPath(); //TODO tuningO tuning
 
                 //Producer
                 width = Source.PrefetchSize;
@@ -760,7 +760,7 @@ namespace zero.core.patterns.bushings
                         {
                             @this._logger.Error(e, $"Production failed! {@this.Description}");
                         }
-                    }, this, TaskCreationOptions.DenyChildAttach).FastPath(); //TODO tuning
+                    }, this).FastPath(); //TODO tuning
                 }
 
                 await AsyncTasks.BlockOnNotCanceledAsync().FastPath();

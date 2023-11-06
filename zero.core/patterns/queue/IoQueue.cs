@@ -315,7 +315,7 @@ namespace zero.core.patterns.queue
                         LogManager.GetCurrentClassLogger().Error(e, $"{nameof(EnqueueAsync)}");
                     }
 
-                    _pressure?.Release(Environment.TickCount, true);
+                    _pressure?.Release(Environment.TickCount, false);
                 }
             }
         }
@@ -378,15 +378,15 @@ namespace zero.core.patterns.queue
             {
                 if (!Zeroed)
                 {
+                    _pressure?.Release(Environment.TickCount, true);
+
                     if (entered)
                     {
 #if DEBUG
                         Interlocked.Decrement(ref _insaneExclusive);
 #endif
-                        _syncRoot.Release(Environment.TickCount, true);
+                        _syncRoot.Release(Environment.TickCount, false);
                     }
-
-                    _pressure?.Release(Environment.TickCount, true);
                 }
             }
         }
@@ -466,7 +466,7 @@ namespace zero.core.patterns.queue
                         _nodeHeap.Return(dq);
                     }
 
-                    _backPressure?.Release(Environment.TickCount, true);
+                    _backPressure?.Release(Environment.TickCount, false);
                 }
                 catch when (_zeroed > 0) { }
                 catch (Exception e) when (_zeroed == 0)
@@ -559,7 +559,7 @@ namespace zero.core.patterns.queue
                 Interlocked.Decrement(ref _insaneExclusive);
 #endif
                 _syncRoot.Release(Environment.TickCount, true);//FALSE
-                _nodeHeap.Return(node, deDup);
+                _nodeHeap.Return(node, deDup);//TODO, up one?
             }
         }
 

@@ -1827,8 +1827,7 @@ namespace zero.cocoon.autopeer
                     {
                         packet.Data = ByteString.Empty;
                         packet.Signature = ByteString.Empty;
-                        packet.Header.Ip.Dst = ByteString.Empty;
-                        _chronitonHeap.Return(packet);
+                        _chronitonHeap?.Return(packet);
                     }
                 }
             }

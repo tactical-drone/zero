@@ -25,7 +25,7 @@ namespace zero.core.patterns.semaphore.core
     {
         /// <summary>
         /// The callback to invoke when the operation completes if <see cref="OnCompleted"/> was called before the operation completed,
-        /// or <see cref="ManualResetValueTaskSourceCoreShared.SSentinel"/> if the operation completed before a callback was supplied,
+        /// or <see cref="ManualResetValueTaskSourceCoreShared.s_sentinel"/> if the operation completed before a callback was supplied,
         /// or null if a callback hasn't yet been provided and the operation hasn't yet completed.
         /// </summary>
         private Action<object> _continuation;
@@ -91,12 +91,12 @@ namespace zero.core.patterns.semaphore.core
         /// <summary>
         /// Is this core primed with a sentinel?
         /// </summary>
-        public bool Primed => _continuation != null && _continuation == ManualResetValueTaskSourceCoreShared.SSentinel;
+        public readonly bool Primed => _continuation != null && _continuation == ManualResetValueTaskSourceCoreShared.s_sentinel;
 
         /// <summary>
         /// Is this core blocking?
         /// </summary>
-        public bool Blocking => _continuation != null && _continuation != ManualResetValueTaskSourceCoreShared.SSentinel && !_completed;
+        public readonly bool Blocking => _continuation != null && _continuation != ManualResetValueTaskSourceCoreShared.s_sentinel && !_completed;
 
         /// <summary>
         /// Is this core Burned?
@@ -140,7 +140,7 @@ namespace zero.core.patterns.semaphore.core
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public bool IsBlocking(bool reset = false)
         {
-            var blocked = _continuation != null && _continuation != ManualResetValueTaskSourceCoreShared.SSentinel && !_completed;
+            var blocked = _continuation != null && _continuation != ManualResetValueTaskSourceCoreShared.s_sentinel && !_completed;
 
             if (!reset) return blocked;
 
@@ -246,27 +246,30 @@ namespace zero.core.patterns.semaphore.core
 #endif
         public void OnCompleted(Action<object> continuation, object state, short token, ValueTaskSourceOnCompletedFlags flags)
         {
-#if DEBUG
-            Debug.Assert(continuation != null && state != null);
-#endif
+            Debug.Assert(continuation != null);
+
             if ((flags & ValueTaskSourceOnCompletedFlags.FlowExecutionContext) != 0)
             {
-                _executionContext = ExecutionContext.Capture();
+                _capturedContext = ExecutionContext.Capture();
             }
 
-            if ((flags & ValueTaskSourceOnCompletedFlags.UseSchedulingContext) != 0 && !RunContinuationsUnsafe)
+            if ((flags & ValueTaskSourceOnCompletedFlags.UseSchedulingContext) != 0)
             {
-                var sc = SynchronizationContext.Current;
-                if (sc != null && sc.GetType() != typeof(SynchronizationContext))
+                if (SynchronizationContext.Current is SynchronizationContext sc &&
+                    sc.GetType() != typeof(SynchronizationContext))
                 {
-                    _capturedContext = sc;
+                    _capturedContext = _capturedContext is null ?
+                        sc :
+                        new CapturedSchedulerAndExecutionContext(sc, (ExecutionContext)_capturedContext);
                 }
                 else
-                { 
-                    var ts = TaskScheduler.Current;
+                {
+                    TaskScheduler ts = TaskScheduler.Current;
                     if (ts != TaskScheduler.Default)
                     {
-                        _capturedContext = ts;
+                        _capturedContext = _capturedContext is null ?
+                            ts :
+                            new CapturedSchedulerAndExecutionContext(ts, (ExecutionContext)_capturedContext);
                     }
                 }
             }
@@ -278,63 +281,51 @@ namespace zero.core.patterns.semaphore.core
             // awaited twice concurrently), _continuationState might get erroneously overwritten.
             // To minimize the chances of that, we check preemptively whether _continuation
             // is already set to something other than the completion sentinel.
-            object oldContinuation = _continuation;
-
-            if (oldContinuation == null)
+            object? storedContinuation = _continuation;
+            if (storedContinuation is null)
             {
                 _continuationState = state;
-                oldContinuation = Interlocked.CompareExchange(ref _continuation, continuation, null);
+                storedContinuation = Interlocked.CompareExchange(ref _continuation, continuation, null);
+                if (storedContinuation is null)
+                {
+                    // Operation hadn't already completed, so we're done. The continuation will be
+                    // invoked when SetResult/Exception is called at some later point.
+                    return;
+                }
             }
 
-            if (oldContinuation != null)
+            // Operation already completed, so we need to queue the supplied callback.
+            // At this point the storedContinuation should be the sentinal; if it's not, the instance was misused.
+            Debug.Assert(storedContinuation is not null, $"{nameof(storedContinuation)} is null");
+            if (!ReferenceEquals(storedContinuation, ManualResetValueTaskSourceCoreShared.s_sentinel))
             {
-                // Operation already completed, so we need to queue the supplied callback.
-#pragma warning disable CS0252 // Possible unintended reference comparison; left hand side needs cast
-                if (oldContinuation != ManualResetValueTaskSourceCoreShared.SSentinel)
-                    throw new InvalidOperationException($"[{Environment.CurrentManagedThreadId}] // => had = {oldContinuation}, // => has = {continuation}, {state}, primed = {Primed}, blocking = {Blocking}, completed = {_completed}, {GetStatus(0)}");
-#pragma warning restore CS0252 // Possible unintended reference comparison; left hand side needs cast
+                throw new InvalidOperationException();
+            }
 
-                //try
-                //{
-                //    _burnResult?.Invoke(false, _burnContext);
-                //}
-                //catch
-                //{
-                //    // ignored
-                //}
+            object? capturedContext = _capturedContext;
+            switch (capturedContext)
+            {
+                case null:
+                    static void WaitCallback(object context)
+                    {
+                        var (continuation, state) = (ValueTuple<Action<object>, object>)context;
+                        continuation(state);
+                    }
 
-                switch (_capturedContext)
-                {
-                    case null:
-                        if (_executionContext != null)
-                        {
-                            ThreadPool.QueueUserWorkItem(continuation, state, preferLocal: true);
-                        }
-                        else
-                        {
-                            static void WaitCallback(object context)
-                            {
-                                var (continuation, state) = (ValueTuple<Action<object>, object>)context;
-                                continuation(state);
-                            }
+                    ThreadPool.UnsafeQueueUserWorkItem(WaitCallback, (continuation, state));
+                    break;
 
-                            ThreadPool.UnsafeQueueUserWorkItem(WaitCallback, (continuation, state));
-                        }
-                        break;
-                    case SynchronizationContext sc:
-                        sc.Post(s =>
-                        {
-                            var tuple = ((Action<object>, object))s;
-                            tuple.Item1(tuple.Item2);
-                        }, (continuation, state));
-                        break;
-                    //case IoZeroScheduler when !RunContinuationsAsynchronously && TaskScheduler.Current is IoZeroScheduler:
-                    //    continuation(state);
-                    //    break;
-                    case TaskScheduler ts:
-                        _ = Task.Factory.StartNew(continuation, state, CancellationToken.None, TaskCreationOptions.DenyChildAttach, ts);
-                        break;
-                }
+                case ExecutionContext:
+                    ThreadPool.QueueUserWorkItem(continuation, state, preferLocal: true);
+                    break;
+
+                //case IoZeroScheduler when !RunContinuationsAsynchronously && TaskScheduler.Current is IoZeroScheduler:
+                //    continuation(state);
+                //    break;
+
+                default:
+                    ManualResetValueTaskSourceCoreShared.ScheduleCapturedContext(capturedContext, continuation, state, RunContinuationsAsynchronously);
+                    break;
             }
 
             //try
@@ -355,29 +346,48 @@ namespace zero.core.patterns.semaphore.core
         private void SignalCompletion()
         {
             if (_completed)
+            {
                 throw new InvalidOperationException($"[{Environment.CurrentManagedThreadId}]: set => primed = {Primed}, blocking = {Blocking}, completed = {_completed}, status = {GetStatus()}");
-
+            }
             _completed = true;
 
-            if (_continuation == null &&
-                Interlocked.CompareExchange(ref _continuation, ManualResetValueTaskSourceCoreShared.SSentinel, null) == null)
-            {
-                //async?.Invoke(false, context);
-                return;
-            }
-            //async?.Invoke(true, context);
+            Action<object?>? continuation =
+                Volatile.Read(ref _continuation) ??
+                Interlocked.CompareExchange(ref _continuation, ManualResetValueTaskSourceCoreShared.s_sentinel, null);
 
-            if (_executionContext != null)
+            if (continuation == null)
+                return;
+
+            object? context = _capturedContext;
+            if (context is null)
             {
-                ExecutionContext.Run(
-                    _executionContext,
-                    static s => ((IoManualResetValueTaskSourceCore<TResult>)s).InvokeContinuation(),
-                    this);
+                if (RunContinuationsAsynchronously)
+                {
+                    static void WaitCallback(object context)
+                    {
+                        var (continuation, state) = (ValueTuple<Action<object>, object>)context;
+                        continuation(state);
+                    }
+                    
+                    ThreadPool.UnsafeQueueUserWorkItem(WaitCallback, (_continuation, _continuationState));
+                }
+                else
+                {
+                    _continuation(_continuationState);
+                }
+            }
+            else if (context is ExecutionContext or CapturedSchedulerAndExecutionContext)
+            {
+                ManualResetValueTaskSourceCoreShared.InvokeContinuationWithContext(context, _continuation, _continuationState, RunContinuationsAsynchronously);
             }
             else
             {
-                InvokeContinuation();
+                //Debug.Assert(context is TaskScheduler or SynchronizationContext, $"context is {context}");
+                Debug.Assert(context is TaskScheduler or SynchronizationContext);
+                ManualResetValueTaskSourceCoreShared.ScheduleCapturedContext(context, _continuation, _continuationState, RunContinuationsAsynchronously);
             }
+
+            //async?.Invoke(true, context);
         }
 
         /// <summary>
@@ -390,6 +400,7 @@ namespace zero.core.patterns.semaphore.core
 #endif
         private void InvokeContinuation()
         {
+            var currentContext = ExecutionContext.Capture();
             //Debug.Assert(_continuation != null && _continuationState != null);
             switch (_capturedContext)
             {
@@ -448,12 +459,149 @@ namespace zero.core.patterns.semaphore.core
         }
     }
 
+    /// <summary>A tuple of both a non-null scheduler and a non-null ExecutionContext.</summary>
+    internal sealed class CapturedSchedulerAndExecutionContext
+    {
+        internal readonly object _scheduler;
+        internal readonly ExecutionContext _executionContext;
+
+        public CapturedSchedulerAndExecutionContext(object scheduler, ExecutionContext executionContext)
+        {
+            //Debug.Assert(scheduler is SynchronizationContext or TaskScheduler, $"{nameof(scheduler)} is {scheduler}");
+            //Debug.Assert(executionContext is not null, $"{nameof(executionContext)} is null");
+            Debug.Assert(scheduler is SynchronizationContext or TaskScheduler);
+            Debug.Assert(executionContext is not null);
+
+            _scheduler = scheduler;
+            _executionContext = executionContext;
+        }
+    }
+
     internal static class ManualResetValueTaskSourceCoreShared // separated out of generic to avoid unnecessary duplication
     {
-        internal static readonly Action<object> SSentinel = CompletionSentinel;
-        private static void CompletionSentinel(object _) // named method to aid debugging
+        internal static readonly Action<object?> s_sentinel = CompletionSentinel;
+
+        private static void CompletionSentinel(object? _) // named method to aid debugging
         {
-            throw new InvalidOperationException($"{nameof(CompletionSentinel)} executed!");
+            //Debug.Fail("The sentinel delegate should never be invoked.");
+            throw new InvalidOperationException();
+        }
+
+        internal static void ScheduleCapturedContext(object context, Action<object?> continuation, object? state, bool runContinuationsAsynchronously)
+        {
+            //Debug.Assert(
+            //    context is SynchronizationContext or TaskScheduler or CapturedSchedulerAndExecutionContext,
+            //    $"{nameof(context)} is {context}");
+            Debug.Assert(
+                context is SynchronizationContext or TaskScheduler or CapturedSchedulerAndExecutionContext);
+
+            switch (context)
+            {
+                case SynchronizationContext sc:
+                    ScheduleSynchronizationContext(sc, continuation, state);
+                    break;
+
+                case IoZeroScheduler when !runContinuationsAsynchronously && TaskScheduler.Current is IoZeroScheduler:
+                    continuation(state);
+                    break;
+
+                case TaskScheduler ts:
+                    Schedule(ts, continuation, state);
+                    break;
+                default:
+                    var cc = (CapturedSchedulerAndExecutionContext)context;
+                    if (cc._scheduler is SynchronizationContext ccsc)
+                    {
+                        ScheduleSynchronizationContext(ccsc, continuation, state);
+                    }
+                    else
+                    {
+                        //Debug.Assert(cc._scheduler is TaskScheduler, $"{nameof(cc._scheduler)} is {cc._scheduler}");
+                        Debug.Assert(cc._scheduler is TaskScheduler);
+                        Schedule((TaskScheduler)cc._scheduler, continuation, state);
+                    }
+                    break;
+            }
+
+            return;
+
+            static void ScheduleSynchronizationContext(SynchronizationContext sc, Action<object?> continuation, object? state) =>
+                sc.Post(continuation.Invoke, state);
+
+            static void Schedule(TaskScheduler scheduler, Action<object?> continuation, object? state) =>
+                Task.Factory.StartNew(continuation, state, CancellationToken.None, TaskCreationOptions.DenyChildAttach, scheduler);
+        }
+
+        internal static void InvokeContinuationWithContext(object capturedContext, Action<object?> continuation, object? continuationState, bool runContinuationsAsynchronously)
+        {
+            // This is in a helper as the error handling causes the generated asm
+            // for the surrounding code to become less efficient (stack spills etc)
+            // and it is an uncommon path.
+            //Debug.Assert(continuation is not null, $"{nameof(continuation)} is null");
+            //Debug.Assert(capturedContext is ExecutionContext or CapturedSchedulerAndExecutionContext, $"{nameof(capturedContext)} is {capturedContext}");
+            Debug.Assert(continuation is not null);
+            Debug.Assert(capturedContext is ExecutionContext or CapturedSchedulerAndExecutionContext);
+
+            // Capture the current EC.  We'll switch over to the target EC and then restore back to this one.
+
+            ExecutionContext? currentContext = ExecutionContext.Capture();
+
+            if (capturedContext is ExecutionContext ec)
+            {
+                
+                if (runContinuationsAsynchronously)
+                {
+                    static void Aa(object state)
+                    {
+                        var (continuation, continuationState) = (ValueTuple<Action<object>, object>)state;
+                        ThreadPool.QueueUserWorkItem(continuation, continuationState, preferLocal: true);
+                    }
+                    ExecutionContext.Run(ec, Aa, (continuation, continuationState));
+                }
+                else
+                {
+                    // Running inline may throw; capture the edi if it does as we changed the ExecutionContext,
+                    // so need to restore it back before propagating the throw.
+                    ExceptionDispatchInfo? edi = null;
+                    SynchronizationContext? syncContext = SynchronizationContext.Current;
+
+                    static void Cc(object state)
+                    {
+                        var (continuation, continuationState) = (ValueTuple<Action<object>, object>)state;
+                        continuation(continuationState);
+                    }
+
+                    try
+                    {
+                        ExecutionContext.Run(ec, Cc, (continuation, continuationState));
+                    }
+                    catch (Exception ex)
+                    {
+                        // Note: we have a "catch" rather than a "finally" because we want
+                        // to stop the first pass of EH here.  That way we can restore the previous
+                        // context before any of our callers' EH filters run.
+                        edi = ExceptionDispatchInfo.Capture(ex);
+                    }
+                    finally
+                    {
+                        // Set sync context back to what it was prior to coming in.
+                        // Then restore the current ExecutionContext.
+                        SynchronizationContext.SetSynchronizationContext(syncContext);
+                    }
+
+                    // Now rethrow the exception; if there is one.
+                    edi?.Throw();
+                }
+            }
+            else
+            {
+                static void Cc(object state)
+                {
+                    var (continuation, continuationState, capturedContext, runContinuationsAsynchronously) = (ValueTuple<Action<object>, object, object, bool>)state;
+                    ScheduleCapturedContext(capturedContext, continuation, continuationState, runContinuationsAsynchronously);
+                }
+                ExecutionContext.Run(((CapturedSchedulerAndExecutionContext)capturedContext)._executionContext, Cc, (continuation, continuationState, capturedContext, runContinuationsAsynchronously));
+            }
         }
     }
 }

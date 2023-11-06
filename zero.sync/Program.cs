@@ -3,8 +3,10 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
+using System.Net.Sockets;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Threading.Tasks.Sources;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Server.Kestrel.Core;
 using Microsoft.Extensions.Hosting;
@@ -489,7 +491,6 @@ namespace zero.sync
 
             //run tests
             //CoreTest();
-
             PrimePeriodicTimer();
 
             var total = 0;
@@ -1606,7 +1607,7 @@ namespace zero.sync
 
             Console.ReadLine();
             Console.WriteLine("TEARDOWN");
-            asyncTasks.Cancel();
+            await asyncTasks.CancelAsync();
             Console.ReadLine();
             Console.WriteLine("Done");
             Console.ReadLine();
