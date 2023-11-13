@@ -60,10 +60,9 @@
 
 	<ItemGroup>
 		<PackageReference Include="Google.Protobuf" Version="3.25.0" />
-		<PackageReference Include="CassandraCSharpDriver" Version="3.19.3" />
-		<PackageReference Include="Microsoft.AspNetCore.Mvc.Abstractions" Version="2.2.0" />
-		<PackageReference Include="Microsoft.Extensions.Caching.Redis" Version="2.2.0" />
+		<PackageReference Include="CassandraCSharpDriver" Version="3.19.4" />
 		<PackageReference Include="Microsoft.VisualStudio.Threading" Version="17.7.30" />
+		<PackageReference Include="StackExchange.Redis" Version="2.7.4" />
 		<PackageReference Include="System.Text.Json" Version="8.0.0-rc.2.23479.6" />
 		<PackageReference Include="NLog" Version="5.2.5" />
 		<PackageReference Include="Grpc.Tools" Version="2.59.0">

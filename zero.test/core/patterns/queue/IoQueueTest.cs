@@ -181,11 +181,11 @@ namespace zero.test.core.patterns.queue{
         {
             var concurrentTasks = new List<Task>();
 #if DEBUG
-            var rounds = 4;
-            var mult = 1000;
-#else
             var rounds = 16;
             var mult = 10000;
+#else
+            var rounds = 32;
+            var mult = 20000;
 #endif
             
             var start = Environment.TickCount;

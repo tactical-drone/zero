@@ -28,6 +28,7 @@ using zero.core.patterns.queue;
 using zero.core.patterns.semaphore;
 using zero.core.patterns.semaphore.core;
 using zero.core.runtime.scheduler;
+using zero.core.runtime.threadpool;
 using LogLevel = Microsoft.Extensions.Logging.LogLevel;
 
 namespace zero.sync
@@ -61,7 +62,7 @@ namespace zero.sync
 
                 });
 
-        static void Bootstrap(out ConcurrentBag<CcCollective> concurrentBag, int total, int portOffset = 7051, int localPort = -1, int[] remotePort = null)
+        static void Bootstrap(out ConcurrentBag<CcCollective> concurrentBag, int total, int portOffset = 20000, int localPort = -1, int[] remotePort = null)
         {
             var maxDrones = 6;
             var maxAdjuncts = 8;
@@ -141,8 +142,8 @@ namespace zero.sync
             else
             {
                 //var count = remotePort.Count(p => p > 0);
-                //StartCocoon(CoCoon(CcDesignation.Generate(), $"tcp://0.0.0.0:{localPort}",
-                //    $"udp://0.0.0.0:{localPort}",
+                //StartCocoon(CoCoon(CcDesignation.Generate(), $"tcp://127.0.0.1:{localPort}",
+                //    $"udp://127.0.0.1:{localPort}",
                 //    $"tcp://127.0.0.1:{localPort}", $"udp://127.0.0.1:{localPort}",
                 //    //remotePort.Take(count).Select(p => $"udp://10.0.0.6:{p}, udp://10.0.0.5:{p}").ToList(), false));
                 //    remotePort.Take(count).Select(p => $"udp://10.0.0.6:{p}, udp://10.0.0.5:{p}").ToList(), false));
@@ -157,27 +158,22 @@ namespace zero.sync
                 return;
             }
 
-            portOffset += 2;
+            Thread.Sleep(2000);
+            int basep = 3234 + portOffset;
+
+            Thread.Sleep(2000);
+
             for (var i = 0; i < total; i++)
             {
-                var range = i;
+                string extra = i == 0 ? $"udp://127.0.0.1:{1235}" : $"udp://127.0.0.1:{basep + i - 1}";
 
-                var o1 = Random.Shared.Next(portOffset, portOffset + range);
-                var o2 = Random.Shared.Next(portOffset, portOffset + range);
-                var o3 = Random.Shared.Next(portOffset, portOffset + range);
-                var o4 = Random.Shared.Next(portOffset, portOffset + range);
-
-                string extra = i == 0 ? $"udp://127.0.0.1:{1235}" : $"udp://127.0.0.1:{1234 + portOffset + i - 1}";
-
-                concurrentBag.Add(CoCoon(CcDesignation.Generate(), $"tcp://127.0.0.1:{1234 + portOffset + i}",
-                    $"udp://127.0.0.1:{1234 + portOffset + i}", $"tcp://127.0.0.1:{1334 + portOffset + i}",
-                    $"udp://127.0.0.1:{1234 + portOffset + i}",
+                concurrentBag.Add(CoCoon(CcDesignation.Generate(), $"tcp://127.0.0.1:{basep + i}",
+                    $"udp://127.0.0.1:{basep + i}", $"tcp://127.0.0.1:{basep + i}",
+                    $"udp://127.0.0.1:{basep + i}",
                     new[]
                     {
-                            $"udp://127.0.0.1:{1234 + portOffset + i - 2}",
                             extra,
-                            $"udp://127.0.0.1:{1234 + o1}", $"udp://127.0.0.1:{1234 + o2}",
-                            $"udp://127.0.0.1:{1234 + o3}", $"udp://127.0.0.1:{1234 + o4}"
+                            $"udp://127.0.0.1:{basep + (i + 1 + Random.Shared.Next(0, i))%total}"
                     }.ToList()));
 
                 if (concurrentBag.Count % 10 == 0)
@@ -403,8 +399,8 @@ namespace zero.sync
             {
                 var t = j.RunAsync(async () =>
                 {
-                    await SemTestAsync();
-                    //await QueueTestAsync();
+                    //await SemTestAsync();
+                    await QueueTestAsync();
                     //await ZeroQTestAsync();
                     //await BagTestAsync();
                 });
@@ -476,6 +472,7 @@ namespace zero.sync
         /// <param name="args"></param>
         static void Main(string[] args)
         {
+
             Console.WriteLine($"zero ({Environment.OSVersion}: {Environment.MachineName} - dotnet v{Environment.Version}, CPUs = {Environment.ProcessorCount})");
 
             var prime = IoZeroScheduler.ZeroDefault; //TODO: how do we prime the scheduler automagically?
@@ -484,14 +481,18 @@ namespace zero.sync
 
             LogManager.Setup().LoadConfigurationFromFile("nlog.config");
             Console.WriteLine("Type 'help' for a list of test commands");
-            
+
             //Tune dotnet for large tests
             //ThreadPool.GetMinThreads(out var wt, out var cp);
             //ThreadPool.SetMinThreads(wt * 3, cp * 2);
 
+            PrimePeriodicTimer();
+            IoThreadPoolHooks<object>.Init(ThreadPool.UnsafeQueueUserWorkItem);
+
             //run tests
             //CoreTest();
-            PrimePeriodicTimer();
+            
+            //IoThreadPoolHooks.Default = new IoThreadPoolHooks();
 
             var total = 0;
             int localPort = - 1;
@@ -864,7 +865,7 @@ namespace zero.sync
                         Console.WriteLine("\n               -- ZERO CORE TEST SUITE --\n");
                         Console.WriteLine("test usage:\n");
                         Console.WriteLine("boot <n>            - boot a new cluster with 'n' nodes");
-                        Console.WriteLine("add local [remotes] - Add a new node at local port that boostraps from a list of remote ports all on 127.0.0.1");
+                        Console.WriteLine("add local [remotes] - Add a new node at local port that boostraps from a list of remote ports all on 0.0.0.0");
                         Console.WriteLine("loadTest            - start cluster Lamport timestamp test (preferred after cluster bootstrap is complete or near 100%)");
                         Console.WriteLine("zero                - destroys the current cluster");
                         Console.WriteLine("log [level]         - set log level to 'info', 'debug', 'trace'");
@@ -1698,7 +1699,7 @@ namespace zero.sync
                 IoNodeAddress.Create(peerAddress),
                 IoNodeAddress.Create(extAddress),
                 bootStrapAddress.Select(IoNodeAddress.Create).Where(a => a.Port.ToString() != peerAddress.Split(":")[2]).ToList(),
-                2, 2, 1, 1, zeroDrone);
+                3, 2, 2, 1, zeroDrone);
 
             _nodes.Add(cocoon);
             return cocoon;

@@ -60,7 +60,7 @@ namespace zero.cocoon.models
             //}
 
             var pf = Source.PrefetchSize * 4;
-            var cc = Source.ZeroConcurrencyLevel * 2;
+            var cc = Source.ZeroConcurrencyLevel * 3;
 
             //if (!Source.Proxy && Adjunct.CcCollective.ZeroDrone)
             //{
@@ -113,11 +113,7 @@ namespace zero.cocoon.models
         {
             await base.ZeroManagedAsync().FastPath();
 
-            await BatchHeap.ZeroManagedAsync<object>(static (batch, _) =>
-            {
-                batch.Dispose();
-                return new ValueTask(Task.CompletedTask);
-            }).FastPath();
+            await BatchHeap.ZeroManagedAsync<object>().FastPath();
 
             //_currentBatch?.Dispose();
         }

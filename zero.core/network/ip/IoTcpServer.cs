@@ -33,13 +33,13 @@ namespace zero.core.network.ip
         /// <summary>
         /// Start the listener
         /// </summary>
-        /// <param name="connectionReceivedAction">Action to execute when an incoming connection was made</param>
+        /// <param name="onConnectionReceived">Action to execute when an incoming connection was made</param>
         /// <param name="context"></param>
         /// <param name="bootFunc"></param>
         /// <returns>True on success, false otherwise</returns>
-        public override async ValueTask BlockOnListenAsync<T,TContext>(Func<T, IoNetClient<TJob>, ValueTask> connectionReceivedAction, T context = default, Func<TContext,ValueTask> bootFunc = null, TContext bootData = default)
+        public override async ValueTask BlockOnListenAsync<T,TContext>(Func<T, IoNetClient<TJob>, ValueTask> onConnectionReceived, T context = default, Func<TContext,ValueTask> bootFunc = null, TContext bootData = default)
         {
-            await base.BlockOnListenAsync(connectionReceivedAction, context, bootFunc, bootData).FastPath();
+            await base.BlockOnListenAsync(onConnectionReceived, context, bootFunc, bootData).FastPath();
 
             IoListenSocket = (await ZeroHiveAsync(new IoTcpSocket(ZeroConcurrencyLevel), true).FastPath()).target;
 
@@ -66,7 +66,7 @@ namespace zero.core.network.ip
                     @this._logger.Error(e, errMsg);
                     await newConnectionSocket.DisposeAsync(@this, errMsg).FastPath();
                 }
-            }, ValueTuple.Create(this, context, connectionReceivedAction), bootFunc, bootData).FastPath();
+            }, ValueTuple.Create(this, context, onConnectionReceived), bootFunc, bootData).FastPath();
         }
 
         /// <summary>

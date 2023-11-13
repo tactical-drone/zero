@@ -40,7 +40,6 @@ namespace zero.core.patterns.bushings
             //if (runContinuationsAsync > concurrencyLevel)
             //    throw new ArgumentOutOfRangeException($"{description}: invalid {nameof(concurrencyLevel)} = {concurrencyLevel}, must be at least {nameof(runContinuationsAsync)} = {runContinuationsAsync}");
 
-            BackPressureEnabled = true;
             PrefetchSize = prefetchSize;
             ZeroAsyncMode = zeroAsyncMode;
 
@@ -48,20 +47,16 @@ namespace zero.core.patterns.bushings
 
             try
             {
-                if (BackPressureEnabled)
-                {
-                    _backPressure = new IoZeroSemaphoreSlim(AsyncTasks, $"{nameof(_backPressure)}: {description}",
-                        maxBlockers: PrefetchSize,
-                        initialCount: concurrencyLevel,
-                        zeroAsyncMode: false); //TODO Prefetch - 1 or not?
-                }
+                _backPressure = new IoZeroSemaphoreSlim(AsyncTasks, $"{nameof(_backPressure)}: {description}",
+                    maxBlockers: concurrencyLevel * 2,
+                    initialCount: concurrencyLevel,
+                    zeroAsyncMode: false); 
             }
             catch (Exception e)
             {
                 _logger.Fatal(e, $"CRITICAL! Failed to configure semaphores! Aborting!");
                 throw;
             }
-            
         }
 
         public string QueueStatus => $"back pressure = {_backPressure?.WaitCount}/{_backPressure?.Capacity}";
@@ -114,7 +109,7 @@ namespace zero.core.patterns.bushings
         
         public int BackPressureReady => _backPressure.ReadyCount;
 
-        public bool BackPressureEnabled { get; protected set; }
+        //public bool BackPressureEnabled { get; protected set; }
 
         public bool DisableZero { get; protected set; }
         /// <summary>
@@ -448,7 +443,7 @@ namespace zero.core.patterns.bushings
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public int BackPressure(int releaseCount = 1, bool zeroAsync = false)
         {
-            return BackPressureEnabled ? _backPressure.Release(Environment.TickCount, releaseCount, zeroAsync) : releaseCount;
+            return _backPressure.Release(Environment.TickCount, releaseCount, zeroAsync, true);
         }
 
         /// <summary>
@@ -459,7 +454,7 @@ namespace zero.core.patterns.bushings
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public ValueTask<int> WaitForBackPressureAsync()
         {
-            return BackPressureEnabled ? _backPressure.WaitAsync() : new ValueTask<int>(Environment.TickCount);
+            return _backPressure.WaitAsync();
         }
         
         /// <summary>

@@ -227,42 +227,39 @@ namespace zero.core.patterns.queue
         /// <returns>The queued item's linked list node</returns>
         public async ValueTask<IoZNode> EnqueueAsync<TC>(T item, Func<TC,ValueTask> onAtomicAdd = null, TC context = default)
         {
-            var entered = false;
-
             if (_zeroed > 0 || item == null)
                 return null;
 
+            //wait on back pressure
+            if (_backPressure != null && (await _backPressure.WaitAsync().FastPath()).ElapsedMs() == int.MaxValue || _zeroed > 0)
+            {
+                if(_zeroed == 0 && (!_backPressure?.Zeroed()??true))
+                    LogManager.GetCurrentClassLogger().Fatal($"{nameof(EnqueueAsync)}{nameof(_backPressure.WaitAsync)}: back pressure failure ~> {_backPressure}");
+                return null;
+            }
+            
+            var node = _nodeHeap.Take();
+            if(node == null)
+                throw new OutOfMemoryException($"{nameof(EnqueueAsync)}: {_nodeHeap}");
+
+            node.Value = item;
+
+            await _syncRoot.WaitAsync().FastPath();
             try
             {
-                //wait on back pressure
-                if (_backPressure != null && (await _backPressure.WaitAsync().FastPath()).ElapsedMs() == int.MaxValue || _zeroed > 0)
-                {
-                    if(_zeroed == 0 && (!_backPressure?.Zeroed()??true))
-                        LogManager.GetCurrentClassLogger().Fatal($"{nameof(EnqueueAsync)}{nameof(_backPressure.WaitAsync)}: back pressure failure ~> {_backPressure}");
-                    return null;
-                }
-                
-                var node = _nodeHeap.Take();
-                if(node == null)
-                    throw new OutOfMemoryException($"{nameof(EnqueueAsync)}: {_nodeHeap}");
-
-                node.Value = item;
-
-                await _syncRoot.WaitAsync().FastPath();
-                entered = true;
 #if DEBUG
-                //Debug.Assert(Interlocked.Increment(ref _insaneExclusive) == 1 || _syncRoot.Zeroed(), $"{nameof(_insaneExclusive)} = {_insaneExclusive} > 1");
-                //Debug.Assert(_syncRoot.ReadyCount <= 0 || _syncRoot.Zeroed(), $"{nameof(_syncRoot.ReadyCount)} = {_syncRoot.ReadyCount} [INVALID], wait = {_syncRoot.WaitCount}");
-                //Debug.Assert(_insaneExclusive < 2, $"{nameof(_insaneExclusive)} = {_insaneExclusive} > 1");
-                Debug.Assert(Interlocked.Increment(ref _insaneExclusive) == 1 || _syncRoot.Zeroed());
-                Debug.Assert(_syncRoot.ReadyCount <= 0 || _syncRoot.Zeroed());
-                Debug.Assert(_insaneExclusive < 2);
+            //Debug.Assert(Interlocked.Increment(ref _insaneExclusive) == 1 || _syncRoot.Zeroed(), $"{nameof(_insaneExclusive)} = {_insaneExclusive} > 1");
+            //Debug.Assert(_syncRoot.ReadyCount <= 0 || _syncRoot.Zeroed(), $"{nameof(_syncRoot.ReadyCount)} = {_syncRoot.ReadyCount} [INVALID], wait = {_syncRoot.WaitCount}");
+            //Debug.Assert(_insaneExclusive < 2, $"{nameof(_insaneExclusive)} = {_insaneExclusive} > 1");
+            Debug.Assert(Interlocked.Increment(ref _insaneExclusive) == 1 || _syncRoot.Zeroed());
+            Debug.Assert(_syncRoot.ReadyCount <= 0 || _syncRoot.Zeroed());
+            Debug.Assert(_insaneExclusive < 2);
 #endif
                 if (_tail == null)
                 {
                     _head = _tail = node;
                 }
-                else 
+                else
                 {
                     node.Prev = _tail;
                     _tail.Next = node;
@@ -279,34 +276,31 @@ namespace zero.core.patterns.queue
                 {
                     try
                     {
-                        if (entered)
+                        //additional atomic actions
+                        try
                         {
-                            //additional atomic actions
-                            try
+                            if (onAtomicAdd != null)
                             {
-                                if (onAtomicAdd != null)
-                                {
-                                    var ts = Environment.TickCount;
-                                    await onAtomicAdd.Invoke(context).FastPath();
-                                    if (ts.ElapsedMs() > Qe)
-                                        LogManager.GetCurrentClassLogger().Warn($"q onAtomicAdd; t = {ts.ElapsedMs()}ms");
-                                }
-                                    
+                                var ts = Environment.TickCount;
+                                await onAtomicAdd.Invoke(context).FastPath();
+                                if (ts.ElapsedMs() > Qe)
+                                    LogManager.GetCurrentClassLogger().Warn($"q onAtomicAdd; t = {ts.ElapsedMs()}ms");
                             }
-                            catch when (Zeroed)
-                            {
-                            }
-                            catch (Exception e) when (!Zeroed)
-                            {
-                                LogManager.GetCurrentClassLogger().Error(e, $"{nameof(EnqueueAsync)}");
-                            }
-                            finally
-                            {
+
+                        }
+                        catch when (Zeroed)
+                        {
+                        }
+                        catch (Exception e) when (!Zeroed)
+                        {
+                            LogManager.GetCurrentClassLogger().Error(e, $"{nameof(EnqueueAsync)}");
+                        }
+                        finally
+                        {
 #if DEBUG
-                                Interlocked.Decrement(ref _insaneExclusive);
+                            Interlocked.Decrement(ref _insaneExclusive);
 #endif
-                                _syncRoot.Release(Environment.TickCount, true);
-                            }
+                            _syncRoot.Release(Environment.TickCount, true);
                         }
                     }
                     catch when (Zeroed) { }
@@ -314,8 +308,10 @@ namespace zero.core.patterns.queue
                     {
                         LogManager.GetCurrentClassLogger().Error(e, $"{nameof(EnqueueAsync)}");
                     }
-
-                    _pressure?.Release(Environment.TickCount, false);
+                    finally
+                    {
+                        _pressure?.Release(Environment.TickCount, true);
+                    }
                 }
             }
         }
@@ -330,29 +326,28 @@ namespace zero.core.patterns.queue
             if (_zeroed > 0 || item == null)
                 return null;
 
-            var entered = false;
-            IoZNode retVal = default;
+            //wait on back pressure
+            if (_backPressure != null && (await _backPressure.WaitAsync().FastPath()).ElapsedMs() == int.MaxValue)
+            {
+                if (_zeroed == 0 && (!_backPressure?.Zeroed()??true))
+                    LogManager.GetCurrentClassLogger().Fatal($"{nameof(PushBackAsync)}{nameof(_backPressure.WaitAsync)}: back pressure failure ~> {_backPressure}");
+                return null;
+            }
+
+            var node = _nodeHeap.Take();
+
+            if (node == null)
+                throw new OutOfMemoryException($"{_description} - ({_nodeHeap.Count} + {_nodeHeap.ReferenceCount})/{_nodeHeap.Capacity}, count = {_count}");
+            
+            node.Value = item;
+
+            await _syncRoot.WaitAsync().FastPath();
             try
             {
-                //wait on back pressure
-                if (_backPressure != null && (await _backPressure.WaitAsync().FastPath()).ElapsedMs() == int.MaxValue)
-                {
-                    if (_zeroed == 0 && (!_backPressure?.Zeroed()??true))
-                        LogManager.GetCurrentClassLogger().Fatal($"{nameof(PushBackAsync)}{nameof(_backPressure.WaitAsync)}: back pressure failure ~> {_backPressure}");
-                    return null;
-                }
 
-                var node = _nodeHeap.Take();
-
-                if (node == null)
-                    throw new OutOfMemoryException($"{_description} - ({_nodeHeap.Count} + {_nodeHeap.ReferenceCount})/{_nodeHeap.Capacity}, count = {_count}");
-                
-                node.Value = item;
-
-                await _syncRoot.WaitAsync().FastPath();
-                entered = true;
 #if DEBUG
-                //Debug.Assert(Interlocked.Increment(ref _insaneExclusive) == 1 || _syncRoot.Zeroed(), $"{nameof(_insaneExclusive)} = {_insaneExclusive} > 1");
+                //int ii;
+                //Debug.Assert((ii = Interlocked.Increment(ref _insaneExclusive)) == 1 || _syncRoot.Zeroed(), $"{nameof(_insaneExclusive)} = {ii} > 1");
                 //Debug.Assert(_syncRoot.ReadyCount <= 0 || _syncRoot.Zeroed(), $"{nameof(_syncRoot.ReadyCount)} = {_syncRoot.ReadyCount} [INVALID]");
                 //Debug.Assert(_insaneExclusive < 2 || _syncRoot.Zeroed());
                 Debug.Assert(Interlocked.Increment(ref _insaneExclusive) == 1 || _syncRoot.Zeroed());
@@ -372,21 +367,19 @@ namespace zero.core.patterns.queue
 
                 Interlocked.Increment(ref _count);
                 Interlocked.Increment(ref _operations);
-                return retVal = node;
+                return node;
             }
             finally
             {
                 if (!Zeroed)
                 {
-                    _pressure?.Release(Environment.TickCount, true);
 
-                    if (entered)
-                    {
 #if DEBUG
-                        Interlocked.Decrement(ref _insaneExclusive);
+                    Interlocked.Decrement(ref _insaneExclusive);
 #endif
-                        _syncRoot.Release(Environment.TickCount, false);
-                    }
+                    _syncRoot.Release(Environment.TickCount, true);
+
+                    _pressure?.Release(Environment.TickCount, true);
                 }
             }
         }
@@ -407,7 +400,6 @@ namespace zero.core.patterns.queue
                 return default;
             }
 
-            var entered = false;
             T retVal = default;
             try
             {
@@ -415,65 +407,71 @@ namespace zero.core.patterns.queue
                     return default;
 
                 await _syncRoot.WaitAsync().FastPath();
-                entered = true;
+                try
+                {
 #if DEBUG
-                //Debug.Assert(Interlocked.Increment(ref _insaneExclusive) == 1 || _syncRoot.Zeroed(), $"{nameof(_insaneExclusive)} = {_insaneExclusive} > 1, {nameof(_syncRoot.ReadyCount)} = {_syncRoot.ReadyCount}, wait =  {_syncRoot.WaitCount}");
-                //Debug.Assert(_syncRoot.ReadyCount <= 0 || _syncRoot.Zeroed(), $"{nameof(_syncRoot.ReadyCount)} = {_syncRoot.ReadyCount} [INVALID], wait =  {_syncRoot.WaitCount}");
-                //Debug.Assert(_insaneExclusive < 2 || _syncRoot.Zeroed() || Zeroed, $"{nameof(_insaneExclusive)}: {_insaneExclusive}");
-                Debug.Assert(Interlocked.Increment(ref _insaneExclusive) == 1 || _syncRoot.Zeroed());
-                Debug.Assert(_syncRoot.ReadyCount <= 0 || _syncRoot.Zeroed());
-                Debug.Assert(_insaneExclusive < 2);
+                    //int ii;
+                    //Debug.Assert((ii = Interlocked.Increment(ref _insaneExclusive)) == 1 || _syncRoot.Zeroed(), $"{nameof(_insaneExclusive)} = {ii} > 1, {nameof(_syncRoot.ReadyCount)} = {_syncRoot.ReadyCount}, wait =  {_syncRoot.WaitCount}");
+                    //Debug.Assert(_syncRoot.ReadyCount <= 0 || _syncRoot.Zeroed(), $"{nameof(_syncRoot.ReadyCount)} = {_syncRoot.ReadyCount} [INVALID], wait =  {_syncRoot.WaitCount}");
+                    //Debug.Assert(_insaneExclusive < 2 || _syncRoot.Zeroed() || Zeroed, $"{nameof(_insaneExclusive)}: {_insaneExclusive}");
+                    Debug.Assert(Interlocked.Increment(ref _insaneExclusive) == 1 || _syncRoot.Zeroed());
+                    Debug.Assert(_syncRoot.ReadyCount <= 0 || _syncRoot.Zeroed());
+                    Debug.Assert(_insaneExclusive < 2);
 #endif
-                if (_count == 0)
-                    return default;
+                    if (_count == 0)
+                        return default;
                 
-                dq = _head;
-                _head = _head.Next;
-                dq.Next = null;
-                dq.Prev = null;
-                if (_head != null)
-                    _head.Prev = null;
-                else
-                    _tail = null;
+                    dq = _head;
+                    _head = _head.Next;
+                    dq.Next = null;
+                    dq.Prev = null;
+                    if (_head != null)
+                        _head.Prev = null;
+                    else
+                        _tail = null;
 
-                _curEnumerator.Modified = true;
-                Interlocked.Decrement(ref _count);
-                Interlocked.Increment(ref _operations);
+                    _curEnumerator.Modified = true;
+                    Interlocked.Decrement(ref _count);
+                    Interlocked.Increment(ref _operations);
+                }
+                finally
+                {
+                    if (!Zeroed)
+                    {
+#if DEBUG
+                    Interlocked.Decrement(ref _insaneExclusive);
+                    //Debug.Assert(_syncRoot.ReadyCount == 0, $"INVALID {nameof(_syncRoot.ReadyCount)} = {_syncRoot.ReadyCount}");
+                    Debug.Assert(_syncRoot.ReadyCount == 0);
+#endif
+                        _syncRoot.Release(Environment.TickCount, true);
+
+                        try
+                        {
+                            //DQ cost being load balanced
+                            if (dq != null)
+                            {
+                                retVal = dq.Value;
+                                _nodeHeap.Return(dq);
+                            }
+
+                            _backPressure?.Release(Environment.TickCount, true);
+                        }
+                        catch when (_zeroed > 0)
+                        {
+                        }
+                        catch (Exception e) when (_zeroed == 0)
+                        {
+                            LogManager.GetCurrentClassLogger().Error(e, $"{_description}: DQ failed!");
+                        }
+                    }
+                }
             }
             catch when (_zeroed > 0) { }
             catch (Exception e) when (_zeroed == 0)
             {
                 LogManager.GetCurrentClassLogger().Error(e, $"{_description}: DQ failed! {nameof(_count)} = {_count}, {nameof(_tail)} = {_tail}, {nameof(_head)} = {_head}, heap => {_nodeHeap.Description}");
             }
-            finally
-            {
-                if (entered && !Zeroed)
-                {
-#if DEBUG
-                    Interlocked.Decrement(ref _insaneExclusive);
-                    //Debug.Assert(_syncRoot.ReadyCount == 0, $"INVALID {nameof(_syncRoot.ReadyCount)} = {_syncRoot.ReadyCount}");
-                    Debug.Assert(_syncRoot.ReadyCount == 0);
-#endif
-                    _syncRoot.Release(Environment.TickCount, true);
-                }
-
-                try
-                {
-                    //DQ cost being load balanced
-                    if (dq != null)
-                    {
-                        retVal = dq.Value;
-                        _nodeHeap.Return(dq);
-                    }
-
-                    _backPressure?.Release(Environment.TickCount, false);
-                }
-                catch when (_zeroed > 0) { }
-                catch (Exception e) when (_zeroed == 0)
-                {
-                    LogManager.GetCurrentClassLogger().Error(e, $"{_description}: DQ failed!");
-                }
-            }
+            
             
             return retVal;
         }

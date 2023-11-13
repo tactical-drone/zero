@@ -42,7 +42,7 @@ namespace zero.core.patterns.semaphore.core
             _results = new IoZeroQ<T>(string.Empty, capacity, false, asyncTasks: null, capacity);
             _heapCore = new IoBag<IIoManualResetValueTaskSourceCore<T>>(string.Empty, capacity, asyncTasks: null, capacity);
 
-            _primeReady = _ => default;
+            _primeReady = _ => default;     
             _primeContext = null;
             _asyncTasks = asyncTasks;
             
@@ -118,7 +118,7 @@ namespace zero.core.patterns.semaphore.core
         #endregion
 
         #region State
-        public string Description => $"{nameof(IoZeroSemCore<T>)} ([{_totalOps}] - {_curOps} @ {Cps(true):0.0} c/s): r = {ReadyCount}/{_capacity}, w = {WaitCount}/{_capacity}, z = {_zeroed > 0}, heap = {_heapCore.Count}, {_description}";
+        public string Description => $"{nameof(IoZeroSemCore<T>)} ([{_totalOps}] - {_curOps} @ {Cps(true):0.0} c/s): r = {ReadyCount}/{_capacity}, w = {WaitCount}/{_capacity}, z = {_zeroed > 0}, bag = {_heapCore.Count}/{_heapCore.Capacity}, {_description}";
         public int WaitCount => _blockingCores.Count;
         public int ReadyCount => _results.Count;
 
@@ -219,19 +219,23 @@ namespace zero.core.patterns.semaphore.core
         /// </summary>
         /// <param name="value">Send this value to the blocker</param>
         /// <param name="forceAsync">Set async continuation</param>
+        /// <param name="prime">Prime a result</param>
         /// <returns>If a waiter was unblocked, false otherwise</returns>
 #if RELEASE
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
 #endif
-        private bool SetResult(T value, bool forceAsync = false)
+        private bool SetResult(T value, bool forceAsync = false, bool prime = true)
         {
             //insane checks
-            if (Zeroed() || _results.Count == Capacity)
+            if (Zeroed() || _results.Count == Capacity || (!prime && _blockingCores.Count == 0))
                 return false;
 
             //unblock
             if (Unblock(value, forceAsync))
                 return true;
+
+            if (!prime)
+                return false;
 
             bank:
             //queue result for future blocker
@@ -298,7 +302,7 @@ namespace zero.core.patterns.semaphore.core
                 {
                     AutoReset = true, RunContinuationsAsynchronouslyAlways = ZeroAsyncMode
                 };
-                blockingCore.Reset(static state =>
+                blockingCore.OnReset(static state =>
                 {
                     var (@this, blockingCore) = (ValueTuple<IoZeroCore<T>, IIoManualResetValueTaskSourceCore<T>>)state;
 
@@ -395,17 +399,17 @@ namespace zero.core.patterns.semaphore.core
         public void OnCompleted(Action<object> continuation, object state, short token, ValueTaskSourceOnCompletedFlags flags) => throw new NotImplementedException(nameof(OnCompleted));
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public int Release(T value, int releaseCount, bool forceAsync = false)
+        public int Release(T value, int releaseCount, bool forceAsync = false, bool prime = true)
         {
             var released = 0;
             for (var i = 0; i < releaseCount; i++)
-                released += Release(value, forceAsync);
+                released += Release(value, forceAsync, prime);
             
             return released;
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public int Release(T[] value, bool forceAsync = false)
+        public int Release(T[] value, bool forceAsync = false, bool prime = true)
         {
             var released = 0;
             foreach (var t in value)
@@ -415,7 +419,7 @@ namespace zero.core.patterns.semaphore.core
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public int Release(T value, bool forceAsync = false) => SetResult(value,forceAsync) ? 1 : 0;
+        public int Release(T value, bool forceAsync = false, bool prime = true) => SetResult(value,forceAsync, prime) ? 1 : 0;
         
 
         /// <summary>

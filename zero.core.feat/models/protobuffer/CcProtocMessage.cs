@@ -131,7 +131,7 @@ namespace zero.core.feat.models.protobuffer
         /// <summary>
         /// User data in the source
         /// </summary>
-        protected byte[] RemoteEndPoint = new IPEndPoint(IPAddress.Any, 0).AsBytes();
+        protected readonly byte[] RemoteEndPoint = new IPEndPoint(IPAddress.Any, 0).AsBytes();
 
         /// <summary>
         /// Produce a Message
@@ -276,11 +276,11 @@ namespace zero.core.feat.models.protobuffer
         {
             try
             {
-                var next = CurrentBatch.Feed;
+                var next = CurrentBatch.Feed();
                 next.Zero = packet;
 
                 RemoteEndPoint.CopyTo(next.EndPoint, 0);
-                if (CurrentBatch.Flush)
+                if (CurrentBatch.ReadyToFlush)
                     await ZeroBatchAsync().FastPath();
             }
             catch when (Zeroed()) { }
@@ -310,13 +310,31 @@ namespace zero.core.feat.models.protobuffer
                         var chan = ((CcProtocBatchSource<chroniton, TBatch>)source).Channel;
                         var nextBatch = Interlocked.Exchange(ref @this.CurrentBatch, BatchHeap.Take());
 
-                        if (chan.Release(nextBatch, forceAsync: true) != 1)
+                        if (nextBatch.Count == 0)
                         {
-                            var ready = chan.ReadyCount;
-                            var wait = chan.WaitCount;
-                            if (!((CcProtocBatchSource<chroniton, TBatch>)source).Zeroed() && !chan.Zeroed() && chan.TotalOps > 0)
-                                _logger.Fatal($"{nameof(ZeroBatchAsync)}: Unable to q batch; had ready = {ready}, wait = {wait}; {chan.Description} {@this.Description}");
+                            _logger.Warn($"Dequed a batch of size ZERO!, {@this.Description}");
+                            return new ValueTask<bool>(false);
+                        }
 
+#if TRACE
+                        for (var i = 0; i < nextBatch.Count; i++)
+                            Debug.Assert(nextBatch[i].Zero != null);
+#endif
+                        var retried = 10;
+                        var r = 0;
+                        var spinWait = new SpinWait();
+                        retry:
+                        if ((r = chan.Release(nextBatch, forceAsync: true)) < 1)
+                        {
+                            if (retried-- > 0)
+                            {
+                                spinWait.SpinOnce();
+                                goto retry;
+                            }
+
+                            if (!((CcProtocBatchSource<chroniton, TBatch>)source).Zeroed() && !chan.Zeroed() && chan.TotalOps > 0)
+                                _logger.Fatal($"{nameof(ZeroBatchAsync)}: Unable to q batch; released = {r}, ready = {chan.ReadyCount}, wait = {chan.WaitCount}, cap = {chan.Capacity}; {chan.Description} {@this.Description}");
+                            
                             return new ValueTask<bool>(false);
                         }
 

@@ -54,7 +54,7 @@ namespace zero.core.patterns.semaphore
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public int Release(bool value, int releaseCount, bool forceAsync = false)
+        public int Release(bool value, int releaseCount, bool forceAsync = false, bool prime = true)
         {
             Debug.Assert(releaseCount == 1);
             try
@@ -68,9 +68,9 @@ namespace zero.core.patterns.semaphore
             return releaseCount;
         }
 
-        public int Release(bool value, bool forceAsync = false) => Release(value, 1, forceAsync);
+        public int Release(bool value, bool forceAsync = false, bool prime = true) => Release(value, 1, forceAsync);
 
-        public int Release(bool[] value, bool forceAsync = false)
+        public int Release(bool[] value, bool forceAsync = false, bool prime = true)
         {
             throw new NotImplementedException();
         }

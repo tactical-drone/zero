@@ -1,7 +1,5 @@
 ﻿using System;
 using System.Runtime.CompilerServices;
-using System.Runtime.InteropServices;
-using System.Security.Cryptography;
 using System.Threading;
 using System.Threading.Tasks;
 using NLog;
@@ -60,11 +58,11 @@ namespace zero.core.patterns.bushings
         {
             _description = description;
             Source = source;
-            var capacity = Source.PrefetchSize + Source.ZeroConcurrencyLevel + 1;
+            var capacity = Source.PrefetchSize;
 
             //These numbers were numerically established
             if (ZeroRecoveryEnabled)
-                capacity *= 3;
+                capacity *= 2;
 
             try
             {
@@ -73,7 +71,7 @@ namespace zero.core.patterns.bushings
                 _queue = new IoZeroSemaphoreChannel<IoSink<TJob>>($"zero Q: {_description}",capacity, zeroAsyncMode:false);//FALSE
                 
 
-                JobHeap = new IoHeapIo<IoSink<TJob>>($"{nameof(JobHeap)}: {_description}", capacity, jobMalloc) {
+                JobHeap = new IoHeapIo<IoSink<TJob>>($"{nameof(JobHeap)}: {_description}", capacity * 2, jobMalloc) {
                     Constructor = (sink, zero) =>
                     {
                         sink.IoZero = (IoZero<TJob>)zero;
@@ -342,7 +340,7 @@ namespace zero.core.patterns.bushings
                         if (nextJob.State != IoJobMeta.JobState.ProdConnReset)
                             await nextJob.SetStateAsync(IoJobMeta.JobState.Queued).FastPath();
 
-                        if(_queue.Release(nextJob, false) < 0)
+                        if(_queue.Release(nextJob, true) < 0)
                         {
                             ts = ts.ElapsedMs();
 
@@ -359,9 +357,7 @@ namespace zero.core.patterns.bushings
                             if(!Zeroed())
                                 _logger.Warn($"Producer stalled.... {Description}");
 
-                            Source.BackPressure(zeroAsync: false);
-
-                            return false;  //maybe we retry instead of crashing the producer
+                            return Source.BackPressure(zeroAsync: true) > 0; //maybe we retry instead of crashing the producer
                         }
 
                         //Pass control over to the consumer
@@ -597,18 +593,21 @@ namespace zero.core.patterns.bushings
                                     return new ValueTask<bool>(true);
                                 }, this).FastPath();
                             }
-
-                            //cleanup
-                            await ZeroJobAsync(curJob, curJob.FinalState is IoJobMeta.JobState.Reject).FastPath();
-
-                            //back pressure
-                            Source.BackPressure(zeroAsync: true);
                         }
                     }
-                    catch when (Zeroed()) { }
+                    catch when (Zeroed())
+                    {
+                    }
                     catch (Exception e) when (!Zeroed())
                     {
-                        _logger.Fatal(e,$"{nameof(ConsumeAsync)}:");
+                        _logger.Fatal(e, $"{nameof(ConsumeAsync)}:");
+                    }
+                    finally
+                    {
+                        //cleanup
+                        await ZeroJobAsync(curJob, curJob.FinalState is IoJobMeta.JobState.Reject).FastPath();
+                        //back pressure
+                        Source.BackPressure(zeroAsync: true);
                     }
                 }
             }

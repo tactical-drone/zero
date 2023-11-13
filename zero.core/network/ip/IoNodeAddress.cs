@@ -47,7 +47,7 @@ namespace zero.core.network.ip
         private static readonly Logger Logger = LogManager.GetCurrentClassLogger();
 
         [DataMember]
-        public string Url { get; set; }
+        public string Url { get; protected set; }
 
         [DataMember] public string Key => $"{ProtocolDesc}{IpEndPoint}";
 

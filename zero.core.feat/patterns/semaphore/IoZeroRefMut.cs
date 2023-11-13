@@ -47,18 +47,18 @@ namespace zero.core.feat.patterns.semaphore
             throw new NotImplementedException();
         }
 
-        public int Release(bool value, int releaseCount, bool forceAsync = false)
+        public int Release(bool value, int releaseCount, bool forceAsync = false, bool prime = true)
         {
             throw new NotImplementedException();
         }
 
-        public int Release(bool value, bool forceAsync = false)
+        public int Release(bool value, bool forceAsync = false, bool prime = true)
         {
             _semaphore.Set();
             return 1;
         }
 
-        public int Release(bool[] value, bool forceAsync = false)
+        public int Release(bool[] value, bool forceAsync = false, bool prime = true)
         {
             throw new NotImplementedException();
         }

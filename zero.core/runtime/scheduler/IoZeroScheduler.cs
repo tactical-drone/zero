@@ -377,6 +377,7 @@ namespace zero.core.runtime.scheduler
                 finally
                 {
                     Interlocked.Decrement(ref _taskQueueLoad);
+                    job.Dispose();
                 }
             }
         }

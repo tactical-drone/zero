@@ -231,10 +231,10 @@ namespace zero.core.patterns.heap
                 var t = _hit + _miss;
                 if (t > Capacity << 1)
                 {
-                    var r = (double)_hit / (t);
-                    if (r is < 0.25 and > 0)
+                    var r = (double)_miss / (t);
+                    if (r is > 0.75)
                     {
-                        _logger.Warn($"{nameof(Make)}: Bad cache hit ratio of {r * 100:0.0}%, hit = {_hit}, miss = {_miss}, {Description}");
+                        _logger.Warn($"{nameof(Make)}: Bad cache miss ratio of {r * 100:0.0}%, hit = {_hit}, miss = {_miss}, {Description}");
                     }
                 }
 #endif

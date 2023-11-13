@@ -6,6 +6,7 @@ using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Threading.Tasks.Sources;
 using NLog;
 using zero.core.conf;
 using zero.core.misc;
@@ -93,12 +94,11 @@ namespace zero.core.network.ip
             _logger = LogManager.GetCurrentClassLogger();
 
             _argsHeap = new IoHeap<SocketAsyncEventArgs, IoUdpSocket>($"{nameof(_argsHeap)}: {Description}",
-                concurrencyLevel << 2, static (_, @this) =>
+                concurrencyLevel << 3, static (_, @this) =>
                 {
                     var args = new SocketAsyncEventArgs
                     {
-                        RemoteEndPoint = new IPEndPoint(0, 0),
-                        UserToken = new IoManualResetValueTaskSourceCore<bool> { AutoReset = true },
+                        UserToken = new IoManualResetValueTaskSourceCore<bool> { AutoReset = true, RunContinuationsAsynchronouslyAlways = true},
                     };
                     args.Completed += @this.ZeroCompletion;
 
@@ -336,12 +336,22 @@ namespace zero.core.network.ip
                 //if (!NativeSocket.Poll(parm_socket_poll_wait_ms, SelectMode.SelectWrite))
                 //    return 0;
 
-                args = _argsHeap.Take();
-                if (args == null)
-                    throw new OutOfMemoryException(nameof(_argsHeap));
+                //args = _argsHeap.Take();
+                //if (args == null)
+                //    throw new OutOfMemoryException(nameof(_argsHeap));
+
+                args = new SocketAsyncEventArgs
+                {
+                    RemoteEndPoint = endPoint,
+                    UserToken = new IoManualResetValueTaskSourceCore<bool>(),
+                };
+
+                args.Completed += ZeroCompletion;
 
                 var buf = Unsafe.As<ReadOnlyMemory<byte>, Memory<byte>>(ref buffer).Slice(offset, length);
                 var send = new ValueTask<bool>((IIoManualResetValueTaskSourceCore<bool>)args.UserToken, 0);
+
+                //args.UserToken = new IoManualResetValueTaskSourceCore<bool>();
 
                 args.SetBuffer(buf);
                 args.RemoteEndPoint = endPoint;
@@ -360,18 +370,20 @@ namespace zero.core.network.ip
             }
             catch (SocketException e) when (!Zeroed() && e.ErrorCode == (int)SocketError.AddressNotAvailable)
             {
-                var errMsg = $"Sending to {NativeSocket.LocalAddress()} ~> udp://{endPoint} failed ({args!.RemoteEndPoint}), z = {Zeroed()}, zf = {ZeroedFrom?.Description}:";
+                var errMsg = $"Sending to :{NativeSocket.LocalPort()} ~> udp://{endPoint} failed ({args!.RemoteEndPoint}), z = {Zeroed()}, zf = {ZeroedFrom?.Description}:";
                 _logger.Warn(e, errMsg);
             }       
             catch (Exception e) when (!Zeroed())
             {
-                var errMsg = $"Sending to {NativeSocket.LocalAddress()} ~> udp://{endPoint} failed ({args?.RemoteEndPoint}), z = {Zeroed()}, zf = {ZeroedFrom?.Description}:";
+                var errMsg = $"Sending to :{NativeSocket.LocalPort()} ~> udp://{endPoint} failed ({args?.RemoteEndPoint}), z = {Zeroed()}, zf = {ZeroedFrom?.Description}:";
                 _logger.Error(e, errMsg);
                 await DisposeAsync(this, errMsg).FastPath();
             }
             finally
             {
-                _argsHeap?.Return(args);
+                //_argsHeap?.Return(args);
+                args!.Completed-= ZeroCompletion;
+                args.Dispose();
             }
 
             return 0;
@@ -439,6 +451,8 @@ namespace zero.core.network.ip
         /// <returns>Number of bytes received</returns>
         public override async ValueTask<int> ReceiveAsync(Memory<byte> buffer, int offset, int length, byte[] remoteEp, int timeout = 0)
         {
+            SocketAsyncEventArgs args = null;
+
             try
             {
                 if (length == 0)
@@ -446,14 +460,21 @@ namespace zero.core.network.ip
 
                 if (timeout == 0)
                 {
-                    SocketAsyncEventArgs args = null;
+                    
                     try
                     {
-                        args = _argsHeap.Take();
+                        //args = _argsHeap.Take();
+                        //if (args == null)
+                        //    throw new OutOfMemoryException(nameof(_argsHeap));
 
-                        if (args == null)
-                            throw new OutOfMemoryException(nameof(_argsHeap));
+                        args = new SocketAsyncEventArgs
+                        {
+                            RemoteEndPoint = new IPEndPoint(IPAddress.Any, 0),
+                            UserToken = new IoManualResetValueTaskSourceCore<bool>(),
+                        };
+                        args.Completed += ZeroCompletion;
 
+                        //args.RemoteEndPoint = new IPEndPoint(IPAddress.Any, 0);
                         args.SetBuffer(buffer.Slice(offset, length));
                         var waitCore = new ValueTask<bool>((IIoManualResetValueTaskSourceCore<bool>)args.UserToken, 0);
 
@@ -477,7 +498,9 @@ namespace zero.core.network.ip
                             return 0;
                         }
 
+                        
                         args.RemoteEndPoint.AsBytes(remoteEp);
+                       // Console.WriteLine($"<<<Got packet from {remoteEp.GetEndpoint()} {args.RemoteEndPoint} ({NativeSocket.LocalEndPoint}), {Description} ({Serial})");
 #if DEBUG
                         if (args.SocketError != SocketError.Success && args.SocketError != SocketError.OperationAborted && args.SocketError != SocketError.ConnectionReset)
                             _logger.Error($"{nameof(ReceiveAsync)}: socket error = {args.SocketError}");
@@ -498,7 +521,9 @@ namespace zero.core.network.ip
                     }
                     finally
                     {
-                        _argsHeap?.Return(args);
+                        //_argsHeap?.Return(args);
+                        args.Completed -= ZeroCompletion;
+                        args.Dispose();
 
 #if TEST_FAIL_LISTEN
                         if (Interlocked.CompareExchange(ref _failOne, 1, 0) == 0)

@@ -5,6 +5,7 @@ using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Threading.Tasks.Sources;
+using NLog.LayoutRenderers;
 
 namespace zero.core.patterns.semaphore.core
 {
@@ -36,12 +37,12 @@ namespace zero.core.patterns.semaphore.core
             _capacity = capacity;
             ZeroAsyncMode = zeroAsyncMode;
             
-            _manualResetValueTaskSourceCore = new IIoManualResetValueTaskSourceCore<T>[_capacity<<1];
+            _cores = new IIoManualResetValueTaskSourceCore<T>[_capacity<<1];
 
             for (short i = 0; i < _capacity<<1; i++)
             {
-                _manualResetValueTaskSourceCore[i] = new IoManualResetValueTaskSourceCore<T>{RunContinuationsAsynchronouslyAlways = zeroAsyncMode, AutoReset = true};
-                var core = _manualResetValueTaskSourceCore[i];
+                _cores[i] = new IoManualResetValueTaskSourceCore<T>{RunContinuationsAsynchronouslyAlways = zeroAsyncMode, AutoReset = true};
+                var core = _cores[i];
                 core.Reset();
             }
 
@@ -61,7 +62,7 @@ namespace zero.core.patterns.semaphore.core
                 throw new ArgumentOutOfRangeException(nameof(primeResult));
 
             for (int i = 0; i < _head; i++)
-                _manualResetValueTaskSourceCore[i].SetResult(_primeReady!(_primeContext));
+                _cores[i].SetResult(_primeReady!(_primeContext));
 
             return @ref;
         }
@@ -73,7 +74,7 @@ namespace zero.core.patterns.semaphore.core
 
             //flush waiters
             while (_head < _tail)
-                _manualResetValueTaskSourceCore[(Interlocked.Increment(ref _head) - 1) % ModCapacity].SetException(new TaskCanceledException($"{Description}"));
+                _cores[(Interlocked.Increment(ref _head) - 1) % ModCapacity].SetException(new TaskCanceledException($"{Description}"));
         }
 
         public bool Zeroed() => _zeroed > 0;
@@ -83,7 +84,7 @@ namespace zero.core.patterns.semaphore.core
         #region Aligned
         private long _head;
         private long _tail;
-        private readonly IIoManualResetValueTaskSourceCore<T>[] _manualResetValueTaskSourceCore;
+        private readonly IIoManualResetValueTaskSourceCore<T>[] _cores;
         private readonly int _capacity;
         #endregion
 
@@ -114,10 +115,10 @@ namespace zero.core.patterns.semaphore.core
 
         public ValueTaskSourceStatus GetStatus(short token) => throw new NotImplementedException(nameof(GetStatus));
 
-        public void OnCompleted(Action<object> continuation, object state, short token, ValueTaskSourceOnCompletedFlags flags) => _manualResetValueTaskSourceCore[token].OnCompleted(continuation, state, token, flags);
+        public void OnCompleted(Action<object> continuation, object state, short token, ValueTaskSourceOnCompletedFlags flags) => _cores[token].OnCompleted(continuation, state, token, flags);
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public int Release(T value, int releaseCount, bool forceAsync = false)
+        public int Release(T value, int releaseCount, bool forceAsync = false, bool prime = true)
         {
             var released = 0;
             for (var i = 0; i < releaseCount; i++)
@@ -140,8 +141,8 @@ namespace zero.core.patterns.semaphore.core
         //    if(slot < _tail)
         //    {
         //        race_unblock:
-        //        var core = _manualResetValueTaskSourceCore[slot %= ModCapacity];
-        //        if (core != null && Interlocked.CompareExchange(ref _manualResetValueTaskSourceCore[slot], null, core) == core)
+        //        var core = _cores[slot %= ModCapacity];
+        //        if (core != null && Interlocked.CompareExchange(ref _cores[slot], null, core) == core)
         //        {
         //            try
         //            {
@@ -164,10 +165,10 @@ namespace zero.core.patterns.semaphore.core
         //            }
         //            finally
         //            {
-        //                //Interlocked.Exchange(ref _manualResetValueTaskSourceCore[slot], core);
-        //                _manualResetValueTaskSourceCore[slot] = core;
+        //                //Interlocked.Exchange(ref _cores[slot], core);
+        //                _cores[slot] = core;
 
-        //                //Debug.Assert(_manualResetValueTaskSourceCore[slot] != null);
+        //                //Debug.Assert(_cores[slot] != null);
         //            }
         //        }
         //        goto race_unblock; //RACE
@@ -177,14 +178,14 @@ namespace zero.core.patterns.semaphore.core
         //    if(slot < _tail + _capacity)
         //    {
         //        race_reserve:
-        //        var core = _manualResetValueTaskSourceCore[slot %= ModCapacity];
-        //        if (core != null && Interlocked.CompareExchange(ref _manualResetValueTaskSourceCore[slot], null, core) == core)
+        //        var core = _cores[slot %= ModCapacity];
+        //        if (core != null && Interlocked.CompareExchange(ref _cores[slot], null, core) == core)
         //        {
         //            try
         //            {
         //                if (head > _tail)
         //                {
-        //                    var tailCore = _manualResetValueTaskSourceCore[_tail % ModCapacity];
+        //                    var tailCore = _cores[_tail % ModCapacity];
         //                    if (tailCore == null || tailCore.IsBlocking(false))
         //                        goto retry_unblock;
         //                }
@@ -206,11 +207,11 @@ namespace zero.core.patterns.semaphore.core
         //            }
         //            finally
         //            {
-        //                //Interlocked.Exchange(ref _manualResetValueTaskSourceCore[slot], core);
-        //                _manualResetValueTaskSourceCore[slot] = core;
+        //                //Interlocked.Exchange(ref _cores[slot], core);
+        //                _cores[slot] = core;
         //            }
 
-        //            //Debug.Assert(_manualResetValueTaskSourceCore[slot] != null);
+        //            //Debug.Assert(_cores[slot] != null);
         //        }
         //        goto race_reserve;
         //    }
@@ -219,45 +220,55 @@ namespace zero.core.patterns.semaphore.core
         //}
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public int Release(T[] value, bool forceAsync = false)
+        public int Release(T[] value, bool forceAsync = false, bool prime = true)
         {
+            if (prime && ReadyCount == 0)
+                return 0;
+
             var released = 0;
             foreach (var t in value)
-                released += Release(t, forceAsync);
+            {
+                var r = Release(t, forceAsync);
+
+                if(prime && r == 0)
+                    break;
+
+                released += r;
+            }
+                
             return released;
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public int Release(T value, bool forceAsync = false)
+        public int Release(T value, bool forceAsync = false, bool prime = true)
         {
             IIoManualResetValueTaskSourceCore<T> core = null;
-            long latch = 0;
             //Race for a core
             try
             {
-                
-                //var ready = _manualResetValueTaskSourceCore[(_tail - 1) % ModCapacity].Ready;
-                long tail;
-                var retry = false;
-                while ((retry || (latch = _manualResetValueTaskSourceCore[(tail = _tail-1) % ModCapacity].Blocking ? tail : _head) < _tail + _capacity && //take the head
-                       (core = _manualResetValueTaskSourceCore[latch %= ModCapacity]) != null) && //race
-                       Interlocked.CompareExchange(ref _manualResetValueTaskSourceCore[latch %= ModCapacity], null, core) != core) //reserve
+                var spinWait = new SpinWait();
+                //while ((retry || (latch = _cores[(tail = _tail-1) % ModCapacity].Blocking ? tail : _head) < _tail + _capacity && //take the head //TODO:return the favor
+                var latch = 0L;
+                while ((latch = _head) < _tail && //dequeue
+                       (core = _cores[latch %= ModCapacity]) != null && //race
+                       Interlocked.CompareExchange(ref _cores[latch %= ModCapacity], null, core) != core) //reserve
                 {
                     if (Zeroed())
                         return 0;
-                    retry = true;
-                    Thread.Yield();
+
+                    spinWait.SpinOnce();
                 }
 
                 if (core == null)
                     return 0;
 
-                if (core.Blocking)
+                if (core.Blocking || prime)
                 {
+                    Interlocked.Increment(ref _head);
+                    Interlocked.Exchange(ref _cores[latch], core);
                     try
                     {
                         core.SetResult(value);
-                        Interlocked.Increment(ref _tail);
                         return 1;
                     }
                     catch
@@ -265,14 +276,15 @@ namespace zero.core.patterns.semaphore.core
                         // ignored
                     }
                 }
-                else if(!core.Primed)
-                    core.Reset();
-                Interlocked.Increment(ref _head);
+                else
+                {
+                    Interlocked.Exchange(ref _cores[latch], core);
+                }
             }
             finally
             {
-                if(core != null)
-                    _manualResetValueTaskSourceCore[latch] = core;
+                
+                    
             }
             return 0;
         }
@@ -280,19 +292,19 @@ namespace zero.core.patterns.semaphore.core
         public ValueTask<T> WaitAsync()
         {
             IIoManualResetValueTaskSourceCore<T> core = null;
-            var latch = _tail;
+            var latch = 0L;
             //Race for a core
             try
             {
-                var retry = false;
-                while ((retry || (core = _manualResetValueTaskSourceCore[latch %= ModCapacity]) != null) && //race
-                       Interlocked.CompareExchange(ref _manualResetValueTaskSourceCore[latch %= ModCapacity], null, core) != core) //reserve)
+                var spinWait = new SpinWait();
+                
+                while ((core = _cores[latch = _tail % ModCapacity]) != null && //race
+                       Interlocked.CompareExchange(ref _cores[latch], null, core) != core) //reserve)
                 {
                     if (Zeroed())
                         return default;
 
-                    //latch = _tail;
-                    retry = true;
+                    spinWait.SpinOnce();
                 }
 
                 if (core == null)
@@ -304,7 +316,7 @@ namespace zero.core.patterns.semaphore.core
             finally
             {
                 if (core != null)
-                    _manualResetValueTaskSourceCore[latch] = core;
+                    _cores[latch] = core;
             }
         }
 
@@ -314,9 +326,9 @@ namespace zero.core.patterns.semaphore.core
 
         //    var slot = _tail;
         //    var slotIdx = slot % ModCapacity;
-        //    var core = _manualResetValueTaskSourceCore[slotIdx];
+        //    var core = _cores[slotIdx];
         //    if (core != null &&
-        //        Interlocked.CompareExchange(ref _manualResetValueTaskSourceCore[slotIdx], null, core) == core)
+        //        Interlocked.CompareExchange(ref _cores[slotIdx], null, core) == core)
         //    {
         //        try
         //        {
@@ -326,7 +338,7 @@ namespace zero.core.patterns.semaphore.core
         //                //Interlocked.Increment(ref _head);
         //            }
                     
-        //            //_manualResetValueTaskSourceCore[slotIdx] = core;
+        //            //_cores[slotIdx] = core;
         //            return new ValueTask<T>(core, (short)slotIdx);
         //            //if (slot < head && !core.Set(false))
         //            //    return new ValueTask<T>(core.GetResult((short)slotIdx));
@@ -344,15 +356,15 @@ namespace zero.core.patterns.semaphore.core
         //        {
         //            Console.WriteLine($"[{Environment.CurrentManagedThreadId}] --> Fastpath  {slotIdx} [RACE] - {Description}");
         //            //slowPath = true;
-        //            //_manualResetValueTaskSourceCore[slotIdx] = core;
+        //            //_cores[slotIdx] = core;
         //            goto retry;
         //        }
         //        finally
         //        {
-        //            _manualResetValueTaskSourceCore[slotIdx] = core;
-        //            //Interlocked.Exchange(ref _manualResetValueTaskSourceCore[slotIdx], core);
-        //            //Debug.Assert(_manualResetValueTaskSourceCore[slotIdx] != null);
-        //            //_manualResetValueTaskSourceCore[slotIdx] = core;
+        //            _cores[slotIdx] = core;
+        //            //Interlocked.Exchange(ref _cores[slotIdx], core);
+        //            //Debug.Assert(_cores[slotIdx] != null);
+        //            //_cores[slotIdx] = core;
         //        }
         //    }
 
@@ -361,16 +373,16 @@ namespace zero.core.patterns.semaphore.core
         //    //if (slot < _head + _capacity)
         //    //{
         //    //    slot %= ModCapacity;
-        //    //    core = _manualResetValueTaskSourceCore[slot];
+        //    //    core = _cores[slot];
         //    //    if (core != null &&
-        //    //        Interlocked.CompareExchange(ref _manualResetValueTaskSourceCore[slot], null, core) == core)
+        //    //        Interlocked.CompareExchange(ref _cores[slot], null, core) == core)
         //    //    {
         //    //        try
         //    //        {
         //    //            Interlocked.Increment(ref _tail);
         //    //            //<<< SLOW PATH on WAIT
         //    //            Debug.Assert(slot < _head + _capacity);
-        //    //            var taskCore = _manualResetValueTaskSourceCore[slot];
+        //    //            var taskCore = _cores[slot];
         //    //            taskCore.Reset((short)slot);
 
         //    //            return new ValueTask<T>(taskCore, (short)slot);
@@ -381,7 +393,7 @@ namespace zero.core.patterns.semaphore.core
         //    //        }
         //    //        finally
         //    //        {
-        //    //            _manualResetValueTaskSourceCore[slot] = core;
+        //    //            _cores[slot] = core;
         //    //        }
         //    //    }
         //    //}

@@ -433,13 +433,13 @@ namespace zero.test.core.patterns.queue
             }
 
             
-            await Task.WhenAll(insert).WaitAsync(TimeSpan.FromSeconds(60));
+            await Task.WhenAll(insert).WaitAsync(TimeSpan.FromSeconds(20));
             _output.WriteLine($"Inserts tasks {insert.Count}");
 
             _smokeTestDone = true;
             await bag.ZeroManagedAsync<object>(zero: true).FastPath();
             //bag.TryEnqueue(-1);
-            await Task.WhenAll(remove).WaitAsync(TimeSpan.FromSeconds(60));
+            await Task.WhenAll(remove).WaitAsync(TimeSpan.FromSeconds(20));
             _output.WriteLine("remove done");
 
             //Assert.Equal(threads * InsertsPerThread + 4, bag.Count);

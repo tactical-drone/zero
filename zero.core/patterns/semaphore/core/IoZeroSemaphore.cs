@@ -890,7 +890,7 @@ namespace zero.core.patterns.semaphore.core
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public int Release(T value, int releaseCount, bool forceAsync = false)
+        public int Release(T value, int releaseCount, bool forceAsync = false, bool prime = true)
         {
             Debug.Assert(value != null);
             //overfull semaphore exit here
@@ -908,7 +908,7 @@ namespace zero.core.patterns.semaphore.core
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public int Release(T value, bool forceAsync = false)
+        public int Release(T value, bool forceAsync = false, bool prime = true)
         {
             Debug.Assert(value != null);
             //overfull semaphore exit here
@@ -920,7 +920,7 @@ namespace zero.core.patterns.semaphore.core
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public int Release(T[] value, bool forceAsync = false)
+        public int Release(T[] value, bool forceAsync = false, bool prime = true)
         {
             Debug.Assert(value is { Length: > 0 });
             var releaseCount = value.Length;

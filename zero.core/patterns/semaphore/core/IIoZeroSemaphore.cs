@@ -11,13 +11,13 @@ namespace zero.core.patterns.semaphore.core
         IIoZeroSemaphoreBase<T> ZeroRef(ref IIoZeroSemaphoreBase<T> @ref, Func<object, T> primeResult = default, object context = null);
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        int Release(T value, int releaseCount, bool forceAsync = false);
+        int Release(T value, int releaseCount, bool forceAsync = false, bool prime = true);
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        int Release(T value, bool forceAsync = false);
+        int Release(T value, bool forceAsync = false, bool prime = true);
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        int Release(T[] value, bool forceAsync = false);
+        int Release(T[] value, bool forceAsync = false, bool prime = true);
 
         ValueTask<T> WaitAsync();
         void ZeroSem();

@@ -36,16 +36,16 @@ namespace zero.core.network.ip
         /// <summary>
         /// Start the listener
         /// </summary>
-        /// <param name="connectionReceivedAction">Action to execute when an incoming connection was made</param>
+        /// <param name="onConnectionReceived">Action to execute when an incoming connection was made</param>
         /// <param name="context"></param>
         /// <param name="bootFunc"></param>
         /// <param name="bootData"></param>
         /// <returns>
         /// True on success, false otherwise
         /// </returns>
-        public override async ValueTask BlockOnListenAsync<T,TContext>(Func<T, IoNetClient<TJob>, ValueTask> connectionReceivedAction, T context = default, Func<TContext,ValueTask> bootFunc = null, TContext bootData = default)
+        public override async ValueTask BlockOnListenAsync<T,TContext>(Func<T, IoNetClient<TJob>, ValueTask> onConnectionReceived, T context = default, Func<TContext,ValueTask> bootFunc = null, TContext bootData = default)
         {
-            await base.BlockOnListenAsync(connectionReceivedAction, context,bootFunc,bootData).FastPath();
+            await base.BlockOnListenAsync(onConnectionReceived, context,bootFunc,bootData).FastPath();
 
             //Creates a listening socket
             try
@@ -68,7 +68,7 @@ namespace zero.core.network.ip
                         @this._logger.Error(e, $"Accept udp connection failed: {@this.Description}");
                         await ioSocket.DisposeAsync(@this, $"Accept udp connection failed; {@this.Description}").FastPath();
                     }
-                },(this, context, connectionReceivedAction), bootFunc, bootData).FastPath();
+                },(this, context, connectionReceivedAction: onConnectionReceived), bootFunc, bootData).FastPath();
             }
             catch when (Zeroed()){}
             catch (Exception e) when (!Zeroed())

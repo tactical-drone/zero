@@ -49,7 +49,7 @@ namespace zero.core.patterns.bushings.contracts
         /// <summary>
         /// Enable prefetch
         /// </summary>
-        bool BackPressureEnabled { get; }
+        //bool BackPressureEnabled { get; }
 
         /// <summary>
         /// Which source job is next in line

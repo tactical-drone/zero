@@ -188,41 +188,41 @@ namespace zero.core.core
         /// <summary>
         /// Starts the node's listener
         /// </summary>
-        protected virtual async ValueTask BlockOnListenerAsync<T,TBoot>(Func<IoNeighbor<TJob>, T, ValueTask<bool>> handshake = null, T context = default, Func<TBoot, ValueTask> bootFunc = null, TBoot bootData = default)
+        protected virtual async ValueTask BlockOnListenerAsync<T,TBoot>(Func<IoNeighbor<TJob>, T, ValueTask<bool>> onHandshake = null, T context = default, Func<TBoot, ValueTask> bootFunc = null, TBoot bootData = default)
         {
 #if DEBUG
             _logger.Trace($"Starting lisener, {Description}");
 #endif
             ////start the listener
-            _netServer = IoNetServer<TJob>.GetKindFromUrl(_address,  _preFetch + 1, ZeroConcurrencyLevel + 1);
+            _netServer = IoNetServer<TJob>.GetKindFromUrl(_address,  _preFetch, ZeroConcurrencyLevel);
             await _netServer.ZeroHiveAsync(this).FastPath();
 
             await _netServer.BlockOnListenAsync(static async (state, newSocket) =>
             {
-                var (@this, listenerContext, handshake) = state;
+                var (@this, listenerContext, onHandshake) = state;
                 await @this.ZeroAsync(static async state =>
                 {
-                    var (@this, newSocket,listenerContext, handshake) = state;
+                    var (@this, newSocket,listenerContext, onHandshake) = state;
                     IoNeighbor<TJob> n;
-                    if (!await ZeroEnsureConnAsync(@this, n = @this.MallocNeighbor(@this, newSocket, null), handshake, listenerContext).FastPath())
+                    if (!await ZeroEnsureConnAsync(@this, n = @this.MallocNeighbor(@this, newSocket, null), onHandshake, listenerContext).FastPath())
                         @this._logger.Warn($"{nameof(ZeroEnsureConnAsync)}: Rejected connection; from = {newSocket}");
                     else
                         @this._logger.Debug($"{nameof(ZeroEnsureConnAsync)}: Accepted connection from {newSocket}; {n.Description}");
 
-                }, (@this, newSocket, listenerContext, handshake));
-            }, (this, context, handshake), bootFunc, bootData).FastPath();
+                }, (@this, newSocket, listenerContext, handshake: onHandshake));
+            }, (this, context, handshake: onHandshake), bootFunc, bootData).FastPath();
         }
 
         /// <summary>
-        /// Ensure the connection and perform handshake
+        /// Ensure the connection and perform onHandshake
         /// </summary>
         /// <typeparam name="T"></typeparam>
         /// <param name="this"></param>
         /// <param name="newNeighbor"></param>
-        /// <param name="handshake"></param>
+        /// <param name="onHandshake"></param>
         /// <param name="listenerContext"></param>
         /// <returns>ValueTask</returns>
-        private static async ValueTask<bool> ZeroEnsureConnAsync<T>(IoNode<TJob> @this, IoNeighbor<TJob> newNeighbor, Func<IoNeighbor<TJob>, T, ValueTask<bool>> handshake, T listenerContext)
+        private static async ValueTask<bool> ZeroEnsureConnAsync<T>(IoNode<TJob> @this, IoNeighbor<TJob> newNeighbor, Func<IoNeighbor<TJob>, T, ValueTask<bool>> onHandshake, T listenerContext)
         {
             var ioNetClient = newNeighbor?.Source;
 
@@ -298,9 +298,9 @@ namespace zero.core.core
                 }, (@this, newNeighbor)).FastPath())
                 {
                     //async accept...
-                    if (!await handshake(newNeighbor, listenerContext).FastPath())
+                    if (!await onHandshake(newNeighbor, listenerContext).FastPath())
                     {
-                        var msg = $"{nameof(handshake)}: {((IoNetClient<TJob>)newNeighbor?.IoSource)?.Direction} connection {ioNetClient.Key} rejected.";
+                        var msg = $"{nameof(onHandshake)}: {((IoNetClient<TJob>)newNeighbor?.IoSource)?.Direction} connection {ioNetClient.Key} rejected.";
                         @this._logger.Trace(msg);
                         await newNeighbor.DisposeAsync(@this, msg).FastPath();
                         return false;
@@ -318,7 +318,7 @@ namespace zero.core.core
             catch when(@this.Zeroed()){}
             catch (Exception e) when (!@this.Zeroed())
             {
-                await newNeighbor.DisposeAsync(@this, $"{nameof(handshake)} Exception: {e.Message}").FastPath();
+                await newNeighbor.DisposeAsync(@this, $"{nameof(onHandshake)} Exception: {e.Message}").FastPath();
                 @this._logger.Error(e, $"Accepting connection {ioNetClient.Key} returned with errors");
             }
 

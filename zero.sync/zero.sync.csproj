@@ -47,11 +47,11 @@
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="Grpc.AspNetCore" Version="2.56.0-pre1" />
-    <PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" Version="8.0.0-preview.7.23375.6" />
+    <PackageReference Include="Grpc.AspNetCore" Version="2.59.0" />
+    <PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" Version="8.0.0-rc.2.23479.6" />
     <PackageReference Include="NLog" Version="5.2.5" />
-    <PackageReference Include="NLog.Extensions.Logging" Version="5.3.3" />
-    <PackageReference Include="NLog.Web.AspNetCore" Version="5.3.3" />
+    <PackageReference Include="NLog.Extensions.Logging" Version="5.3.5" />
+    <PackageReference Include="NLog.Web.AspNetCore" Version="5.3.5" />
   </ItemGroup>
 
   <ItemGroup>

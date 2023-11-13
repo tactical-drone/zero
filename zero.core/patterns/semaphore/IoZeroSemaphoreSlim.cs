@@ -54,21 +54,21 @@ namespace zero.core.patterns.semaphore
             object context = null) => _semaphore.ZeroRef(ref @ref, primeResult);
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public int Release(int value, int releaseCount, bool forceAsync = false)
+        public int Release(int value, int releaseCount, bool forceAsync = false, bool prime = true)
         {
-            return _semaphore.Release(value, releaseCount, forceAsync);
+            return _semaphore.Release(value, releaseCount, forceAsync, prime);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public int Release(int value, bool forceAsync = false)
+        public int Release(int value, bool forceAsync = false, bool prime = true)
         {
-            return _semaphore.Release(value, forceAsync);
+            return _semaphore.Release(value, forceAsync, prime);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public int Release(int[] value, bool forceAsync = false)
+        public int Release(int[] value, bool forceAsync = false, bool prime = true)
         {
-            return _semaphore.Release(value, forceAsync);
+            return _semaphore.Release(value, forceAsync, prime);
         }
 
         public ValueTask<int> WaitAsync()

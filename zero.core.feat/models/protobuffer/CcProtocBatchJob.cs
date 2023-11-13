@@ -108,10 +108,11 @@ namespace zero.core.feat.models.protobuffer
 
             Interlocked.Exchange(ref _batch, batch);
         }
-        
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private ValueTask ClearAsync()
         {
-            _batch?.Dispose();
+            _batch?.Reset();
             return new ValueTask(Task.CompletedTask);
         }
 

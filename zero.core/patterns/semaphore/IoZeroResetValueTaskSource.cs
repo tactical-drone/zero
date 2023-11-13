@@ -33,7 +33,7 @@ namespace zero.core.patterns.semaphore
 
         public void SetResult(T result) => _zeroCore.SetResult(result);
         public void SetException(Exception exception) => _zeroCore.SetException(exception);
-        public void Reset(Action<object> resetAction, object context)
+        public void OnReset(Action<object> resetAction, object context)
         {
             throw new NotImplementedException();
         }

@@ -519,7 +519,7 @@ namespace zero.cocoon
         /// </summary>
         [IoParameter]
         // ReSharper disable once InconsistentNaming
-        public int parm_max_adjunct = 8;
+        public int parm_max_adjunct = 11;
 
         /// <summary>
         /// Protocol version
@@ -573,12 +573,12 @@ namespace zero.cocoon
         /// <summary>
         /// Spawn the node listeners
         /// </summary>
-        /// <param name="handshake"></param>
+        /// <param name="onHandshake"></param>
         /// <param name="context"></param>
         /// <param name="bootFunc"></param>
         /// <param name="bootData"></param>
         /// <returns>ValueTask</returns>
-        protected override ValueTask BlockOnListenerAsync<T, TContext>(Func<IoNeighbor<CcProtocMessage<CcWhisperMsg, CcGossipBatch>>, T, ValueTask<bool>> handshake = null, T context = default, Func<TContext, ValueTask> bootFunc = null, TContext bootData = default)=>
+        protected override ValueTask BlockOnListenerAsync<T, TContext>(Func<IoNeighbor<CcProtocMessage<CcWhisperMsg, CcGossipBatch>>, T, ValueTask<bool>> onHandshake = null, T context = default, Func<TContext, ValueTask> bootFunc = null, TContext bootData = default)=>
             base.BlockOnListenerAsync(ZeroAcceptConAsync,this, bootFunc, bootData);
 
         /// <summary>
@@ -848,6 +848,10 @@ namespace zero.cocoon
                             if (!Hub.Neighbors.TryGetValue($"udp://{ccFutileRequest.Session.Memory.AsArray().GetEndpoint()}`{(id = CcDesignation.FromPubKey(packet.PublicKey.Memory)).IdString()}", out var adjunct))
                             {
                                 _logger.Trace($"bad key: id = udp://{ccFutileRequest.Session.Memory.AsArray().GetEndpoint()}`{id?.IdString() ?? "null"} not found in {Adjuncts.Count} adjuncts, {Description}");
+                                foreach (var hubNeighbor in Hub.Neighbors)
+                                {
+                                    Console.WriteLine($"{((CcAdjunct)hubNeighbor.Value).Key}");
+                                }
                                 return false;
                             }
 
@@ -924,7 +928,7 @@ namespace zero.cocoon
                     {
                         Protocol = parm_version,
                         Timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
-                        Session = UnsafeByteOperations.UnsafeWrap(drone.Adjunct?.ReverseAddress ?? Array.Empty<byte>())
+                        Session = UnsafeByteOperations.UnsafeWrap(Hub.Address.IpEndPoint.AsBytes() ?? Array.Empty<byte>()) //TODO:Session
                     };
                     
                     var futileRequestBuf = ccFutileRequest.ToByteString();
@@ -985,7 +989,7 @@ namespace zero.cocoon
 #endif
 
                         //race for connection
-                        var won = ConnectForTheWin(IIoSource.Heading.Egress, drone, packet, drone.Adjunct.DmzAddress.IpEndPoint);
+                        var won = ConnectForTheWin(IIoSource.Heading.Egress, drone, packet, drone.Adjunct.Address.IpEndPoint);
                         if (!won)
                             return false;
 
@@ -1104,7 +1108,7 @@ namespace zero.cocoon
                 {
                     Interlocked.Increment(ref _currentOutboundConnectionAttempts);
 
-                    var drone = await ConnectAsync(ZeroAcceptConAsync,this, IoNodeAddress.CreateFromEndpoint("tcp", adjunct.DmzAddress.IpEndPoint) , adjunct, false, parm_futile_timeout_ms).FastPath();
+                    var drone = await ConnectAsync(ZeroAcceptConAsync,this, IoNodeAddress.CreateFromEndpoint("tcp", adjunct.Address.IpEndPoint) , adjunct, false, parm_futile_timeout_ms).FastPath();
                     if (Zeroed() || drone == null || ((CcDrone)drone).Adjunct.Zeroed())
                     {
                         if (drone != null) await drone.DisposeAsync(this, $"{nameof(ConnectAsync)} was not successful [OK]").FastPath();
@@ -1122,6 +1126,7 @@ namespace zero.cocoon
             else
             {
                 _logger.Trace($"{nameof(ConnectToDroneAsync)}: Connect skipped: {adjunct.Description}");
+                adjunct.ResetState(CcAdjunct.AdjunctState.Verified);
                 return false;
             }
         }

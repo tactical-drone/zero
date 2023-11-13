@@ -88,10 +88,9 @@ namespace zero.test.core.patterns.bushings
                     await c1.DisposeAsync(null, "test done").FastPath();
                     break;
                 }
-                await Task.Delay(200);
             }
 
-            await z1.WaitAsync(TimeSpan.FromMilliseconds(targetTime * 400));
+            await z1.WaitAsync(TimeSpan.FromMilliseconds(targetTime * 5));
 
             _output.WriteLine($"{ts.ElapsedMs()}ms ~ {targetTime}");
             Assert.InRange(ts.ElapsedMs(), targetTime/2, targetTime * 3);
@@ -115,7 +114,10 @@ namespace zero.test.core.patterns.bushings
             var c1 = new IoConduit<IoZeroProduct>("conduit spam test", null, s1, static (ioZero, _) 
                 => new IoZeroProduct("test product 1", ((IoConduit<IoZeroProduct>)ioZero).Source, 0));
 
-            var z1 = Task.Factory.StartNew(async () => await c1.BlockOnReplicateAsync(), CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Default).Unwrap();
+            var z1 = Task.Factory.StartNew(async () =>
+            {
+                await c1.BlockOnReplicateAsync();
+            }, CancellationToken.None, TaskCreationOptions.DenyChildAttach, IoZeroScheduler.ZeroDefault).Unwrap();
             var ts = Environment.TickCount;
             
             var targetTime = count / concurrencyLevel;

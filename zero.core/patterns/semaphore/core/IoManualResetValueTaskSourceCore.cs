@@ -9,6 +9,8 @@ using System.Threading.Tasks;
 using System.Threading.Tasks.Sources;
 using zero.core.misc;
 using zero.core.runtime.scheduler;
+using zero.core.runtime.threadpool;
+using static System.Collections.Specialized.BitVector32;
 
 namespace zero.core.patterns.semaphore.core
 {
@@ -32,9 +34,6 @@ namespace zero.core.patterns.semaphore.core
 
         /// <summary>State to pass to <see cref="_continuation"/>.</summary>
         private object _continuationState;
-
-        /// <summary><see cref="ExecutionContext"/> to flow to the callback, or null if no flowing is required.</summary>
-        private ExecutionContext _executionContext;
 
         /// <summary>
         /// A "captured" <see cref="SynchronizationContext"/> or <see cref="TaskScheduler"/> with which to invoke the callback,
@@ -91,18 +90,17 @@ namespace zero.core.patterns.semaphore.core
         /// <summary>
         /// Is this core primed with a sentinel?
         /// </summary>
-        public readonly bool Primed => _continuation != null && _continuation == ManualResetValueTaskSourceCoreShared.s_sentinel;
+        public bool Primed => Volatile.Read(ref _continuation) != null && _continuation == ManualResetValueTaskSourceCoreShared.s_sentinel;
 
         /// <summary>
         /// Is this core blocking?
         /// </summary>
-        public readonly bool Blocking => _continuation != null && _continuation != ManualResetValueTaskSourceCoreShared.s_sentinel && !_completed;
+        public bool Blocking => Volatile.Read(ref _continuation) != null && _continuation != ManualResetValueTaskSourceCoreShared.s_sentinel && !_completed;
 
-        
+#if DEBUG
         /// <summary>
         /// Is this core Burned?
         /// </summary>
-#if DEBUG
         public readonly bool Burned => _burned > 0;
 #endif
 
@@ -119,7 +117,6 @@ namespace zero.core.patterns.semaphore.core
             // Reset/update state for the next use/await of this instance.
             _result = default;
             _error = null;
-            _executionContext = null;
             SyncRoot = 0;
             _runContinuationsAsync = 0;
 #if DEBUG
@@ -128,7 +125,7 @@ namespace zero.core.patterns.semaphore.core
 #endif
             _capturedContext = _continuationState = null;
             _completed = false;
-            Interlocked.Exchange(ref _continuation, null);
+            Volatile.Write(ref _continuation, null);
 
             //allows for this core to be placed back into a heap once completed
             _heapAction?.Invoke(_heapContext);
@@ -141,7 +138,8 @@ namespace zero.core.patterns.semaphore.core
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public bool IsBlocking(bool reset = false)
         {
-            var blocked = _continuation != null && _continuation != ManualResetValueTaskSourceCoreShared.s_sentinel && !_completed;
+            
+            var blocked = Volatile.Read(ref _continuation) != null && Volatile.Read(ref _continuation) != ManualResetValueTaskSourceCoreShared.s_sentinel && !_completed;
 
             if (!reset) return blocked;
 
@@ -158,9 +156,6 @@ namespace zero.core.patterns.semaphore.core
         //public void SetResult<TContext>(TResult result, Action<bool, TContext> async = null, TContext context = default)
         public void SetResult(TResult result)
         {
-            if (_completed)
-                throw new InvalidOperationException($"[{Environment.CurrentManagedThreadId}]: set => primed = {Primed}, blocking = {Blocking}, completed = {_completed}, {GetStatus(0)}");   
-
             _result = result;
 #if DEBUG
             _completeTime = Environment.TickCount;
@@ -180,7 +175,7 @@ namespace zero.core.patterns.semaphore.core
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public void Reset(Action<object> resetAction, object context)
+        public void OnReset(Action<object> resetAction, object context)
         {
             Interlocked.Exchange(ref _heapAction, resetAction);
             Interlocked.Exchange(ref _heapContext, context);
@@ -191,13 +186,13 @@ namespace zero.core.patterns.semaphore.core
 #if !DEBUG
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
 #endif
-        public readonly ValueTaskSourceStatus GetStatus(short token = 0)
+        public ValueTaskSourceStatus GetStatus(short token = 0)
         {
 #if DEBUG
             //ValidateToken(token);   
 #endif
             return
-                _continuation == null || !_completed ? ValueTaskSourceStatus.Pending :
+                Volatile.Read(ref _continuation ) == null || !_completed ? ValueTaskSourceStatus.Pending :
                 _error == null ? ValueTaskSourceStatus.Succeeded : 
                 _error.SourceException is OperationCanceledException ? ValueTaskSourceStatus.Canceled : ValueTaskSourceStatus.Faulted;
         }
@@ -219,9 +214,10 @@ namespace zero.core.patterns.semaphore.core
             if (!_completed)
                 throw new InvalidOperationException($"[{Environment.CurrentManagedThreadId}] {nameof(GetResult)}: core not completed!");
 
+            _error?.Throw();
+
             try
             {
-                _error?.Throw();
                 return _result;
             }
             finally
@@ -250,7 +246,7 @@ namespace zero.core.patterns.semaphore.core
 
             if ((flags & ValueTaskSourceOnCompletedFlags.UseSchedulingContext) != 0)
             {
-                if (SynchronizationContext.Current is SynchronizationContext sc &&
+                if (SynchronizationContext.Current is { } sc &&
                     sc.GetType() != typeof(SynchronizationContext))
                 {
                     _capturedContext = _capturedContext is null ?
@@ -259,7 +255,7 @@ namespace zero.core.patterns.semaphore.core
                 }
                 else
                 {
-                    TaskScheduler ts = TaskScheduler.Current;
+                    var ts = TaskScheduler.Current;
                     if (ts != TaskScheduler.Default)
                     {
                         _capturedContext = _capturedContext is null ?
@@ -276,7 +272,7 @@ namespace zero.core.patterns.semaphore.core
             // awaited twice concurrently), _continuationState might get erroneously overwritten.
             // To minimize the chances of that, we check preemptively whether _continuation
             // is already set to something other than the completion sentinel.
-            object storedContinuation = _continuation;
+            object storedContinuation = Volatile.Read(ref _continuation);
             if (storedContinuation is null)
             {
                 _continuationState = state;
@@ -290,36 +286,24 @@ namespace zero.core.patterns.semaphore.core
             }
 
             // Operation already completed, so we need to queue the supplied callback.
-            // At this point the storedContinuation should be the sentinal; if it's not, the instance was misused.
-            Debug.Assert(storedContinuation is not null, $"{nameof(storedContinuation)} is null");
+            // At this point the storedContinuation should be the sentinel; if it's not, the instance was misused.
+            //Debug.Assert(storedContinuation is not null, $"{nameof(storedContinuation)} is null");
+            Debug.Assert(storedContinuation is not null);
             if (!ReferenceEquals(storedContinuation, ManualResetValueTaskSourceCoreShared.s_sentinel))
-            {
                 throw new InvalidOperationException();
-            }
 
-            object capturedContext = _capturedContext;
-            switch (capturedContext)
+            switch (_capturedContext)
             {
                 case null:
-                    static void WaitCallback(object context)
-                    {
-                        var (continuation, state) = (ValueTuple<Action<object>, object>)context;
-                        continuation(state);
-                    }
-
-                    ThreadPool.UnsafeQueueUserWorkItem(WaitCallback, (continuation, state));
+                    IoThreadPoolHooks<object>.UnsafeQueueUserWorkItem(continuation, state);
                     break;
 
                 case ExecutionContext:
                     ThreadPool.QueueUserWorkItem(continuation, state, preferLocal: true);
                     break;
 
-                //case IoZeroScheduler when !RunContinuationsAsynchronously && TaskScheduler.Current is IoZeroScheduler:
-                //    continuation(state);
-                //    break;
-
                 default:
-                    ManualResetValueTaskSourceCoreShared.ScheduleCapturedContext(capturedContext, continuation, state, RunContinuationsAsynchronously);
+                    ManualResetValueTaskSourceCoreShared.ScheduleCapturedContext(_capturedContext, continuation, state, RunContinuationsAsynchronously);
                     break;
             }
 
@@ -346,97 +330,35 @@ namespace zero.core.patterns.semaphore.core
             }
             _completed = true;
 
-            Action<object> continuation =
+            var continuation =
                 Volatile.Read(ref _continuation) ??
                 Interlocked.CompareExchange(ref _continuation, ManualResetValueTaskSourceCoreShared.s_sentinel, null);
 
             if (continuation == null)
                 return;
 
-            object context = _capturedContext;
-            if (context is null)
+            switch (_capturedContext)
             {
-                if (RunContinuationsAsynchronously)
-                {
-                    static void WaitCallback(object context)
-                    {
-                        var (continuation, state) = (ValueTuple<Action<object>, object>)context;
-                        continuation(state);
-                    }
-                    
-                    ThreadPool.UnsafeQueueUserWorkItem(WaitCallback, (_continuation, _continuationState));
-                }
-                else
-                {
+                case null when RunContinuationsAsynchronously:
+                    IoThreadPoolHooks<object>.UnsafeQueueUserWorkItem(_continuation, _continuationState);
+                    break;
+                
+                case null:
                     _continuation(_continuationState);
-                }
-            }
-            else if (context is ExecutionContext or CapturedSchedulerAndExecutionContext)
-            {
-                ManualResetValueTaskSourceCoreShared.InvokeContinuationWithContext(context, _continuation, _continuationState, RunContinuationsAsynchronously);
-            }
-            else
-            {
-                //Debug.Assert(context is TaskScheduler or SynchronizationContext, $"context is {context}");
-                Debug.Assert(context is TaskScheduler or SynchronizationContext);
-                ManualResetValueTaskSourceCoreShared.ScheduleCapturedContext(context, _continuation, _continuationState, RunContinuationsAsynchronously);
+                    break;
+
+                case ExecutionContext or CapturedSchedulerAndExecutionContext:
+                    ManualResetValueTaskSourceCoreShared.InvokeContinuationWithContext(_capturedContext, _continuation, _continuationState, RunContinuationsAsynchronously);
+                    break;
+
+                default:
+                    //Debug.Assert(context is TaskScheduler or SynchronizationContext, $"context is {context}");
+                    Debug.Assert(_capturedContext is TaskScheduler or SynchronizationContext);
+                    ManualResetValueTaskSourceCoreShared.ScheduleCapturedContext(_capturedContext, _continuation, _continuationState, RunContinuationsAsynchronously);
+                    break;
             }
 
             //async?.Invoke(true, context);
-        }
-
-        /// <summary>
-        /// Invokes the continuation with the appropriate captured context / scheduler.
-        /// This assumes that if <see cref="_executionContext"/> is not null we're already
-        /// running within that <see cref="ExecutionContext"/>.
-        /// </summary>
-#if !DEBUG
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-#endif
-        private readonly void InvokeContinuation()
-        {
-            var currentContext = ExecutionContext.Capture();
-            //Debug.Assert(_continuation != null && _continuationState != null);
-            switch (_capturedContext)
-            {
-                case null:
-                    if (RunContinuationsAsynchronously)
-                    {
-                        //Task.Factory.StartNew(_continuation, _continuationState, CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Default);
-                        if (_executionContext != null)
-                        {
-                            ThreadPool.QueueUserWorkItem(_continuation, _continuationState, preferLocal: true);
-                        }
-                        else
-                        {
-                            static void WaitCallback(object context)
-                            {
-                                var (continuation, state) = (ValueTuple<Action<object>, object>)context;
-                                continuation(state);
-                            }
-                            ThreadPool.UnsafeQueueUserWorkItem(WaitCallback, (_continuation, _continuationState));
-                        }
-                    }
-                    else
-                    {
-                        _continuation(_continuationState);
-                    }
-                    break;
-                case SynchronizationContext sc:
-                    sc.Post(s =>
-                    {
-                        var state = ((Action<object>, object))s;
-                        state.Item1(state.Item2);
-                    }, (_continuation, _continuationState));
-                    break;
-                case IoZeroScheduler tz when !RunContinuationsAsynchronously && TaskScheduler.Current is IoZeroScheduler:
-                    _continuation!(_continuationState);
-                    break;
-                case TaskScheduler ts:
-                    //new Task(_continuation, _continuationState).Start(IoZeroScheduler.ZeroDefault);
-                    _ = Task.Factory.StartNew(_continuation!, _continuationState, CancellationToken.None, TaskCreationOptions.DenyChildAttach, ts); 
-                    break;
-            }
         }
 
         public override string ToString()
@@ -482,13 +404,13 @@ namespace zero.core.patterns.semaphore.core
             throw new InvalidOperationException();
         }
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         internal static void ScheduleCapturedContext(object context, Action<object> continuation, object state, bool runContinuationsAsynchronously)
         {
             //Debug.Assert(
             //    context is SynchronizationContext or TaskScheduler or CapturedSchedulerAndExecutionContext,
             //    $"{nameof(context)} is {context}");
-            Debug.Assert(
-                context is SynchronizationContext or TaskScheduler or CapturedSchedulerAndExecutionContext);
+            Debug.Assert(context is SynchronizationContext or TaskScheduler or CapturedSchedulerAndExecutionContext);
 
             switch (context)
             {
@@ -496,13 +418,21 @@ namespace zero.core.patterns.semaphore.core
                     ScheduleSynchronizationContext(sc, continuation, state);
                     break;
 
+                //TODO: I have no idea if this is dodgy or not. I am kinda hoping it is not. So far so good.
+                //TODO: The reward is one less Task to be malloced up and scheduled (which is async which is why I don't know why runtime still works like you expect?)
                 case IoZeroScheduler when !runContinuationsAsynchronously && TaskScheduler.Current is IoZeroScheduler:
                     continuation(state);
+                    break;
+
+                //TODO: Experimental
+                case IoZeroScheduler ts:
+                    new Task(continuation, state).Start(ts);
                     break;
 
                 case TaskScheduler ts:
                     Schedule(ts, continuation, state);
                     break;
+
                 default:
                     var cc = (CapturedSchedulerAndExecutionContext)context;
                     if (cc._scheduler is SynchronizationContext ccsc)

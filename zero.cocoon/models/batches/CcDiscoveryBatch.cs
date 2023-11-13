@@ -19,14 +19,9 @@ namespace zero.cocoon.models.batches
 
             if (_groupByEpEnabled)
                 GroupBy = new Dictionary<byte[], Tuple<byte[], List<CcBatchMessage>>>(new IoByteArrayComparer());
-
-            
         }
 
-        private CcBatchMessage[] _messages;
-        private int _disposed;
-
-        //public CcBatchMessage this[int i] => _messages[i];
+        private readonly CcBatchMessage[] _messages;
 
         public CcBatchMessage[] Messages => _messages;
 
@@ -39,7 +34,7 @@ namespace zero.cocoon.models.batches
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void ReturnToHeap()
         {
-            CcDiscoveries.Heap.Return(this, _disposed > 0);
+            CcDiscoveries.Heap.Return(this);
         }
 
         private int _count;
@@ -49,7 +44,8 @@ namespace zero.cocoon.models.batches
             set => _messages[i] = (CcBatchMessage)value;
         }
 
-        public IIoBundleMessage Feed => _messages[Interlocked.Increment(ref _count) - 1];
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public IIoBundleMessage Feed() => _messages[Interlocked.Increment(ref _count) - 1];
         public int Count => _count;
         public int Capacity => _messages.Length;
 
@@ -61,26 +57,5 @@ namespace zero.cocoon.models.batches
 
         private readonly bool _groupByEpEnabled;
         public bool GroupByEpEnabled => _groupByEpEnabled;
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        protected virtual void Dispose(bool disposing)
-        {
-            if (Interlocked.CompareExchange(ref _disposed, 1, 0) != 0)
-                return;
-
-            _messages = null;
-        }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public void Dispose()
-        {
-            Dispose(true);
-            GC.SuppressFinalize(this);
-        }
-
-        ~CcDiscoveryBatch()
-        {
-            Dispose(false);
-        }
     }
 }

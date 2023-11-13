@@ -7,16 +7,13 @@ namespace zero.cocoon.models.batches
     {
         public CcGossipBatch(int size)
         {
-            _messages = new CcBatchMessage[size];
+            _capacity = size;
+            _messages = new CcBatchMessage[_capacity];
             for (var i = 0; i < _messages.Length; i++)
                 _messages[i] = new CcBatchMessage();
         }
-        private CcBatchMessage[] _messages;
-        public void Dispose()
-        {
-            _messages = null;
-        }
-
+        private readonly CcBatchMessage[] _messages;
+        
         IIoBundleMessage IIoMessageBundle.this[int i]
         {
             get => _messages[i];
@@ -24,9 +21,10 @@ namespace zero.cocoon.models.batches
         }
 
         private int _count;
-        public IIoBundleMessage Feed => _messages[Interlocked.Increment(ref _count) -1];
-        public int Count { get; }
-        public int Capacity { get; }
+        private readonly int _capacity;
+        public IIoBundleMessage Feed() => _messages[Interlocked.Increment(ref _count) -1];
+        public int Count => _count;
+        public int Capacity => _capacity;
         public void Reset()
         {
             Interlocked.Exchange(ref _count, 0);
