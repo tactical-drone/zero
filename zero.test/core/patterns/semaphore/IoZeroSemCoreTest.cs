@@ -11,6 +11,7 @@ using Xunit.Abstractions;
 using zero.core.misc;
 using zero.core.patterns.misc;
 using zero.core.patterns.semaphore.core;
+using zero.core.runtime.scheduler;
 
 namespace zero.test.core.patterns.semaphore
 {
@@ -22,6 +23,9 @@ namespace zero.test.core.patterns.semaphore
         public IoZeroSemCoreTest(ITestOutputHelper output)
         {
             _output = output;
+            var prime = IoZeroScheduler.ZeroDefault;
+            if (prime.Id > 1)
+                Console.WriteLine("using IoZeroScheduler");
         }
 
         [Fact]
@@ -38,11 +42,11 @@ namespace zero.test.core.patterns.semaphore
                 {
                     await Task.Delay(delayTime);
                     var ts = Environment.TickCount;
-                    m.Release(Environment.TickCount);
+                    m.Release(Environment.TickCount, true);
                     Assert.InRange(ts.ElapsedMs(), 0, delayTime + ERR_T);
                     _output.WriteLine($"R -> {i} {ts.ElapsedMs()}ms");
                 }
-            }, CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Default);
+            }, CancellationToken.None, TaskCreationOptions.DenyChildAttach, IoZeroScheduler.ZeroDefault);
 
             int ts;
             for (int i = 0; i < threads; i++)
@@ -82,7 +86,7 @@ namespace zero.test.core.patterns.semaphore
                     await Task.Delay(delayTime);
 
                     var ts = Environment.TickCount;
-                    if (m.Release(Environment.TickCount) <= 0)
+                    if (m.Release(Environment.TickCount, true) <= 0)
                     {
                         i--;
                         await Task.Delay(1);
@@ -92,7 +96,7 @@ namespace zero.test.core.patterns.semaphore
                     _output.WriteLine($"R -> {i}, {ts.ElapsedMs()}ms");
                 }
                 _output.WriteLine($"Done signalling");
-            }, CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Default);
+            }, CancellationToken.None, TaskCreationOptions.DenyChildAttach, IoZeroScheduler.ZeroDefault);
 
             int ts;
             for (int i = 0; i < threads; i++)
@@ -132,12 +136,12 @@ namespace zero.test.core.patterns.semaphore
                 {
                     await Task.Delay(delayTime);
                     var ts = Environment.TickCount;
-                    m.Release(Environment.TickCount);
+                    m.Release(Environment.TickCount, true);
                     Assert.InRange(ts.ElapsedMs(), 0, delayTime + ERR_T);
                     if(i % batchLog == 0)
                         _output.WriteLine($"R -> {i} {ts.ElapsedMs()}ms - {(double)i/t.ElapsedMsToSec():0.0} r/s");
                 }
-            }, CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Default);
+            }, CancellationToken.None, TaskCreationOptions.DenyChildAttach, IoZeroScheduler.ZeroDefault);
 
             int ts;
             var t = Environment.TickCount;
@@ -185,7 +189,7 @@ namespace zero.test.core.patterns.semaphore
                     await Task.Delay(delayTime);
 
                     var ts = Environment.TickCount;
-                    if (m.Release(Environment.TickCount) <= 0)
+                    if (m.Release(Environment.TickCount, true) <= 0)
                     {
                         i--;
                         await Task.Delay(1);
@@ -196,7 +200,7 @@ namespace zero.test.core.patterns.semaphore
                         _output.WriteLine($"R -> {i} {ts.ElapsedMs()}ms - {(double)i / t.ElapsedMsToSec():0.0} r/s");
                 }
                 _output.WriteLine($"Done signalling");
-            }, CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Default);
+            }, CancellationToken.None, TaskCreationOptions.DenyChildAttach, IoZeroScheduler.ZeroDefault);
 
             int ts;
             var t = Environment.TickCount;
@@ -280,7 +284,7 @@ namespace zero.test.core.patterns.semaphore
                         }
                     }
                     //_output.WriteLine($"Done signalling count = {_exclusiveCheck}, {(double)_exclusiveCheck / t.ElapsedMsToSec():0.0} r/s");
-                },CancellationToken.None,TaskCreationOptions.DenyChildAttach, TaskScheduler.Default).Unwrap());
+                },CancellationToken.None,TaskCreationOptions.DenyChildAttach, IoZeroScheduler.ZeroDefault).Unwrap());
             }
 
             await Task.WhenAll(tests).WaitAsync(TimeSpan.FromSeconds(1000));

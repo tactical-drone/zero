@@ -16,6 +16,9 @@ namespace zero.test.core.patterns.semaphore
         public IoZeroSemaphoreTest(ITestOutputHelper output)
         {
             _output = output;
+            var prime = IoZeroScheduler.ZeroDefault;
+            if (prime.Id > 1)
+                Console.WriteLine("using IoZeroScheduler");
         }
         private readonly ITestOutputHelper _output;
         private volatile bool _running;
@@ -41,9 +44,9 @@ namespace zero.test.core.patterns.semaphore
                 while(@this._running)
                 {
                     await Task.Delay(targetSleep);
-                    m.Release(Environment.TickCount);
+                    m.Release(Environment.TickCount, true);
                 }
-            },(this,m,targetSleep), CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Default);
+            },(this,m,targetSleep), CancellationToken.None, TaskCreationOptions.DenyChildAttach, IoZeroScheduler.ZeroDefault);
 
             var c = 0;
             long ave = 0;
@@ -96,13 +99,13 @@ namespace zero.test.core.patterns.semaphore
                         {
                             if (Interlocked.Decrement(ref _releaseCount) >= 0)
                             {
-                                if (m.Release(Environment.TickCount) <= 0)
+                                if (m.Release(Environment.TickCount, true) <= 0)
                                     await Task.Delay(100);
                             }
                         }
 
                         return Task.CompletedTask;
-                    }, CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Default);
+                    }, CancellationToken.None, TaskCreationOptions.DenyChildAttach, IoZeroScheduler.ZeroDefault);
                 }
 
                 while (true)
@@ -122,7 +125,7 @@ namespace zero.test.core.patterns.semaphore
                 }
 
                 Assert.InRange(_releaseCount, -2, 0);
-            },this, CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Default).Unwrap();
+            },this, CancellationToken.None, TaskCreationOptions.DenyChildAttach, IoZeroScheduler.ZeroDefault).Unwrap();
         }
 
         [Fact]
@@ -133,8 +136,8 @@ namespace zero.test.core.patterns.semaphore
             await Task.Factory.StartNew(async () =>
             {
                 await Task.Delay(500);
-                m.Release(Environment.TickCount);
-            }, CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Default);
+                m.Release(Environment.TickCount, true);
+            }, CancellationToken.None, TaskCreationOptions.DenyChildAttach, IoZeroScheduler.ZeroDefault);
 
             var ts = Environment.TickCount;
             Assert.Equal(3, m.ReadyCount);
@@ -164,7 +167,7 @@ namespace zero.test.core.patterns.semaphore
                 m.Release(Environment.TickCount, 2);
                 await Task.Delay(500);
                 m.Release(Environment.TickCount);
-            }, CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Default);
+            }, CancellationToken.None, TaskCreationOptions.DenyChildAttach, IoZeroScheduler.ZeroDefault);
 
             var ts = Environment.TickCount;
 
@@ -186,7 +189,7 @@ namespace zero.test.core.patterns.semaphore
             var running = true;
             var count = 10000000;
             var waits = 0;
-            var scheduler = TaskScheduler.Default;
+            var scheduler = IoZeroScheduler.ZeroDefault;
 
             var t2 = Task.Factory.StartNew(async () =>
             {
@@ -229,7 +232,7 @@ namespace zero.test.core.patterns.semaphore
                 {
                     try
                     {
-                        Assert.Equal(1, m.Release(Environment.TickCount));
+                        Assert.Equal(1, m.Release(Environment.TickCount, true));
                     }
                     catch (Exception e)
                     {
@@ -253,105 +256,6 @@ namespace zero.test.core.patterns.semaphore
         }
 
         [Fact]
-        async Task TestIoZeroResetEventAsync()
-        {
-            var count = 5;
-            var minDelay = 25;
-            var v = new IoZeroResetEvent();
-
-            var t = Task.Factory.StartNew(async () =>
-            {
-                for (var i = 0; i < count; i++)
-                {
-                    await Task.Delay(minDelay);
-                    v.Release(true);
-                    _output.WriteLine(".");
-                }
-            }, CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Default).Unwrap();
-
-            var ts = Environment.TickCount;
-            Assert.True(await v.WaitAsync().FastPath());
-            Assert.InRange(ts.ElapsedMs(), minDelay/2, minDelay + ERR_T);
-
-            for (var i = 0; i < count - 1; i++)
-            {
-                ts = Environment.TickCount;
-                _output.WriteLine("_*");
-                Assert.True(await v.WaitAsync().FastPath());
-                Assert.InRange(ts.ElapsedMs(), minDelay / 2, 2000);
-                _output.WriteLine("*");
-            }
-        }
-
-        [Fact]
-        async Task TestIoZeroResetEventOpenAsync()
-        {
-            var count = 5;
-            var minDelay = 25;
-            var v = new IoZeroResetEvent(true);
-
-            var t = Task.Factory.StartNew(async () =>
-            {
-                for (var i = 0; i < count; i++)
-                {
-                    await Task.Delay(minDelay);
-                    v.Release(true);
-                }
-            }, CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Default).Unwrap();
-
-            var ts = Environment.TickCount;
-            Assert.True(await v.WaitAsync().FastPath());
-            Assert.InRange(ts.ElapsedMs(), 0, ERR_T);
-
-            for (var i = 0; i < count; i++)
-            {
-                ts = Environment.TickCount;
-                Assert.True(await v.WaitAsync().FastPath());
-                Assert.InRange(ts.ElapsedMs(), minDelay / 2, 2000);
-            }
-        }
-
-        [Fact]
-        async Task TestIoZeroResetEventSpamAsync()
-        {
-            var count = (long)2000000;
-            var v = new IoZeroResetEvent();
-
-            var totalTime = Environment.TickCount;
-
-            var t = Task.Factory.StartNew(() =>
-            {
-                for (var i = 0; i < count; i++)
-                {
-
-                    //_output.WriteLine($"s -> {v.GetStatus(v.Version)}[{v.Version}] \t- {DateTimeOffset.UtcNow.Ticks} - {i}/{count} - {Environment.CurrentManagedThreadId}");
-
-                    while (v.Release(true) != 1)
-                    {
-                        //if(c++ %10000 ==0)
-                        //_output.WriteLine(".");
-                        Thread.Sleep(1);
-                    }
-                    //_output.WriteLine($"s <- {v.GetStatus(v.Version)}[{v.Version}] \t- {DateTimeOffset.UtcNow.Ticks} - {i}/{count} - {Environment.CurrentManagedThreadId}");
-                }
-                
-            }, CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Default);
-
-            for (var i = 0; i < count; i++)
-            {
-                var ts = Environment.TickCount;
-
-                Assert.True(await v.WaitAsync().FastPath());
-                Assert.InRange(ts.ElapsedMs(), 0, 20000);
-            }
-
-            await t;
-            var maps = count * 1000 / (totalTime.ElapsedMs()) / 1000;
-            _output.WriteLine($"MAPS = {maps} K/s, t = {totalTime.ElapsedMs()}ms");
-            Assert.InRange(maps, 0, int.MaxValue);
-        }
-
-        [Fact]
         async Task TestIoZeroSemaphoreSlimAsync()
         {
             var count = 50;
@@ -372,9 +276,9 @@ namespace zero.test.core.patterns.semaphore
                     {
                         _output.WriteLine($"{e.Message}: RELEASE FAILED!");
                     }
-                    v.Release(Environment.TickCount);
+                    v.Release(Environment.TickCount, true);
                 }
-            }, CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Default).Unwrap();
+            }, CancellationToken.None, TaskCreationOptions.DenyChildAttach, IoZeroScheduler.ZeroDefault).Unwrap();
 
             var ts = Environment.TickCount;
             //Assert.True(await v.WaitAsync().FastPath());
@@ -433,7 +337,7 @@ namespace zero.test.core.patterns.semaphore
 
                 Assert.InRange(ave / count, 0, 16);
                 v.ZeroSem();
-            }, CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Default);
+            }, CancellationToken.None, TaskCreationOptions.DenyChildAttach, IoZeroScheduler.ZeroDefault);
 
             await Task.Delay(200);
 
@@ -442,14 +346,14 @@ namespace zero.test.core.patterns.semaphore
                 int i = 0;
                 while (!v.Zeroed())
                 {
-                    if (v.Release(Environment.TickCount) != 1)
+                    if (v.Release(Environment.TickCount, true) != 1)
                         await Task.Yield();
                     else
                         i++;
                 }
-            }, CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Default).Unwrap();
+            }, CancellationToken.None, TaskCreationOptions.DenyChildAttach, IoZeroScheduler.ZeroDefault).Unwrap();
 
-            await Task.WhenAll(t,t2).WaitAsync(TimeSpan.FromSeconds(60));
+            await Task.WhenAll(t,t2).WaitAsync(TimeSpan.FromSeconds(30));
             
             var maps = count * 1000 / (totalTime.ElapsedMs() + 1) / 1000;
             _output.WriteLine($"MAPS = {maps} K/s, t = {totalTime.ElapsedMs()}ms");

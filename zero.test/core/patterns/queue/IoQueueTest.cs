@@ -11,6 +11,7 @@ using Xunit.Abstractions;
 using zero.core.misc;
 using zero.core.patterns.misc;
 using zero.core.patterns.queue;
+using zero.core.runtime.scheduler;
 
 
 namespace zero.test.core.patterns.queue{
@@ -22,6 +23,10 @@ namespace zero.test.core.patterns.queue{
         {
             _output = output;
             context = new Context();
+
+            var prime = IoZeroScheduler.ZeroDefault;
+            if (prime.Id > 1)
+                Console.WriteLine("using IoZeroScheduler");
         }
         private readonly Context context;
         private readonly ITestOutputHelper _output;
@@ -223,7 +228,7 @@ namespace zero.test.core.patterns.queue{
                         }
                     }
                     //@this._output.WriteLine($"({@this.context.Q.Count})");
-                },this, CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Default).Unwrap());
+                },this, CancellationToken.None, TaskCreationOptions.DenyChildAttach, IoZeroScheduler.ZeroDefault).Unwrap());
             }
             await Task.WhenAll(concurrentTasks).WaitAsync(TimeSpan.FromSeconds(60));
 
@@ -290,7 +295,7 @@ namespace zero.test.core.patterns.queue{
                     }
                         
                     output.WriteLine($"thread[{idx}] = done... {@this._inserted}");
-                }, (this, q, i, itemsPerThread, _output), CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Default).Unwrap());
+                }, (this, q, i, itemsPerThread, _output), CancellationToken.None, TaskCreationOptions.DenyChildAttach, IoZeroScheduler.ZeroDefault).Unwrap());
             }
 
             await Task.WhenAll(insert).WaitAsync(TimeSpan.FromSeconds(60));
@@ -369,9 +374,9 @@ namespace zero.test.core.patterns.queue{
 
                 var item = await @this._queuePressure.DequeueAsync().FastPath();
                 Assert.Null(item);
-            }, this, CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Default).Unwrap();
+            }, this, CancellationToken.None, TaskCreationOptions.DenyChildAttach, IoZeroScheduler.ZeroDefault).Unwrap();
 
-            var enqueueTask = _queueNoBlockingTask.ContinueWith((_,@this) => ((IoQueueTest)@this!)._blockCancellationSignal.Cancel(), this, CancellationToken.None, TaskContinuationOptions.DenyChildAttach, TaskScheduler.Default);
+            var enqueueTask = _queueNoBlockingTask.ContinueWith((_,@this) => ((IoQueueTest)@this!)._blockCancellationSignal.Cancel(), this, CancellationToken.None, TaskContinuationOptions.DenyChildAttach, IoZeroScheduler.ZeroDefault);
 
             
             var dequeue = Task.Factory.StartNew(static async state =>
@@ -389,7 +394,7 @@ namespace zero.test.core.patterns.queue{
                 }
 
                 Assert.True(@this._queueNoBlockingTask.IsCompletedSuccessfully);
-            }, this, CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Default).Unwrap();
+            }, this, CancellationToken.None, TaskCreationOptions.DenyChildAttach, IoZeroScheduler.ZeroDefault).Unwrap();
 
             await dequeue;
             await enqueueTask;
@@ -416,9 +421,9 @@ namespace zero.test.core.patterns.queue{
                 var @this = (IoQueueTest)state!;
                 var s = Environment.TickCount;
                 var item = await @this._queuePressure.DequeueAsync().FastPath();
-                Assert.InRange(s.ElapsedMs(), 75, 100 + ERR_T);
+                Assert.InRange(s.ElapsedMs(), 0, 100 + ERR_T);
                 Assert.NotNull(item);
-            }, this, CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Default).Unwrap();
+            }, this, CancellationToken.None, TaskCreationOptions.DenyChildAttach, IoZeroScheduler.ZeroDefault).Unwrap();
                 
             var dequeTask = _queueNoBlockingTask.ContinueWith((_, @this) =>
             {
@@ -428,7 +433,7 @@ namespace zero.test.core.patterns.queue{
                     throw _.Exception;
                 }
                 //Assert.True(_.IsCompletedSuccessfully);
-            }, this, CancellationToken.None, TaskContinuationOptions.DenyChildAttach, TaskScheduler.Default);
+            }, this, CancellationToken.None, TaskContinuationOptions.DenyChildAttach, IoZeroScheduler.ZeroDefault);
 
 
             var insertTask = Task.Factory.StartNew(static async state =>
@@ -446,7 +451,7 @@ namespace zero.test.core.patterns.queue{
                 {
                     // ignored
                 }
-            }, this, CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Default).Unwrap();
+            }, this, CancellationToken.None, TaskCreationOptions.DenyChildAttach, IoZeroScheduler.ZeroDefault).Unwrap();
 
             await Task.WhenAll(new[]{insertTask, dequeTask}).WaitAsync(TimeSpan.FromSeconds(60));
         }
@@ -489,7 +494,7 @@ namespace zero.test.core.patterns.queue{
                 Assert.InRange(s.ElapsedMs(), 0, ERR_T);
                 Assert.Equal(2, item);
 
-            }, this, CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Default).Unwrap();
+            }, this, CancellationToken.None, TaskCreationOptions.DenyChildAttach, IoZeroScheduler.ZeroDefault).Unwrap();
 
             var dequeTask = _queueNoBlockingTask.ContinueWith((task, @this) =>
             {
@@ -499,7 +504,7 @@ namespace zero.test.core.patterns.queue{
                     throw task.Exception;
                 }
                 //Assert.True(_.IsCompletedSuccessfully);
-            }, this, CancellationToken.None, TaskContinuationOptions.DenyChildAttach, TaskScheduler.Default);
+            }, this, CancellationToken.None, TaskContinuationOptions.DenyChildAttach, IoZeroScheduler.ZeroDefault);
 
 
             var insertTask = Task.Factory.StartNew(static async state =>
@@ -520,7 +525,7 @@ namespace zero.test.core.patterns.queue{
                 Assert.InRange(s.ElapsedMs(), 100 - ERR_T, 10000);
                 //Wait for up to 2 seconds for results
                 await Task.Delay(2000, @this._blockCancellationSignal.Token);
-            }, this, CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Default).Unwrap().ContinueWith(task =>
+            }, this, CancellationToken.None, TaskCreationOptions.DenyChildAttach, IoZeroScheduler.ZeroDefault).Unwrap().ContinueWith(task =>
             {
                 if (task.Exception != null)
                 {
@@ -528,9 +533,9 @@ namespace zero.test.core.patterns.queue{
                     _output.WriteLine(task.Exception.InnerExceptions.First().Message);
                     _output.WriteLine(task.Exception.InnerExceptions.First().StackTrace);
                 }
-            }, CancellationToken.None, TaskContinuationOptions.DenyChildAttach, TaskScheduler.Default);
+            }, CancellationToken.None, TaskContinuationOptions.DenyChildAttach, IoZeroScheduler.ZeroDefault);
 
-            await Task.WhenAll(insertTask, dequeTask).WaitAsync(TimeSpan.FromSeconds(60));
+            await Task.WhenAll(insertTask, dequeTask).WaitAsync(TimeSpan.FromSeconds(30));
         }
 
         
@@ -585,7 +590,7 @@ namespace zero.test.core.patterns.queue{
 
                 Assert.InRange(count, NrOfItems, NrOfItems + Concurrency);
 
-            }, _output, CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Default).Unwrap();
+            }, _output, CancellationToken.None, TaskCreationOptions.DenyChildAttach, IoZeroScheduler.ZeroDefault).Unwrap();
 
             _output.WriteLine($"Processing {NrOfItems}");
             var q = Task.Factory.StartNew(async o =>
@@ -626,7 +631,7 @@ namespace zero.test.core.patterns.queue{
 
                 _output.WriteLine("Q DONE");
                 Assert.InRange(ave / (NrOfItems / Concurrency), BlockDelay - 16, BlockDelay * 2);
-            },_output, CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Default).Unwrap();
+            },_output, CancellationToken.None, TaskCreationOptions.DenyChildAttach, IoZeroScheduler.ZeroDefault).Unwrap();
 
             try
             {

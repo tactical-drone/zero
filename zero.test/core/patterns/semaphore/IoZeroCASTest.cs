@@ -7,6 +7,7 @@ using System.Threading.Tasks;
 using Xunit;
 using Xunit.Abstractions;
 using zero.core.patterns.semaphore.core;
+using zero.core.runtime.scheduler;
 
 namespace zero.test.core.patterns.semaphore
 {
@@ -19,6 +20,9 @@ namespace zero.test.core.patterns.semaphore
         public IoZeroCasTest(ITestOutputHelper output)
         {
             _output = output;
+            var prime = IoZeroScheduler.ZeroDefault;
+            if (prime.Id > 1)
+                Console.WriteLine("using IoZeroScheduler");
         }
 
         readonly ConcurrentBag<long> _selection = new();

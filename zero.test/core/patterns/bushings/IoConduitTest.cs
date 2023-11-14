@@ -17,6 +17,9 @@ namespace zero.test.core.patterns.bushings
         public IoConduitTest(ITestOutputHelper output)
         {
             _output = output;
+            var prime = IoZeroScheduler.ZeroDefault;
+            if (prime.Id > 1)
+                Console.WriteLine("using IoZeroScheduler");
         }
         private readonly ITestOutputHelper _output;
 
@@ -28,7 +31,7 @@ namespace zero.test.core.patterns.bushings
             var s1 = new IoZeroSource("zero source 1", false, concurrencyLevel + 1, concurrencyLevel, false, disableZero:true);
             var c1 = new IoConduit<IoZeroProduct>("conduit smoke test 1", null, s1, static (ioZero, _) => new IoZeroProduct("test product 1", ((IoConduit<IoZeroProduct>)ioZero).Source, 100));
 
-            var z1 = Task.Factory.StartNew(async () => await c1.BlockOnReplicateAsync(), CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Default).Unwrap();
+            var z1 = Task.Factory.StartNew(async () => await c1.BlockOnReplicateAsync(), CancellationToken.None, TaskCreationOptions.DenyChildAttach, IoZeroScheduler.ZeroDefault).Unwrap();
 
             var ts = Environment.TickCount;
             var totalTime = count * 100;
@@ -74,7 +77,7 @@ namespace zero.test.core.patterns.bushings
             var z1 = Task.Factory.StartNew(async () =>
             {
                 await c1.BlockOnReplicateAsync();
-            }, CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Default).Unwrap();
+            }, CancellationToken.None, TaskCreationOptions.DenyChildAttach, IoZeroScheduler.ZeroDefault).Unwrap();
 
             var ts = Environment.TickCount;
 
@@ -157,7 +160,7 @@ namespace zero.test.core.patterns.bushings
             var s1 = new IoZeroSource("zero source 1", false, concurrencyLevel * 2, concurrencyLevel, false, true);
             var c1 = new IoConduit<IoZeroProduct>("conduit smoke test 1", null, s1, static (ioZero, _) => new IoZeroProduct("test product 1", ((IoConduit<IoZeroProduct>)ioZero).Source, 100));
 
-            var z1 = Task.Factory.StartNew(async () => await c1.BlockOnReplicateAsync(), CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Default).Unwrap();
+            var z1 = Task.Factory.StartNew(async () => await c1.BlockOnReplicateAsync(), CancellationToken.None, TaskCreationOptions.DenyChildAttach, IoZeroScheduler.ZeroDefault).Unwrap();
 
             var ts = Environment.TickCount;
             long last = -1;

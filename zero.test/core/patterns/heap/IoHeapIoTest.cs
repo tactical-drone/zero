@@ -5,11 +5,19 @@ using System.Threading.Tasks;
 using Xunit;
 using zero.core.patterns.heap;
 using zero.core.patterns.misc;
+using zero.core.runtime.scheduler;
 
 namespace zero.test.core.patterns.heap
 {
     public class IoHeapIoTest
     {
+        public IoHeapIoTest()
+        {
+            var prime = IoZeroScheduler.ZeroDefault;
+            if (prime.Id > 1)
+                Console.WriteLine("using IoZeroScheduler");
+        }
+
         [Fact]
         async Task SpamTestAsync()
         {
@@ -36,7 +44,7 @@ namespace zero.test.core.patterns.heap
                         Assert.InRange(item.TestVar3, 0, @this._capacity);
                         h.Return(item);
                     }
-                }, (this, h), CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Default));
+                }, (this, h), CancellationToken.None, TaskCreationOptions.DenyChildAttach, IoZeroScheduler.ZeroDefault));
             }
 
             await Task.WhenAll(spamTasks).WaitAsync(TimeSpan.FromSeconds(60));
@@ -127,10 +135,6 @@ namespace zero.test.core.patterns.heap
             Assert.Equal(0, h.Count);
         }
 
-        public IoHeapIoTest()
-        {
-            
-        }
 
 
         private int _localVar = 2;

@@ -6,9 +6,12 @@ using System.Threading;
 using System.Threading.Tasks;
 using Google.Protobuf;
 using Xunit;
+using Xunit.Abstractions;
 using zero.core.feat.misc;
 using zero.core.misc;
 using zero.core.patterns.misc;
+using zero.core.runtime.scheduler;
+using zero.test.core.patterns.queue;
 
 namespace zero.test.core.feat
 {
@@ -18,6 +21,14 @@ namespace zero.test.core.feat
         [ThreadStatic]
         private static SHA256 _sha256;
         public static SHA256 Sha256 => _sha256 ??= SHA256.Create();
+
+
+        public IoZeroMatcherTest(ITestOutputHelper output)
+        { 
+            var prime = IoZeroScheduler.ZeroDefault;
+            if (prime.Id > 1)
+                Console.WriteLine("using IoZeroScheduler");
+        }
 
 
         [Fact]
@@ -56,9 +67,9 @@ namespace zero.test.core.feat
 
                         Assert.False(await matcher.ResponseAsync(k, UnsafeByteOperations.UnsafeWrap(dud)).FastPath());
                         Assert.True(await matcher.ResponseAsync(k, UnsafeByteOperations.UnsafeWrap(hash)).FastPath());
-                    }, (key, reqHash, m), CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Default).Unwrap();
+                    }, (key, reqHash, m), CancellationToken.None, TaskCreationOptions.DenyChildAttach, IoZeroScheduler.ZeroDefault).Unwrap();
 
-                }, BitConverter.GetBytes(i), CancellationToken.None,TaskCreationOptions.DenyChildAttach, TaskScheduler.Default));
+                }, BitConverter.GetBytes(i), CancellationToken.None,TaskCreationOptions.DenyChildAttach, IoZeroScheduler.ZeroDefault));
             }
 
             await Task.WhenAll(oneShotTasks).WaitAsync(TimeSpan.FromSeconds(60));
@@ -95,9 +106,9 @@ namespace zero.test.core.feat
 
                         Assert.False(await matcher.ResponseAsync(k, UnsafeByteOperations.UnsafeWrap(dud)));
                         Assert.True(await matcher.ResponseAsync(k, UnsafeByteOperations.UnsafeWrap(hash)));
-                    }, (key, reqHash, m), CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Default).Unwrap();
+                    }, (key, reqHash, m), CancellationToken.None, TaskCreationOptions.DenyChildAttach, IoZeroScheduler.ZeroDefault).Unwrap();
 
-                }, BitConverter.GetBytes(i), CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Default));
+                }, BitConverter.GetBytes(i), CancellationToken.None, TaskCreationOptions.DenyChildAttach, IoZeroScheduler.ZeroDefault));
             }
 
             await Task.WhenAll(oneShotTasks).WaitAsync(TimeSpan.FromSeconds(60));
@@ -139,9 +150,9 @@ namespace zero.test.core.feat
                         Assert.False(await matcher.ResponseAsync(k, UnsafeByteOperations.UnsafeWrap(dud)));
                         await Task.Delay(delay);
                         Assert.False(await matcher.ResponseAsync(k, UnsafeByteOperations.UnsafeWrap(hash)));
-                    }, (key, reqHash, m, _delayTime * 2), CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Default).Unwrap();
+                    }, (key, reqHash, m, _delayTime * 2), CancellationToken.None, TaskCreationOptions.DenyChildAttach, IoZeroScheduler.ZeroDefault).Unwrap();
 
-                }, BitConverter.GetBytes(i), CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Default));
+                }, BitConverter.GetBytes(i), CancellationToken.None, TaskCreationOptions.DenyChildAttach, IoZeroScheduler.ZeroDefault));
             }
 
             await Task.WhenAll(oneShotTasks).WaitAsync(TimeSpan.FromSeconds(60));

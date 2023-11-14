@@ -10,6 +10,7 @@ using Xunit.Abstractions;
 using zero.core.misc;
 using zero.core.patterns.misc;
 using zero.core.patterns.queue;
+using zero.core.runtime.scheduler;
 
 namespace zero.test.core.patterns.queue
 {
@@ -20,6 +21,9 @@ namespace zero.test.core.patterns.queue
         public IoQTest(ITestOutputHelper output)
         {
             _output = output;
+            var prime = IoZeroScheduler.ZeroDefault;
+            if (prime.Id > 1)
+                Console.WriteLine("using IoZeroScheduler");
         }
 
         [Fact]
@@ -104,7 +108,7 @@ namespace zero.test.core.patterns.queue
                             }
                         }
                         @this._output.WriteLine($"{c} dq done");
-                    }, (this, bag, threads), CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Default));
+                    }, (this, bag, threads), CancellationToken.None, TaskCreationOptions.DenyChildAttach, IoZeroScheduler.ZeroDefault));
 
                 insert.Add(Task.Factory.StartNew(static state =>
                 {
@@ -118,7 +122,7 @@ namespace zero.test.core.patterns.queue
                         }
                     }
                     @this._output.WriteLine($"{c} eq done");
-                }, (this, bag), CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Default));
+                }, (this, bag), CancellationToken.None, TaskCreationOptions.DenyChildAttach, IoZeroScheduler.ZeroDefault));
             }
 
             await Task.WhenAll(insert).WaitAsync(TimeSpan.FromSeconds(60));
@@ -181,7 +185,7 @@ namespace zero.test.core.patterns.queue
                             }
                         }
                         @this._output.WriteLine($"left = {success}/{tries} ({success / (tries + 1.0) * 100:0.0}%), {success * 1000 / (ts+1).ElapsedMs()} dq/s, t = {ts.ElapsedMs()}ms");
-                    }, (this, bag), CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Default));
+                    }, (this, bag), CancellationToken.None, TaskCreationOptions.DenyChildAttach, IoZeroScheduler.ZeroDefault));
 
                 spam.Add(Task.Factory.StartNew(static state =>
                 {
@@ -201,7 +205,7 @@ namespace zero.test.core.patterns.queue
 
                     Interlocked.Increment(ref @this.SpamTestAsyncThreadsDone);
                     @this._output.WriteLine($"Max q size was = {maxIdx}, success ={success}, {success*1000/(ts+1).ElapsedMs()} q/s, t = {ts.ElapsedMs()}ms");
-                }, (this, bag), CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Default));
+                }, (this, bag), CancellationToken.None, TaskCreationOptions.DenyChildAttach, IoZeroScheduler.ZeroDefault));
             }
 
             
@@ -213,7 +217,7 @@ namespace zero.test.core.patterns.queue
                     Thread.Sleep(100);
                 }
                 @this.SpamTestAsyncDone = true;
-            }, (this, bag), CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Default));
+            }, (this, bag), CancellationToken.None, TaskCreationOptions.DenyChildAttach, IoZeroScheduler.ZeroDefault));
 
             try
             {
@@ -403,7 +407,7 @@ namespace zero.test.core.patterns.queue
                     }
                     @this._output.WriteLine($"[{Environment.CurrentManagedThreadId}] [SUCCESS] DQ DONE!!!! {@this.SpamTestAsyncThreadsDone} > {(threads>>1) * InsertsPerThread}");
                     Interlocked.Increment(ref @this._haltCount);
-                }, (this, bag, threads,i), CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Default).Unwrap());
+                }, (this, bag, threads,i), CancellationToken.None, TaskCreationOptions.DenyChildAttach, IoZeroScheduler.ZeroDefault).Unwrap());
 
                 insert.Add(Task.Factory.StartNew(static state =>
                 {
@@ -429,7 +433,7 @@ namespace zero.test.core.patterns.queue
                     {
                         // ignored
                     }
-                }, (this, bag,threads), CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Default));
+                }, (this, bag,threads), CancellationToken.None, TaskCreationOptions.DenyChildAttach, IoZeroScheduler.ZeroDefault));
             }
 
             
@@ -510,7 +514,7 @@ namespace zero.test.core.patterns.queue
                         @this._output.WriteLine($"{c} dq error - {e.Message}");
                     }
                     @this._output.WriteLine($"{c} dq done");
-                }, (this, bag, threads, i), CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Default).Unwrap());
+                }, (this, bag, threads, i), CancellationToken.None, TaskCreationOptions.DenyChildAttach, IoZeroScheduler.ZeroDefault).Unwrap());
 
                 insert.Add(Task.Factory.StartNew(static state =>
                 {
@@ -530,7 +534,7 @@ namespace zero.test.core.patterns.queue
                         }
                     }
                     @this._output.WriteLine($"{c} eq done");
-                }, (this, bag), CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Default));
+                }, (this, bag), CancellationToken.None, TaskCreationOptions.DenyChildAttach, IoZeroScheduler.ZeroDefault));
             }
 
             _output.WriteLine($"Inserts tasks {insert.Count}");
@@ -605,7 +609,7 @@ namespace zero.test.core.patterns.queue
                         @this._output.WriteLine($"{c} dq done");
                         //while(bag.TryDequeue(out var _)){} ;
                         //@this._output.WriteLine($"{c} dq DRAIN! done");
-                    }, (this, bag, threads, i), CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Default).Unwrap());
+                    }, (this, bag, threads, i), CancellationToken.None, TaskCreationOptions.DenyChildAttach, IoZeroScheduler.ZeroDefault).Unwrap());
 
                 insert.Add(Task.Factory.StartNew(static state =>
                 {
@@ -624,7 +628,7 @@ namespace zero.test.core.patterns.queue
                     @this._output.WriteLine($"{c} eq done");
                     while (bag.TryDequeue(out var _)) { };
                     @this._output.WriteLine($"{c} eq DRAIN! done");
-                }, (this, bag), CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Default));
+                }, (this, bag), CancellationToken.None, TaskCreationOptions.DenyChildAttach, IoZeroScheduler.ZeroDefault));
             }
 
             _output.WriteLine($"Inserts tasks {insert.Count}");
