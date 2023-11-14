@@ -105,7 +105,7 @@ namespace zero.test.core.patterns.bushings
         {
 #if DEBUG
             var count = 500000;
-            var concurrencyLevel = 1;
+            var concurrencyLevel = 4;
 #else
             var count = 1000000;
             var concurrencyLevel = Environment.ProcessorCount * 2;

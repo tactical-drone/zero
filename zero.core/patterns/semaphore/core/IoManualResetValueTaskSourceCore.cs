@@ -467,65 +467,33 @@ namespace zero.core.patterns.semaphore.core
             Debug.Assert(continuation is not null);
             Debug.Assert(capturedContext is ExecutionContext or CapturedSchedulerAndExecutionContext);
 
-            // Capture the current EC.  We'll switch over to the target EC and then restore back to this one.
+            static void Callback(object state)
+            {
+                var (continuation, continuationState) = (ValueTuple<Action<object>, object>)state;
+                ThreadPool.QueueUserWorkItem(continuation, continuationState, preferLocal: true);
+            }
 
-            ExecutionContext currentContext = ExecutionContext.Capture();
+            static void QueueCallback(object state)
+            {
+                var (continuation, continuationState, capturedContext, runContinuationsAsynchronously) = (ValueTuple<Action<object>, object, object, bool>)state;
+                ScheduleCapturedContext(capturedContext, continuation, continuationState, runContinuationsAsynchronously);
+            }
 
             if (capturedContext is ExecutionContext ec)
             {
                 
                 if (runContinuationsAsynchronously)
                 {
-                    static void Aa(object state)
-                    {
-                        var (continuation, continuationState) = (ValueTuple<Action<object>, object>)state;
-                        ThreadPool.QueueUserWorkItem(continuation, continuationState, preferLocal: true);
-                    }
-                    ExecutionContext.Run(ec, Aa, (continuation, continuationState));
+                    ExecutionContext.Run(ec, QueueCallback, (continuation, continuationState, capturedContext, true));
                 }
                 else
                 {
-                    // Running inline may throw; capture the edi if it does as we changed the ExecutionContext,
-                    // so need to restore it back before propagating the throw.
-                    ExceptionDispatchInfo edi = null;
-                    SynchronizationContext syncContext = SynchronizationContext.Current;
-
-                    static void Cc(object state)
-                    {
-                        var (continuation, continuationState) = (ValueTuple<Action<object>, object>)state;
-                        continuation(continuationState);
-                    }
-
-                    try
-                    {
-                        ExecutionContext.Run(ec, Cc, (continuation, continuationState));
-                    }
-                    catch (Exception ex)
-                    {
-                        // Note: we have a "catch" rather than a "finally" because we want
-                        // to stop the first pass of EH here.  That way we can restore the previous
-                        // context before any of our callers' EH filters run.
-                        edi = ExceptionDispatchInfo.Capture(ex);
-                    }
-                    finally
-                    {
-                        // Set sync context back to what it was prior to coming in.
-                        // Then restore the current ExecutionContext.
-                        SynchronizationContext.SetSynchronizationContext(syncContext);
-                    }
-
-                    // Now rethrow the exception; if there is one.
-                    edi?.Throw();
+                    ExecutionContext.Run(ec, Callback, (continuation, continuationState));
                 }
             }
             else
             {
-                static void Cc(object state)
-                {
-                    var (continuation, continuationState, capturedContext, runContinuationsAsynchronously) = (ValueTuple<Action<object>, object, object, bool>)state;
-                    ScheduleCapturedContext(capturedContext, continuation, continuationState, runContinuationsAsynchronously);
-                }
-                ExecutionContext.Run(((CapturedSchedulerAndExecutionContext)capturedContext)._executionContext, Cc, (continuation, continuationState, capturedContext, runContinuationsAsynchronously));
+                ExecutionContext.Run(((CapturedSchedulerAndExecutionContext)capturedContext)._executionContext, QueueCallback, (continuation, continuationState, capturedContext, runContinuationsAsynchronously));
             }
         }
     }

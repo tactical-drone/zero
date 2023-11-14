@@ -491,7 +491,7 @@ namespace zero.sync
 
             //run tests
             //CoreTest();
-            
+
             //IoThreadPoolHooks.Default = new IoThreadPoolHooks();
 
             var total = 0;
