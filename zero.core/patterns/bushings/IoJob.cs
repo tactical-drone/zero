@@ -465,6 +465,12 @@ namespace zero.core.patterns.bushings
         }
 
         /// <summary>
+        /// Consumes the job
+        /// </summary>
+        /// <returns>The state of the consumption</returns>
+        public abstract ValueTask<IoJobMeta.JobState> ConsumeAsync();
+
+        /// <summary>
         /// Gets and sets the state of the work
         /// </summary>
         public IoJobMeta.JobState State => _stateMeta?.Value??IoJobMeta.JobState.Undefined;

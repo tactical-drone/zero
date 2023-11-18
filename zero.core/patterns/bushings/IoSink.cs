@@ -81,12 +81,6 @@ namespace zero.core.patterns.bushings
         }
 
         /// <summary>
-        /// Consumes the job
-        /// </summary>
-        /// <returns>The state of the consumption</returns>
-        public abstract ValueTask<IoJobMeta.JobState> ConsumeAsync();
-
-        /// <summary>
         /// zero unmanaged
         /// </summary>
         public override void ZeroUnmanaged()

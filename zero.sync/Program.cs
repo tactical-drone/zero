@@ -77,8 +77,7 @@ namespace zero.sync
                 // ReSharper disable once HeuristicUnreachableCode
                 {
                     CoCoon(CcDesignation.Generate(), $"tcp://127.0.0.1:{1234}",
-                        $"udp://127.0.0.1:{1234}",
-                        $"tcp://127.0.0.1:{1234}", $"udp://127.0.0.1:{1234}",
+                        $"udp://127.0.0.1:{1234}", $"udp://127.0.0.1:{1234}",
                         new string[]
                         {
                                 $"udp://127.0.0.1:{1235}",
@@ -87,7 +86,7 @@ namespace zero.sync
                         }.ToList(), queens);
 
                     CoCoon(CcDesignation.Generate(), $"tcp://127.0.0.1:{1235}",
-                        $"udp://127.0.0.1:{1235}", $"tcp://127.0.0.1:{1235}",
+                        $"udp://127.0.0.1:{1235}",
                         $"udp://127.0.0.1:{1235}",
                         new[]
                         {
@@ -97,8 +96,7 @@ namespace zero.sync
                         }.ToList(), queens);
 
                     CoCoon(CcDesignation.Generate(), $"tcp://127.0.0.1:{1236}",
-                        $"udp://127.0.0.1:{1236}",
-                        $"tcp://127.0.0.1:{1236}", $"udp://127.0.0.1:{1236}",
+                        $"udp://127.0.0.1:{1236}", $"udp://127.0.0.1:{1236}",
                         new[]
                         {
                                 $"udp://127.0.0.1:{1235}",
@@ -107,7 +105,7 @@ namespace zero.sync
                         }.ToList(), queens);
 
                     CoCoon(CcDesignation.Generate(), $"tcp://127.0.0.1:{1237}",
-                        $"udp://127.0.0.1:{1237}", $"tcp://127.0.0.1:{1237}",
+                        $"udp://127.0.0.1:{1237}",
                         $"udp://127.0.0.1:{1237}",
                         new[]
                         {
@@ -118,22 +116,41 @@ namespace zero.sync
                 }
                 else
                 {
-                    StartCocoon(CoCoon(CcDesignation.Generate(true), $"tcp://127.0.0.1:{1234}",
-                        $"udp://127.0.0.1:{1234}",
-                        $"tcp://127.0.0.1:{1234}", $"udp://127.0.0.1:{1234}",
+                    //StartCocoon(CoCoon(CcDesignation.Generate(true), $"tcp://127.0.0.1:{1234}",
+                    //    $"udp://127.0.0.1:{1234}",
+                    //    $"tcp://127.0.0.1:{1234}", $"udp://127.0.0.1:{1234}",
+                    //    new string[]
+                    //    {
+                    //            $"udp://127.0.0.1:{1235}",
+                    //        //$"udp://127.0.0.1:{1236}",
+                    //        //$"udp://127.0.0.1:{1237}"
+                    //    }.ToList(), false));
+
+                    //StartCocoon(CoCoon(CcDesignation.Generate(), $"tcp://127.0.0.1:{1235}",
+                    //    $"udp://127.0.0.1:{1235}", $"tcp://127.0.0.1:{1235}",
+                    //    $"udp://127.0.0.1:{1235}",
+                    //    new string[]
+                    //    {
+                    //            $"udp://127.0.0.1:{1234}",
+                    //        //$"udp://127.0.0.1:{1236}",
+                    //        //$"udp://127.0.0.1:{1237}"
+                    //    }.ToList(), false));
+
+                    StartCocoon(CoCoon(CcDesignation.Generate(true), $"tcp://192.168.88.253:{1234}",
+                        $"udp://192.168.88.253:{1234}", $"udp://192.168.88.253:{1234}",
                         new string[]
                         {
-                                $"udp://127.0.0.1:{1235}",
+                            $"udp://192.168.88.253:{1235}",
                             //$"udp://127.0.0.1:{1236}",
                             //$"udp://127.0.0.1:{1237}"
                         }.ToList(), false));
 
-                    StartCocoon(CoCoon(CcDesignation.Generate(), $"tcp://127.0.0.1:{1235}",
-                        $"udp://127.0.0.1:{1235}", $"tcp://127.0.0.1:{1235}",
-                        $"udp://127.0.0.1:{1235}",
+                    StartCocoon(CoCoon(CcDesignation.Generate(), $"tcp://192.168.88.253:{1235}",
+                        $"udp://192.168.88.253:{1235}",
+                        $"udp:/192.168.88.253:{1235}",
                         new string[]
                         {
-                                $"udp://127.0.0.1:{1234}",
+                            $"udp://192.168.88.253:{1234}",
                             //$"udp://127.0.0.1:{1236}",
                             //$"udp://127.0.0.1:{1237}"
                         }.ToList(), false));
@@ -150,8 +167,7 @@ namespace zero.sync
 
                 var count = remotePort.Count(p => p > 0);
                 StartCocoon(CoCoon(CcDesignation.Generate(), $"tcp://127.0.0.1:{localPort}",
-                    $"udp://127.0.0.1:{localPort}",
-                    $"tcp://127.0.0.1:{localPort}", $"udp://127.0.0.1:{localPort}",
+                    $"udp://127.0.0.1:{localPort}", $"udp://127.0.0.1:{localPort}",
                     remotePort.Take(count).Select(p => $"udp://127.0.0.1:{p}").ToList(), false));
 
                     Console.WriteLine($"starting udp://127.0.0.1:{localPort} -> {string.Join(", ", remotePort.Take(count).Select(port => $"udp://127.0.0.1:{port}"))}");
@@ -168,7 +184,7 @@ namespace zero.sync
                 string extra = i == 0 ? $"udp://127.0.0.1:{1235}" : $"udp://127.0.0.1:{basep + i - 1}";
 
                 concurrentBag.Add(CoCoon(CcDesignation.Generate(), $"tcp://127.0.0.1:{basep + i}",
-                    $"udp://127.0.0.1:{basep + i}", $"tcp://127.0.0.1:{basep + i}",
+                    $"udp://127.0.0.1:{basep + i}",
                     $"udp://127.0.0.1:{basep + i}",
                     new[]
                     {
@@ -1304,7 +1320,7 @@ namespace zero.sync
 
             //.NET RUNTIME REFERENCE MUTEX FOR TESTING
             //var mutex = new IoZeroRefMut(asyncTasks.Token);
-            IIoZeroSemaphoreBase<int> mutex = new IoZeroSemaphoreSlim(asyncTasks, "mutex TEST", maxBlockers: capacity, initialCount: 0, zeroAsyncMode: false, enableAutoScale: false, enableFairQ: false, enableDeadlockDetection: true);
+            IIoZeroSemaphoreBase<int> mutex = new IoZeroSemaphoreSlim(asyncTasks, "mutex TEST", maxBlockers: capacity, initialCount: 0, zeroAsyncMode: false);
 
             var releaseCount = 2;
             var waiters = 3;
@@ -1690,8 +1706,7 @@ namespace zero.sync
 //            }
 //        }
 
-        private static CcCollective CoCoon(CcDesignation ccDesignation, string gossipAddress, string peerAddress,
-            string fpcAddress, string extAddress, IEnumerable<string> bootStrapAddress, bool zeroDrone = false)
+        private static CcCollective CoCoon(CcDesignation ccDesignation, string gossipAddress, string peerAddress, string extAddress, IEnumerable<string> bootStrapAddress, bool zeroDrone = false)
         {
 
             var cocoon = new CcCollective(ccDesignation,

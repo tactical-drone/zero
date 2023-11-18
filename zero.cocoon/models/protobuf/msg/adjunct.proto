@@ -15,27 +15,30 @@ message CcProbeMessage {
   int32 slots = 3;
   int64 lamport = 4;
   bytes src = 5;
+  bytes dst = 6;
 }
 
 message CcProbeResponse {      
   int32 protocol = 1;  
   int64 timestamp = 2;
   bytes req_hash = 3;  
-  bytes nat = 4;
-  bytes dmz = 5;
-  bytes nsec = 6;
-  int64 status = 7;
-  int64 dbgPtr = 8;
+  bytes dmz = 4;  
+  bytes dst = 5;
+  int64 status = 6;
+  int64 dbgPtr = 7;
+  bytes nsec = 8;
 }
 
 message CcFuseRequest {  
-	int64 timestamp = 1;  
+	int64 timestamp = 1;
+	bytes src = 2;
 }
 
 message CcFuseResponse {  
 	int64 timestamp = 1;
 	bytes req_hash = 2;  
 	bool accept = 3;
+	bytes src = 4;
 }
 
 message CcDefuseRequest {  

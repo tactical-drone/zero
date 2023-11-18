@@ -72,7 +72,7 @@ namespace zero.test.core.feat
                 }, BitConverter.GetBytes(i), CancellationToken.None,TaskCreationOptions.DenyChildAttach, IoZeroScheduler.ZeroDefault));
             }
 
-            await Task.WhenAll(oneShotTasks).WaitAsync(TimeSpan.FromSeconds(60));
+            await Task.WhenAll(oneShotTasks).WaitAsync(TimeSpan.FromSeconds(30));
             Assert.Equal(0,m.Count);
         }
 

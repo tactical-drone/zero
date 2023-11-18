@@ -15,9 +15,7 @@ namespace zero.core.patterns.semaphore
     {
         public IoZeroSemaphoreSlim(CancellationTokenSource asyncTasks,
             string description = "IoZeroSemaphoreSlim", int maxBlockers = 1, int initialCount = 0,
-            bool zeroAsyncMode = false,
-            bool contextUnsafe = false,
-            bool enableAutoScale = false, bool enableFairQ = false, bool enableDeadlockDetection = false) : base($"{nameof(IoZeroSemaphoreSlim)}: {description}", maxBlockers)
+            bool zeroAsyncMode = false) : base($"{nameof(IoZeroSemaphoreSlim)}: {description}", maxBlockers)
         {
             //IIoZeroSemaphoreBase<int> newSem = new IoZeroSemaphore<int>(description, maxBlockers, initialCount, zeroAsyncMode, enableAutoScale: enableAutoScale, cancellationTokenSource: asyncTasks);
             IIoZeroSemaphoreBase<int> newSem = new IoZeroCore<int>(description, maxBlockers, asyncTasks,initialCount, zeroAsyncMode);

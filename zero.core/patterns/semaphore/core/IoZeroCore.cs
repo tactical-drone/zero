@@ -31,11 +31,11 @@ namespace zero.core.patterns.semaphore.core
         public IoZeroCore(string description, int capacity, CancellationTokenSource asyncTasks, int ready = 0, bool zeroAsyncMode = false)
         {
             if(ready > capacity)
-                throw new ArgumentOutOfRangeException(nameof(ready));
+                throw new ArgumentOutOfRangeException($"Initial count cannot be more than max blockers! {description}");
 
             _zeroed = 0;
             _description = description;
-            _capacity = capacity;
+            _capacity = capacity + 1; // +1 for low cost safety & performance boost (less locking)
             ZeroAsyncMode = zeroAsyncMode;
 
             _blockingCores = new IoZeroQ<IIoManualResetValueTaskSourceCore<T>>(string.Empty, capacity, false, asyncTasks:null, capacity);

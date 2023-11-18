@@ -253,6 +253,15 @@ namespace zero.cocoon
                         continue;
                     }
 
+                    foreach (var vector in @this.Hub.Neighbors.Values.Where(n =>
+                                 ((CcAdjunct)n).IsProxy && ((CcAdjunct)n).IsDroneConnected))
+                    {
+                        var s = ((CcAdjunct)vector).Drone.MessageService.IoNetSocket.NativeSocket;
+                        if (!s.Connected || !s.IsBound)
+                            await ((CcAdjunct)vector).Drone.DisposeAsync(@this, "zombie");
+                    }
+
+
 #if TRACE
                     @this._logger.Trace($"Robo - {TimeSpan.FromMilliseconds(ts.ElapsedMs())}, {@this.Description}");
 #endif
@@ -270,7 +279,7 @@ namespace zero.cocoon
                         force = true;
                     }
 
-                    if (@this.TotalConnections < @this.MaxDrones>>1) 
+                    if (@this.TotalConnections < @this.MaxDrones) 
                         await @this.DeepScanAsync(force).FastPath();
                 }
                 catch when(@this.Zeroed()){}
@@ -400,7 +409,9 @@ namespace zero.cocoon
         private CcHub _autoPeering;
         
         private IoNodeAddress _gossipAddress;
+        public IoNodeAddress GossipAddress => _gossipAddress;
         private IoNodeAddress _peerAddress;
+        public IoNodeAddress PeerAddress => _peerAddress;
 
         Random _random = new((int)DateTime.Now.Ticks);
         public IoZeroSemaphoreSlim DupSyncRoot { get; protected set; }
@@ -630,17 +641,23 @@ namespace zero.cocoon
             }
             finally
             {
-                if (!success && ccDrone.Adjunct != null)
+                if (!success)
                 {
-                    try
+                    if (ccDrone.Adjunct != null)
                     {
-                        await ccDrone.Adjunct.DeFuseAsync();
+                        try
+                        {
+                            //await ccDrone.Adjunct.DeFuseAsync().FastPath();
+                        }
+                        catch
+                        {
+                            // ignored
+                        }
                     }
-                    catch
-                    {
-                        // ignored
-                    }
+
+                    await ccDrone.DisposeAsync(collective, $"handshake failed: {ccDrone.Description}");
                 }
+                
 
                 collective.OnPropertyChanged(nameof(Online));
             }
@@ -928,7 +945,7 @@ namespace zero.cocoon
                     {
                         Protocol = parm_version,
                         Timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
-                        Session = UnsafeByteOperations.UnsafeWrap(Hub.Address.IpEndPoint.AsBytes() ?? Array.Empty<byte>()) //TODO:Session
+                        Session = UnsafeByteOperations.UnsafeWrap(drone.Adjunct.DmzAddress.AsBytes() ?? Array.Empty<byte>()) //TODO:Session
                     };
                     
                     var futileRequestBuf = ccFutileRequest.ToByteString();
@@ -1092,7 +1109,8 @@ namespace zero.cocoon
         /// Opens an <see cref="IIoSource.Heading.Egress"/> connection to a gossip peer
         /// </summary>
         /// <param name="adjunct">The verified neighbor associated with this connection</param>
-        public async ValueTask<bool> ConnectToDroneAsync(CcAdjunct adjunct)
+        /// <param name="dest">The destination endpoint</param>
+        public async ValueTask<bool> ConnectToDroneAsync(CcAdjunct adjunct, IPEndPoint dest)
         {
             //Validate
             if (
@@ -1108,10 +1126,10 @@ namespace zero.cocoon
                 {
                     Interlocked.Increment(ref _currentOutboundConnectionAttempts);
 
-                    var drone = await ConnectAsync(ZeroAcceptConAsync,this, IoNodeAddress.CreateFromEndpoint("tcp", adjunct.Address.IpEndPoint) , adjunct, false, parm_futile_timeout_ms).FastPath();
+                    var drone = await ConnectAsync(ZeroAcceptConAsync,this, IoNodeAddress.CreateFromEndpoint("tcp", dest) , adjunct, false, parm_futile_timeout_ms).FastPath();
                     if (Zeroed() || drone == null || ((CcDrone)drone).Adjunct.Zeroed())
                     {
-                        if (drone != null) await drone.DisposeAsync(this, $"{nameof(ConnectAsync)} was not successful [OK]").FastPath();
+                        //if (drone != null) await drone.DisposeAsync(this, $"{nameof(ConnectAsync)} was not successful [OK]").FastPath();
                         _logger.Trace($"{nameof(ConnectToDroneAsync)}: [ABORTED], {adjunct.Description}, {adjunct.MetaDesc}");
                         return false;
                     }

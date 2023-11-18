@@ -47,10 +47,7 @@ namespace zero.core.patterns.bushings
 
             try
             {
-                _backPressure = new IoZeroSemaphoreSlim(AsyncTasks, $"{nameof(_backPressure)}: {description}",
-                    maxBlockers: concurrencyLevel * 2,
-                    initialCount: concurrencyLevel,
-                    zeroAsyncMode: false); 
+                _backPressure = new IoZeroSemaphoreSlim(AsyncTasks, $"{nameof(_backPressure)}: {description}", PrefetchSize, PrefetchSize); 
             }
             catch (Exception e)
             {
