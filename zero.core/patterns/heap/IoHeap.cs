@@ -171,13 +171,12 @@ namespace zero.core.patterns.heap
 #if DEBUG
                         _logger.Error($"{nameof(_ioHeapBuf)}: LEAK DETECTED!!! Heap -> {Description}");
 #endif
-                        Interlocked.Exchange(ref _refCount, _refCount / 2);
+                        Interlocked.Exchange(ref _refCount, _refCount >> 1);
                     }
                     else
                     {
-                        
                         var prev = _ioHeapBuf;
-                        Interlocked.Exchange(ref _ioHeapBuf, new IoBag<TItem>(Description, Interlocked.Exchange(ref _capacity, _capacity * 2) * 2));
+                        Interlocked.Exchange(ref _ioHeapBuf, new IoBag<TItem>(Description, Interlocked.Exchange(ref _capacity, _capacity << 1) << 1));
 
                         IoZeroScheduler.Zero.LoadAsyncContext(static async state =>
                         {

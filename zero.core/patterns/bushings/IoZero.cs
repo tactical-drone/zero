@@ -69,7 +69,7 @@ namespace zero.core.patterns.bushings
             {
                 //TODO tuning
                 
-                _queue = new IoZeroSemaphoreChannel<IoSink<TJob>>($"zero Q: {_description}",capacity, zeroAsyncMode:false);//FALSE
+                _queue = new IoZeroSemaphoreChannel<IoSink<TJob>>($"zero Q: {_description}",capacity * 2, zeroAsyncMode:false);//FALSE
                 
 
                 JobHeap = new IoHeapIo<IoSink<TJob>>($"{nameof(JobHeap)}: {_description}", capacity * 2, jobMalloc) {
@@ -612,6 +612,7 @@ namespace zero.core.patterns.bushings
                             }
                         }
                 }, (this, curJob, consume, context));
+                return true;
             }
             catch (Exception) when (Zeroed()) {}
             catch (Exception e) when (!Zeroed())

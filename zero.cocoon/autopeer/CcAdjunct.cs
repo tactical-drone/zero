@@ -1095,7 +1095,12 @@ namespace zero.cocoon.autopeer
                                 //IoZeroScheduler.Zero.LoadAsyncContext(static async state =>
                                 //{
                                    // var (processCallback, message, nanite, proxy) = (ValueTuple<Func<CcBatchMessage, T, CcAdjunct, ValueTask>, CcBatchMessage, T, CcAdjunct>)state;
-                                    await processCallback(message, nanite, proxy).FastPath();
+                                   IoZeroScheduler.Zero.LoadAsyncContext(static async state =>
+                                   {
+                                       var (processCallback, message, nanite, proxy) = (ValueTuple<Func<CcBatchMessage, T, CcAdjunct, ValueTask>, CcBatchMessage, T, CcAdjunct>)state;
+                                       await processCallback(message, nanite, proxy).FastPath();
+                                   },(processCallback, message,nanite,proxy));
+                                    
                                 //}, (processCallback, message, nanite, proxy));
                             }
                         }
