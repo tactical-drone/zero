@@ -35,12 +35,12 @@ namespace zero.core.patterns.semaphore.core
 
             _zeroed = 0;
             _description = description;
-            _capacity = capacity + 1; // +1 for low cost safety & performance boost (less locking)
+            _capacity = capacity;
             ZeroAsyncMode = zeroAsyncMode;
 
-            _blockingCores = new IoZeroQ<IIoManualResetValueTaskSourceCore<T>>(string.Empty, capacity, false, asyncTasks:null, capacity);
-            _results = new IoZeroQ<T>(string.Empty, capacity, false, asyncTasks: null, capacity);
-            _heapCore = new IoBag<IIoManualResetValueTaskSourceCore<T>>(string.Empty, capacity, asyncTasks: null, capacity);
+            _blockingCores = new IoZeroQ<IIoManualResetValueTaskSourceCore<T>>(string.Empty, capacity + 1, false, asyncTasks:null, capacity);
+            _results = new IoZeroQ<T>(string.Empty, capacity + 1, false, asyncTasks: null, capacity);
+            _heapCore = new IoBag<IIoManualResetValueTaskSourceCore<T>>(string.Empty, capacity + 1, asyncTasks: null, capacity);
 
             _primeReady = _ => default;     
             _primeContext = null;
