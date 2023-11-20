@@ -155,12 +155,12 @@ namespace zero.core.core
 
             foreach (var ioNeighbor in Neighbors.Values)
             {
-                await ioNeighbor.DisposeAsync(this, $"teardown; {ZeroReason}, {Description}").FastPath();
+                await ioNeighbor.DisposeAsync(this, $"cascade; {ZeroReason}").FastPath();
             }
 
             Neighbors.Clear();
 
-            await _netServer.DisposeAsync(this, $"teardown; {ZeroReason}, {Description}").FastPath();
+            await _netServer.DisposeAsync(this, $"cascade; {ZeroReason}").FastPath();
 
             //await NeighborTasks.ZeroManagedAsync(static (neighborTask, @this) =>
             //{

@@ -59,8 +59,8 @@ namespace zero.cocoon.models
             //    cc = Source.ZeroConcurrencyLevel * 3;
             //}
 
-            var pf = Source.PrefetchSize * 2;
-            var cc = Source.ZeroConcurrencyLevel * 2;
+            var pf = CcCollective.MaxAdjuncts;
+            var cc = CcCollective.MaxAdjuncts;
 
             //if (!Source.Proxy && Adjunct.CcCollective.ZeroDrone)
             //{

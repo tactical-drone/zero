@@ -45,7 +45,7 @@ namespace zero.core.patterns.semaphore.core
         private ExceptionDispatchInfo _error;
 
         /// <summary>The result with which the operation succeeded, or the default value if it hasn't yet completed or failed.</summary>
-        [AllowNull, MaybeNull] private TResult _result;
+        private TResult _result;
 
         private Action<object> _heapAction;
         private object _heapContext;

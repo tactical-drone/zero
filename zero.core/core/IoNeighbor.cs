@@ -66,10 +66,9 @@ namespace zero.core.core
         /// </summary>
         public override async ValueTask ZeroManagedAsync()
         {
-            await base.ZeroManagedAsync().FastPath();
-
             try
             {
+                await base.ZeroManagedAsync().FastPath();
                 if (!Node.Zeroed() && Node.Neighbors.TryGetValue(Key, out var zeroedNeighbor) && zeroedNeighbor.Serial == Serial)
                 {
                     if (Node?.Neighbors?.TryRemove(Key, out var zeroNeighbor) ?? false)
@@ -85,17 +84,9 @@ namespace zero.core.core
                     }
                 }
             }
-            catch when (Node != null && Node.Zeroed())
+            catch (Exception e)
             {
-            }
-            catch (Exception e) when (Node != null && !Node.Zeroed())
-            {
-                _logger.Error(e, $"IoNeighbor.ZeroManagedAsync: ");
-            }
-            catch when(Zeroed()){}
-            catch (Exception e) when(!Zeroed())
-            {
-                _logger.Error(e, $"IoNeighbor.ZeroManagedAsync: ");
+                _logger.Error(e, $"IoNeighbor.ZeroManagedAsync: {Description}");
             }
         }
     }

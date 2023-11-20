@@ -359,7 +359,7 @@ namespace zero.core.network.ip
                 //send
                 if (NativeSocket.SendToAsync(args) && !await send.FastPath())
                     return 0;
-
+                
                 return args.SocketError == SocketError.Success ? args.BytesTransferred : 0;
             }
             catch (ObjectDisposedException)
@@ -381,6 +381,10 @@ namespace zero.core.network.ip
             }
             finally
             {
+#if DEBUG
+                if (args!.BytesTransferred == 0 || args.SocketError != SocketError.Success)
+                    _logger.Warn($"udp ERROR => tx = {args.BytesTransferred}, error = {args.SocketError}");
+#endif
                 //_argsHeap?.Return(args);
                 args!.Completed-= ZeroCompletion;
                 args.Dispose();
@@ -398,7 +402,7 @@ namespace zero.core.network.ip
             if (crc == 0)
                 return SendAsync(buffer, offset, length, endPoint, timeout);
 
-            return DupChecker.TryAdd(crc, Environment.TickCount) ? SendAsync(buffer, offset, length, endPoint, timeout) : new ValueTask<int>(0);
+            return DupChecker.TryAdd(crc, Environment.TickCount) ? SendAsync(buffer, offset, length, endPoint, timeout) : new ValueTask<int>(-1);
         }
 
         /// <summary>

@@ -190,7 +190,6 @@ namespace zero.core.patterns.bushings
         {
             base.Next = null;
             base.Prev = null;
-            Interlocked.MemoryBarrier();
             return new ValueTask<IIoHeapItem>(this);
         }
 

@@ -279,8 +279,8 @@ namespace zero.cocoon
                         force = true;
                     }
 
-                    if (@this.TotalConnections < @this.MaxDrones) 
-                        await @this.DeepScanAsync(force).FastPath();
+                    if (@this.TotalConnections < @this.parm_max_outbound) 
+                        await @this.DeepScanAsync(@this.TotalConnections == 0).FastPath();
                 }
                 catch when(@this.Zeroed()){}
                 catch (Exception e) when (!@this.Zeroed())
@@ -509,7 +509,7 @@ namespace zero.cocoon
         /// </summary>
         [IoParameter]
         // ReSharper disable once InconsistentNaming
-        public int parm_max_inbound = 4;
+        public int parm_max_inbound = 5;
 
         /// <summary>
         /// Max outbound neighbors
@@ -523,14 +523,14 @@ namespace zero.cocoon
         /// </summary>
         [IoParameter]
         // ReSharper disable once InconsistentNaming
-        public int parm_max_drone = 7;
+        public int parm_max_drone = 8;
 
         /// <summary>
         /// Max adjuncts
         /// </summary>
         [IoParameter]
         // ReSharper disable once InconsistentNaming
-        public int parm_max_adjunct = 11;
+        public int parm_max_adjunct = 16;
 
         /// <summary>
         /// Protocol version
@@ -945,7 +945,7 @@ namespace zero.cocoon
                     {
                         Protocol = parm_version,
                         Timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
-                        Session = UnsafeByteOperations.UnsafeWrap(drone.Adjunct.DmzAddress.AsBytes() ?? Array.Empty<byte>()) //TODO:Session
+                        Session = UnsafeByteOperations.UnsafeWrap(drone.Adjunct.Session.AsBytes() ?? Array.Empty<byte>()) //TODO:Session
                     };
                     
                     var futileRequestBuf = ccFutileRequest.ToByteString();
@@ -982,7 +982,7 @@ namespace zero.cocoon
                     var verified = false;
                     var packet = chroniton.Parser.ParseFrom(futileBuffer, 0, bytesRead);
                     
-                    if (packet != null && packet.Data != null && packet.Data.Length > 0)
+                    if (packet != null)
                     {
 #if TRACE
                         _logger.Fatal($"<\\h {nameof(CcFutileResponse)}({bytesRead}) [{futileBuffer[..bytesRead].PayloadSig()}]: src = {ioNetSocket.RemoteAddress}; {futileBuffer[..bytesRead].Print()}");
@@ -991,7 +991,7 @@ namespace zero.cocoon
                         var packetData = packet.Data.Memory.AsArray();
 
                         //verify signature
-                        if (packet.Signature != null || packet.Signature!.Length != 0)
+                        if (packet.Signature.Length != 0)
                         {
                             verified = CcDesignation.Verify(packetData, 0,
                                 packetData.Length, packet.PublicKey.Memory.AsArray(), 0,
@@ -1118,8 +1118,8 @@ namespace zero.cocoon
                     adjunct.Assimilating &&
                     !adjunct.IsDroneConnected &&
                     adjunct.State == CcAdjunct.AdjunctState.Connecting &&
-                    TotalConnections < parm_max_outbound &&
-                    _currentOutboundConnectionAttempts < MaxAsyncConnectionAttempts
+                    TotalConnections < parm_max_outbound
+                    //_currentOutboundConnectionAttempts < MaxAsyncConnectionAttempts
                 )
             {
                 try
@@ -1143,7 +1143,7 @@ namespace zero.cocoon
             }
             else
             {
-                _logger.Trace($"{nameof(ConnectToDroneAsync)}: Connect skipped: {adjunct.Description}");
+                _logger.Trace($"{nameof(ConnectToDroneAsync)}: Connect skipped: t = {TotalConnections}, s = {adjunct.State}, c = {_currentOutboundConnectionAttempts}, {adjunct.Description}");
                 adjunct.ResetState(CcAdjunct.AdjunctState.Verified);
                 return false;
             }
@@ -1263,7 +1263,7 @@ namespace zero.cocoon
                                     _logger.Info($"{Description} Bootstrapping from {ioNodeAddress}");                       
 #endif
 
-                                if (!await Hub.Router.ProbeAsync("SYN-DMZ", ioNodeAddress).FastPath())
+                                if (!await Hub.Router.ProbeAsync("SYN-DMZ", ioNodeAddress.IpEndPoint).FastPath())
                                 {
                                     if (!Hub.Router.Zeroed())
                                         _logger.Trace($"{nameof(DeepScanAsync)}: Unable to boostrap {Description} from {ioNodeAddress}");

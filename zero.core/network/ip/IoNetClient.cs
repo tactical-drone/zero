@@ -140,7 +140,7 @@ namespace zero.core.network.ip
         public override async ValueTask ZeroManagedAsync()
         {
             await base.ZeroManagedAsync();
-            await IoNetSocket.DisposeAsync(this, $"teardown; {ZeroReason}, {Description}");
+            await IoNetSocket.DisposeAsync(this, $"cascade;  {ZeroReason}");
         }
 
         /// <summary>
@@ -149,17 +149,17 @@ namespace zero.core.network.ip
         /// <returns>True if succeeded, false otherwise</returns>
         public virtual async ValueTask<bool> ConnectAsync(IoNodeAddress remoteAddress, int timeout)
         {
-            //fail fast
             if (Zeroed())
                 return false;
+
             var ts = Environment.TickCount;
+
             var connected = await IoNetSocket.ConnectAsync(remoteAddress, timeout).FastPath();
 
-            if (connected)
-                _logger.Trace($"Connecting to `{remoteAddress}', took {ts.ElapsedMs()}ms, {Description}");
-            else
-                _logger.Error($"Failed connecting to `{remoteAddress}', took {ts.ElapsedMs()}ms, timeout = {timeout}ms, {Description} [FAILED]");
-            
+            _logger.Trace(connected
+                ? $"Connecting to `{remoteAddress}', took {ts.ElapsedMs()}ms, {Description}"
+                : $"Failed connecting to `{remoteAddress}', took {ts.ElapsedMs()}ms, timeout = {timeout}ms, {Description}");
+
             return connected;
         }
 

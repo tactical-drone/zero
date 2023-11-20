@@ -622,8 +622,7 @@ namespace zero.core.runtime.scheduler
 
                         @this._lastWorkerSpawnedTime = Environment.TickCount;
                         Interlocked.MemoryBarrier();
-                        Console.WriteLine(
-                            $"Adding zero thread {@this._taskQueueCapacity}, load = {@this.LoadFactor * 100:0.0}%");
+                        Console.WriteLine($" - Adding zero thread {@this._taskQueueCapacity}, load = {@this.LoadFactor * 100:0.0}%");
                     }
                 }, this);
 

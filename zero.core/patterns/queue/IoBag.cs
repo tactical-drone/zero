@@ -197,7 +197,7 @@ namespace zero.core.patterns.queue
                         this[next] = item;
                         Interlocked.Exchange(ref fastBloom, 2);
                     }
-                    else if (next < Head)
+                    else if (next <= Head)
                     {
                         goto retry;
                     }

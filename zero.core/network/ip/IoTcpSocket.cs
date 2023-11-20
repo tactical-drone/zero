@@ -233,9 +233,8 @@ namespace zero.core.network.ip
                     {
                         try
                         {
-                            if (taskCore.Blocking)
-                                taskCore.SetResult(false);
-                            LogManager.GetCurrentClassLogger().Trace(e, $"{nameof(NativeSocket.BeginConnect)}");
+                            taskCore.SetResult(false);
+                            LogManager.GetCurrentClassLogger().Trace(e, $"{nameof(NativeSocket.BeginConnect)}: FAILED to connect to {socket.RemoteEndPoint}");
                         }
                         catch
                         {
@@ -306,7 +305,7 @@ namespace zero.core.network.ip
             catch when (Zeroed()) { }
             catch (Exception e) when (!Zeroed())
             {
-                _logger.Error(e, $"[FAILED ] Connecting to {remoteAddress}: {Description}");
+                _logger.Error(e, $"[FAILED] Connecting to {remoteAddress}: {Description}");
             }
             finally
             {

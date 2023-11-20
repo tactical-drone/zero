@@ -250,109 +250,64 @@ namespace zero.core.patterns.queue
 #if !DEBUG
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
 #endif
-        private (bool success,T value) AtomicAdd(long index, T value)
+        private (bool success,T value, long index) AtomicAdd(T value)
         {
 #if DEBUG
             var ts = Environment.TickCount;
 #endif
             try
             {
-                var modIdx = index % Capacity;
+                var latch = Tail;
+                var modIdx = latch % Capacity;
 
                 if (!IsAutoScaling)
                 {
-                    //TODO: rw lock is slow
-                    //bool readLock = false;
-                    //bool writeLock = false;
-                    //try
-                    //{
-                    //    readLock = _rwLock.TryEnterUpgradeableReadLock(_readTo);
-                    //    if (readLock && Tail == index)
-                    //    {
-                    //        try
-                    //        {
-                    //            writeLock = _rwLock.TryEnterWriteLock(_writeTo);
-                    //            if (writeLock && Tail == index)
-                    //            {
-                    //                _fastStorage[modIdx] = value;
-                    //                Interlocked.Increment(ref _count);
-                    //                Interlocked.Increment(ref _tail);
-                    //                return (true, default);
-                    //            }
-                    //        }
-                    //        finally
-                    //        {
-                    //            if (writeLock)
-                    //            {
-                    //                _rwLock.ExitWriteLock();
-                    //            }
-                    //        }
-                    //    }
-                    //}
-                    //finally
-                    //{
-                    //    if (readLock)
-                    //        _rwLock.ExitUpgradeableReadLock();
-                    //}
+                    //TODO: CAS contraptions are super fast!
+                    ref var fastBloomPtr = ref _fastBloom[modIdx];
+                    if (Tail != latch || fastBloomPtr != _zero ||
+                        Interlocked.CompareExchange(ref fastBloomPtr, _one, _zero) != _zero)
+                        return (false, default, -1);
 
-                    //return (false, default);
-
-                    //lock (_syncRoot) //TODO: locking is slow
+                    if
+                        (Tail != latch) //Covers choking throughput (possibly OS preempting threads and resurrecting them MUCH later than "sibling" threads) causing wrap around issues. CAS passes but at distant past tail and needs to be undone...
                     {
-                        //if (Tail == index)
-                        //{
-                        //    _fastStorage[modIdx] = value;
-                        //    Interlocked.Increment(ref _count);
-                        //    Interlocked.Increment(ref _tail);
-                        //    return (true, default);
-                        //}
-                        //return (false, default);
-
-                        //TODO: CAS contraptions are super fast!
-                        ref var fastBloomPtr = ref _fastBloom[modIdx];
-                        if (Tail != index || fastBloomPtr != _zero || Interlocked.CompareExchange(ref fastBloomPtr, _one, _zero) != _zero)
-                            return (false, default);
-
-                        if (Tail != index) //Covers choking throughput (possibly OS preempting threads and resurrecting them MUCH later than "sibling" threads) causing wrap around issues. CAS passes but at distant past tail and needs to be undone...
+                        //TAIL is racing towards this _one... set it back to _zero and hope for the best. So far it checks out. 
+                        if (Interlocked.CompareExchange(ref fastBloomPtr, _zero, _one) != _one)
                         {
-                            //TAIL is racing towards this _one... set it back to _zero and hope for the best. So far it checks out. 
-                            if (Interlocked.CompareExchange(ref fastBloomPtr, _zero, _one) != _one)
-                            {
-                                LogManager.GetCurrentClassLogger().Fatal($"Unable to restore lock at {index} - {Description}");
-                            }
-                            return (false, default);
+                            LogManager.GetCurrentClassLogger()
+                                .Fatal($"Unable to restore lock at {latch} - {Description}");
                         }
 
-                        if (Interlocked.CompareExchange(ref fastBloomPtr, _set, _one) != _one)
-                            return (false, default);
-
-                        _fastStorage[modIdx] = value;
-                        Interlocked.Increment(ref _count);
-                        Interlocked.Increment(ref _tail);
-                        return (true, default);
+                        return (false, default, -1);
                     }
+
+                    
+                    _fastStorage[modIdx] = value;
+
+                    Interlocked.Exchange(ref fastBloomPtr, _set);
+                    Interlocked.Increment(ref _count);
+                    return (true, default, Interlocked.Increment(ref _tail) - 1);
                 }
 
                 var i = (int)(Math.Log10(modIdx + 1) / Math.Log10(2));
                 var i2 = modIdx - ((1 << i) - 1);
                 ref var bloomPtr = ref _bloom[i][i2];
-                if (Tail != index || bloomPtr != _zero || Interlocked.CompareExchange(ref bloomPtr, _one, _zero) != _zero) 
-                    return (false, default);
+                if (Tail != latch || bloomPtr != _zero || Interlocked.CompareExchange(ref bloomPtr, _one, _zero) != _zero) 
+                    return (false, default, -1);
 
-                if (Tail != index) 
+                if (Tail != latch) 
                 {
                     if(Interlocked.CompareExchange(ref bloomPtr, _zero, _one) != _one)
-                        LogManager.GetCurrentClassLogger().Fatal($"Unable to restore lock at {index} - {Description}");
-                    return (false, default);
+                        LogManager.GetCurrentClassLogger().Fatal($"Unable to restore lock at {latch} - {Description}");
+                    return (false, default, -1);
                 }
 
-                if (Interlocked.CompareExchange(ref bloomPtr, _set, _one) != _one)
-                    return (false, default);
-
                 _storage[i][i2] = value;
+
+                Interlocked.Exchange(ref bloomPtr, _set);
                 Interlocked.Increment(ref _count);
                 Interlocked.Increment(ref _tail);
-                return (true, default);
+                return (true, default, -1);
             }
             finally
             {
@@ -368,94 +323,44 @@ namespace zero.core.patterns.queue
         /// <summary>
         /// Wraps Interlocked.CompareExchange that copes with horizontal scaling
         /// </summary>
-        /// <param name="index">index to work with</param>
         /// <param name="value">The new value</param>
         /// <returns>False on race, true otherwise</returns>
 #if !DEBUG
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
 #endif
-        private bool AtomicRemove(long index, out T value)
+        private bool AtomicRemove(out T value)
         {
 #if DEBUG
             var ts = Environment.TickCount;
 #endif
             try
             {
-                var modIdx = index % Capacity;
+                var latch = Head;
+                var modIdx = latch % Capacity;
 
                 if (!IsAutoScaling)
                 {
-                    //bool readLock = false;
-                    //bool writeLock = false;
-                    //try
-                    //{
-                    //    readLock = _rwLock.TryEnterUpgradeableReadLock(_readTo);
-                    //    if (readLock && Head == index)
-                    //    {
-                    //        try
-                    //        {
-                    //            writeLock = _rwLock.TryEnterWriteLock(_writeTo);
-                    //            if (writeLock && Head == index)
-                    //            {
-                    //                value = _fastStorage[modIdx];
-                    //                _fastStorage[modIdx] = default;
-                    //                Interlocked.Decrement(ref _count);
-                    //                Interlocked.Increment(ref _head);
-                    //                Interlocked.Exchange(ref _fastBloom[modIdx], _zero);
-                    //                return true;
-                    //            }
-                    //        }
-                    //        finally
-                    //        {
-                    //            if(writeLock)
-                    //                _rwLock.ExitWriteLock();
-                    //        }
-                    //    }
-                    //}
-                    //finally
-                    //{
-                    //    if(readLock)
-                    //        _rwLock.ExitUpgradeableReadLock();
-                    //}
-
-                    //value = default;
-                    //return false;
-
-                    //lock (_syncRoot)
+                    ref var fastBloomPtr = ref _fastBloom[modIdx];
+                    if (Head == latch && Interlocked.CompareExchange(ref fastBloomPtr, _reset, _set) == _set)
                     {
-                        //if (Head == index)
-                        //{
-                        //    value = _fastStorage[modIdx];
-                        //    _fastStorage[modIdx] = default;
-                        //    Interlocked.Decrement(ref _count);
-                        //    Interlocked.Increment(ref _head);
-                        //    Interlocked.Exchange(ref _fastBloom[modIdx], _zero);
-                        //    return true;
-                        //}
-
-                        //value = default;
-                        //return false;
-
-                        ref var fastBloomPtr = ref _fastBloom[modIdx];
-                        if (Head == index && Interlocked.CompareExchange(ref fastBloomPtr, _reset, _set) == _set)
+                        if (Head != latch)
                         {
-                            if (Head != index)
-                            {
-                                if(Interlocked.CompareExchange(ref fastBloomPtr, _set, _reset) != _reset)
-                                    LogManager.GetCurrentClassLogger().Fatal($"R> Unable to restore lock at {index} - {Description}");
-                                value = default;
-                                return false;
-                            }
-
-                            Interlocked.MemoryBarrier();
-                            value = _fastStorage[modIdx];
-                            _fastStorage[modIdx] = default;
-                            Interlocked.Decrement(ref _count);
-                            Interlocked.Increment(ref _head);
-                            Interlocked.Exchange(ref fastBloomPtr, _zero);
-                            return true;
+                            if (Interlocked.CompareExchange(ref fastBloomPtr, _set, _reset) != _reset)
+                                LogManager.GetCurrentClassLogger()
+                                    .Fatal($"R> Unable to restore lock at {latch} - {Description}");
+                            value = default;
+                            return false;
                         }
+
+                        value = _fastStorage[modIdx];
+                        _fastStorage[modIdx] = default;
+
+                        Interlocked.Exchange(ref fastBloomPtr, _zero);
+                        Interlocked.Decrement(ref _count);
+                        Interlocked.Increment(ref _head);
+                        return true;
                     }
+
                     value = default;
                     return false;
                 }
@@ -466,10 +371,10 @@ namespace zero.core.patterns.queue
                 
                 if (Interlocked.CompareExchange(ref bloomPtr, _reset, _set) == _set)
                 {
-                    if (Head != index)
+                    if (Head != latch)
                     {
                         if (Interlocked.CompareExchange(ref bloomPtr, _set, _reset) != _reset)
-                            LogManager.GetCurrentClassLogger().Fatal($"R> Unable to restore lock at {index} - {Description}");
+                            LogManager.GetCurrentClassLogger().Fatal($"R> Unable to restore lock at {latch} - {Description}");
                         value = default;
                         return false;
                     }
@@ -477,9 +382,10 @@ namespace zero.core.patterns.queue
                     Interlocked.MemoryBarrier();
                     value = _storage[i][i2];
                     _storage[i][i2] = default;
+
+                    Interlocked.Exchange(ref bloomPtr, _zero);
                     Interlocked.Decrement(ref _count);
                     Interlocked.Increment(ref _head);
-                    Interlocked.Exchange(ref bloomPtr, _zero);
                     return true;
                 }
 
@@ -515,74 +421,24 @@ namespace zero.core.patterns.queue
 
                 if (!IsAutoScaling)
                 {
-                    //bool readLock = false;
-                    //bool writeLock = false;
-                    //try
-                    //{
-                    //    readLock = _rwLock.TryEnterUpgradeableReadLock(_readTo);
-                    //    if (readLock && Head == index)
-                    //    {
-                    //        try
-                    //        {
-                    //            writeLock = _rwLock.TryEnterWriteLock(_writeTo);
-                    //            if (writeLock && Head == index)
-                    //            {
-                    //                value = _fastStorage[modIdx];
-                    //                _fastStorage[modIdx] = default;
-                    //                Interlocked.Decrement(ref _count);
-                    //                Interlocked.Increment(ref _head);
-                    //                Interlocked.Exchange(ref _fastBloom[modIdx], _zero);
-                    //                return true;
-                    //            }
-                    //        }
-                    //        finally
-                    //        {
-                    //            if(writeLock)
-                    //                _rwLock.ExitWriteLock();
-                    //        }
-                    //    }
-                    //}
-                    //finally
-                    //{
-                    //    if(readLock)
-                    //        _rwLock.ExitUpgradeableReadLock();
-                    //}
-
-                    //value = default;
-                    //return false;
-
-                    //lock (_syncRoot)
+                    ref var fastBloomPtr = ref _fastBloom[modIdx];
+                    if (Head == index && Interlocked.CompareExchange(ref fastBloomPtr, _reset, _set) == _set)
                     {
-                        //if (Head == index)
-                        //{
-                        //    value = _fastStorage[modIdx];
-                        //    _fastStorage[modIdx] = default;
-                        //    Interlocked.Decrement(ref _count);
-                        //    Interlocked.Increment(ref _head);
-                        //    Interlocked.Exchange(ref _fastBloom[modIdx], _zero);
-                        //    return true;
-                        //}
-
-                        //value = default;
-                        //return false;
-
-                        ref var fastBloomPtr = ref _fastBloom[modIdx];
-                        if (Head == index && Interlocked.CompareExchange(ref fastBloomPtr, _reset, _set) == _set)
+                        if (Head != index)
                         {
-                            if (Head != index)
-                            {
-                                if (Interlocked.CompareExchange(ref fastBloomPtr, _set, _reset) != _reset)
-                                    LogManager.GetCurrentClassLogger().Fatal($"R> Unable to restore lock at {index} - {Description}");
+                            if (Interlocked.CompareExchange(ref fastBloomPtr, _set, _reset) != _reset)
+                                LogManager.GetCurrentClassLogger()
+                                    .Fatal($"R> Unable to restore lock at {index} - {Description}");
 
-                                return false;
-                            }
-
-                            _fastStorage[modIdx] = default;
-                            Interlocked.Decrement(ref _count);
-                            Interlocked.Increment(ref _head);
-                            Interlocked.Exchange(ref fastBloomPtr, _zero);
-                            return true;
+                            return false;
                         }
+
+                        _fastStorage[modIdx] = default;
+                        Interlocked.Exchange(ref fastBloomPtr, _zero);
+                        Interlocked.Decrement(ref _count);
+                        Interlocked.Increment(ref _head);
+
+                        return true;
                     }
 
                     return false;
@@ -603,9 +459,9 @@ namespace zero.core.patterns.queue
                     }
 
                     _storage[i][i2] = default;
+                    Interlocked.Exchange(ref bloomPtr, _zero);
                     Interlocked.Decrement(ref _count);
                     Interlocked.Increment(ref _head);
-                    Interlocked.Exchange(ref bloomPtr, _zero);
                     return true;
                 }
 
@@ -708,9 +564,12 @@ namespace zero.core.patterns.queue
                 }
 
                 long cap;
-                long tail;
+                
                 SpinWait yield = new();
-                while ((tail = Tail) >= Head + (cap = Capacity) || _count >= cap || !AtomicAdd(tail, item).success)
+
+                bool s;
+                long i;
+                while (Tail >= Head + (cap = Capacity) || _count >= cap || !((s,_,i) = AtomicAdd(item)).s)
                 {
                     if (_count == cap)
                     {
@@ -761,7 +620,7 @@ namespace zero.core.patterns.queue
 
                 //_curEnumerator.IncIteratorCount(); //TODO: is this a good idea?
 
-                return tail;
+                return i;
             }
             catch when (Zeroed)
             {
@@ -799,9 +658,8 @@ namespace zero.core.patterns.queue
                     return false;
                 }
 
-                long head;
                 SpinWait yield = new();
-                while ((head = Head) >= Tail || !AtomicRemove(head, out slot)) 
+                while (Head >= Tail || !AtomicRemove(out slot)) 
                 {
                     if (Count == 0 || Zeroed)
                     {
@@ -809,8 +667,7 @@ namespace zero.core.patterns.queue
                         return false;
                     }
 
-                    if (!yield.NextSpinWillYield)
-                        yield.SpinOnce();
+                    yield.SpinOnce();
                 }
                
                 return true;

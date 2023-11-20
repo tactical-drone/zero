@@ -6,7 +6,7 @@ package zero.models.protobuf;
 
 message CcAdjunctModel {	  
   bytes public_key = 1;
-  string url = 2;
+  bytes url = 2;  
 }
 
 message CcProbeMessage {    
@@ -22,11 +22,12 @@ message CcProbeResponse {
   int32 protocol = 1;  
   int64 timestamp = 2;
   bytes req_hash = 3;  
-  bytes dmz = 4;  
-  bytes dst = 5;
-  int64 status = 6;
-  int64 dbgPtr = 7;
-  bytes nsec = 8;
+  bytes session = 4;  
+  bytes origDst = 5;
+  bytes src = 6;
+  int64 status = 7;
+  int64 dbgPtr = 8;
+  bytes nsec = 9;
 }
 
 message CcFuseRequest {  

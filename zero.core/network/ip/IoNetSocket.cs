@@ -139,6 +139,13 @@ namespace zero.core.network.ip
             //              $"  IsBound {socket.IsBound}");
         }
 
+        public override async ValueTask BlockOnListenAsync<T, TContext>(IoNodeAddress listeningAddress, Func<IoSocket, T, ValueTask> acceptConnectionHandler, T context,
+            Func<TContext, ValueTask> bootFunc = null, TContext bootData = default)
+        {
+            await PruneDupCheckerAsync().FastPath();
+            await base.BlockOnListenAsync(listeningAddress, acceptConnectionHandler, context, bootFunc, bootData);
+        }
+
         private async ValueTask PruneDupCheckerAsync()
         {
             await ZeroAsync(static async @this =>

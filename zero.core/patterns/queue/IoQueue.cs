@@ -423,8 +423,7 @@ namespace zero.core.patterns.queue
                 
                     dq = _head;
                     _head = _head.Next;
-                    dq.Next = null;
-                    dq.Prev = null;
+
                     if (_head != null)
                         _head.Prev = null;
                     else
@@ -439,12 +438,10 @@ namespace zero.core.patterns.queue
                     if (!Zeroed)
                     {
 #if DEBUG
-                    Interlocked.Decrement(ref _insaneExclusive);
-                    //Debug.Assert(_syncRoot.ReadyCount == 0, $"INVALID {nameof(_syncRoot.ReadyCount)} = {_syncRoot.ReadyCount}");
-                    Debug.Assert(_syncRoot.ReadyCount == 0);
+                        Interlocked.Decrement(ref _insaneExclusive);
+                        //Debug.Assert(_syncRoot.ReadyCount == 0, $"INVALID {nameof(_syncRoot.ReadyCount)} = {_syncRoot.ReadyCount}");
+                        Debug.Assert(_syncRoot.ReadyCount == 0);
 #endif
-                        _syncRoot.Release(Environment.TickCount, true);
-
                         try
                         {
                             //DQ cost being load balanced
@@ -453,6 +450,7 @@ namespace zero.core.patterns.queue
                                 retVal = dq.Value;
                                 _nodeHeap.Return(dq);
                             }
+                            _syncRoot.Release(Environment.TickCount, true);
 
                             _backPressure?.Release(Environment.TickCount, true);
                         }
@@ -526,12 +524,12 @@ namespace zero.core.patterns.queue
                     else
                     {
                         Debug.Assert(node == _tail);
-                        _tail = node.Prev;
+                        _tail = _tail.Prev;
 
-                        if(_tail != null)
+                        if (_tail != null)
                             _tail.Next = null;
                         else
-                            _tail = null;
+                            _head = null;
                     }
                 }
                 else
@@ -556,8 +554,8 @@ namespace zero.core.patterns.queue
 #if DEBUG
                 Interlocked.Decrement(ref _insaneExclusive);
 #endif
-                _syncRoot.Release(Environment.TickCount, true);//FALSE
                 _nodeHeap.Return(node, deDup);//TODO, up one?
+                _syncRoot.Release(Environment.TickCount, true);//FALSE
             }
         }
 

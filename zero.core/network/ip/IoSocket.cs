@@ -202,7 +202,7 @@ namespace zero.core.network.ip
 
             Close();
 #if DEBUG
-            _logger.Trace($"reason = {ZeroReason}, {Description}");
+            _logger.Trace($"Closed ({ZeroReason})");
 #endif
         }
 

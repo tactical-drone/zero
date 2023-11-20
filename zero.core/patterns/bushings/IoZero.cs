@@ -264,24 +264,31 @@ namespace zero.core.patterns.bushings
         /// </summary>
         public override async ValueTask ZeroManagedAsync()
         {
-            await base.ZeroManagedAsync().FastPath();
-
-            if(Source != null) //TODO: how can this be?
-                await Source.DisposeAsync(this, $"teardown; {ZeroReason}, {Description}").FastPath();
-
-            _queue?.ZeroSem();
-
-            if (JobHeap != null)
+            try
             {
-                await JobHeap.ZeroManagedAsync(static async (sink, @this) =>
+                await base.ZeroManagedAsync().FastPath();
+
+                if(Source != null) //TODO: how can this be?
+                    await Source.DisposeAsync(this, $"cascade; {ZeroReason}").FastPath();
+
+                _queue?.ZeroSem();
+
+                if (JobHeap != null)
                 {
-                    await sink.DisposeAsync(@this, $"teardown; {@this.Description}").FastPath();
-                }, this).FastPath();
-            }
+                    await JobHeap.ZeroManagedAsync(static async (sink, @this) =>
+                    {
+                        await sink.DisposeAsync(@this, $"cascade; {@this.ZeroReason}").FastPath();
+                    }, this).FastPath();
+                }
             
-            if (_previousJobFragment != null)
+                if (_previousJobFragment != null)
+                {
+                    await _previousJobFragment.ZeroManagedAsync(static (sink, @this) => sink.Value.DisposeAsync(@this, $"teardown; {@this.Description}").FastPath(), this, zero: true).FastPath();
+                }
+            }
+            catch (Exception e)
             {
-                await _previousJobFragment.ZeroManagedAsync(static (sink, @this) => sink.Value.DisposeAsync(@this, $"teardown; {@this.Description}").FastPath(), this, zero: true).FastPath();
+                _logger.Error(e, $"IoZero::ZeroManagedAsync: {Description}");
             }
 
 #if DEBUG
