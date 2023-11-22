@@ -732,10 +732,11 @@ namespace zero.cocoon.autopeer
                 
                 var ioTimer = new IoTimer(TimeSpan.FromMilliseconds(@this.CcCollective.parm_mean_pat_delay_s / 40.0), @this.AsyncTasks.Token);
 
+                var ts = Environment.TickCount;
+
                 while (!@this.Zeroed())
                 {
-                    var ts = Environment.TickCount;
-                    var d = await ioTimer.TickAsync().FastPath();
+                    _ = await ioTimer.TickAsync().FastPath();
 
                     if (@this.Zeroed())
                         break;
@@ -744,6 +745,8 @@ namespace zero.cocoon.autopeer
 
                     if (ts.ElapsedMs() < targetDelay)
                         continue;
+
+                    
 #if TRACE
                     @this._logger.Trace($"Robo - {TimeSpan.FromMilliseconds(d)}, {@this.Description}");
 #endif
@@ -777,6 +780,10 @@ namespace zero.cocoon.autopeer
                     catch (Exception e) when (!@this.Zeroed())
                     {
                         @this._logger.Fatal(e, $"{@this.Description}: Watchdog returned with errors!");
+                    }
+                    finally
+                    {
+                        ts = Environment.TickCount;
                     }
                 }
             }
@@ -2056,7 +2063,7 @@ namespace zero.cocoon.autopeer
                         n != this &&
                         //((CcAdjunct)n).LivenessTest &&
                         ((CcAdjunct)n).Assimilating)
-                .OrderBy(n => ((CcAdjunct)n).UpTime.ElapsedUtcMs())
+                .OrderByDescending(n => ((CcAdjunct)n)._probed)
                 .ThenByDescending(n => ((CcAdjunct)n).IsDroneConnected ? 0 : 1)
                 .ThenByDescending(n => ((CcAdjunct)n)._openSlots).ToList();
 
