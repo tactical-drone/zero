@@ -71,18 +71,18 @@ namespace zero.cocoon.identity
             };
         }
 
-        private static SecureRandom SecureRandom;
-        private ECDiffieHellman _alice;
+        private static SecureRandom _secureRandom;
+        private readonly ECDiffieHellman _alice;
 
         public static CcDesignation Generate(bool devMode = false)
         {
             var skBuf = Encoding.ASCII.GetBytes(DevKey);
             var pkBuf = new byte[Ed25519.PublicKeySize];
             
-            SecureRandom ??= SecureRandom.GetInstance("SHA512PRNG", true);
+            _secureRandom ??= SecureRandom.GetInstance("SHA512PRNG", true);
 
             if (!devMode)
-                Ed25519.GeneratePrivateKey(SecureRandom, skBuf);
+                Ed25519.GeneratePrivateKey(_secureRandom, skBuf);
             
             Ed25519.GeneratePublicKey(skBuf, 0, pkBuf, 0);
 
@@ -206,12 +206,9 @@ namespace zero.cocoon.identity
             if (hash == null || _ssf == null)
                 return Sabot(round);
 
-            if (hash.Length != _ssf.Length)
-                hash = (byte[])_ssf.Clone();
-            else
-                _ssf.CopyTo(hash, 0);
+            _ssf[..hash.Length].CopyTo(hash, 0);
 
-            return sabot.Sabot.ComputeHash(round, output: hash, hashLength: _ssf.Length - sabot.Sabot.BlockLength, raw:true);
+            return sabot.Sabot.ComputeHash(round, output: hash, raw:true);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]

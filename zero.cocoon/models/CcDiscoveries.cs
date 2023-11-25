@@ -306,6 +306,8 @@ namespace zero.cocoon.models
 
                     var messageType = Enum.GetName(typeof(MessageTypes), packet.Type);
 #if TRACE
+
+
                     _logger.Trace($"<\\= {messageType ?? "Unknown"} [{RemoteEndPoint.GetEndpoint()} ~> {MessageService.IoNetSocket.LocalNodeAddress}], ({CcCollective.CcId.IdString()})<<[{(verified ? "signed" : "un-signed")}]{packet.Data.Memory.PayloadSig()}: <{MessageService.Description}> id = {Id}, r = {BytesRead}");
 #endif
 

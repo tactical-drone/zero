@@ -1702,7 +1702,15 @@ namespace zero.cocoon.autopeer
                     if (Designation.Primed)
                     {
                         //packet.Sabot = UnsafeByteOperations.UnsafeWrap(Designation.Sabot(packet.Data.Span, packet.Sabot?.Memory.AsArray()));
-                        Designation.Sabot(packet.Data.Span, packet.Sabot?.Memory.AsArray());
+                        Designation.Sabot(packet.Data.Span, packet.Sabot.Memory.AsArray());
+                    }
+                    else
+                    {
+                        //sabot
+                        if (packet.Sabot == null || packet.Sabot.Length == 0)
+                            packet.Sabot = UnsafeByteOperations.UnsafeWrap(CcDesignation.HashRe(data, 0, data.Length));
+                        else
+                            CcDesignation.HashRe(data, 0, data.Length, packet.Sabot.Memory.AsArray());
                     }
                     
                     //ed25519
@@ -1710,12 +1718,6 @@ namespace zero.cocoon.autopeer
                         packet.Signature = UnsafeByteOperations.UnsafeWrap(CcCollective.CcId.Sign(data, 0, data.Length));
                     else
                         CcCollective.CcId.Sign(data, packet.Signature.Memory.AsArray(), 0, packet.Signature.Length);
-
-                    //sabot
-                    if (packet.Sabot == null || packet.Sabot.Length == 0)
-                        packet.Sabot = UnsafeByteOperations.UnsafeWrap(CcDesignation.HashRe(data, 0, data.Length));
-                    else
-                        CcDesignation.HashRe(data, 0, data.Length, packet.Sabot.Memory.AsArray());
 
                     Tuple<byte[],byte[]> buf = null;
                     try
@@ -2443,9 +2445,10 @@ namespace zero.cocoon.autopeer
 
                     if(CcCollective.ZeroDrone)
                         _logger.Warn($"Verified with queen `{remoteEp}'");
+
+                    Designation.EnsureSabot(response.Nsec.Memory.AsArray());
                 }
 
-                Designation.EnsureSabot(response.Nsec.Memory.AsArray());
                 Session ??= response.Session.GetEndpoint();
                 Dmz ??= response.Src.GetEndpoint();
 
