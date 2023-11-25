@@ -22,6 +22,7 @@ namespace zero.cocoon.identity
         {
             _dh = ECDiffieHellman.Create();
             PrimedSabot = _dh.ExportSubjectPublicKeyInfo();
+            _alice = ECDiffieHellman.Create();
         }
 
         [ThreadStatic]
@@ -71,6 +72,8 @@ namespace zero.cocoon.identity
         }
 
         private static SecureRandom SecureRandom;
+        private ECDiffieHellman _alice;
+
         public static CcDesignation Generate(bool devMode = false)
         {
             var skBuf = Encoding.ASCII.GetBytes(DevKey);
@@ -91,26 +94,26 @@ namespace zero.cocoon.identity
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static byte[] HashRe(byte[] buffer, int offset, int len)
+        public static ReadOnlyMemory<byte> HashRe(ReadOnlyMemory<byte> buffer, int offset, int len, byte[] output = null)
         {
-            return sabot.Sabot.ComputeHash(buffer, offset, len, raw:true);
+            return sabot.Sabot.ComputeHash(buffer.Span, offset, len, output, raw:true);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static byte[] Hash(byte[] buffer, int offset, int len)
+        public static ReadOnlyMemory<byte> Hash(byte[] buffer, int offset, int len)
         {
             return sabot.Sabot.ComputeHash(buffer, offset, len);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static byte[] Hash(ReadOnlyMemory<byte> buffer, int offset, int len)
+        public static ReadOnlyMemory<byte> Hash(ReadOnlyMemory<byte> buffer, int offset, int len)
         {
             return sabot.Sabot.ComputeHash(buffer.Span, offset, len);
         }
 
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static byte[] Hash(byte[] array, int offset, int len, byte[] hash)
+        public static ReadOnlyMemory<byte> Hash(byte[] array, int offset, int len, byte[] hash)
         {
             return sabot.Sabot.ComputeHash(array, offset, len, hash, hash.Length - sabot.Sabot.BlockLength);
         }
@@ -129,6 +132,12 @@ namespace zero.cocoon.identity
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static bool Signed(byte[] array, byte[] dest, int keySize)
+        {
+            return array[..keySize].ArrayEqual(dest);
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static bool Signed(byte[] array, ReadOnlyMemory<byte> dest, int keySize)
         {
             return array[..keySize].ArrayEqual(dest);
         }
@@ -177,24 +186,22 @@ namespace zero.cocoon.identity
             //if (len != _dh.KeySize >> 3)
             //    throw new ArgumentException($"{nameof(EnsureSabot)}: Invalid key size: got {len}, wanted {_dh.KeySize >> 3}");
 
-            var alice = ECDiffieHellman.Create();
-            alice.ImportSubjectPublicKeyInfo(msg[offset..len], out var read);
+            _alice.ImportSubjectPublicKeyInfo(msg[offset..len], out var read);
             if (read > 0)
             {
                 //var key = ECDiffieHellmanCngPublicKey.FromByteArray(msg[offset..len], CngKeyBlobFormat.EccPublicBlob);
-                var frequency = _dh.DeriveKeyFromHash(alice.PublicKey, HashAlgorithmName.SHA512);
-
+                var frequency = _dh.DeriveKeyFromHash(_alice.PublicKey, HashAlgorithmName.SHA512);
                 Interlocked.Exchange(ref _ssf, new byte[frequency.Length + sabot.Sabot.BlockLength]);
                 frequency.CopyTo(_ssf.AsSpan());
             }
         }
 
 
-        public byte[] Sabot(byte[] round) => sabot.Sabot.ComputeHash(round, output: (byte[])_ssf.Clone(), hashLength: _ssf.Length - sabot.Sabot.BlockLength);
+        public ReadOnlyMemory<byte> Sabot(byte[] round) => sabot.Sabot.ComputeHash(round, output: (byte[])_ssf.Clone(), hashLength: _ssf.Length - sabot.Sabot.BlockLength);
 
-        public byte[] Sabot(ReadOnlySpan<byte> round) => sabot.Sabot.ComputeHash(round, output: (byte[])_ssf.Clone(), hashLength: _ssf.Length - sabot.Sabot.BlockLength);
+        public ReadOnlyMemory<byte> Sabot(ReadOnlySpan<byte> round) => sabot.Sabot.ComputeHash(round, output: (byte[])_ssf.Clone(), hashLength: _ssf.Length - sabot.Sabot.BlockLength);
 
-        public byte[] Sabot(ReadOnlySpan<byte> round, byte[] hash)
+        public ReadOnlyMemory<byte> Sabot(ReadOnlySpan<byte> round, byte[] hash)
         {
             if (hash == null || _ssf == null)
                 return Sabot(round);
@@ -204,7 +211,7 @@ namespace zero.cocoon.identity
             else
                 _ssf.CopyTo(hash, 0);
 
-            return sabot.Sabot.ComputeHash(round, output: hash, hashLength: _ssf.Length - sabot.Sabot.BlockLength, raw:false);
+            return sabot.Sabot.ComputeHash(round, output: hash, hashLength: _ssf.Length - sabot.Sabot.BlockLength, raw:true);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]

@@ -1700,7 +1700,10 @@ namespace zero.cocoon.autopeer
                     packet.Data = UnsafeByteOperations.UnsafeWrap(data);
                     packet.Type = (int)type;
                     if (Designation.Primed)
-                        packet.Sabot = UnsafeByteOperations.UnsafeWrap(Designation.Sabot(packet.Data.Span, packet.Sabot?.Memory.AsArray()));
+                    {
+                        //packet.Sabot = UnsafeByteOperations.UnsafeWrap(Designation.Sabot(packet.Data.Span, packet.Sabot?.Memory.AsArray()));
+                        Designation.Sabot(packet.Data.Span, packet.Sabot?.Memory.AsArray());
+                    }
                     
                     //ed25519
                     if(packet.Signature == null || packet.Signature.Length == 0)
@@ -1710,9 +1713,9 @@ namespace zero.cocoon.autopeer
 
                     //sabot
                     if (packet.Sabot == null || packet.Sabot.Length == 0)
-                        packet.Sabot = UnsafeByteOperations.UnsafeWrap(CcDesignation.HashRe(data, 0, data.Length ));
+                        packet.Sabot = UnsafeByteOperations.UnsafeWrap(CcDesignation.HashRe(data, 0, data.Length));
                     else
-                        CcDesignation.Hash(data, 0, data.Length, packet.Sabot.Memory.AsArray());
+                        CcDesignation.HashRe(data, 0, data.Length, packet.Sabot.Memory.AsArray());
 
                     Tuple<byte[],byte[]> buf = null;
                     try

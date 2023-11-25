@@ -97,8 +97,8 @@ namespace zero.cocoon
                 PublicKey = UnsafeByteOperations.UnsafeWrap(new ReadOnlyMemory<byte>(CcId.PublicKey)),
                 Data = futileRequest.ToByteString(),
             };
-            protocolMsg.Signature = UnsafeByteOperations.UnsafeWrap(new ReadOnlyMemory<byte>(CcId.Sign(protocolMsg.Data.Memory.ToArray(), 0, protocolMsg.Data.Length)));
-            protocolMsg.Sabot = UnsafeByteOperations.UnsafeWrap(new ReadOnlyMemory<byte>(CcDesignation.Hash(protocolMsg.Data.Memory, 0, protocolMsg.Data.Length)));
+            protocolMsg.Signature = UnsafeByteOperations.UnsafeWrap(CcId.Sign(protocolMsg.Data.Memory.ToArray(), 0, protocolMsg.Data.Length));
+            protocolMsg.Sabot = UnsafeByteOperations.UnsafeWrap(CcDesignation.HashRe(protocolMsg.Data.Memory, 0, protocolMsg.Data.Length));
 
             _futileRequestSize = protocolMsg.CalculateSize();
 
@@ -118,7 +118,7 @@ namespace zero.cocoon
             };
 
             protocolMsg.Signature = UnsafeByteOperations.UnsafeWrap(new ReadOnlyMemory<byte>(CcId.Sign(protocolMsg.Data.Memory.AsArray(), 0, protocolMsg.Data.Length)));
-            protocolMsg.Sabot = UnsafeByteOperations.UnsafeWrap(CcDesignation.Hash(protocolMsg.Data.Memory, 0, protocolMsg.Data.Length));
+            protocolMsg.Sabot = UnsafeByteOperations.UnsafeWrap(CcDesignation.HashRe(protocolMsg.Data.Memory, 0, protocolMsg.Data.Length));
 
             _futileResponseSize = protocolMsg.CalculateSize();
 
@@ -682,7 +682,8 @@ namespace zero.cocoon
 
             //TODO: tuning
             responsePacket.Signature = UnsafeByteOperations.UnsafeWrap(new ReadOnlyMemory<byte>(CcId.Sign(responsePacket.Data.Memory.AsArray(), 0, responsePacket.Data.Length)));
-            responsePacket.Sabot = UnsafeByteOperations.UnsafeWrap(new ReadOnlyMemory<byte>(CcDesignation.Hash(responsePacket.Data.Memory, 0, responsePacket.Data.Length)));
+            responsePacket.Sabot = UnsafeByteOperations.UnsafeWrap(CcDesignation.HashRe(responsePacket.Data.Memory, 0, responsePacket.Data.Length));
+
 
             var protocolRaw = responsePacket.ToByteArray();
 
