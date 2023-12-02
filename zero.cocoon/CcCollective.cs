@@ -17,6 +17,7 @@ using NLog;
 using Org.BouncyCastle.Bcpg;
 using Org.BouncyCastle.Crypto.Paddings;
 using sabot;
+using StackExchange.Redis;
 using zero.cocoon.autopeer;
 using zero.cocoon.events.services;
 using zero.cocoon.identity;
@@ -940,13 +941,13 @@ namespace zero.cocoon
                     }
                 }
                 //-----------------------------------------------------//
-                else if (ioNetSocket.IsEgress) //Outbound
+                else if (ioNetSocket.IsEgress && drone.Adjunct.Session != null) //Outbound
                 {
                     var ccFutileRequest = new CcFutileRequest
                     {
                         Protocol = parm_version,
                         Timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
-                        Session = UnsafeByteOperations.UnsafeWrap(drone.Adjunct.Session.AsBytes() ?? Array.Empty<byte>()) //TODO:Session
+                        Session = UnsafeByteOperations.UnsafeWrap(drone.Adjunct.Session.AsBytes()) //TODO:Session
                     };
                     
                     var futileRequestBuf = ccFutileRequest.ToByteString();

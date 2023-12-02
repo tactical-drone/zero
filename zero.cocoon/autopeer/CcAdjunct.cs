@@ -1,8 +1,10 @@
 ﻿//#define LOSS
 using System;
 using System.Buffers;
+using System.Collections;
 using System.Collections.Concurrent;
 using System.Diagnostics;
+using System.IO;
 using System.IO.Enumeration;
 using System.Linq;
 using System.Net;
@@ -19,7 +21,9 @@ using Google.Protobuf.WellKnownTypes;
 using K4os.Compression.LZ4;
 using MathNet.Numerics.Random;
 using NLog;
+using Org.BouncyCastle.Crypto.Paddings;
 using Org.BouncyCastle.Tls;
+using StackExchange.Redis;
 using zero.cocoon.events.services;
 using zero.cocoon.identity;
 using zero.cocoon.models;
@@ -1236,8 +1240,67 @@ namespace zero.cocoon.autopeer
             return proxy;
         }
 
+        private static readonly PaddingMode _paddingMode = PaddingMode.PKCS7;
+        static byte[] AesEncryptToBytes(ReadOnlySpan<byte> buffer, byte[] key, byte[] iv)
+        {
+            // Check arguments
+            if (buffer.Length <= 0)
+                throw new ArgumentNullException(nameof(buffer));
+            if (key is not { Length: > 0 })
+                throw new ArgumentNullException(nameof(key));
+            if (iv is not { Length: > 0 })
+                throw new ArgumentNullException(nameof(iv));
+
+            using var aesAlg = Aes.Create();
+            aesAlg.Key = key;
+            aesAlg.IV = iv;
+
+            _encryptor ??= aesAlg.CreateEncryptor(aesAlg.Key, aesAlg.IV);
+            aesAlg.Padding = _paddingMode;
+
+            using var msEncrypt = new MemoryStream();
+            using var csEncrypt = new CryptoStream(msEncrypt, _encryptor, CryptoStreamMode.Write);
+            using var swEncrypt = new BinaryWriter(csEncrypt);
+            
+            msEncrypt.Flush();
+
+            swEncrypt.Write(buffer);
+            
+            if (!csEncrypt.HasFlushedFinalBlock)
+                csEncrypt.FlushFinalBlock();
+
+            return msEncrypt.ToArray();
+        }
+
+        static Memory<byte> AesDecryptFromBytes(byte[] cipherText, byte[] key, byte[] iv)
+        {
+            
+            if (cipherText == null || cipherText.Length <= 0)
+                throw new ArgumentNullException(nameof(cipherText));
+            if (key == null || key.Length <= 0)
+                throw new ArgumentNullException(nameof(key));
+            if (iv == null || iv.Length <= 0)
+                throw new ArgumentNullException(nameof(iv));
+
+            using var aesAlg = Aes.Create();
+            aesAlg.Padding = _paddingMode;
+            aesAlg.Key = key;
+            aesAlg.IV = iv;
+
+            _decryptor ??= aesAlg.CreateDecryptor(aesAlg.Key, aesAlg.IV);
+
+            using var msDecrypt = new MemoryStream(cipherText);
+            using var csDecrypt = new CryptoStream(msDecrypt, _decryptor, CryptoStreamMode.Read);
+            using var srDecrypt = new BinaryReader(csDecrypt);
+            
+            if (!csDecrypt.HasFlushedFinalBlock)
+                csDecrypt.FlushFinalBlock();
+
+            return srDecrypt.ReadBytes(cipherText.Length);
+        }
+
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private static async ValueTask ProcessMessagesAsync(IoSink<CcProtocBatchJob<chroniton, CcDiscoveryBatch>> batchJob, CcAdjunct @this)
+        private async ValueTask ProcessMessagesAsync(IoSink<CcProtocBatchJob<chroniton, CcDiscoveryBatch>> batchJob, CcAdjunct @this)
         {
             //IoZeroScheduler.Zero.LoadAsyncContext(static async state =>
             //{
@@ -1265,6 +1328,30 @@ namespace zero.cocoon.autopeer
                             {
                                 try
                                 {
+                                    if (zero.Aes)
+                                    {
+                                        if (!currentRoute.Designation.Primed)
+                                        {
+                                            @this._logger.Warn($"Message encrypted... {@this.Description}");
+                                            @this.Designation.UnPrime();
+                                            return;
+                                        }
+
+                                        if (@this._iv == null)
+                                        {
+                                            @this._iv = new byte[16];
+
+                                            for (int i = 0; i < 16; i++)
+                                            {
+                                                @this._iv[i] = (byte)(currentRoute.Designation.PublicKey[i] ^
+                                                                      @this.Hub.Designation.PublicKey[i]);
+                                            }
+                                        }
+
+                                        
+                                        zero.Data = UnsafeByteOperations.UnsafeWrap(AesDecryptFromBytes(zero.Data.Memory.AsArray(), currentRoute.Designation.Ssf[..16], @this._iv));
+                                    }
+
                                     var srcEndPoint = batchItem.EndPoint.GetEndpoint();
                                     //switch ((CcDiscoveries.MessageTypes)MemoryMarshal.Read<int>(packet.Signature.Span))
                                     switch ((CcDiscoveries.MessageTypes)zero.Type)
@@ -1412,7 +1499,7 @@ namespace zero.cocoon.autopeer
                             try
                             {
                                 while (!@this.Zeroed())
-                                    await @this._protocolConduit.ConsumeAsync(ProcessMessagesAsync, @this).FastPath();
+                                    await @this._protocolConduit.ConsumeAsync(@this.ProcessMessagesAsync, @this).FastPath();
                             }
                             catch when (@this.Zeroed() || @this._protocolConduit?.UpstreamSource == null) { }
                             catch (Exception e) when (!@this.Zeroed() && @this._protocolConduit?.UpstreamSource != null)
@@ -1697,27 +1784,58 @@ namespace zero.cocoon.autopeer
                     if (packet == null)
                         throw new OutOfMemoryException($"{nameof(_chronitonHeap)}: {_chronitonHeap.Description}, {Description}");
 
-                    packet.Data = UnsafeByteOperations.UnsafeWrap(data);
+                    if (Designation.Primed && Probed)
+                    {
+                        //init stuff
+                        if (_iv == null)
+                        {
+                            _iv = new byte[16];
+                            for (var i = 0; i < 16; i++)
+                            {
+                                _iv[i] = (byte)(Designation.PublicKey[i] ^ Hub.Designation.PublicKey[i]);
+                            }
+                        }
+
+                        if (data.Length < 16)
+                        {
+                            var tmp = new byte[16];
+                            
+                            data.CopyTo(tmp, 0);
+                            data = tmp;
+                        }
+                            
+                        packet.Data = UnsafeByteOperations.UnsafeWrap(AesEncryptToBytes(data, this.Designation.Ssf[..16], _iv));
+                        packet.Aes = true;
+                    }
+                    else
+                    {
+                        packet.Data = UnsafeByteOperations.UnsafeWrap(data);
+                        packet.Aes = false;
+                    }
+                    
                     packet.Type = (int)type;
+
                     if (Designation.Primed)
                     {
-                        //packet.Sabot = UnsafeByteOperations.UnsafeWrap(Designation.Sabot(packet.Data.Span, packet.Sabot?.Memory.AsArray()));
-                        Designation.Sabot(packet.Data.Span, packet.Sabot.Memory.AsArray());
+                        if(packet.Sabot.Length == 0)
+                            packet.Sabot = UnsafeByteOperations.UnsafeWrap(Designation.Sabot(packet.Data.Span, packet.Sabot.Memory.AsArray()));
+                        else
+                            Designation.Sabot(packet.Data.Span, packet.Sabot.Memory.AsArray());
                     }
                     else
                     {
                         //sabot
                         if (packet.Sabot == null || packet.Sabot.Length == 0)
-                            packet.Sabot = UnsafeByteOperations.UnsafeWrap(CcDesignation.HashRe(data, 0, data.Length));
+                            packet.Sabot = UnsafeByteOperations.UnsafeWrap(CcDesignation.HashRe(packet.Data.Memory, 0, packet.Data.Length));
                         else
-                            CcDesignation.HashRe(data, 0, data.Length, packet.Sabot.Memory.AsArray());
+                            CcDesignation.HashRe(packet.Data.Memory, 0, packet.Data.Length, packet.Sabot.Memory.AsArray());
                     }
                     
                     //ed25519
                     if(packet.Signature == null || packet.Signature.Length == 0)
-                        packet.Signature = UnsafeByteOperations.UnsafeWrap(CcCollective.CcId.Sign(data, 0, data.Length));
+                        packet.Signature = UnsafeByteOperations.UnsafeWrap(CcCollective.CcId.Sign(packet.Data.Memory.AsArray(), 0, packet.Data.Length));
                     else
-                        CcCollective.CcId.Sign(data, packet.Signature.Memory.AsArray(), 0, packet.Signature.Length);
+                        CcCollective.CcId.Sign(packet.Data.Memory.AsArray(), packet.Signature.Memory.AsArray(), 0, packet.Data.Length);
 
                     Tuple<byte[],byte[]> buf = null;
                     try
@@ -1737,7 +1855,6 @@ namespace zero.cocoon.autopeer
 
                         length = (ulong)LZ4Codec.Encode(buf.Item1,0, packetLen, buf.Item2, sizeof(ulong), buf.Item2.Length - sizeof(ulong));
                         MemoryMarshal.Write(buf.Item2, ref length);
-
 #if TRACE
                         _logger.Trace($"=//> {data.PayloadSig("M")} -> {buf.Item1[..(int)length].PayloadSig()} {type} -> {buf.Item2[..((int)length + sizeof(ulong))].PayloadSig("C")} {type} -> {dest.Url}");
                         //_logger.Trace($"==//> {buf.Item1[..(int)length].Print()}");
@@ -2139,6 +2256,10 @@ namespace zero.cocoon.autopeer
         }
 
         private volatile bool _eventStreamAdded;
+        private byte[] _iv;
+        private static ICryptoTransform _encryptor;
+        private static ICryptoTransform _decryptor;
+
         /// <summary>
         /// Probe message
         /// </summary>
@@ -2217,9 +2338,10 @@ namespace zero.cocoon.autopeer
 #if DEBUG
                             _logger.Trace($"{nameof(CcProbeResponse)}: Collecting Ingress {remoteEp} failed!, {Description}");
 #endif
+                            await BackOffAsync;
+                            await Router.ProbeAsync("SYN-REE", probeMessage.Src.GetEndpoint());
                         }
-
-                        if (!CcCollective.ZeroDrone && AutoPeeringEventService.Operational)
+                        else if (!CcCollective.ZeroDrone && AutoPeeringEventService.Operational)
                             AutoPeeringEventService.AddEvent(new AutoPeerEvent
                             {
                                 EventType = AutoPeerEventType.SendProtoMsg,
@@ -2285,7 +2407,7 @@ namespace zero.cocoon.autopeer
                 Interlocked.Exchange(ref _openSlots, probeMessage.Slots);
 #endif
 
-            if (_probed == 0)
+            //if (_probed < 4)
                 probeResponse.Nsec = UnsafeByteOperations.UnsafeWrap(Designation.PrimedSabot);
 
             probeResponse.Timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
@@ -2426,6 +2548,8 @@ namespace zero.cocoon.autopeer
 #if DEBUG
                             _logger.Trace($"{nameof(CcProbeResponse)}: Collecting Egress {response.Src.GetEndpoint()} failed!, src = {remoteEp}, id = {CcDesignation.FromPubKey(packet.PublicKey.Memory).IdString()}");
 #endif
+                            await BackOffAsync;
+                            await Router.ProbeAsync("SYN-RE", response.Src.GetEndpoint());
                         }
                     }
 
@@ -2445,9 +2569,10 @@ namespace zero.cocoon.autopeer
 
                     if(CcCollective.ZeroDrone)
                         _logger.Warn($"Verified with queen `{remoteEp}'");
-
-                    Designation.EnsureSabot(response.Nsec.Memory.AsArray());
                 }
+
+                if(!Designation.Primed && response.Nsec.Length > 0)
+                    Designation.EnsureSabot(response.Nsec.Memory.AsArray());
 
                 Session ??= response.Session.GetEndpoint();
                 Dmz ??= response.Src.GetEndpoint();

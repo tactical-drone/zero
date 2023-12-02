@@ -10,6 +10,7 @@ using System.Threading;
 using System.Xml.Serialization;
 using Google.Protobuf;
 using MathNet.Numerics;
+using Org.BouncyCastle.Crypto.Paddings;
 using Org.BouncyCastle.Math.EC.Rfc8032;
 using Org.BouncyCastle.Security;
 using zero.core.misc;
@@ -20,9 +21,14 @@ namespace zero.cocoon.identity
     {
         public CcDesignation()
         {
+            Reset();
+        }
+
+        public void Reset()
+        {
+            _ssf = null;
             _dh = ECDiffieHellman.Create();
             PrimedSabot = _dh.ExportSubjectPublicKeyInfo();
-            _alice = ECDiffieHellman.Create();
         }
 
         [ThreadStatic]
@@ -33,17 +39,18 @@ namespace zero.cocoon.identity
         public const int IdLength = 10;
 
         private string _id;
-        public byte[] PublicKey { get; set; }
-        private byte[] SecretKey { get; set; }
+        public byte[] PublicKey { get; private set; }
+        //private byte[] SecretKey { get; private set; }
+        private byte[] _secretKey;
 
         private const string DevKey = "2BgzYHaa9YpTW6QCe7qWb2JxXg8xAeZq";
 
-        private readonly ECDiffieHellman _dh;
+        private ECDiffieHellman _dh;
 
         private byte[] _ssf;
-
+        public byte[] Ssf => _ssf;
         public bool Primed => _ssf != null;
-        public byte[] PrimedSabot { get; }
+        public byte[] PrimedSabot { get; protected set; }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static string MakeKey(byte[] keyBytes)
@@ -72,7 +79,6 @@ namespace zero.cocoon.identity
         }
 
         private static SecureRandom _secureRandom;
-        private readonly ECDiffieHellman _alice;
 
         public static CcDesignation Generate(bool devMode = false)
         {
@@ -89,7 +95,7 @@ namespace zero.cocoon.identity
             return new CcDesignation
             {
                 PublicKey = pkBuf,
-                SecretKey = skBuf,
+                _secretKey = skBuf,
             };
         }
 
@@ -153,14 +159,14 @@ namespace zero.cocoon.identity
         public byte[] Sign(byte[] buffer, int offset, int len)
         {
             var sigBuf = ArrayPool<byte>.Shared.Rent(Ed25519.SignatureSize);
-            Ed25519.Sign(SecretKey, 0, buffer, offset, len, sigBuf, 0);
+            Ed25519.Sign(_secretKey, 0, buffer, offset, len, sigBuf, 0);
             return sigBuf;
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public byte[] Sign(byte[] buffer, byte[] sigBuf, int offset, int len)
         {
-            Ed25519.Sign(SecretKey, 0, buffer, offset, len, sigBuf, 0);
+            Ed25519.Sign(_secretKey, 0, buffer, offset, len, sigBuf, 0);
             return sigBuf;
         }
 
@@ -186,11 +192,12 @@ namespace zero.cocoon.identity
             //if (len != _dh.KeySize >> 3)
             //    throw new ArgumentException($"{nameof(EnsureSabot)}: Invalid key size: got {len}, wanted {_dh.KeySize >> 3}");
 
-            _alice.ImportSubjectPublicKeyInfo(msg[offset..len], out var read);
+            ECDiffieHellman alice = ECDiffieHellman.Create();
+            alice.ImportSubjectPublicKeyInfo(msg[offset..len], out var read);
             if (read > 0)
             {
                 //var key = ECDiffieHellmanCngPublicKey.FromByteArray(msg[offset..len], CngKeyBlobFormat.EccPublicBlob);
-                var frequency = _dh.DeriveKeyFromHash(_alice.PublicKey, HashAlgorithmName.SHA512);
+                var frequency = _dh.DeriveKeyFromHash(alice.PublicKey, HashAlgorithmName.SHA512);
                 Interlocked.Exchange(ref _ssf, new byte[frequency.Length + sabot.Sabot.BlockLength]);
                 frequency.CopyTo(_ssf.AsSpan());
             }
@@ -268,6 +275,12 @@ namespace zero.cocoon.identity
 
 
             return l > r;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public void UnPrime()
+        {
+            _ssf = null;
         }
     }
 }

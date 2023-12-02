@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
+using System.Security.Cryptography;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Threading.Tasks.Sources;
@@ -243,7 +244,7 @@ namespace zero.cocoon.models
                             try
                             {
                                 var unpackOffset = DatumProvisionLengthMax << 2;
-                                
+                                    
                                 var packetLen = LZ4Codec.Decode(Buffer, BufferOffset + sizeof(ulong), length, Buffer, unpackOffset, Buffer.Length - unpackOffset);
 
 #if TRACE
@@ -252,7 +253,7 @@ namespace zero.cocoon.models
 #endif
 
                                 Interlocked.Add(ref BufferOffset, read = length + sizeof(ulong));
-                                
+
 
                                 if (packetLen > 0)
                                     packet = chroniton.Parser.ParseFrom(Buffer, unpackOffset, packetLen);
