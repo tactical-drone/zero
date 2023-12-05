@@ -1323,12 +1323,20 @@ namespace zero.sync
             //var mutex = new IoZeroRefMut(asyncTasks.Token);
             IIoZeroSemaphoreBase<int> mutex = new IoZeroSemaphoreSlim(asyncTasks, "mutex TEST", maxBlockers: capacity, initialCount: 0, zeroAsyncMode: false);
 
+            //var releaseCount = 2;
+            //var waiters = 3;
+            //var releasers = 4;
+            //var disableRelease = false;
+            //var targetSleep = (long)0;
+            //var logSpam = 50000;//at least 1
+            //var totalReleases = int.MaxValue;
+
             var releaseCount = 2;
             var waiters = 3;
             var releasers = 4;
             var disableRelease = false;
             var targetSleep = (long)0;
-            var logSpam = 50000;//at least 1
+            var logSpam = 30000;//at least 1
             var totalReleases = int.MaxValue;
 
             var targetSleepMult = waiters > 1 ? 2 : 1;

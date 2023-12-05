@@ -615,7 +615,7 @@ namespace zero.core.patterns.bushings
                                 //cleanup
                                 await @this.ZeroJobAsync(curJob, curJob.FinalState is IoJobMeta.JobState.Reject).FastPath();
                                 //back pressure
-                                @this.Source.BackPressure(zeroAsync: true);
+                                @this.Source.BackPressure(zeroAsync: false);
                             }
                         }
                 }, (this, curJob, consume, context));

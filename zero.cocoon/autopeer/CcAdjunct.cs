@@ -1332,7 +1332,7 @@ namespace zero.cocoon.autopeer
                                     {
                                         if (!currentRoute.Designation.Primed)
                                         {
-                                            @this._logger.Warn($"Message encrypted... {@this.Description}");
+                                            @this._logger.Warn($"Message encrypted... [{zero.Sabot.Memory.HashSig()}] {@this.Description}");
                                             @this.Designation.UnPrime();
                                             return;
                                         }
@@ -1818,7 +1818,7 @@ namespace zero.cocoon.autopeer
                     if (Designation.Primed)
                     {
                         if(packet.Sabot.Length == 0)
-                            packet.Sabot = UnsafeByteOperations.UnsafeWrap(Designation.Sabot(packet.Data.Span, packet.Sabot.Memory.AsArray()));
+                            packet.Sabot = UnsafeByteOperations.UnsafeWrap(Designation.Sabot(packet.Data.Span));
                         else
                             Designation.Sabot(packet.Data.Span, packet.Sabot.Memory.AsArray());
                     }

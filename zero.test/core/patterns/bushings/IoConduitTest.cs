@@ -136,7 +136,7 @@ namespace zero.test.core.patterns.bushings
             }
             await z1.WaitAsync(TimeSpan.FromMilliseconds(targetTime));
 
-            var fpses = c1.EventCount / (double)ts.ElapsedMsToSec()/ 1000;
+            var fpses = c1.EventCount / (double)ts.ElapsedMs();
 
 #if DEBUG
             Assert.InRange(fpses, 0, int.MaxValue);

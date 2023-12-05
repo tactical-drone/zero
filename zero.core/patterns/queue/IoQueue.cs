@@ -310,7 +310,7 @@ namespace zero.core.patterns.queue
                     }
                     finally
                     {
-                        _pressure?.Release(Environment.TickCount, true);
+                        _pressure?.Release(Environment.TickCount, false);
                     }
                 }
             }
@@ -379,7 +379,7 @@ namespace zero.core.patterns.queue
 #endif
                     _syncRoot.Release(Environment.TickCount, true);
 
-                    _pressure?.Release(Environment.TickCount, true);
+                    _pressure?.Release(Environment.TickCount, false);
                 }
             }
         }

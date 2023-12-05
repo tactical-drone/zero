@@ -1,4 +1,6 @@
-﻿using System;
+﻿//#define SUPER_SYNC
+//#define SYNC
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -43,6 +45,10 @@ namespace zero.core.patterns.queue
 
             _autoScale = autoScale;
             _blockingCollection = asyncTasks != null;
+
+#if DEBUG
+            _fastStorageTime = new int[65535];
+#endif
 
             //if scaling is enabled
             if (autoScale)
@@ -97,6 +103,9 @@ namespace zero.core.patterns.queue
 
         private readonly T[][]   _storage;
         private readonly T[]     _fastStorage;
+#if DEBUG
+        private readonly int[] _fastStorageTime;
+#endif
         private readonly int[][] _bloom;
         private readonly int[]   _fastBloom;
 
@@ -128,7 +137,10 @@ namespace zero.core.patterns.queue
         private int _primedForScale;
         private int _timeSinceLastScale = Environment.TickCount;
         private int _count;
-        
+        private long _lastInsertIndex = -1;
+        private long _lastRemoveIndex = -1;
+        private int _opCounter;
+
         #endregion
 
         private const int _zero = 0;
@@ -170,6 +182,10 @@ namespace zero.core.patterns.queue
         /// </summary>
         /// <param name="idx">index</param>
         /// <returns>Object stored at index</returns>
+
+#if DEBUG
+        private const int _CASerror = 32;
+#endif
         public T this[long idx]
         {
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -244,75 +260,117 @@ namespace zero.core.patterns.queue
         /// <summary>
         /// Wraps Interlocked.CompareExchange that copes with horizontal scaling
         /// </summary>
-        /// <param name="index">index to work with</param>
         /// <param name="value">The new value</param>
+        /// <param name="index">index to work with</param>
         /// <returns>False on race, true otherwise</returns>
 #if !DEBUG
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
 #endif
-        private (bool success,T value, long index) AtomicAdd(T value)
+        private (bool success, long index) AtomicAdd(T value)
         {
 #if DEBUG
             var ts = Environment.TickCount;
 #endif
             try
             {
-                var latch = Tail;
-                var modIdx = latch % Capacity;
+                var state = -1;
+                var latch = 0L;
+                var modIdx = (latch = Tail) % Capacity;
 
                 if (!IsAutoScaling)
                 {
-                    //TODO: CAS contraptions are super fast!
                     ref var fastBloomPtr = ref _fastBloom[modIdx];
-                    if (Tail != latch || fastBloomPtr != _zero ||
-                        Interlocked.CompareExchange(ref fastBloomPtr, _one, _zero) != _zero)
-                        return (false, default, -1);
 
-                    if
-                        (Tail != latch) //Covers choking throughput (possibly OS preempting threads and resurrecting them MUCH later than "sibling" threads) causing wrap around issues. CAS passes but at distant past tail and needs to be undone...
+                    retry:
+                    if (fastBloomPtr != _one && (Tail != latch || (state = Interlocked.CompareExchange(ref fastBloomPtr, _reset, _zero)) != _zero))
                     {
-                        //TAIL is racing towards this _one... set it back to _zero and hope for the best. So far it checks out. 
-                        if (Interlocked.CompareExchange(ref fastBloomPtr, _zero, _one) != _one)
-                        {
-                            LogManager.GetCurrentClassLogger()
-                                .Fatal($"Unable to restore lock at {latch} - {Description}");
-                        }
-
-                        return (false, default, -1);
+                        if (Tail != latch || state != _reset)
+                            return (false, -1);
+                        
+                        goto retry;
                     }
 
-                    
+                    Interlocked.Increment(ref _count);
+
+                    //if (Tail - latch >= Capacity>>1) //Covers choking throughput (possibly OS preempting threads and resurrecting them MUCH later than "sibling" threads) causing wrap around issues. CAS passes but at distant past tail and needs to be undone...
+                    if (Tail != latch)
+                    {
+                        Interlocked.MemoryBarrierProcessWide();
+                        //TAIL is racing towards this _one... set it back to _zero and hope for the best. So far it checks out. 
+                        if (Interlocked.CompareExchange(ref fastBloomPtr, _zero, _reset) != _reset)
+                        {
+                            LogManager.GetCurrentClassLogger()
+                                .Fatal($"add-f: Unable to restore lock at {latch}, diff = {Tail - latch}, bloom = {fastBloomPtr}, state = {state} - {Description}");
+                        }
+                        else
+                            Interlocked.Decrement(ref _count);
+                        return (false, -1);
+                    }
+                    _lastInsertIndex = Interlocked.Increment(ref _tail) - 1;
+
+#if DEBUG
+                    _fastStorageTime[modIdx] = Interlocked.Increment(ref _opCounter) - 1;
+#endif
+
                     _fastStorage[modIdx] = value;
 
                     Interlocked.Exchange(ref fastBloomPtr, _set);
-                    Interlocked.Increment(ref _count);
-                    return (true, default, Interlocked.Increment(ref _tail) - 1);
+                    
+#if SUPER_SYNC
+                    Interlocked.MemoryBarrierProcessWide();
+
+
+#elif SYNC
+                    Thread.MemoryBarrier();
+#endif
+
+                    return (true, _lastInsertIndex);
                 }
 
                 var i = (int)(Math.Log10(modIdx + 1) / Math.Log10(2));
                 var i2 = modIdx - ((1 << i) - 1);
                 ref var bloomPtr = ref _bloom[i][i2];
-                if (Tail != latch || bloomPtr != _zero || Interlocked.CompareExchange(ref bloomPtr, _one, _zero) != _zero) 
-                    return (false, default, -1);
 
-                if (Tail != latch) 
+                retry2:
+                if (bloomPtr != _one && (Tail != latch || (state = Interlocked.CompareExchange(ref bloomPtr, _reset, _zero)) != _zero))
                 {
-                    if(Interlocked.CompareExchange(ref bloomPtr, _zero, _one) != _one)
-                        LogManager.GetCurrentClassLogger().Fatal($"Unable to restore lock at {latch} - {Description}");
-                    return (false, default, -1);
+                    if (Tail != latch || state != _reset)
+                        return (false, -1);
+
+                    goto retry2;
                 }
 
-                _storage[i][i2] = value;
-
-                Interlocked.Exchange(ref bloomPtr, _set);
                 Interlocked.Increment(ref _count);
-                Interlocked.Increment(ref _tail);
-                return (true, default, -1);
+
+                if (Tail != latch)
+                //if (Tail - latch > Capacity>>1) 
+                {
+                    Interlocked.MemoryBarrierProcessWide();
+                    if (Interlocked.CompareExchange(ref bloomPtr, _zero, _reset) != _reset)
+                        LogManager.GetCurrentClassLogger().Fatal($"add: Unable to restore lock at {latch}, bloom = {{fastBloomPtr}}  - {Description}");
+                    else
+                        Interlocked.Decrement(ref _count);
+                    return (false, -1);
+                }
+
+                _lastInsertIndex = Interlocked.Increment(ref _tail) - 1;
+
+                _storage[i][i2] = value;
+                Interlocked.Exchange(ref bloomPtr, _set);
+#if SUPER_SYNC
+                Interlocked.MemoryBarrierProcessWide();
+
+
+#elif SYNC
+                    Thread.MemoryBarrier();
+#endif
+
+                return (true, _lastInsertIndex);
             }
             finally
             {
 #if DEBUG
-                if (ts.ElapsedMs() > 128)
+                if (ts.ElapsedMs() > _CASerror)
                 {
                     LogManager.GetCurrentClassLogger().Fatal($"{nameof(AtomicAdd)}: CAS took => {ts.ElapsedMs()} ms");
                 }
@@ -335,67 +393,118 @@ namespace zero.core.patterns.queue
 #endif
             try
             {
+                var latchOp = _opCounter;
+                var state = -1;
+
                 var latch = Head;
                 var modIdx = latch % Capacity;
-
+                
                 if (!IsAutoScaling)
                 {
                     ref var fastBloomPtr = ref _fastBloom[modIdx];
-                    if (Head == latch && Interlocked.CompareExchange(ref fastBloomPtr, _reset, _set) == _set)
+
+                    retry:
+                    if (fastBloomPtr != _one && (Head != latch || (state = Interlocked.CompareExchange(ref fastBloomPtr, _reset, _set)) != _set))
                     {
-                        if (Head != latch)
+                        if (Head != latch || state != _reset)
                         {
-                            if (Interlocked.CompareExchange(ref fastBloomPtr, _set, _reset) != _reset)
-                                LogManager.GetCurrentClassLogger()
-                                    .Fatal($"R> Unable to restore lock at {latch} - {Description}");
                             value = default;
                             return false;
                         }
 
-                        value = _fastStorage[modIdx];
-                        _fastStorage[modIdx] = default;
-
-                        Interlocked.Exchange(ref fastBloomPtr, _zero);
-                        Interlocked.Decrement(ref _count);
-                        Interlocked.Increment(ref _head);
-                        return true;
+                        goto retry;
                     }
 
-                    value = default;
-                    return false;
+                    Interlocked.Decrement(ref _count);
+
+                    if (Head != latch)
+                    //if (Head % Capacity - latch > Capacity / 2)
+                    {
+                        Interlocked.MemoryBarrierProcessWide();
+                        if (Interlocked.CompareExchange(ref fastBloomPtr, _set, _reset) != _reset)
+                            LogManager.GetCurrentClassLogger().Fatal($"Rf> Unable to restore lock at {latch}, bloom = {fastBloomPtr}  - {Description}");
+                        else
+                            Interlocked.Increment(ref _count);
+                        value = default;
+                        return false;
+                    }
+
+                    _lastRemoveIndex = Interlocked.Increment(ref _head) - 1;
+
+                    value = _fastStorage[modIdx];
+                    _fastStorage[modIdx] = default;
+
+#if DEBUG
+                    _fastStorageTime[modIdx] = -(Interlocked.Increment(ref _opCounter) - 1);
+
+                    if (_opCounter - latchOp > 3)
+                    {
+                        Console.WriteLine($"-------> & zero skew ({_opCounter - latchOp}/{Capacity}) == ({(_opCounter - latchOp) / (float)Capacity * 100:0.0}%)");
+                    }
+#endif
+                    Interlocked.Exchange(ref fastBloomPtr, _zero);
+
+                    
+#if SUPER_SYNC
+                    Interlocked.MemoryBarrierProcessWide();
+
+
+#elif SYNC
+                    Thread.MemoryBarrier();
+#endif
+
+
+                    return true;
                 }
 
                 var i = (int)(Math.Log10(modIdx + 1) / Math.Log10(2));
                 var i2 = modIdx - ((1 << i) - 1);
                 ref var bloomPtr = ref _bloom[i][i2];
-                
-                if (Interlocked.CompareExchange(ref bloomPtr, _reset, _set) == _set)
+                retry2:
+                if (bloomPtr != _one && (Head != latch || (state = Interlocked.CompareExchange(ref bloomPtr, _reset, _set)) != _set))
                 {
-                    if (Head != latch)
+                    if (Head != latch || state != _reset)
                     {
-                        if (Interlocked.CompareExchange(ref bloomPtr, _set, _reset) != _reset)
-                            LogManager.GetCurrentClassLogger().Fatal($"R> Unable to restore lock at {latch} - {Description}");
                         value = default;
                         return false;
                     }
 
-                    Interlocked.MemoryBarrier();
-                    value = _storage[i][i2];
-                    _storage[i][i2] = default;
-
-                    Interlocked.Exchange(ref bloomPtr, _zero);
-                    Interlocked.Decrement(ref _count);
-                    Interlocked.Increment(ref _head);
-                    return true;
+                    goto retry2;
                 }
 
-                value = default;
-                return false;
+                Interlocked.Decrement(ref _count);
+
+                //if (Head != latch)
+                if (Head - latch > Capacity >> 1)
+                {
+                    Interlocked.MemoryBarrierProcessWide();
+                    if (Interlocked.CompareExchange(ref bloomPtr, _set, _reset) != _reset)
+                        LogManager.GetCurrentClassLogger().Fatal($"R> Unable to restore lock at {latch}, bloom = {bloomPtr}  - {Description}");
+                    else
+                        Interlocked.Increment(ref _count);
+
+                    value = default;
+                    return false;
+                }
+                Interlocked.Increment(ref _head);
+
+                value = _storage[i][i2];
+                _storage[i][i2] = default;
+                Interlocked.Exchange(ref bloomPtr, _zero);
+#if SUPER_SYNC
+                Interlocked.MemoryBarrierProcessWide();
+
+
+#elif SYNC
+                    Thread.MemoryBarrier();
+#endif
+
+                return true;
             }
             finally
             {
 #if DEBUG
-                if (ts.ElapsedMs() > 128)
+                if (ts.ElapsedMs() > _CASerror)
                 {
                     LogManager.GetCurrentClassLogger().Fatal($"{nameof(AtomicRemove)}: CAS took => {ts.ElapsedMs()} ms");
                 }
@@ -403,74 +512,44 @@ namespace zero.core.patterns.queue
             }
         }
 
+        private int _atomicCount;
 #if !DEBUG
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
 #endif
-        private bool AtomicDrop(long targetIndex)
+        private bool AtomicDrop(long index)
         {
-            var index = _head;
-            if (index != targetIndex)
-                return false;
 #if DEBUG
             var ts = Environment.TickCount;
 #endif
+            
             try
             {
-                
-                var modIdx = index % Capacity;
-
                 if (!IsAutoScaling)
                 {
-                    ref var fastBloomPtr = ref _fastBloom[modIdx];
-                    if (Head == index && Interlocked.CompareExchange(ref fastBloomPtr, _reset, _set) == _set)
-                    {
-                        if (Head != index)
-                        {
-                            if (Interlocked.CompareExchange(ref fastBloomPtr, _set, _reset) != _reset)
-                                LogManager.GetCurrentClassLogger()
-                                    .Fatal($"R> Unable to restore lock at {index} - {Description}");
-
-                            return false;
-                        }
-
-                        _fastStorage[modIdx] = default;
-                        Interlocked.Exchange(ref fastBloomPtr, _zero);
-                        Interlocked.Decrement(ref _count);
-                        Interlocked.Increment(ref _head);
-
-                        return true;
-                    }
-
-                    return false;
+                    Interlocked.Increment(ref _atomicCount);
+                    //if (Interlocked.Increment(ref _atomicCount) %10 == 0)
+                    //    Console.WriteLine(_atomicCount);
+                    return Interlocked.CompareExchange(ref _fastBloom[index % Capacity], _one, _set) == _set;
                 }
 
+                var modIdx = index % Capacity;
                 var i = (int)(Math.Log10(modIdx + 1) / Math.Log10(2));
                 var i2 = modIdx - ((1 << i) - 1);
-                ref var bloomPtr = ref _bloom[i][i2];
 
-                if (Interlocked.CompareExchange(ref bloomPtr, _reset, _set) == _set)
-                {
-                    if (Head != index)
-                    {
-                        if (Interlocked.CompareExchange(ref bloomPtr, _set, _reset) != _reset)
-                            LogManager.GetCurrentClassLogger().Fatal($"R> Unable to restore lock at {index} - {Description}");
-                        
-                        return false;
-                    }
-
-                    _storage[i][i2] = default;
-                    Interlocked.Exchange(ref bloomPtr, _zero);
-                    Interlocked.Decrement(ref _count);
-                    Interlocked.Increment(ref _head);
-                    return true;
-                }
-
-                return false;
+                Interlocked.Increment(ref _atomicCount);
+                return Interlocked.CompareExchange(ref _bloom[i][i2], _one, _set) == _set;
             }
             finally
             {
+#if SUPER_SYNC
+                Interlocked.MemoryBarrierProcessWide();
+
+
+#elif SYNC
+                    Thread.MemoryBarrier();
+#endif
 #if DEBUG
-                if (ts.ElapsedMs() > 128)
+                if (ts.ElapsedMs() > _CASerror)
                 {
                     LogManager.GetCurrentClassLogger().Fatal($"{nameof(AtomicRemove)}: CAS took => {ts.ElapsedMs()} ms");
                 }
@@ -493,7 +572,7 @@ namespace zero.core.patterns.queue
         {
             Debug.Assert(Zeroed || item != null);
 
-            if (Zeroed || _clearing > 0 || _count >= Capacity)
+            if (Zeroed || _clearing > 0 || _count >= Capacity && _autoScale == false)
                 return -1;
 
             //auto scale
@@ -537,7 +616,10 @@ namespace zero.core.patterns.queue
                         }
                     }
 
-                    return -1;
+                    if (IsAutoScaling)
+                        Scale();
+                    else
+                        return -1;
                 }
             }
 
@@ -567,9 +649,8 @@ namespace zero.core.patterns.queue
                 
                 SpinWait yield = new();
 
-                bool s;
-                long i;
-                while (Tail >= Head + (cap = Capacity) || _count >= cap || !((s,_,i) = AtomicAdd(item)).s)
+                long idx;
+                while (Tail >= Head + (cap = Capacity) || _count >= cap || !((_,idx) = AtomicAdd(item)).Item1)
                 {
                     if (_count == cap)
                     {
@@ -582,8 +663,7 @@ namespace zero.core.patterns.queue
                     if (Zeroed)
                         return -1;
 
-                    if (!yield.NextSpinWillYield)
-                        yield.SpinOnce();
+                    yield.SpinOnce();
 #if DEBUG
                     if(yield.Count % 1000 == 0)
                         Console.WriteLine($"Z-> {Description}");
@@ -620,7 +700,7 @@ namespace zero.core.patterns.queue
 
                 //_curEnumerator.IncIteratorCount(); //TODO: is this a good idea?
 
-                return i;
+                return idx;
             }
             catch when (Zeroed)
             {
@@ -649,7 +729,6 @@ namespace zero.core.patterns.queue
 #endif
         public bool TryDequeue([MaybeNullWhen(false)] out T slot)
         {
-            slot = default;
             try
             {
                 if (Count == 0)
@@ -659,7 +738,7 @@ namespace zero.core.patterns.queue
                 }
 
                 SpinWait yield = new();
-                while (Head >= Tail || !AtomicRemove(out slot)) 
+                while (Head >= Tail || !AtomicRemove(out slot))
                 {
                     if (Count == 0 || Zeroed)
                     {
@@ -669,7 +748,7 @@ namespace zero.core.patterns.queue
 
                     yield.SpinOnce();
                 }
-               
+
                 return true;
             }
             catch (Exception e)

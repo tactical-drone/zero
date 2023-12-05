@@ -85,7 +85,7 @@ namespace zero.core.patterns.semaphore.core
         /// <summary>
         /// Allows the core to be synchronized. Useful when splitting the results and blockers into different queues 
         /// </summary>
-        public int SyncRoot { readonly get => _syncRoot; set => Interlocked.Exchange(ref _syncRoot, value); }
+        public int SyncRoot { readonly get => _syncRoot; set => Volatile.Write(ref _syncRoot, value); }
 
         /// <summary>
         /// Is this core primed with a sentinel?
@@ -122,6 +122,7 @@ namespace zero.core.patterns.semaphore.core
 #if DEBUG
             _completeTime = 0;
             _burned = 0;
+            _burnTime = 0;
 #endif
             _capturedContext = _continuationState = null;
             _completed = false;
