@@ -1,6 +1,5 @@
 ﻿//#define TRACE
 using System;
-using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Threading;
@@ -44,7 +43,6 @@ namespace zero.core.patterns.semaphore.core
             _primeContext = null;
             _asyncTasks = asyncTasks;
             
-            _syncRoot = SyncReady;
             _curOps = 0;
             _totalOps = 0;
             _curOpsAnchor = 0;
@@ -102,11 +100,11 @@ namespace zero.core.patterns.semaphore.core
         private Func<object, T> _primeReady;
         private object _primeContext;
         private readonly string _description;
-        private int _syncRoot;
         private readonly int _capacity;
         private int _zeroed;
         private readonly int _ready;
         private readonly CancellationTokenSource _asyncTasks;
+
         #endregion
 
         #region Properties
@@ -132,37 +130,32 @@ namespace zero.core.patterns.semaphore.core
         /// </summary>
         /// <param name="value">The value to unblock with</param>
         /// <param name="forceAsync">To continue asynchronously</param>
-        /// <param name="sync">Weather this call needs synchronization</param>
+        /// <param name="blockingCore">optional core to use instead of dequeuing one</param>
         /// <returns>True on success</returns>
 #if !DEBUG
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
 #endif
-        private bool Unblock(T value, bool forceAsync, bool sync = false)
+        private bool Unblock(T value, bool forceAsync, IIoManualResetValueTaskSourceCore<T> blockingCore = null)
         {
-            var spinWait = new SpinWait();
-            var retry = false;
-            IIoManualResetValueTaskSourceCore<T> blockingCore;
-
             retry:
             //fetch a blocking core from the Q
-            while (!_blockingCores.TryDequeue(out blockingCore))
-            {
-                if (_blockingCores.Count == 0)
-                    return false;
+            if(blockingCore == null)
+                while (!_blockingCores.TryDequeue(out blockingCore))
+                {
+                    if (_blockingCores.Count == 0)
+                        return false;
 
-                if (Zeroed())
-                    return false;
+                    if (Zeroed())
+                        return false;
 
-                //spinWait.SpinOnce();
-            }
+                    Interlocked.MemoryBarrierProcessWide();
+                }
 
             //wait for the blocking core to synchronize
             while (blockingCore.SyncRoot == SyncWait)
             {
                 if (Zeroed())
                     return false;
-
-                spinWait.SpinOnce();
             }
 
             switch (blockingCore.SyncRoot)
@@ -172,7 +165,8 @@ namespace zero.core.patterns.semaphore.core
                     blockingCore.SetResult(value);
                     return true;
                 case SyncRace://discard the core (also from the heap)
-                    retry = true;
+                    blockingCore = null;
+                    Interlocked.MemoryBarrierProcessWide();
                     goto retry;
             }
 
@@ -191,10 +185,12 @@ namespace zero.core.patterns.semaphore.core
 #endif
         private bool SetResult(T value, bool forceAsync = false, bool prime = true)
         {
+            retry:
             //insane checks
             if (Zeroed() || _results.Count == Capacity || (!prime && _blockingCores.Count == 0))
                 return false;
 
+            var c = _blockingCores.Count;
             //unblock
             if (Unblock(value, forceAsync))
                 return true;
@@ -203,6 +199,9 @@ namespace zero.core.patterns.semaphore.core
             if (!prime)
                 return false;
 
+            if(c == 0 && _blockingCores.Count !=  c)
+                goto retry;
+
             bank:
             //queue result for future blocker
             var pos = _results.TryEnqueue(value);
@@ -210,24 +209,28 @@ namespace zero.core.patterns.semaphore.core
             //saturated
             if (pos < 0)
                 return false;
-            
-            ////synchronize
-            //if (!Lock())
-            //    return false;
 
             ////race
-            //if (_blockingCores.Count != 0 && pos == _results.Head)
-            //{
-            //    if (_results.Drop(pos))
-            //    {
-            //        if(!Unblock(value, forceAsync, true))
-            //            goto bank;
-            //        return true;
-            //    }
-            //}
+            if (c == 0 && pos == _results.Head && _blockingCores.TryDequeue(out var blockingCore))
+            {
+                if (_results.Drop(pos))
+                {
+                    if (!Unblock(value, forceAsync, blockingCore))
+                    {
+                        Interlocked.MemoryBarrierProcessWide();
+                        Console.WriteLine("x");
+                        _blockingCores.TryEnqueue(blockingCore);
+                        goto bank;
+                    }
+                    Interlocked.MemoryBarrierProcessWide();
+                    Console.WriteLine(".");
+                    
+                    return true;
+                }
 
-            //banked
-            //Unlock();
+                _blockingCores.TryEnqueue(blockingCore);
+            }
+
             return true;
         }
 
@@ -274,16 +277,14 @@ namespace zero.core.patterns.semaphore.core
                     Interlocked.Increment(ref @this._curOps);
 
                     if (@this._heapCore.TryEnqueue(blockingCore) < 0)
-                    {
-                        Console.WriteLine($"Core Heap Overflow");
-                    }
+                        Console.WriteLine($"Core Heap Overflow - {@this._heapCore.Description}");
+                    
                 }, (this, blockingCore));
             }
 
             //core waiting to sync
             blockingCore.SyncRoot = SyncWait;
 
-            var spinWait = new SpinWait();
             long pos;
 
             //Queue the core
@@ -294,8 +295,6 @@ namespace zero.core.patterns.semaphore.core
                     slowTaskCore = default;
                     return false;
                 }
-
-                spinWait.SpinOnce();
             }
 
             //race
@@ -304,8 +303,6 @@ namespace zero.core.patterns.semaphore.core
                 if (blockingCore.SyncRoot == SyncWait && _results.TryDequeue(out var racedResult))
                 {
                     slowTaskCore = new ValueTask<T>(racedResult);
-
-                    Debug.Assert(blockingCore.SyncRoot == SyncWait);
 
                     _blockingCores.Drop(pos);
 

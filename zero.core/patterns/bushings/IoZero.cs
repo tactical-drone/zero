@@ -68,11 +68,10 @@ namespace zero.core.patterns.bushings
             try
             {
                 //TODO tuning
+                IIoZeroSemaphoreBase<IoSink<TJob>> c = new IoZeroCore<IoSink<TJob>>(description, capacity + 1, AsyncTasks);
+                _queue = c.ZeroRef(ref c);
                 
-                _queue = new IoZeroSemaphoreChannel<IoSink<TJob>>($"zero Q: {_description}",capacity * 2, zeroAsyncMode:false);//FALSE
-                
-
-                JobHeap = new IoHeapIo<IoSink<TJob>>($"{nameof(JobHeap)}: {_description}", capacity * 2, jobMalloc) {
+                JobHeap = new IoHeapIo<IoSink<TJob>>($"{nameof(JobHeap)}: {_description}", capacity + 1, jobMalloc) {
                     Constructor = (sink, zero) =>
                     {
                         sink.IoZero = (IoZero<TJob>)zero;
@@ -106,7 +105,7 @@ namespace zero.core.patterns.bushings
         /// <summary>
         /// The job queue
         /// </summary>
-        private IoZeroSemaphoreChannel<IoSink<TJob>> _queue;
+        private IIoZeroSemaphoreBase<IoSink<TJob>> _queue;
 
         /// <summary>
         /// The heap where new consumable meta data is allocated from
@@ -365,7 +364,7 @@ namespace zero.core.patterns.bushings
                             if(!Zeroed())
                                 _logger.Warn($"Producer stalled.... {Description}");
 
-                            return Source.BackPressure(zeroAsync: true) > 0; //maybe we retry instead of crashing the producer
+                            return Source.BackPressure(zeroAsync: false) > 0; //maybe we retry instead of crashing the producer
                         }
 
                         //Pass control over to the consumer
@@ -615,7 +614,7 @@ namespace zero.core.patterns.bushings
                                 //cleanup
                                 await @this.ZeroJobAsync(curJob, curJob.FinalState is IoJobMeta.JobState.Reject).FastPath();
                                 //back pressure
-                                @this.Source.BackPressure(zeroAsync: false);
+                                @this.Source.BackPressure(zeroAsync: true);
                             }
                         }
                 }, (this, curJob, consume, context));

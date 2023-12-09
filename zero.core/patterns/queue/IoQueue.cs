@@ -213,10 +213,7 @@ namespace zero.core.patterns.queue
 #if !DEBUG
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
 #endif
-        public ValueTask<IoZNode> EnqueueAsync(T item)
-        {
-            return EnqueueAsync<object>(item);
-        }
+        public ValueTask<IoZNode> EnqueueAsync(T item) => EnqueueAsync<object>(item);
 
         /// <summary>
         /// Blocking enqueue at the back
@@ -239,6 +236,7 @@ namespace zero.core.patterns.queue
             }
             
             var node = _nodeHeap.Take();
+
             if(node == null)
                 throw new OutOfMemoryException($"{nameof(EnqueueAsync)}: {_nodeHeap}");
 
@@ -261,9 +259,8 @@ namespace zero.core.patterns.queue
                 }
                 else
                 {
-                    node.Prev = _tail;
                     _tail.Next = node;
-                    _tail = node;
+                    node.Prev = Interlocked.Exchange(ref _tail, node);
                 }
 
                 Interlocked.Increment(ref _count);
@@ -274,43 +271,32 @@ namespace zero.core.patterns.queue
             {
                 if (!Zeroed)
                 {
+                    //additional atomic actions
                     try
                     {
-                        //additional atomic actions
-                        try
+                        if (onAtomicAdd != null)
                         {
-                            if (onAtomicAdd != null)
-                            {
-                                var ts = Environment.TickCount;
-                                await onAtomicAdd.Invoke(context).FastPath();
-                                if (ts.ElapsedMs() > Qe)
-                                    LogManager.GetCurrentClassLogger().Warn($"q onAtomicAdd; t = {ts.ElapsedMs()}ms");
-                            }
+                            var ts = Environment.TickCount;
+                            await onAtomicAdd.Invoke(context).FastPath();
+                            if (ts.ElapsedMs() > Qe)
+                                LogManager.GetCurrentClassLogger().Warn($"q onAtomicAdd; t = {ts.ElapsedMs()}ms");
+                        }
 
-                        }
-                        catch when (Zeroed)
-                        {
-                        }
-                        catch (Exception e) when (!Zeroed)
-                        {
-                            LogManager.GetCurrentClassLogger().Error(e, $"{nameof(EnqueueAsync)}");
-                        }
-                        finally
-                        {
-#if DEBUG
-                            Interlocked.Decrement(ref _insaneExclusive);
-#endif
-                            _syncRoot.Release(Environment.TickCount, true);
-                        }
                     }
-                    catch when (Zeroed) { }
+                    catch when (Zeroed)
+                    {
+                    }
                     catch (Exception e) when (!Zeroed)
                     {
                         LogManager.GetCurrentClassLogger().Error(e, $"{nameof(EnqueueAsync)}");
                     }
                     finally
                     {
+#if DEBUG
+                        Interlocked.Decrement(ref _insaneExclusive);
+#endif
                         _pressure?.Release(Environment.TickCount, false);
+                        _syncRoot.Release(Environment.TickCount, _syncRoot.WaitCount >= _syncRoot.Capacity>>1);
                     }
                 }
             }
@@ -360,9 +346,8 @@ namespace zero.core.patterns.queue
                 }
                 else
                 {
-                    node.Next = _head;
                     _head.Prev = node;
-                    _head = node;
+                    node.Next = Interlocked.Exchange(ref _head, node);
                 }
 
                 Interlocked.Increment(ref _count);
@@ -377,9 +362,8 @@ namespace zero.core.patterns.queue
 #if DEBUG
                     Interlocked.Decrement(ref _insaneExclusive);
 #endif
-                    _syncRoot.Release(Environment.TickCount, true);
-
                     _pressure?.Release(Environment.TickCount, false);
+                    _syncRoot.Release(Environment.TickCount, _syncRoot.WaitCount >= _syncRoot.Capacity >> 1);
                 }
             }
         }
@@ -420,16 +404,14 @@ namespace zero.core.patterns.queue
 #endif
                     if (_count == 0)
                         return default;
-                
-                    dq = _head;
-                    _head = _head.Next;
+
+                    dq = Interlocked.Exchange(ref _head, _head.Next);
 
                     if (_head != null)
                         _head.Prev = null;
                     else
                         _tail = null;
 
-                    _curEnumerator.Modified = true;
                     Interlocked.Decrement(ref _count);
                     Interlocked.Increment(ref _operations);
                 }
@@ -444,15 +426,17 @@ namespace zero.core.patterns.queue
 #endif
                         try
                         {
+                            
+                            _backPressure?.Release(Environment.TickCount, true);
+
                             //DQ cost being load balanced
                             if (dq != null)
                             {
                                 retVal = dq.Value;
                                 _nodeHeap.Return(dq);
                             }
-                            _syncRoot.Release(Environment.TickCount, true);
 
-                            _backPressure?.Release(Environment.TickCount, true);
+                            _syncRoot.Release(Environment.TickCount, _syncRoot.WaitCount >= _syncRoot.Capacity >> 1);
                         }
                         catch when (_zeroed > 0)
                         {

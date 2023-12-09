@@ -110,8 +110,8 @@ namespace zero.test.core.patterns.bushings
             var count = 500000;
             var concurrencyLevel = 4;
 #else
-            var count = 1000000;
-            var concurrencyLevel = Environment.ProcessorCount * 2;
+            var count = 3000000;
+            var concurrencyLevel = Environment.ProcessorCount;
 #endif
             var s1 = new IoZeroSource("zero source 1", false, concurrencyLevel + concurrencyLevel/2, concurrencyLevel);
             var c1 = new IoConduit<IoZeroProduct>("conduit spam test", null, s1, static (ioZero, _) 

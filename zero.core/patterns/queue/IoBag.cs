@@ -179,16 +179,12 @@ namespace zero.core.patterns.queue
                 var next = _tail.ZeroNext(latch = Head + Capacity);
                 if (next < latch)
                 {
-                    var spinWait = new SpinWait();
-                    
                     ref var fastBloom = ref _bloom[next % Capacity];
 
                     while (fastBloom != 0)
                     {
                         if (Zeroed)
                             return -1;
-
-                        spinWait.SpinOnce();
                     }
 
                     if (Interlocked.CompareExchange(ref fastBloom, 1, 0) == 0)
@@ -280,18 +276,14 @@ namespace zero.core.patterns.queue
                 
                 if (next < latch) 
                 {
-                    var spinWait = new SpinWait();
                     ref var fastBloom = ref _bloom[next % Capacity];
 
                     while (fastBloom != 2)
                     {
-                        if (Zeroed)
-                        {
-                            slot = default;
-                            return false;
-                        }
+                        if (!Zeroed) continue;
 
-                        spinWait.SpinOnce();
+                        slot = default;
+                        return false;
                     }
 
                     int prev;

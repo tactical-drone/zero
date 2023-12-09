@@ -61,7 +61,7 @@ namespace zero.core.patterns.queue
                 _bloom = new int[32][];
                 _bloom[0] = _fastBloom = new int[1];
 
-                var v = Math.Log10(capacity - 1)/Math.Log10(2);
+                var v = Log2(capacity - 1);
                 var scaled = false;
                 for (var i = 0; i < v; i++)
                 {
@@ -198,7 +198,7 @@ namespace zero.core.patterns.queue
 
                 idx %= Capacity;
 
-                var i = (int)(Math.Log10(idx + 1) / Math.Log10(2));
+                var i = Log2(idx + 1);
                 return _storage[i][idx - ((1 << i) - 1)];
             }
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -213,7 +213,7 @@ namespace zero.core.patterns.queue
                 }
 
                 idx %= Capacity;
-                var i = (int)(Math.Log10(idx + 1) / Math.Log10(2));
+                var i = Log2(idx + 1);
                 _storage[i][idx - ((1 << i) - 1)] = value;
                 Interlocked.MemoryBarrier();
             }
@@ -282,12 +282,20 @@ namespace zero.core.patterns.queue
                     ref var fastBloomPtr = ref _fastBloom[modIdx];
 
                     retry:
-                    if (fastBloomPtr != _one && (Tail != latch || (state = Interlocked.CompareExchange(ref fastBloomPtr, _reset, _zero)) != _zero))
+                    if (Tail != latch || (state = Interlocked.CompareExchange(ref fastBloomPtr, _reset, _zero)) != _zero)
                     {
-                        if (Tail != latch || state != _reset)
-                            return (false, -1);
-                        
-                        goto retry;
+                        if (Tail == latch && state == _one &&
+                            Interlocked.CompareExchange(ref fastBloomPtr, _reset, _one) == _one)
+                        {
+                            Interlocked.Decrement(ref _count);
+                        }
+                        else
+                        {
+                            if (Tail != latch || state != _reset)
+                                return (false, -1);
+
+                            goto retry;
+                        }
                     }
 
                     Interlocked.Increment(ref _count);
@@ -327,17 +335,25 @@ namespace zero.core.patterns.queue
                     return (true, _lastInsertIndex);
                 }
 
-                var i = (int)(Math.Log10(modIdx + 1) / Math.Log10(2));
+                var i = Log2(modIdx + 1);
                 var i2 = modIdx - ((1 << i) - 1);
                 ref var bloomPtr = ref _bloom[i][i2];
 
                 retry2:
-                if (bloomPtr != _one && (Tail != latch || (state = Interlocked.CompareExchange(ref bloomPtr, _reset, _zero)) != _zero))
+                if (Tail != latch || (state = Interlocked.CompareExchange(ref bloomPtr, _reset, _zero)) != _zero)
                 {
-                    if (Tail != latch || state != _reset)
-                        return (false, -1);
+                    if (Tail == latch && state == _one &&
+                        Interlocked.CompareExchange(ref bloomPtr, _reset, _one) == _one)
+                    {
+                        Interlocked.Decrement(ref _count);
+                    }
+                    else
+                    {
+                        if (Tail != latch || state != _reset)
+                            return (false, -1);
 
-                    goto retry2;
+                        goto retry2;
+                    }
                 }
 
                 Interlocked.Increment(ref _count);
@@ -404,15 +420,26 @@ namespace zero.core.patterns.queue
                     ref var fastBloomPtr = ref _fastBloom[modIdx];
 
                     retry:
-                    if (fastBloomPtr != _one && (Head != latch || (state = Interlocked.CompareExchange(ref fastBloomPtr, _reset, _set)) != _set))
+                    if (Head != latch || (state = Interlocked.CompareExchange(ref fastBloomPtr, _reset, _set)) != _set)
                     {
-                        if (Head != latch || state != _reset)
+                        if (fastBloomPtr == _one && Interlocked.CompareExchange(ref fastBloomPtr, _zero, _one) == _one)
                         {
+                            Interlocked.Decrement(ref _count);
+                            _lastRemoveIndex = Interlocked.Increment(ref _head) - 1;
+
                             value = default;
                             return false;
                         }
+                        else
+                        {
+                            if (Head != latch || state != _reset)
+                            {
+                                value = default;
+                                return false;
+                            }
 
-                        goto retry;
+                            goto retry;
+                        }
                     }
 
                     Interlocked.Decrement(ref _count);
@@ -457,16 +484,27 @@ namespace zero.core.patterns.queue
                     return true;
                 }
 
-                var i = (int)(Math.Log10(modIdx + 1) / Math.Log10(2));
+                var i = Log2(modIdx + 1);
                 var i2 = modIdx - ((1 << i) - 1);
                 ref var bloomPtr = ref _bloom[i][i2];
                 retry2:
                 if (bloomPtr != _one && (Head != latch || (state = Interlocked.CompareExchange(ref bloomPtr, _reset, _set)) != _set))
                 {
-                    if (Head != latch || state != _reset)
+                    if (bloomPtr == _one && Interlocked.CompareExchange(ref bloomPtr, _zero, _one) == _one)
                     {
+                        Interlocked.Decrement(ref _count);
+                        _lastRemoveIndex = Interlocked.Increment(ref _head) - 1;
+
                         value = default;
                         return false;
+                    }
+                    else
+                    {
+                        if (Head != latch || state != _reset)
+                        {
+                            value = default;
+                            return false;
+                        }
                     }
 
                     goto retry2;
@@ -474,8 +512,8 @@ namespace zero.core.patterns.queue
 
                 Interlocked.Decrement(ref _count);
 
-                //if (Head != latch)
-                if (Head - latch > Capacity >> 1)
+                if (Head != latch)
+                //if (Head - latch > Capacity >> 1)
                 {
                     Interlocked.MemoryBarrierProcessWide();
                     if (Interlocked.CompareExchange(ref bloomPtr, _set, _reset) != _reset)
@@ -512,8 +550,9 @@ namespace zero.core.patterns.queue
             }
         }
 
-        private int _atomicCount;
+
 #if !DEBUG
+        private int _atomicCount;
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
 #endif
         private bool AtomicDrop(long index)
@@ -525,18 +564,12 @@ namespace zero.core.patterns.queue
             try
             {
                 if (!IsAutoScaling)
-                {
-                    Interlocked.Increment(ref _atomicCount);
-                    //if (Interlocked.Increment(ref _atomicCount) %10 == 0)
-                    //    Console.WriteLine(_atomicCount);
                     return Interlocked.CompareExchange(ref _fastBloom[index % Capacity], _one, _set) == _set;
-                }
 
                 var modIdx = index % Capacity;
-                var i = (int)(Math.Log10(modIdx + 1) / Math.Log10(2));
+                var i = Log2(modIdx + 1);
                 var i2 = modIdx - ((1 << i) - 1);
 
-                Interlocked.Increment(ref _atomicCount);
                 return Interlocked.CompareExchange(ref _bloom[i][i2], _one, _set) == _set;
             }
             finally
@@ -645,11 +678,7 @@ namespace zero.core.patterns.queue
                     }
                 }
 
-                long cap;
-                
-                SpinWait yield = new();
-
-                long idx;
+                long cap, idx;
                 while (Tail >= Head + (cap = Capacity) || _count >= cap || !((_,idx) = AtomicAdd(item)).Item1)
                 {
                     if (_count == cap)
@@ -662,12 +691,6 @@ namespace zero.core.patterns.queue
 
                     if (Zeroed)
                         return -1;
-
-                    yield.SpinOnce();
-#if DEBUG
-                    if(yield.Count % 1000 == 0)
-                        Console.WriteLine($"Z-> {Description}");
-#endif
                 }
 
                 //execute atomic action on success
@@ -737,7 +760,6 @@ namespace zero.core.patterns.queue
                     return false;
                 }
 
-                SpinWait yield = new();
                 while (Head >= Tail || !AtomicRemove(out slot))
                 {
                     if (Count == 0 || Zeroed)
@@ -745,8 +767,6 @@ namespace zero.core.patterns.queue
                         slot = default;
                         return false;
                     }
-
-                    yield.SpinOnce();
                 }
 
                 return true;
@@ -760,6 +780,7 @@ namespace zero.core.patterns.queue
             return false;
         }
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public bool Drop(long index) => AtomicDrop(index);
         
         /// <summary>
@@ -828,7 +849,7 @@ namespace zero.core.patterns.queue
                         else
                         {
                             var idx = i % Capacity;
-                            var i2 = (int)(Math.Log10(idx + 1) / Math.Log10(2));
+                            var i2 = Log2(idx + 1);
                             Interlocked.Exchange(ref _bloom[i2][idx - ((1 << i2) - 1)], 0);
                         }
                     }
@@ -1012,6 +1033,19 @@ namespace zero.core.patterns.queue
         IEnumerator IEnumerable.GetEnumerator()
         {
             return GetEnumerator();
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private int Log2(long n)
+        {
+            var count = 0; // the counter for the number of times
+            while (n > 1) // loop until n is 1 or less
+            {
+                n = n >> 1; // right shift n by 1 bit
+                count++; // increment the counter
+            }
+
+            return count;
         }
     }
 }
