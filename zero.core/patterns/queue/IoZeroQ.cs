@@ -138,8 +138,10 @@ namespace zero.core.patterns.queue
         private int _timeSinceLastScale = Environment.TickCount;
         private int _count;
         private long _lastInsertIndex = -1;
+#if DEBUG
         private long _lastRemoveIndex = -1;
         private int _opCounter;
+#endif
 
         #endregion
 
@@ -314,20 +316,17 @@ namespace zero.core.patterns.queue
                             Interlocked.Decrement(ref _count);
                         return (false, -1);
                     }
-                    _lastInsertIndex = Interlocked.Increment(ref _tail) - 1;
 
+
+                    _lastInsertIndex = Interlocked.Increment(ref _tail) - 1;
+                    _fastStorage[modIdx] = value;
 #if DEBUG
                     _fastStorageTime[modIdx] = Interlocked.Increment(ref _opCounter) - 1;
 #endif
-
-                    _fastStorage[modIdx] = value;
-
                     Interlocked.Exchange(ref fastBloomPtr, _set);
                     
 #if SUPER_SYNC
                     Interlocked.MemoryBarrierProcessWide();
-
-
 #elif SYNC
                     Thread.MemoryBarrier();
 #endif
@@ -409,7 +408,9 @@ namespace zero.core.patterns.queue
 #endif
             try
             {
+#if DEBUG
                 var latchOp = _opCounter;
+#endif
                 var state = -1;
 
                 var latch = Head;
@@ -425,7 +426,11 @@ namespace zero.core.patterns.queue
                         if (fastBloomPtr == _one && Interlocked.CompareExchange(ref fastBloomPtr, _zero, _one) == _one)
                         {
                             Interlocked.Decrement(ref _count);
+#if !DEBUG
+                            Interlocked.Increment(ref _head);
+#else
                             _lastRemoveIndex = Interlocked.Increment(ref _head) - 1;
+#endif
 
                             value = default;
                             return false;
@@ -455,8 +460,12 @@ namespace zero.core.patterns.queue
                         value = default;
                         return false;
                     }
-
+#if !DEBUG
+                    Interlocked.Increment(ref _head);
+#else
                     _lastRemoveIndex = Interlocked.Increment(ref _head) - 1;
+#endif
+
 
                     value = _fastStorage[modIdx];
                     _fastStorage[modIdx] = default;
@@ -464,7 +473,7 @@ namespace zero.core.patterns.queue
 #if DEBUG
                     _fastStorageTime[modIdx] = -(Interlocked.Increment(ref _opCounter) - 1);
 
-                    if (_opCounter - latchOp > 3)
+                    if (_fastStorageTime[modIdx] - latchOp > 3)
                     {
                         Console.WriteLine($"-------> & zero skew ({_opCounter - latchOp}/{Capacity}) == ({(_opCounter - latchOp) / (float)Capacity * 100:0.0}%)");
                     }
@@ -493,7 +502,11 @@ namespace zero.core.patterns.queue
                     if (bloomPtr == _one && Interlocked.CompareExchange(ref bloomPtr, _zero, _one) == _one)
                     {
                         Interlocked.Decrement(ref _count);
+#if !DEBUG
+                        Interlocked.Increment(ref _head);
+#else
                         _lastRemoveIndex = Interlocked.Increment(ref _head) - 1;
+#endif
 
                         value = default;
                         return false;

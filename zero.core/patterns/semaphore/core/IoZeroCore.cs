@@ -1,7 +1,10 @@
 ﻿//#define TRACE
 using System;
+using System.Diagnostics;
+using System.Net.Http.Headers;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
+using System.Runtime.InteropServices.ComTypes;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Threading.Tasks.Sources;
@@ -142,10 +145,7 @@ namespace zero.core.patterns.semaphore.core
             if(blockingCore == null)
                 while (!_blockingCores.TryDequeue(out blockingCore))
                 {
-                    if (_blockingCores.Count == 0)
-                        return false;
-
-                    if (Zeroed())
+                    if (_blockingCores.Count == 0 || Zeroed())
                         return false;
 
                     Interlocked.MemoryBarrierProcessWide();
@@ -185,11 +185,12 @@ namespace zero.core.patterns.semaphore.core
 #endif
         private bool SetResult(T value, bool forceAsync = false, bool prime = true)
         {
-            retry:
+            
             //insane checks
             if (Zeroed() || _results.Count == Capacity || (!prime && _blockingCores.Count == 0))
                 return false;
 
+            retry:
             var c = _blockingCores.Count;
             //unblock
             if (Unblock(value, forceAsync))
@@ -199,15 +200,20 @@ namespace zero.core.patterns.semaphore.core
             if (!prime)
                 return false;
 
-            if(c == 0 && _blockingCores.Count !=  c)
+            //sloppy race detection that is probably good enough in worst case conditions
+            //The other side does proper race detection since blockingCores have those bits attached to them
+            if (c == 0 && _blockingCores.Count != c)
                 goto retry;
 
+            return _results.TryEnqueue(value) > 0;
+
+            //TODO: For some reason this makes things worse... I don't know why.
             bank:
             //queue result for future blocker
             var pos = _results.TryEnqueue(value);
 
             //saturated
-            if (pos < 0)
+            if (pos <= 0)
                 return false;
 
             ////race
@@ -217,18 +223,18 @@ namespace zero.core.patterns.semaphore.core
                 {
                     if (!Unblock(value, forceAsync, blockingCore))
                     {
-                        Interlocked.MemoryBarrierProcessWide();
+                        //_blockingCores.TryEnqueue(blockingCore);
                         Console.WriteLine("x");
-                        _blockingCores.TryEnqueue(blockingCore);
                         goto bank;
                     }
-                    Interlocked.MemoryBarrierProcessWide();
-                    Console.WriteLine(".");
-                    
+
+                    Console.WriteLine("."); //TODO: "duplicate unblockers" when this msg triggers. Makes no sense
+
                     return true;
                 }
 
-                _blockingCores.TryEnqueue(blockingCore);
+                //_blockingCores.TryEnqueue(blockingCore);
+                Console.WriteLine("X");
             }
 
             return true;
@@ -245,7 +251,8 @@ namespace zero.core.patterns.semaphore.core
 #endif
         private bool Block(out ValueTask<T> slowTaskCore)
         {
-            var c = _blockingCores.Count;
+            var r = _results.Count; //detect race conditions ahead of time
+
             //insane checks
             if (_blockingCores.Count == Capacity || Zeroed())
             {
@@ -253,8 +260,11 @@ namespace zero.core.patterns.semaphore.core
                 return false;
             }
 
+            IIoManualResetValueTaskSourceCore<T> blockingCore = null;
+
+            retry:
             //fast path
-            while (_blockingCores.Count == 0 && _results.TryDequeue(out var readyResult))
+            if (_blockingCores.Count == 0 && _results.TryDequeue(out var readyResult))
             {
                 Interlocked.Increment(ref _totalOps);
                 Interlocked.Increment(ref _curOps);
@@ -263,7 +273,7 @@ namespace zero.core.patterns.semaphore.core
             }
             
             //prepare a core from the heap
-            if (!_heapCore.TryDequeue(out var blockingCore))
+            if (blockingCore == null && !_heapCore.TryDequeue(out blockingCore))
             {
                 blockingCore = new IoManualResetValueTaskSourceCore<T>
                 {
@@ -282,6 +292,10 @@ namespace zero.core.patterns.semaphore.core
                 }, (this, blockingCore));
             }
 
+            //maybe a result got populated while preparing a blocking core from the heap....
+            if(r == 0 && _results.Count > 0)
+                goto retry; //also, core is dropped
+
             //core waiting to sync
             blockingCore.SyncRoot = SyncWait;
 
@@ -298,39 +312,31 @@ namespace zero.core.patterns.semaphore.core
             }
 
             //race
-            if (pos == _blockingCores.Head && _results.Count > 0)
+            if (r == 0 && pos == _blockingCores.Head && _results.TryDequeue(out var racedResult))
             {
-                if (blockingCore.SyncRoot == SyncWait && _results.TryDequeue(out var racedResult))
-                {
-                    slowTaskCore = new ValueTask<T>(racedResult);
+                //don't synchronize the core, it will be dropped
+                blockingCore.SyncRoot = SyncRace;
+                _blockingCores.Drop(pos);
+                
+                //unblock
+                slowTaskCore = new ValueTask<T>(racedResult);
 
-                    _blockingCores.Drop(pos);
+                Interlocked.Increment(ref _totalOps);
+                Interlocked.Increment(ref _curOps);
 
-                    //don't synchronize the core, it will be dropped
-                    blockingCore.SyncRoot = SyncRace;
-
-                    //unblock
-                    return true;
-                }
+                return true;
             }
 
             //core ready
             slowTaskCore = new ValueTask<T>(blockingCore, 0);
             blockingCore.SyncRoot = SyncReady;
 
-            try
-            { 
-                //return blocked core
-                return true;
-            }
-            finally
-            {
-                if (slowTaskCore.IsCompleted)
-                {
-                    Interlocked.Increment(ref _totalOps);
-                    Interlocked.Increment(ref _curOps);
-                }
-            }
+            if (!slowTaskCore.IsCompleted) return true;
+
+            Interlocked.Increment(ref _totalOps);
+            Interlocked.Increment(ref _curOps);
+
+            return true;
         }
 #endregion
 

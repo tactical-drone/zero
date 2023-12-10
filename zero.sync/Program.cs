@@ -415,8 +415,8 @@ namespace zero.sync
             var j = new JoinableTaskFactory(new JoinableTaskContext());
             {
                 var t = j.RunAsync(async () =>
-                {
-                    await SemTestAsync();
+                { 
+                    //await SemTestAsync();
                     await QueueTestAsync();
                     //await ZeroQTestAsync();
                     //await BagTestAsync();
