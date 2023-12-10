@@ -107,6 +107,7 @@ namespace zero.core.patterns.semaphore.core
         private int _zeroed;
         private readonly int _ready;
         private readonly CancellationTokenSource _asyncTasks;
+        private int _blocking;
 
         #endregion
 
@@ -185,16 +186,19 @@ namespace zero.core.patterns.semaphore.core
 #endif
         private bool SetResult(T value, bool forceAsync = false, bool prime = true)
         {
-            
             //insane checks
             if (Zeroed() || _results.Count == Capacity || (!prime && _blockingCores.Count == 0))
                 return false;
 
             retry:
-            var c = _blockingCores.Count;
+            var b = _blockingCores.Count;
             //unblock
             if (Unblock(value, forceAsync))
                 return true;
+
+            //zero blocking
+            if (_blocking > 0)
+                goto retry;
 
             //only set if there is a thread waiting
             if (!prime)
@@ -202,11 +206,12 @@ namespace zero.core.patterns.semaphore.core
 
             //sloppy race detection that is probably good enough in worst case conditions
             //The other side does proper race detection since blockingCores have those bits attached to them
-            if (c == 0 && _blockingCores.Count != c)
+            if (b == 0 && _blockingCores.Count > 0)
                 goto retry;
 
-            return _results.TryEnqueue(value) > 0;
-
+            //Debug.Assert(_blockingCores.Count == 0 || b != 0);
+            //return _results.TryEnqueue(value) > 0;
+            
             //TODO: For some reason this makes things worse... I don't know why.
             bank:
             //queue result for future blocker
@@ -217,24 +222,30 @@ namespace zero.core.patterns.semaphore.core
                 return false;
 
             ////race
-            if (c == 0 && pos == _results.Head && _blockingCores.TryDequeue(out var blockingCore))
+            if (b == 0 && pos == _results.Head && _blockingCores.TryDequeue(out var blockingCore))
             {
-                if (_results.Drop(pos))
+                if (pos == _results.Head && _results.Drop(pos))
                 {
                     if (!Unblock(value, forceAsync, blockingCore))
                     {
-                        //_blockingCores.TryEnqueue(blockingCore);
+                        _blockingCores.TryEnqueue(blockingCore);
+#if DEBUG
                         Console.WriteLine("x");
+#endif
                         goto bank;
                     }
 
-                    Console.WriteLine("."); //TODO: "duplicate unblockers" when this msg triggers. Makes no sense
+#if DEBUG
+                    Console.WriteLine("."); //TODO: "duplicate unblockers" appear when this msg triggers. Makes no sense 
+#endif
 
                     return true;
                 }
 
-                //_blockingCores.TryEnqueue(blockingCore);
+                _blockingCores.TryEnqueue(blockingCore);
+#if DEBUG
                 Console.WriteLine("X");
+#endif
             }
 
             return true;
@@ -251,92 +262,109 @@ namespace zero.core.patterns.semaphore.core
 #endif
         private bool Block(out ValueTask<T> slowTaskCore)
         {
-            var r = _results.Count; //detect race conditions ahead of time
+            Interlocked.Increment(ref _blocking);
+            Debug.Assert(_results.Count == 0 && _blockingCores.Count >= 0 || _results.Count >= 0 && _blockingCores.Count == 0);
 
-            //insane checks
-            if (_blockingCores.Count == Capacity || Zeroed())
+            try
             {
-                slowTaskCore = default;
-                return false;
-            }
-
-            IIoManualResetValueTaskSourceCore<T> blockingCore = null;
-
-            retry:
-            //fast path
-            if (_blockingCores.Count == 0 && _results.TryDequeue(out var readyResult))
-            {
-                Interlocked.Increment(ref _totalOps);
-                Interlocked.Increment(ref _curOps);
-                slowTaskCore = new ValueTask<T>(readyResult);
-                return true;
-            }
+                IIoManualResetValueTaskSourceCore<T> blockingCore = null;
             
-            //prepare a core from the heap
-            if (blockingCore == null && !_heapCore.TryDequeue(out blockingCore))
-            {
-                blockingCore = new IoManualResetValueTaskSourceCore<T>
-                {
-                    AutoReset = true, RunContinuationsAsynchronouslyAlways = ZeroAsyncMode
-                };
-                blockingCore.OnReset(static state =>
-                {
-                    var (@this, blockingCore) = (ValueTuple<IoZeroCore<T>, IIoManualResetValueTaskSourceCore<T>>)state;
-
-                    Interlocked.Increment(ref @this._totalOps);
-                    Interlocked.Increment(ref @this._curOps);
-
-                    if (@this._heapCore.TryEnqueue(blockingCore) < 0)
-                        Console.WriteLine($"Core Heap Overflow - {@this._heapCore.Description}");
-                    
-                }, (this, blockingCore));
-            }
-
-            //maybe a result got populated while preparing a blocking core from the heap....
-            if(r == 0 && _results.Count > 0)
-                goto retry; //also, core is dropped
-
-            //core waiting to sync
-            blockingCore.SyncRoot = SyncWait;
-
-            long pos;
-
-            //Queue the core
-            while ((pos = _blockingCores.TryEnqueue(blockingCore)) < 0)
-            {
-                if (Zeroed() || _blockingCores.Count == Capacity)
+                retry:
+                //insane checks
+                if (_blockingCores.Count == Capacity || Zeroed())
                 {
                     slowTaskCore = default;
                     return false;
                 }
-            }
+            
+                int b;
+                //fast path
+                if ((b = _blockingCores.Count) == 0 && _results.TryDequeue(out var readyResult))
+                {
+                    Interlocked.Increment(ref _totalOps);
+                    Interlocked.Increment(ref _curOps);
+                    slowTaskCore = new ValueTask<T>(readyResult);
+                    return true;
+                }
+            
+                //prepare a core from the heap
+                if (blockingCore == null && !_heapCore.TryDequeue(out blockingCore))
+                {
+                    blockingCore = new IoManualResetValueTaskSourceCore<T>
+                    {
+                        AutoReset = true, RunContinuationsAsynchronouslyAlways = ZeroAsyncMode
+                    };
+                    blockingCore.OnReset(static state =>
+                    {
+                        var (@this, blockingCore) = (ValueTuple<IoZeroCore<T>, IIoManualResetValueTaskSourceCore<T>>)state;
 
-            //race
-            if (r == 0 && pos == _blockingCores.Head && _results.TryDequeue(out var racedResult))
-            {
-                //don't synchronize the core, it will be dropped
-                blockingCore.SyncRoot = SyncRace;
-                _blockingCores.Drop(pos);
-                
-                //unblock
-                slowTaskCore = new ValueTask<T>(racedResult);
+                        Interlocked.Increment(ref @this._totalOps);
+                        Interlocked.Increment(ref @this._curOps);
 
+                        if (@this._heapCore.TryEnqueue(blockingCore) < 0)
+                            Console.WriteLine($"Core Heap Overflow - {@this._heapCore.Description}");
+                    
+                    }, (this, blockingCore));
+                }
+
+                //maybe a result got populated while preparing a blocking core from the heap....
+                if (_results.Count > 0 && b == 0)
+                    goto retry; //also, core is dropped
+            
+                //core waiting to sync
+                blockingCore.SyncRoot = SyncWait;
+
+                long pos;
+                //Queue the core
+                while ((pos = _blockingCores.TryEnqueue(blockingCore)) < 0)
+                {
+                    if (Zeroed() || _blockingCores.Count == Capacity)
+                    {
+                        slowTaskCore = default;
+                        return false;
+                    }
+                }
+
+                //race
+                if (b == 0 && _results.TryDequeue(out var racedResult))
+                {
+                    //don't synchronize the core, it will be dropped
+                    blockingCore.SyncRoot = SyncRace;
+                    _blockingCores.Drop(pos);
+
+                    //unblock
+                    slowTaskCore = new ValueTask<T>(racedResult);
+
+                    Interlocked.Increment(ref _totalOps);
+                    Interlocked.Increment(ref _curOps);
+
+                    return true;
+                }
+
+                //core ready
+                slowTaskCore = new ValueTask<T>(blockingCore, 0);
+
+                if (b == 0 && _results.Count > 0)
+                {
+                    blockingCore.SyncRoot = SyncRace;
+                    _blockingCores.Drop(pos);
+                    blockingCore = null;
+                    goto retry;
+                }
+
+                Debug.Assert(_results.Count == 0 || b != 0);
+
+                blockingCore.SyncRoot = SyncReady;
+            
                 Interlocked.Increment(ref _totalOps);
                 Interlocked.Increment(ref _curOps);
 
                 return true;
             }
-
-            //core ready
-            slowTaskCore = new ValueTask<T>(blockingCore, 0);
-            blockingCore.SyncRoot = SyncReady;
-
-            if (!slowTaskCore.IsCompleted) return true;
-
-            Interlocked.Increment(ref _totalOps);
-            Interlocked.Increment(ref _curOps);
-
-            return true;
+            finally
+            {
+                Interlocked.Decrement(ref _blocking);
+            }
         }
 #endregion
 

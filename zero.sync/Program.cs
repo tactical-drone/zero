@@ -401,7 +401,7 @@ namespace zero.sync
 
                     Thread.Sleep(30000);
                 }
-            }, CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Default);
+            }, CancellationToken.None, TaskCreationOptions.DenyChildAttach, IoZeroScheduler.ZeroDefault);
         }
         static void CoreTest()
         {
