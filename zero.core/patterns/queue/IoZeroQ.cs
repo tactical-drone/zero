@@ -1050,15 +1050,13 @@ namespace zero.core.patterns.queue
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private int Log2(long n)
+        private static int Log2(long n)
         {
             var count = 0; 
             while (n > 1) 
             {
                 n >>= 1;
-                //count++;
-                count += (int)n & 0x1 + 1;
-                n >>= 1;
+                count++;
             }
 
             return count;

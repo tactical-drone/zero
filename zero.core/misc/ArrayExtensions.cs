@@ -62,7 +62,7 @@ namespace zero.core.misc
         public static bool ArrayEqual<T>(this ReadOnlyMemory<T> array, ReadOnlyMemory<T> cmp)
             where T : IEquatable<T>
         {
-            return array.Span.ArrayEqual(cmp.Span);
+            return array.Length == cmp.Length && array.Span.ArrayEqual(cmp.Span);
         }
 
 
@@ -70,21 +70,21 @@ namespace zero.core.misc
         public static bool ArrayEqual<T>(this T[] array, ReadOnlySpan<T> cmp)
             where T : IEquatable<T>
         {
-            return ((ReadOnlySpan<T>)array).ArrayEqual(cmp);
+            return array.Length == cmp.Length && ((ReadOnlySpan<T>)array).ArrayEqual(cmp);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static bool ArrayEqual<T>(this T[] array, ReadOnlyMemory<T> cmp)
             where T : IEquatable<T>
         {
-            return ((ReadOnlySpan<T>)array).ArrayEqual(cmp.Span);
+            return array.Length == cmp.Length && ((ReadOnlySpan<T>)array).ArrayEqual(cmp.Span);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static bool ArrayEqual<T>(this T[] array, T[] cmp)
             where T : IEquatable<T>
         {
-            return ((ReadOnlySpan<T>)array).ArrayEqual(cmp);
+            return array.Length == cmp.Length && ((ReadOnlySpan<T>)array).ArrayEqual(cmp);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -97,13 +97,13 @@ namespace zero.core.misc
         public static bool ArrayEqual<T>(this ReadOnlySpan<T> array, ReadOnlySpan<T> cmp)
             where T : IEquatable<T>
         {
-            return array.SequenceEqual(cmp);
+            return array.Length == cmp.Length && array.SequenceEqual(cmp);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static bool ArrayEqual(this ReadOnlySpan<byte> array, ReadOnlySpan<byte> cmp)
         {
-            return array.SequenceEqual(cmp);
+            return array.Length == cmp.Length && array.SequenceEqual(cmp);
         }
 
 

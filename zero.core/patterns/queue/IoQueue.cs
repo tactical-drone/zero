@@ -296,7 +296,7 @@ namespace zero.core.patterns.queue
                         Interlocked.Decrement(ref _insaneExclusive);
 #endif
                         _syncRoot.Release(Environment.TickCount, _syncRoot.WaitCount >= _syncRoot.Capacity>>1);
-                        _pressure?.Release(Environment.TickCount, true);
+                        _pressure?.Release(Environment.TickCount, false);
                     }
                 }
             }
@@ -437,7 +437,7 @@ namespace zero.core.patterns.queue
                             }
                             _syncRoot.Release(Environment.TickCount, true);
 
-                            _backPressure?.Release(Environment.TickCount, true);
+                            _backPressure?.Release(Environment.TickCount, false);
                         }
                         catch when (_zeroed > 0)
                         {
@@ -541,7 +541,7 @@ namespace zero.core.patterns.queue
 #endif
                 _nodeHeap.Return(node, deDup);//TODO, up one?
                 _syncRoot.Release(Environment.TickCount, true);
-                _backPressure?.Release(Environment.TickCount, true);
+                _backPressure?.Release(Environment.TickCount, false);
             }
         }
 

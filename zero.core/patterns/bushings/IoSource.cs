@@ -436,11 +436,12 @@ namespace zero.core.patterns.bushings
         /// </summary>
         /// <param name="releaseCount">Number of waiters to unblock</param>
         /// <param name="zeroAsync"></param>
+        /// <param name="prime"></param>
         /// <exception cref="NotImplementedException"></exception>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public int BackPressure(int releaseCount = 1, bool zeroAsync = false)
+        public int BackPressure(int releaseCount = 1, bool zeroAsync = false, bool prime = true)
         {
-            return _backPressure.Release(Environment.TickCount, releaseCount, zeroAsync, true);
+            return _backPressure.Release(Environment.TickCount, releaseCount, zeroAsync, prime);
         }
 
         /// <summary>
