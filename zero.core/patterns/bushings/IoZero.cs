@@ -347,7 +347,7 @@ namespace zero.core.patterns.bushings
                         if (nextJob.State != IoJobMeta.JobState.ProdConnReset)
                             await nextJob.SetStateAsync(IoJobMeta.JobState.Queued).FastPath();
 
-                        if(_queue.Release(nextJob, true) < 0)
+                        if(_queue.Release(nextJob, false) < 0)
                         {
                             ts = ts.ElapsedMs();
 

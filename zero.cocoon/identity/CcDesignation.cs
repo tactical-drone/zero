@@ -290,8 +290,12 @@ namespace zero.cocoon.identity
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void UnPrime()
         {
+            if(_dhr == 0)
+                return;
+
+            var prev = _dhr;
             var r = _dhr.ZeroPrev(0);
-            LogManager.GetCurrentClassLogger().Warn($"Rolling back dh index to {r}; id = {IdString()}");
+            LogManager.GetCurrentClassLogger().Warn($"Rolling back dh index to {r} from {prev}; id = {IdString()}");
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]

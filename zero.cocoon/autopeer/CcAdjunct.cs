@@ -1271,6 +1271,8 @@ namespace zero.cocoon.autopeer
                     }
                 }
             }
+
+            return Array.Empty<byte>();
         }
         
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -1305,19 +1307,8 @@ namespace zero.cocoon.autopeer
                                 {
                                     if (zero.Aes > 0)
                                     {
-                                        var retry = false;
-                                        retry:
                                         if (!currentRoute.Designation.Primed)
-                                        {
-                                            @this._logger.Warn($"Message encrypted... [{zero.Sabot.Memory.HashSig()}] {currentRoute.Description}");
-                                            if (!retry && await currentRoute.ProbeAsync("SYN-AES").FastPath())
-                                            {
-                                                retry = true;
-                                                goto retry;
-                                            }
-                                                
                                             return;
-                                        }
 
                                         if (currentRoute.Designation.Iv == null)
                                             currentRoute.Designation.SetIv(currentRoute.Designation.PublicKey, @this.Hub.Designation.PublicKey, zero.Aes);
@@ -1334,16 +1325,19 @@ namespace zero.cocoon.autopeer
                                             }
                                             catch (Exception e) when (!@this.Zeroed())
                                             {
-                                                @this._logger.Error(e, $"Failed to decrypt aes message!");
+                                                if(@this.Designation.Round > 0)
+                                                    @this._logger.Error(e, $"Failed to decrypt aes message!");
                                                 @this.Designation.UnPrime();
+                                                return;
                                             }
-                                            catch when (@this.Zeroed()) { }
+                                            catch when (@this.Zeroed()) { return;}
                                             
                                         } while (r != currentRoute.Designation.Round);
 
                                         if (payload == null || payload.Length == 0)
                                         {
-                                            @this._logger.Fatal($"Unable to decipher message with k = {currentRoute.Designation.GetRound(zero.Aes).HashSig()}[{zero.Aes}], iv = {currentRoute.Designation.Iv.HashSig()}");
+                                            if(!(@this.Zeroed()))
+                                                @this._logger.Fatal($"Unable to decipher message with k = {currentRoute.Designation.GetRound(zero.Aes).HashSig()}[{zero.Aes}], iv = {currentRoute.Designation.Iv?.HashSig()}");
                                             @this.Designation.UnPrime();
                                             return;
                                         }
