@@ -330,7 +330,7 @@ namespace zero.core.feat.models.protobuffer
                         for (var i = 0; i < nextBatch.Count; i++)
                             Debug.Assert(nextBatch[i].Zero != null);
 #endif
-                        var retried = 10;
+                        var retried = 2;
                         var r = 0;
                         var spinWait = new SpinWait();
                         retry:

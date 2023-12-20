@@ -8,6 +8,7 @@ using System.Runtime.InteropServices.ComTypes;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Threading.Tasks.Sources;
+using System.Xml.Schema;
 using zero.core.misc;
 using zero.core.patterns.queue;
 
@@ -61,8 +62,11 @@ namespace zero.core.patterns.semaphore.core
             _primeReady = primeResult;
             _primeContext = context;
 
-            for (int i = 0; i < _ready; i++)
+            for (var i = 0; i < _ready; i++)
             {
+                if(_primeReady == null)
+                    throw new ArgumentNullException(nameof(_primeReady));
+
                 if (_results.TryEnqueue(_primeReady!(_primeContext)) < 0)
                     throw new OutOfMemoryException($"{nameof(ZeroRef)}: {_results.Description}");
             }

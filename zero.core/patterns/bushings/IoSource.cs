@@ -2,7 +2,6 @@
 using System.Collections.Concurrent;
 using System.Globalization;
 using System.Runtime.CompilerServices;
-using System.Runtime.InteropServices.ComTypes;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -12,8 +11,7 @@ using zero.core.data.contracts;
 using zero.core.misc;
 using zero.core.patterns.bushings.contracts;
 using zero.core.patterns.misc;
-using zero.core.patterns.semaphore;
-using zero.core.runtime.scheduler;
+using zero.core.patterns.semaphore.core;
 
 namespace zero.core.patterns.bushings
 {
@@ -47,7 +45,9 @@ namespace zero.core.patterns.bushings
 
             try
             {
-                _backPressure = new IoZeroSemaphoreSlim(AsyncTasks, $"{nameof(_backPressure)}: {description}", PrefetchSize, PrefetchSize); 
+                //_backPressure = new IoZeroSemaphoreSlim(AsyncTasks, $"{nameof(_backPressure)}: {description}", PrefetchSize, PrefetchSize);
+                IIoZeroSemaphoreBase<int> c = new IoZeroCore<int>(description, PrefetchSize, AsyncTasks, PrefetchSize);
+                _backPressure = c.ZeroRef(ref c, _ => Environment.TickCount);
             }
             catch (Exception e)
             {
@@ -102,7 +102,7 @@ namespace zero.core.patterns.bushings
         /// <summary>
         /// The source is being throttled by the sink 
         /// </summary>
-        private readonly IoZeroSemaphoreSlim _backPressure;
+        private readonly IIoZeroSemaphoreBase<int> _backPressure;
         
         public int BackPressureReady => _backPressure.ReadyCount;
 
@@ -241,8 +241,7 @@ namespace zero.core.patterns.bushings
         {
             await base.ZeroManagedAsync().FastPath();
 
-            if(_backPressure != null)
-                await _backPressure.DisposeAsync(this, $"cascade; {ZeroReason}").FastPath();
+            _backPressure?.ZeroSem();
 
             var reason = $"{nameof(IoSource<TJob>)}: teardown";
 
@@ -263,7 +262,10 @@ namespace zero.core.patterns.bushings
                 if(RecentlyProcessed != null)
                     await RecentlyProcessed.DisposeAsync(this, reason).FastPath();
             }
-            catch { }
+            catch
+            {
+                // ignored
+            }
 
 #if DEBUG
             if (UpTime.ElapsedUtcMs() > 2000)

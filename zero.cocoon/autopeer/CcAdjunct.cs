@@ -71,9 +71,9 @@ namespace zero.cocoon.autopeer
             var capMult = CcCollective.ZeroDrone ? 10 : 7;
             var capBase = 2;
 
-            _probeRequest = new IoZeroMatcher($"{nameof(_probeRequest)}, proxy = {IsProxy}", CcCollective.MaxAdjuncts << 4, parm_max_network_latency_ms << 1, (int)Math.Pow(capBase, capMult), true);
-            _fuseRequest = new IoZeroMatcher($"{nameof(_fuseRequest)}, proxy = {IsProxy}", CcCollective.MaxAdjuncts << 4, parm_max_network_latency_ms << 1, (int)Math.Pow(capBase, capMult), true);
-            _scanRequest = new IoZeroMatcher($"{nameof(_scanRequest)}, proxy = {IsProxy}", CcCollective.MaxAdjuncts << 4, parm_max_network_latency_ms << 1, (int)Math.Pow(capBase, capMult), true);
+            _probeRequest = new IoZeroMatcher($"{nameof(_probeRequest)}, proxy = {IsProxy}", CcCollective.MaxAdjuncts, parm_max_network_latency_ms << 1, (int)Math.Pow(capBase, capMult), true);
+            _fuseRequest = new IoZeroMatcher($"{nameof(_fuseRequest)}, proxy = {IsProxy}", CcCollective.MaxAdjuncts, parm_max_network_latency_ms << 1, (int)Math.Pow(capBase, capMult), true);
+            _scanRequest = new IoZeroMatcher($"{nameof(_scanRequest)}, proxy = {IsProxy}", CcCollective.MaxAdjuncts, parm_max_network_latency_ms << 1, (int)Math.Pow(capBase, capMult), true);
 
             if (extraData != null)
             {
