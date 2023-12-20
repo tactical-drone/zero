@@ -1727,7 +1727,7 @@ namespace zero.sync
                 IoNodeAddress.Create(peerAddress),
                 IoNodeAddress.Create(extAddress),
                 bootStrapAddress.Select(IoNodeAddress.Create).Where(a => a.Port.ToString() != peerAddress.Split(":")[2]).ToList(),
-                2, 2, 1, 1, zeroDrone);
+                3, 2, 2, 1, zeroDrone);
 
             _nodes.Add(cocoon);
             return cocoon;

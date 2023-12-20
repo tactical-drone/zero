@@ -49,8 +49,8 @@ namespace zero.cocoon.models
 
             //IoZero = (IoZero<CcProtocMessage<chroniton, CcDiscoveryBatch>>)context;
 
-            //var pf = Source.PrefetchSize * 7;
-            //var cc = Source.ZeroConcurrencyLevel * 6; 
+            var pf = Source.PrefetchSize + 1;
+            var cc = Source.ZeroConcurrencyLevel + 1;
 
             //if (!Source.Proxy && Adjunct.CcCollective.ZeroDrone)
             //{
@@ -58,8 +58,8 @@ namespace zero.cocoon.models
             //    cc = Source.ZeroConcurrencyLevel * 3;
             //}
 
-            var pf = CcCollective.MaxAdjuncts * 2;
-            var cc = CcCollective.MaxAdjuncts * 2;
+            //var pf = CcCollective.MaxAdjuncts;
+            //var cc = CcCollective.MaxAdjuncts;
 
             //if (!Source.Proxy && Adjunct.CcCollective.ZeroDrone)
             //{

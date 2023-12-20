@@ -334,7 +334,7 @@ namespace zero.core.feat.models.protobuffer
                         var r = 0;
                         var spinWait = new SpinWait();
                         retry:
-                        if ((r = chan.Release(nextBatch, forceAsync: false)) < 1)
+                        if ((r = chan.Release(nextBatch, forceAsync: true)) < 1)
                         {
                             if (retried-- > 0)
                             {

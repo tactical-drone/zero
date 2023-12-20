@@ -296,7 +296,7 @@ namespace zero.core.patterns.queue
                         Interlocked.Decrement(ref _insaneExclusive);
 #endif
                         _syncRoot.Release(Environment.TickCount, _syncRoot.WaitCount >= _syncRoot.Capacity>>1);
-                        _pressure?.Release(Environment.TickCount, false);
+                        _pressure?.Release(Environment.TickCount, true);
                     }
                 }
             }
@@ -363,7 +363,7 @@ namespace zero.core.patterns.queue
                     Interlocked.Decrement(ref _insaneExclusive);
 #endif
                     _syncRoot.Release(Environment.TickCount, _syncRoot.WaitCount >= _syncRoot.Capacity >> 1);
-                    _pressure?.Release(Environment.TickCount, false);
+                    _pressure?.Release(Environment.TickCount, true);
                 }
             }
         }
@@ -427,7 +427,7 @@ namespace zero.core.patterns.queue
                         try
                         {
                             
-                            _backPressure?.Release(Environment.TickCount, _backPressure.WaitCount >= _backPressure.Capacity >> 1);
+                            
 
                             //DQ cost being load balanced
                             if (dq != null)
@@ -435,8 +435,9 @@ namespace zero.core.patterns.queue
                                 retVal = dq.Value;
                                 _nodeHeap.Return(dq);
                             }
-
                             _syncRoot.Release(Environment.TickCount, true);
+
+                            _backPressure?.Release(Environment.TickCount, false);
                         }
                         catch when (_zeroed > 0)
                         {
@@ -540,6 +541,7 @@ namespace zero.core.patterns.queue
 #endif
                 _nodeHeap.Return(node, deDup);//TODO, up one?
                 _syncRoot.Release(Environment.TickCount, true);//FALSE
+                _backPressure?.Release(Environment.TickCount, false);
             }
         }
 
