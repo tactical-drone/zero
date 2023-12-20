@@ -57,7 +57,7 @@ namespace zero.core.feat.patterns.time
 
         public IoTimer(TimeSpan timeout, CancellationToken token = default)
         {
-            _signal = new IoZeroResetValueTaskSource<int>(false);
+            _signal = new IoZeroResetValueTaskSource<int>(true);
             _make(timeout, _signal, token);
         }
 

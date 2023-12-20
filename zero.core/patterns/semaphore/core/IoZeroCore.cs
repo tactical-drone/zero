@@ -162,11 +162,12 @@ namespace zero.core.patterns.semaphore.core
             switch (blockingCore.SyncRoot)
             {
                 case SyncReady://use the core
+                    blockingCore.SyncRoot = SyncRace;
                     blockingCore.RunContinuationsAsynchronously = forceAsync;
                     blockingCore.SetResult(value);
                     return true;
                 case SyncRace://discard the core (also from the heap)
-                    blockingCore = null;
+                    blockingCore = null; // SAFE_RELEASE
                     Interlocked.MemoryBarrierProcessWide();
                     goto retry;
             }
@@ -210,7 +211,7 @@ namespace zero.core.patterns.semaphore.core
                 goto retry;
 
             //Debug.Assert(_blockingCores.Count == 0 || b != 0);
-            //return _results.TryEnqueue(value) > 0;
+            return _results.TryEnqueue(value) > 0;
             
             //TODO: For some reason this makes things worse... I don't know why.
             bank:
@@ -222,9 +223,10 @@ namespace zero.core.patterns.semaphore.core
                 return false;
 
             ////race
-            if (b == 0 && pos == _results.Head && _blockingCores.TryDequeue(out var blockingCore))
+            if (_blockingCores.TryDequeue(out var blockingCore))
             {
-                if (pos == _results.Head && _results.Drop(pos))
+                Interlocked.MemoryBarrierProcessWide();
+                if (_results.Drop(pos))
                 {
                     if (!Unblock(value, forceAsync, blockingCore))
                     {
@@ -236,7 +238,7 @@ namespace zero.core.patterns.semaphore.core
                     }
 
 #if DEBUG
-                    Console.WriteLine("."); //TODO: "duplicate unblockers" appear when this msg triggers. Makes no sense 
+                    Console.WriteLine("."); //TODO: "duplicate un-blockers" appear when this msg triggers. Makes no sense 
 #endif
 
                     return true;
@@ -263,7 +265,7 @@ namespace zero.core.patterns.semaphore.core
         private bool Block(out ValueTask<T> slowTaskCore)
         {
             Interlocked.Increment(ref _blocking);
-            Debug.Assert(_results.Count == 0 && _blockingCores.Count >= 0 || _results.Count >= 0 && _blockingCores.Count == 0);
+            //Debug.Assert(_results.Count == 0 && _blockingCores.Count >= 0 || _results.Count >= 0 && _blockingCores.Count == 0);
 
             try
             {

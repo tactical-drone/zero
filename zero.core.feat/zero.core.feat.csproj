@@ -62,10 +62,10 @@
 		<PackageReference Include="Google.Protobuf" Version="3.25.1" />
 		<PackageReference Include="CassandraCSharpDriver" Version="3.19.5" />
 		<PackageReference Include="Microsoft.VisualStudio.Threading" Version="17.9.1-alpha" />
-		<PackageReference Include="StackExchange.Redis" Version="2.7.4" />
+		<PackageReference Include="StackExchange.Redis" Version="2.7.10" />
 		<PackageReference Include="System.Text.Json" Version="8.0.0" />
 		<PackageReference Include="NLog" Version="5.2.7" />
-		<PackageReference Include="Grpc.Tools" Version="2.60.0-pre1">
+		<PackageReference Include="Grpc.Tools" Version="2.60.0">
 			<PrivateAssets>all</PrivateAssets>
 			<IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
 		</PackageReference>

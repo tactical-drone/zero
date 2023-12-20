@@ -242,7 +242,9 @@ namespace zero.cocoon
         }
 
         /// <summary>
-        /// Attaches a neighbor to this peer
+        /// Drones attach to the collective via an adjunct that accepts them.
+        ///
+        /// An adjunct becomes a drone
         /// </summary>
         /// <param name="direction"></param>
         public bool AttachViaAdjunct(IIoSource.Heading direction)

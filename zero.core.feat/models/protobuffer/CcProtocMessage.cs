@@ -1,16 +1,12 @@
 ﻿using System;
 using System.Buffers;
-using System.CodeDom;
-using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.IO.Compression;
 using System.Net;
-using System.Net.Http.Headers;
 using System.Net.Sockets;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
-using System.Security.Cryptography;
 using System.Threading;
 using System.Threading.Tasks;
 using Google.Protobuf;
@@ -34,7 +30,7 @@ namespace zero.core.feat.models.protobuffer
             : base(sinkDesc, jobDesc, source)
         {
             Debug.Assert(parm_datums_per_buffer >=4);
-            var blockSize = 8192;
+            var blockSize = 4096;
             DatumSize = blockSize / parm_datums_per_buffer;
             DatumProvisionLengthMax = DatumSize;
             //Init buffers
@@ -47,9 +43,10 @@ namespace zero.core.feat.models.protobuffer
                 {
                     throw new InternalBufferOverflowException($"Invalid buffer size of {BufferSize} < {Buffer.Length}");
                 }
-                ArraySegment = new ArraySegment<byte>(new byte[blockSize * 2]);
 
-                Buffer = ArraySegment.Array;
+                Buffer = ArrayPool<byte>.Shared.Rent(blockSize<<1);
+
+                ArraySegment = new ArraySegment<byte>(Buffer);
 
                 ReadOnlySequence = new ReadOnlySequence<byte>(Buffer);
                 MemoryBuffer = new Memory<byte>(Buffer);
@@ -107,6 +104,19 @@ namespace zero.core.feat.models.protobuffer
         /// How long to wait for the consumer before timing out
         /// </summary>
         public override int WaitForConsumerTimeout => parm_producer_wait_for_consumer_timeout;
+
+
+        public override async ValueTask ZeroManagedAsync()
+        {
+            await base.ZeroManagedAsync();
+
+            await BufferBrotliStream.DisposeAsync();
+            await ByteStream.DisposeAsync();
+
+            await BatchHeap.ZeroManagedAsync<object>().FastPath();
+            await ProtocolConduit.DisposeAsync(this, "cascade").FastPath();
+            ArrayPool<byte>.Shared.Return(Buffer);
+        }
 
         /// <summary>
         /// zero unmanaged
@@ -233,8 +243,8 @@ namespace zero.core.feat.models.protobuffer
         /// Synchronizes the byte stream, expects a frame = [ uint64 size, int64 crc, byte[] compressed_or_encrypted_payload ].
         ///
         /// Sync scans for the inefficiencies in uint64 to find the frame start. It is assumed
-        /// such an inefficiency wont exist in compressed/encrypted payloads. If it does, syncing
-        /// might be sub optimal.
+        /// such an inefficiency won't exist in compressed/encrypted payloads. If it does, syncing
+        /// might be suboptimal.
         ///
         /// This function should not run if byte streams contain verbatim data. 
         /// </summary>

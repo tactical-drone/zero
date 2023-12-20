@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Threading.Tasks;
+using Cassandra;
 using NLog;
 using zero.cocoon.identity;
 using zero.cocoon.models.batches;
@@ -97,6 +98,22 @@ namespace zero.cocoon.autopeer
                 @this.Router ??= (CcAdjunct)router;
                 return handshake == null || await handshake(router,nanite).FastPath();
             }, (this, context, onHandshake), bootFunc, bootData);
+        }
+
+        /// <summary>
+        /// Checks if a certain neighbor Id exists;
+        /// </summary>
+        /// <param name="id"></param>
+        /// <returns></returns>
+        public bool ContainsId(string id)
+        {
+            foreach (var adj in Neighbors.Values)
+            {
+                if(adj.IoSource.Proxy && ((CcAdjunct)adj).Designation.IdString() == id)
+                    return true;
+            }
+
+            return false;
         }
     }
 }

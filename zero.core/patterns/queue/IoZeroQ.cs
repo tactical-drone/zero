@@ -576,10 +576,11 @@ namespace zero.core.patterns.queue
             
             try
             {
-                if (!IsAutoScaling)
-                    return Interlocked.CompareExchange(ref _fastBloom[index % Capacity], _one, _set) == _set;
-
                 var modIdx = index % Capacity;
+
+                if (!IsAutoScaling)
+                    return Interlocked.CompareExchange(ref _fastBloom[modIdx], _one, _set) == _set;
+
                 var i = Log2(modIdx + 1);
                 var i2 = modIdx - ((1 << i) - 1);
 
@@ -1051,11 +1052,13 @@ namespace zero.core.patterns.queue
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private int Log2(long n)
         {
-            var count = 0; // the counter for the number of times
-            while (n > 1) // loop until n is 1 or less
+            var count = 0; 
+            while (n > 1) 
             {
-                n = n >> 1; // right shift n by 1 bit
-                count++; // increment the counter
+                n >>= 1;
+                //count++;
+                count += (int)n & 0x1 + 1;
+                n >>= 1;
             }
 
             return count;

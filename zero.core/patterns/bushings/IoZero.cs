@@ -68,10 +68,10 @@ namespace zero.core.patterns.bushings
             try
             {
                 //TODO tuning
-                IIoZeroSemaphoreBase<IoSink<TJob>> c = new IoZeroCore<IoSink<TJob>>(description, capacity + 1, AsyncTasks);
+                IIoZeroSemaphoreBase<IoSink<TJob>> c = new IoZeroCore<IoSink<TJob>>(description, capacity, AsyncTasks);
                 _queue = c.ZeroRef(ref c);
                 
-                JobHeap = new IoHeapIo<IoSink<TJob>>($"{nameof(JobHeap)}: {_description}", capacity + 1, jobMalloc) {
+                JobHeap = new IoHeapIo<IoSink<TJob>>($"{nameof(JobHeap)}: {_description}", capacity, jobMalloc) {
                     Constructor = (sink, zero) =>
                     {
                         sink.IoZero = (IoZero<TJob>)zero;
@@ -347,7 +347,7 @@ namespace zero.core.patterns.bushings
                         if (nextJob.State != IoJobMeta.JobState.ProdConnReset)
                             await nextJob.SetStateAsync(IoJobMeta.JobState.Queued).FastPath();
 
-                        if(_queue.Release(nextJob, false) < 0)
+                        if(_queue.Release(nextJob, true) < 0)
                         {
                             ts = ts.ElapsedMs();
 
@@ -539,12 +539,14 @@ namespace zero.core.patterns.bushings
                     await curJob.SetStateAsync(IoJobMeta.JobState.Consuming).FastPath();
 
                 //Consume the job
-                IoZeroScheduler.Zero.LoadAsyncContext(static async state => { 
-                        var (@this, curJob, consume, context) = (ValueTuple<IoZero<TJob>, IoSink<TJob>, Func<IoSink<TJob>, T, ValueTask>, T>)state;
+                //IoZeroScheduler.Zero.LoadAsyncContext(static async state => { 
+                    var @this = this;
+                        //var (@this, curJob, consume, context) = (ValueTuple<IoZero<TJob>, IoSink<TJob>, Func<IoSink<TJob>, T, ValueTask>, T>)state;
                         try
                         {
-                            if (@this.Zeroed())
-                                return;
+                        if (@this.Zeroed())
+                            return false;
+                            //return;
 
                             if (await curJob.ConsumeAsync().FastPath() == IoJobMeta.JobState.Consumed ||
                                 curJob.State is IoJobMeta.JobState.ConInlined or IoJobMeta.JobState.FastDup)
@@ -617,7 +619,7 @@ namespace zero.core.patterns.bushings
                                 @this.Source.BackPressure(zeroAsync: true);
                             }
                         }
-                }, (this, curJob, consume, context));
+                //}, (this, curJob, consume, context));
                 return true;
             }
             catch (Exception) when (Zeroed()) {}

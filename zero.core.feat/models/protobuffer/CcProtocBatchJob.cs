@@ -159,6 +159,7 @@ namespace zero.core.feat.models.protobuffer
         /// <returns>
         /// The state of the consumption
         /// </returns>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public override ValueTask<IoJobMeta.JobState> ConsumeAsync()
         {
             //No work is needed, we just mark the job as consumed (Batched and forwarded).
