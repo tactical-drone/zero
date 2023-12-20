@@ -539,14 +539,14 @@ namespace zero.core.patterns.bushings
                     await curJob.SetStateAsync(IoJobMeta.JobState.Consuming).FastPath();
 
                 //Consume the job
-                IoZeroScheduler.Zero.LoadAsyncContext(static async state => { 
-                    //var @this = this;
-                        var (@this, curJob, consume, context) = (ValueTuple<IoZero<TJob>, IoSink<TJob>, Func<IoSink<TJob>, T, ValueTask>, T>)state;
+                //IoZeroScheduler.Zero.LoadAsyncContext(static async state => { 
+                    var @this = this;
+                        //var (@this, curJob, consume, context) = (ValueTuple<IoZero<TJob>, IoSink<TJob>, Func<IoSink<TJob>, T, ValueTask>, T>)state;
                         try
                         {
                             if (@this.Zeroed())
-                            //return false;
-                                return;
+                                return false;
+                                //return;
 
                             if (await curJob.ConsumeAsync().FastPath() == IoJobMeta.JobState.Consumed ||
                                 curJob.State is IoJobMeta.JobState.ConInlined or IoJobMeta.JobState.FastDup)
@@ -616,10 +616,10 @@ namespace zero.core.patterns.bushings
                                 //cleanup
                                 await @this.ZeroJobAsync(curJob, curJob.FinalState is IoJobMeta.JobState.Reject).FastPath();
                                 //back pressure
-                                @this.Source.BackPressure(zeroAsync: false);
+                                @this.Source.BackPressure(zeroAsync: true);
                             }
                         }
-                }, (this, curJob, consume, context));
+                //}, (this, curJob, consume, context));
                 return true;
             }
             catch (Exception) when (Zeroed()) {}
