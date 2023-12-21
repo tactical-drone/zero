@@ -1271,8 +1271,6 @@ namespace zero.cocoon.autopeer
                     }
                 }
             }
-
-            return Array.Empty<byte>();
         }
         
         [MethodImpl(MethodImplOptions.AggressiveInlining)]

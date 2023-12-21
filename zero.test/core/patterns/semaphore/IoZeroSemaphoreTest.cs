@@ -354,7 +354,7 @@ namespace zero.test.core.patterns.semaphore
 
             await Task.Delay(200);
 
-            var t = Task.Factory.StartNew(async () =>
+            var t = Task.Factory.StartNew(() =>
             {
                 int i = 0;
                 while (!v.Zeroed())
@@ -376,6 +376,8 @@ namespace zero.test.core.patterns.semaphore
                     }
                         
                 }
+
+                return Task.CompletedTask;
             }, CancellationToken.None, TaskCreationOptions.DenyChildAttach, IoZeroScheduler.ZeroDefault).Unwrap();
 
             await Task.WhenAll(t,t2).WaitAsync(TimeSpan.FromSeconds(30));

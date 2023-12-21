@@ -567,7 +567,6 @@ namespace zero.core.patterns.queue
 
 
 #if !DEBUG
-        private int _atomicCount;
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
 #endif
         private bool AtomicDrop(long index)

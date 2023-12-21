@@ -267,7 +267,6 @@ namespace zero.cocoon
                     @this._logger.Trace($"Robo - {TimeSpan.FromMilliseconds(ts.ElapsedMs())}, {@this.Description}");
 #endif
 
-                    var force = false;
                     if (@this.Hub.Neighbors.Count <= 1 || @this.TotalConnections == 0)
                     {
                         //restart useless hubs
@@ -277,7 +276,6 @@ namespace zero.cocoon
                             await @this.Hub.DisposeAsync(@this, "useless");
                             continue;
                         }
-                        force = true;
                     }
 
                     if (@this.TotalConnections < @this.parm_max_outbound) 

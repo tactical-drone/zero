@@ -635,9 +635,6 @@ namespace zero.core.runtime.scheduler
             //{
             //    QueueTask(task);
             //}
-
-
-            return true;
         }
 
         /// <summary>
