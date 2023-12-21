@@ -15,12 +15,12 @@ namespace zero.core.feat.patterns.time
         {
             _make = static (delta, signal, token) =>
             {
-#pragma warning disable VSTHRD101 // Avoid unsupported async delegates
-                var t = new Thread(static async state =>
+                _ = Task.Factory.StartNew(static async state =>
                 {
                     try
                     {
-                        var (delta, signal, token) = (ValueTuple<TimeSpan, IIoManualResetValueTaskSourceCore<int>, CancellationToken>)state;
+                        var (delta, signal, token) =
+                            (ValueTuple<TimeSpan, IIoManualResetValueTaskSourceCore<int>, CancellationToken>)state;
                         signal.RunContinuationsAsynchronouslyAlways = true;
                         while (!token.IsCancellationRequested)
                         {
@@ -29,20 +29,47 @@ namespace zero.core.feat.patterns.time
                                 await Task.Delay((int)delta.TotalMilliseconds, token);
                                 signal.SetResult(Environment.TickCount);
                             }
-                            catch 
+                            catch
                             {
-                                signal.Reset();
+                                // ignored
                             }
                         }
                     }
                     catch (Exception e)
                     {
-                        LogManager.GetCurrentClassLogger().Error(e,$"{nameof(IoTimer)}:");
+                        LogManager.GetCurrentClassLogger().Error(e, $"{nameof(IoTimer)}:");
                     }
-                });
-#pragma warning restore VSTHRD101 // Avoid unsupported async delegates
 
-                t.Start((delta, signal, token));
+                }, (delta, signal, token), CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Default);
+#pragma warning disable VSTHRD101 // Avoid unsupported async delegates
+//                var t = new Thread(static state =>
+//                {
+//                    try
+//                    {
+//                        var (delta, signal, token) = (ValueTuple<TimeSpan, IIoManualResetValueTaskSourceCore<int>, CancellationToken>)state;
+//                        signal.RunContinuationsAsynchronouslyAlways = true;
+//                        while (!token.IsCancellationRequested)
+//                        {
+//                            try
+//                            {
+//                                await Task.Delay((int)delta.TotalMilliseconds, token);
+//                                signal.SetResult(Environment.TickCount);
+//                            }
+//                            catch
+//                            {
+//                                // ignored
+//                            }
+//                        }
+//                    }
+//                    catch (Exception e)
+//                    {
+//                        LogManager.GetCurrentClassLogger().Error(e,$"{nameof(IoTimer)}:");
+//                    }
+                    
+//                });
+//#pragma warning restore VSTHRD101 // Avoid unsupported async delegates
+
+//                t.Start((delta, signal, token));
             };
         }
 

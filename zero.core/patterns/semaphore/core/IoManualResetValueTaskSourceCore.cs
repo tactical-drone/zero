@@ -435,15 +435,17 @@ namespace zero.core.patterns.semaphore.core
                     break;
 
                 //TODO: super fast but jams the runtime (same issue, under cpu pressure resuming interlock CAS cause a jam)
-                //case IoZeroScheduler zs:
-                //    zs.FallbackContext(continuation, state);
-                //    break;
+                case IoZeroScheduler zs:
+                    zs.FallbackContext(continuation, state);
+                    break;
 
                 //TODO: super slow for now, but works!
-                case IoZeroScheduler zs:
-                    Schedule(zs, continuation, state);
-                    break;
-                
+                //case IoZeroScheduler zs:
+                //    //Schedule(zs, continuation, state);
+                //    //Schedule(TaskScheduler.Default, continuation, state);
+                //    Schedule(zs, continuation, state);
+                //    break;
+
                 default:
                     var cc = (CapturedSchedulerAndExecutionContext)context;
                     if (cc._scheduler is SynchronizationContext ccsc)

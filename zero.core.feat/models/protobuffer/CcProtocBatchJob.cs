@@ -147,7 +147,8 @@ namespace zero.core.feat.models.protobuffer
                 return false;
             }, this).FastPath())
             {
-                _logger.Trace($"{nameof(ProduceAsync)}: Production [FAILED]; {Description}");
+                if(!Source.Zeroed())
+                    _logger.Trace($"{nameof(ProduceAsync)}: Production [FAILED]; {Description}");
                 return await SetStateAsync(IoJobMeta.JobState.ProdSkipped).FastPath();
             }
 

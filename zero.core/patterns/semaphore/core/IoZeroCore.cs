@@ -189,33 +189,29 @@ namespace zero.core.patterns.semaphore.core
 #if RELEASE
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
 #endif
-        private bool SetResult(T value, bool forceAsync = false, bool prime = true)
+        private int SetResult(T value, bool forceAsync = false, bool prime = true)
         {
+            retry:
             //insane checks
             if (Zeroed() || _results.Count == Capacity || (!prime && _blockingCores.Count == 0))
-                return false;
+                return -1;
 
-            retry:
-            var b = _blockingCores.Count;
             //unblock
             if (Unblock(value, forceAsync))
-                return true;
-
-            //zero blocking
-            if (_blocking > 0)
-                goto retry;
+                return 1;
 
             //only set if there is a thread waiting
             if (!prime)
-                return false;
+                return -1;
 
             //sloppy race detection that is probably good enough in worst case conditions
             //The other side does proper race detection since blockingCores have those bits attached to them
-            if (b == 0 && _blockingCores.Count > 0)
+            if (_blockingCores.Count > 0 || _blocking > 0)
                 goto retry;
 
             //Debug.Assert(_blockingCores.Count == 0 || b != 0);
-            return _results.TryEnqueue(value) >= 0; //TODO: Critical. This should be bigger than. Hacked for now with equals? 
+            return (int)_results.TryEnqueue(value) != -1? 1:0; //TODO: Critical. This should be bigger than. Hacked for now with equals? 
+            
 
         //TODO: For some reason this makes things worse... I don't know why.
         //TODO: From what I can tell from my telemetry, there is an old interlocked instruction that is resurrected that jams the _results Q with bogus values.
@@ -228,7 +224,7 @@ namespace zero.core.patterns.semaphore.core
 
             //saturated
             if (pos <= 0)
-                return false;
+                return 0;
 
             ////race
             if (_blockingCores.TryDequeue(out var blockingCore))
@@ -249,7 +245,7 @@ namespace zero.core.patterns.semaphore.core
                     Console.WriteLine("."); //TODO: "duplicate un-blockers" appear when this msg triggers. Makes no sense 
 #endif
 
-                    return true;
+                    return 1;
                 }
 
                 _blockingCores.TryEnqueue(blockingCore);
@@ -258,7 +254,7 @@ namespace zero.core.patterns.semaphore.core
 #endif
             }
 
-            return true;
+            return 1;
         }
 
         /// <summary>
@@ -272,11 +268,11 @@ namespace zero.core.patterns.semaphore.core
 #endif
         private bool Block(out ValueTask<T> slowTaskCore)
         {
-            Interlocked.Increment(ref _blocking);
             //Debug.Assert(_results.Count == 0 && _blockingCores.Count >= 0 || _results.Count >= 0 && _blockingCores.Count == 0);
-
             try
             {
+                Interlocked.Increment(ref _blocking);
+
                 IIoManualResetValueTaskSourceCore<T> blockingCore = null;
             
                 retry:
@@ -362,8 +358,6 @@ namespace zero.core.patterns.semaphore.core
                     goto retry;
                 }
 
-                Debug.Assert(_results.Count == 0 || b != 0);
-
                 blockingCore.SyncRoot = SyncReady;
             
                 Interlocked.Increment(ref _totalOps);
@@ -406,7 +400,7 @@ namespace zero.core.patterns.semaphore.core
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public int Release(T value, bool forceAsync = false, bool prime = true) => SetResult(value,forceAsync, prime) ? 1 : 0;
+        public int Release(T value, bool forceAsync = false, bool prime = true) => SetResult(value,forceAsync, prime);
         
 
         /// <summary>

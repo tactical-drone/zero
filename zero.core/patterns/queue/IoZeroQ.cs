@@ -268,7 +268,7 @@ namespace zero.core.patterns.queue
 #if !DEBUG
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
 #endif
-        private (bool success, long index) AtomicAdd(T value)
+        private long AtomicAdd(T value)
         {
 #if DEBUG
             var ts = Environment.TickCount;
@@ -276,7 +276,7 @@ namespace zero.core.patterns.queue
             try
             {
                 var state = -1;
-                var latch = 0L;
+                long latch;
                 var modIdx = (latch = Tail) % Capacity;
 
                 if (!IsAutoScaling)
@@ -294,7 +294,7 @@ namespace zero.core.patterns.queue
                         else
                         {
                             if (Tail != latch || state != _reset)
-                                return (false, -1);
+                                return -1;
 
                             goto retry;
                         }
@@ -314,7 +314,7 @@ namespace zero.core.patterns.queue
                         }
                         else
                             Interlocked.Decrement(ref _count);
-                        return (false, -1);
+                        return -1;
                     }
 
 
@@ -331,7 +331,7 @@ namespace zero.core.patterns.queue
                     Thread.MemoryBarrier();
 #endif
 
-                    return (true, _lastInsertIndex);
+                    return _lastInsertIndex;
                 }
 
                 var i = Log2(modIdx + 1);
@@ -349,7 +349,7 @@ namespace zero.core.patterns.queue
                     else
                     {
                         if (Tail != latch || state != _reset)
-                            return (false, -1);
+                            return -1;
 
                         goto retry2;
                     }
@@ -365,7 +365,7 @@ namespace zero.core.patterns.queue
                         LogManager.GetCurrentClassLogger().Fatal($"add: Unable to restore lock at {latch}, bloom = {{fastBloomPtr}}  - {Description}");
                     else
                         Interlocked.Decrement(ref _count);
-                    return (false, -1);
+                    return -1;
                 }
 
                 _lastInsertIndex = Interlocked.Increment(ref _tail) - 1;
@@ -380,7 +380,7 @@ namespace zero.core.patterns.queue
                     Thread.MemoryBarrier();
 #endif
 
-                return (true, _lastInsertIndex);
+                return _lastInsertIndex;
             }
             finally
             {
@@ -447,7 +447,7 @@ namespace zero.core.patterns.queue
                         }
                     }
 
-                    Interlocked.Decrement(ref _count);
+                    //Interlocked.Decrement(ref _count);
 
                     if (Head != latch)
                     //if (Head % Capacity - latch > Capacity / 2)
@@ -455,11 +455,12 @@ namespace zero.core.patterns.queue
                         Interlocked.MemoryBarrierProcessWide();
                         if (Interlocked.CompareExchange(ref fastBloomPtr, _set, _reset) != _reset)
                             LogManager.GetCurrentClassLogger().Fatal($"Rf> Unable to restore lock at {latch}, bloom = {fastBloomPtr}  - {Description}");
-                        else
-                            Interlocked.Increment(ref _count);
+                        //else
+                        //    Interlocked.Increment(ref _count);
                         value = default;
                         return false;
                     }
+                    Interlocked.Decrement(ref _count);
 #if !DEBUG
                     Interlocked.Increment(ref _head);
 #else
@@ -523,7 +524,7 @@ namespace zero.core.patterns.queue
                     goto retry2;
                 }
 
-                Interlocked.Decrement(ref _count);
+                //Interlocked.Decrement(ref _count);
 
                 if (Head != latch)
                 //if (Head - latch > Capacity >> 1)
@@ -531,12 +532,13 @@ namespace zero.core.patterns.queue
                     Interlocked.MemoryBarrierProcessWide();
                     if (Interlocked.CompareExchange(ref bloomPtr, _set, _reset) != _reset)
                         LogManager.GetCurrentClassLogger().Fatal($"R> Unable to restore lock at {latch}, bloom = {bloomPtr}  - {Description}");
-                    else
-                        Interlocked.Increment(ref _count);
+                    //else
+                    //    Interlocked.Increment(ref _count);
 
                     value = default;
                     return false;
                 }
+                Interlocked.Decrement(ref _count);
                 Interlocked.Increment(ref _head);
 
                 value = _storage[i][i2];
@@ -632,7 +634,7 @@ namespace zero.core.patterns.queue
                     {
                         try
                         {
-                            _balanceSync.Release(Environment.TickCount);
+                            return _balanceSync.Release(Environment.TickCount);
                         }
                         catch
                         {
@@ -643,7 +645,7 @@ namespace zero.core.patterns.queue
                     {
                         try
                         {
-                            _fanSync.Release(Environment.TickCount, _blockingConsumers);
+                            return _fanSync.Release(Environment.TickCount, _blockingConsumers);
                         }
                         catch
                         {
@@ -654,8 +656,7 @@ namespace zero.core.patterns.queue
                     {
                         try
                         {
-                            if(_zeroSync.Release(item) > 0)
-                                return 0;
+                            return _zeroSync.Release(item);
                         }
                         catch
                         {
@@ -683,8 +684,7 @@ namespace zero.core.patterns.queue
                 {
                     try
                     { 
-                        _zeroSync.Release(item);
-                        return 0;
+                        return _zeroSync.Release(item);
                     }
                     catch
                     {
@@ -693,7 +693,7 @@ namespace zero.core.patterns.queue
                 }
 
                 long cap, idx;
-                while (Tail >= Head + (cap = Capacity) || _count >= cap || !((_,idx) = AtomicAdd(item)).Item1)
+                while (Tail >= Head + (cap = Capacity) || _count >= cap || (idx = AtomicAdd(item)) < 0)
                 {
                     if (_count == cap)
                     {

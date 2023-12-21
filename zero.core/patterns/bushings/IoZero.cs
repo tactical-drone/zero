@@ -535,6 +535,9 @@ namespace zero.core.patterns.bushings
                 //A job was produced. Dequeue it and process
                 var curJob = await _queue.WaitAsync().FastPath();
 
+                if (curJob == null)
+                    return false;
+
                 if (curJob.State != IoJobMeta.JobState.ProdConnReset)
                     await curJob.SetStateAsync(IoJobMeta.JobState.Consuming).FastPath();
 

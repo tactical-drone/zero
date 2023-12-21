@@ -559,7 +559,7 @@ namespace zero.cocoon
         // ReSharper disable once InconsistentNaming
 
 #if DEBUG
-        public int parm_mean_pat_delay_s = 60 * 5;
+        public int parm_mean_pat_delay_s = 60;
 #else
         public int parm_mean_pat_delay_s = 60 * 15;
 #endif

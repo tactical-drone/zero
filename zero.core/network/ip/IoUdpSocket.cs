@@ -4,9 +4,7 @@ using System.Net;
 using System.Net.Sockets;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
-using System.Threading;
 using System.Threading.Tasks;
-using System.Threading.Tasks.Sources;
 using NLog;
 using zero.core.conf;
 using zero.core.misc;
@@ -92,21 +90,8 @@ namespace zero.core.network.ip
         public void Init(int concurrencyLevel)
         {
             _logger = LogManager.GetCurrentClassLogger();
-
-            _argsHeap = new IoHeap<SocketAsyncEventArgs, IoUdpSocket>($"{nameof(_argsHeap)}: {Description}",
-                concurrencyLevel << 3, static (_, @this) =>
-                {
-                    var args = new SocketAsyncEventArgs
-                    {
-                        UserToken = new IoManualResetValueTaskSourceCore<bool> { AutoReset = true, RunContinuationsAsynchronouslyAlways = true},
-                    };
-                    args.Completed += @this.ZeroCompletion;
-
-                    return args;
-                }, autoScale: true)
-            {
-                Context = this
-            };
+            //TODO: tuning
+            _endPointHeap = new IoHeap<IPEndPoint>($"{nameof(_endPointHeap)}: {Description}", concurrencyLevel << 4, static (_, @this) => new IPEndPoint(IPAddress.Any, 0), autoScale: true);
         }
 
         /// <summary>
@@ -118,8 +103,7 @@ namespace zero.core.network.ip
 
 #if SAFE_RELEASE
             _logger = null;
-            _argsHeap = null;
-            _argsHeap = null;
+            _endPointHeap = null;
             RemoteNodeAddress = null;
 #endif
         }
@@ -131,27 +115,8 @@ namespace zero.core.network.ip
         {
             await base.ZeroManagedAsync().FastPath();
 
-            if (_argsHeap != null)
-            {
-                await _argsHeap.ZeroManagedAsync(static (o, @this) =>
-                {
-                    o.Completed -= @this.ZeroCompletion;
-                    o.UserToken = null;
-                    //o.RemoteEndPoint = null; Leave not null
-                    try
-                    {
-                        o.SetBuffer(null, 0, 0);
-                    }
-                    catch
-                    {
-                        // ignored
-                    }
-                    ((IDisposable)o).Dispose();
-
-                    return new ValueTask(Task.CompletedTask);
-                }, this).FastPath();
-            }
-            
+            if (_endPointHeap != null)
+                await _endPointHeap.ZeroManagedAsync<object>();
         }
 
         /// <summary>
@@ -255,69 +220,6 @@ namespace zero.core.network.ip
             return true;
         }
 
-        ///// <summary>
-        ///// UDP connection tracker
-        ///// </summary>
-        //private ConcurrentDictionary<string, IIoZero> _connTrack;
-
-        //private async ValueTask<bool> RouteAsync(byte[] listenerBuffer, IPEndPoint endPoint, Func<IoSocket, Task<IIoZero>> newConnectionHandler)
-        //{
-        //    var read = await ReceiveAsync(listenerBuffer, 0, listenerBuffer.Length, endPoint).ZeroBoostAsync(oomCheck: false).ConfigureAwait(ZC);
-
-        //    //fail fast
-        //    if (read == 0)
-        //        return false;
-
-        //    //New connection?
-        //    if (!_connTrack.TryGetValue(endPoint.ToString(), out var connection))
-        //    {
-        //        //Atomic add new route
-        //        if (await ZeroAtomicAsync(async (z, b) => _connTrack.TryAdd(endPoint.ToString(),
-        //            connection = await newConnectionHandler(new IoUdpSocket()).ConfigureAwait(ZC))).ConfigureAwait(ZC))
-        //        {
-        //            //atomic ensure teardown
-        //            return await connection.ZeroAtomicAsync((z, b) =>
-        //            {
-        //                var sub = connection.ZeroSubscribe(s =>
-        //                {
-        //                    //Untrack connection
-        //                    if (_connTrack.TryRemove(connection.IoSource.Key, out var removed))
-        //                    {
-        //                        _logger.Trace($"Delete route: {removed!.Description}");
-        //                    }
-        //                    else
-        //                    {
-        //                        _logger.Trace($"Delete route, not found: {connection.IoSource.Key}");
-        //                    }
-
-        //                    return Task.CompletedTask;
-        //                });
-
-        //                return Task.FromResult(sub != null);
-        //            }).ConfigureAwait(ZC);
-        //        }
-        //        else if(connection != null)//race
-        //        {
-        //            await connection.ZeroAsync(this).ConfigureAwait(ZC);
-        //        }
-        //        //raced out
-        //        return false;
-        //    }
-
-        //    await connection.IoSource.ProduceAsync(async (b, func, arg3, arg4) =>
-        //    {
-        //        var source = (IoNetSocket) b;
-
-        //        return true;
-        //    }).ConfigureAwait(ZC);
-        //    //route
-
-        //    return await connection!.ConsumeAsync();
-        //}
-
-        //private IIoZeroSemaphore _sendSync;
-        //private IIoZeroSemaphore _rcvSync;
-
         /// <inheritdoc />
         /// <summary>
         /// Send UDP packet
@@ -330,37 +232,39 @@ namespace zero.core.network.ip
         /// <returns></returns>
         public async ValueTask<int> SendAsync(ReadOnlyMemory<byte> buffer, int offset, int length, EndPoint endPoint, int timeout = 0)
         {
-            SocketAsyncEventArgs args = default;
             try
             {
-                //if (!NativeSocket.Poll(parm_socket_poll_wait_ms, SelectMode.SelectWrite))
-                //    return 0;
+                var core = new IoManualResetValueStructTaskSource<bool>();
+                var waitCore = new ValueTask<bool>(core, 0);
 
-                //args = _argsHeap.Take();
-                //if (args == null)
-                //    throw new OutOfMemoryException(nameof(_argsHeap));
-
-                args = new SocketAsyncEventArgs
+                try
                 {
-                    RemoteEndPoint = endPoint,
-                    UserToken = new IoManualResetValueTaskSourceCore<bool>(),
-                };
+                    var asyncResult = NativeSocket.BeginSendTo( buffer.AsArray(), offset, length, SocketFlags.None, endPoint, static result =>
+                    {
+                        var core = (IoManualResetValueStructTaskSource<bool>)result.AsyncState;
+                        core.SetResult(result.IsCompleted);
+                    }, core);
 
-                args.Completed += ZeroCompletion;
+                    if (!await waitCore.FastPath())
+                        return 0;
 
-                var buf = Unsafe.As<ReadOnlyMemory<byte>, Memory<byte>>(ref buffer).Slice(offset, length);
-                var send = new ValueTask<bool>((IIoManualResetValueTaskSourceCore<bool>)args.UserToken, 0);
-
-                //args.UserToken = new IoManualResetValueTaskSourceCore<bool>();
-
-                args.SetBuffer(buf);
-                args.RemoteEndPoint = endPoint;
-
-                //send
-                if (NativeSocket.SendToAsync(args) && !await send.FastPath())
+                    return NativeSocket.EndSendTo(asyncResult);
+                }
+                catch (SocketException e) when (!Zeroed() && e.SocketErrorCode == SocketError.OperationAborted)
+                {
+#if DEBUG
+                    _logger.Trace(e, $"{nameof(NativeSocket.ReceiveFromAsync)}:");
+#endif
+                    await DisposeAsync(this, e.Message).FastPath();
+                }
+                catch when (Zeroed()) { }
+                catch (Exception e) when (!Zeroed())
+                {
+                    _logger.Error(e, $"{nameof(NativeSocket.ReceiveFromAsync)}:");
+                    await DisposeAsync(this, e.Message).FastPath();
                     return 0;
-                
-                return args.SocketError == SocketError.Success ? args.BytesTransferred : 0;
+                }
+
             }
             catch (ObjectDisposedException)
             {
@@ -370,24 +274,14 @@ namespace zero.core.network.ip
             }
             catch (SocketException e) when (!Zeroed() && e.ErrorCode == (int)SocketError.AddressNotAvailable)
             {
-                var errMsg = $"Sending to :{NativeSocket.LocalPort()} ~> udp://{endPoint} failed ({args!.RemoteEndPoint}), z = {Zeroed()}, zf = {ZeroedFrom?.Description}:";
+                var errMsg = $"Sending to :{NativeSocket.LocalPort()} ~> udp://{endPoint} failed ({endPoint}), z = {Zeroed()}, zf = {ZeroedFrom?.Description}:";
                 _logger.Warn(e, errMsg);
             }       
             catch (Exception e) when (!Zeroed())
             {
-                var errMsg = $"Sending to :{NativeSocket.LocalPort()} ~> udp://{endPoint} failed ({args?.RemoteEndPoint}), z = {Zeroed()}, zf = {ZeroedFrom?.Description}:";
+                var errMsg = $"Sending to :{NativeSocket.LocalPort()} ~> udp://{endPoint} failed ({endPoint}), z = {Zeroed()}, zf = {ZeroedFrom?.Description}:";
                 _logger.Error(e, errMsg);
                 await DisposeAsync(this, errMsg).FastPath();
-            }
-            finally
-            {
-#if DEBUG
-                if (args!.BytesTransferred == 0 || args.SocketError != SocketError.Success)
-                    _logger.Warn($"udp ERROR => tx = {args.BytesTransferred}, error = {args.SocketError}");
-#endif
-                //_argsHeap?.Return(args);
-                args!.Completed-= ZeroCompletion;
-                args.Dispose();
             }
 
             return 0;
@@ -408,7 +302,7 @@ namespace zero.core.network.ip
         /// <summary>
         /// socket args heap
         /// </summary>
-        private IoHeap<SocketAsyncEventArgs, IoUdpSocket> _argsHeap;
+        private IoHeap<IPEndPoint> _endPointHeap;
 
         /// <summary>
         /// Interacts with <see cref="SocketAsyncEventArgs"/> to complete async reads
@@ -443,6 +337,7 @@ namespace zero.core.network.ip
         private static int _failOne;
 #endif
 
+        private static EndPoint _anyAddress = new IPEndPoint(IPAddress.Any, 0);
 
         /// <summary>
         /// Read from the socket
@@ -450,69 +345,73 @@ namespace zero.core.network.ip
         /// <param name="buffer">Read into a buffer</param>
         /// <param name="offset">Write start pos</param>
         /// <param name="length">Bytes to read</param>
-        /// <param name="remoteEp"></param>
+        /// <param name="remoteEp">The address we received a frame from</param>
         /// <param name="timeout">Timeout after ms</param>
         /// <returns>Number of bytes received</returns>
         public override async ValueTask<int> ReceiveAsync(Memory<byte> buffer, int offset, int length, byte[] remoteEp, int timeout = 0)
         {
-            SocketAsyncEventArgs args = null;
-
             try
             {
-                if (length == 0)
-                    return 0;
-
                 if (timeout == 0)
                 {
-                    
                     try
                     {
-                        //args = _argsHeap.Take();
-                        //if (args == null)
-                        //    throw new OutOfMemoryException(nameof(_argsHeap));
+                        var core = new IoManualResetValueStructTaskSource<bool>();
+                        var waitCore = new ValueTask<bool>(core, 0);
 
-                        args = new SocketAsyncEventArgs
-                        {
-                            RemoteEndPoint = new IPEndPoint(IPAddress.Any, 0),
-                            UserToken = new IoManualResetValueTaskSourceCore<bool>(),
-                        };
-                        args.Completed += ZeroCompletion;
-
-                        //args.RemoteEndPoint = new IPEndPoint(IPAddress.Any, 0);
-                        args.SetBuffer(buffer.Slice(offset, length));
-                        var waitCore = new ValueTask<bool>((IIoManualResetValueTaskSourceCore<bool>)args.UserToken, 0);
-
+                        var read = 0;
                         try
                         {
-                            if (NativeSocket.ReceiveFromAsync(args) && !await waitCore.FastPath())
+                            EndPoint ep = null;
+                            
+                            var asyncResult = NativeSocket.BeginReceiveFrom(buffer.AsArray(), offset, length, SocketFlags.None, ref _anyAddress, static result =>
+                            {
+                                var core = (IoManualResetValueStructTaskSource<bool>)result.AsyncState;
+                                core.SetResult(result.IsCompleted);
+                            }, core);
+
+                            if (!await waitCore.FastPath())
                                 return 0;
+
+                            try
+                            {
+                                ep = _endPointHeap.Take();
+                                if (ep == null)
+                                    return 0;
+                                read = NativeSocket.EndReceiveFrom(asyncResult, ref ep);
+                                ep.AsBytes(remoteEp);
+                            }
+                            catch when(Zeroed()){}
+                            catch (SocketException e)when(!Zeroed())
+                            {
+                                _logger.Trace( $"{nameof(ReceiveAsync)}: ({e.Message}); {Description}");
+                                LastError = e.SocketErrorCode;//TODO: instagib
+                            }
+                            catch(SocketException e){ LastError = e.SocketErrorCode; }
+                            catch(Exception e) when(!Zeroed())
+                            {
+                                _logger.Error(e, $"{nameof(ReceiveAsync)}: Failed!; {Description}");
+                            }
+                            finally
+                            {
+                                _endPointHeap?.Return((IPEndPoint)ep);
+                            }
                         }
                         catch (SocketException e) when (!Zeroed() && e.SocketErrorCode == SocketError.OperationAborted)
                         {
 #if DEBUG
                             _logger.Trace(e, $"{nameof(NativeSocket.ReceiveFromAsync)}:");
 #endif
-                            await DisposeAsync(this, e.Message).FastPath();
+                            LastError = e.SocketErrorCode;//TODO: instagib
                         }
                         catch when (Zeroed()) { }
                         catch (Exception e) when (!Zeroed())
                         {
                             _logger.Error(e, $"{nameof(NativeSocket.ReceiveFromAsync)}:");
-                            await DisposeAsync(this, e.Message).FastPath();
                             return 0;
                         }
 
-                        
-                        args.RemoteEndPoint.AsBytes(remoteEp);
-                       // Console.WriteLine($"<<<Got packet from {remoteEp.GetEndpoint()} {args.RemoteEndPoint} ({NativeSocket.LocalEndPoint}), {Description} ({Serial})");
-#if DEBUG
-                        if (args.SocketError != SocketError.Success && args.SocketError != SocketError.OperationAborted && args.SocketError != SocketError.ConnectionReset)
-                            _logger.Error($"{nameof(ReceiveAsync)}: socket error = {args.SocketError}");
-#endif
-
-                        LastError = args.SocketError;
-
-                        return args.BytesTransferred;
+                        return read;
                     }
                     catch when (Zeroed())
                     {
@@ -520,36 +419,29 @@ namespace zero.core.network.ip
                     catch (Exception e) when (!Zeroed())
                     {
                         _logger.Error(e, "Receive udp failed:");
-                        await DisposeAsync(this, $"{nameof(NativeSocket.ReceiveFromAsync)}: [FAILED] {e.Message}")
-                            .FastPath();
+                        await DisposeAsync(this, $"{nameof(NativeSocket.ReceiveFromAsync)}: [FAILED] {e.Message}").FastPath();
                     }
-                    finally
-                    {
-                        //_argsHeap?.Return(args);
-                        args.Completed -= ZeroCompletion;
-                        args.Dispose();
-
-#if TEST_FAIL_LISTEN
-                        if (Interlocked.CompareExchange(ref _failOne, 1, 0) == 0)
-                        {
-                            await DisposeAsync(this, "test").FastPath();
-                            //AsyncTasks.Cancel(false);
-                        }
-#endif
-                    }
-
+                    
                     return 0;
                 }
 
-                EndPoint remoteEpAny = new IPEndPoint(0, 0);
-                if (MemoryMarshal.TryGetArray((ReadOnlyMemory<byte>)buffer, out var tBuf))
+                EndPoint remoteEpAny = null;
+                try
                 {
-                    NativeSocket.ReceiveTimeout = timeout;
-                    var read = NativeSocket.ReceiveFrom(tBuf.Array!, offset, length, SocketFlags.None, ref remoteEpAny);
-                    NativeSocket.ReceiveTimeout = 0;
+                    remoteEpAny = _endPointHeap.Take();
+                    if (MemoryMarshal.TryGetArray((ReadOnlyMemory<byte>)buffer, out var tBuf))
+                    {
+                        NativeSocket.ReceiveTimeout = timeout;
+                        var read = NativeSocket.ReceiveFrom(tBuf.Array!, offset, length, SocketFlags.None, ref remoteEpAny);
+                        NativeSocket.ReceiveTimeout = 0;
 
-                    remoteEpAny.AsBytes(remoteEp);
-                    return read;
+                        remoteEpAny.AsBytes(remoteEp);
+                        return read;
+                    }
+                }
+                finally
+                {
+                    _endPointHeap?.Return((IPEndPoint)remoteEpAny);
                 }
             }
             catch (Win32Exception e) when (!Zeroed())

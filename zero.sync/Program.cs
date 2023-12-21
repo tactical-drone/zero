@@ -432,43 +432,48 @@ namespace zero.sync
         {
             IoTimer.Make(make: static (delta, signal, token) =>
             {
-#pragma warning disable VSTHRD101
-                var t = new Thread(static async state =>
+                _ = Task.Factory.StartNew(static async state =>
                 {
                     var (delta, signal, token) = (ValueTuple<TimeSpan, IIoManualResetValueTaskSourceCore<int>, CancellationToken>)state;
 
-                    signal.RunContinuationsAsynchronouslyAlways = true;
-                    var p = new PeriodicTimer(delta);
-                    while (!token.IsCancellationRequested)
+                    try
                     {
-                        try
+                        
+
+                        signal.RunContinuationsAsynchronouslyAlways = true;
+                        var p = new PeriodicTimer(delta);
+                        while (!token.IsCancellationRequested)
                         {
                             if (await p.WaitForNextTickAsync(token).FastPath())
                                 signal.SetResult(Environment.TickCount);
                             else
                                 signal.SetException(new OperationCanceledException());
                         }
-                        //catch (OperationCanceledException){}
-                        catch //(Exception)
-                        {
-                            break;
-                            //try
-                            //{
-                            //    signal.SetException(new OperationCanceledException());
-                            //}
-                            //catch (Exception e)
-                            //{
-                            //    Console.WriteLine(e);
-                            //}
-                        }
-                        finally
-                        {
-                            //signal.Reset();
-                        }
                     }
-                });
-#pragma warning restore VSTHRD101
-                t.Start((delta, signal, token));
+                    catch (TaskCanceledException){}
+                    catch (OperationCanceledException){}
+                    catch (Exception e)when(token.CanBeCanceled) 
+                    {
+                            LogManager.GetCurrentClassLogger().Error(e, $"{nameof(IoTimer)}:");
+                    }
+
+                }, (delta, signal, token), CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Default);
+
+//                var t = new Thread(static async state =>
+//                {
+//                    var (delta, signal, token) = (ValueTuple<TimeSpan, IIoManualResetValueTaskSourceCore<int>, CancellationToken>)state;
+
+//                    signal.RunContinuationsAsynchronouslyAlways = true;
+//                    var p = new PeriodicTimer(delta);
+//                    while (!token.IsCancellationRequested)
+//                    {
+//                        if (await p.WaitForNextTickAsync(token).FastPath())
+//                            signal.SetResult(Environment.TickCount);
+//                        else
+//                            signal.SetException(new OperationCanceledException());
+//                    }
+//                });
+//                t.Start((delta, signal, token));
             });
         }
 
@@ -1075,26 +1080,26 @@ namespace zero.sync
                             await q.EnqueueAsync(Volatile.Read(ref done)).FastPath(); //Console.WriteLine("2");
                             var ts = Environment.TickCount;
                             var dq = await q.DequeueAsync().FastPath(); //Console.WriteLine("7");
-                            if (dq < done - maxDiff && ts.ElapsedMs() > 0)
+                            if (dq < done - maxDiff)
                                 Console.WriteLine($"* diff = {done -dq}, {ts.ElapsedMs()}ms");
 
                             //await q.EnqueueAsync(Volatile.Read(ref done)).FastPath(); //Console.WriteLine("2");
                             await q.PushBackAsync(Volatile.Read(ref done)).FastPath(); //Console.WriteLine("2");
                             ts = Environment.TickCount;
                             dq = await q.DequeueAsync().FastPath(); //Console.WriteLine("8");
-                            if (dq < done - maxDiff && ts.ElapsedMs() > 0)
+                            if (dq < done - maxDiff)
                                 Console.WriteLine($"* diff = {done - dq}, {ts.ElapsedMs()}ms");
 
                             await q.EnqueueAsync(Volatile.Read(ref done)).FastPath(); //Console.WriteLine("2");
                             ts = Environment.TickCount;
                             dq = await q.DequeueAsync().FastPath(); //Console.WriteLine("9");
-                            if (dq < done - maxDiff && ts.ElapsedMs() > 0)
+                            if (dq < done - maxDiff)
                                 Console.WriteLine($"* diff = {done - dq}, {ts.ElapsedMs()}ms");
 
                             await q.PushBackAsync(Volatile.Read(ref done)).FastPath(); //Console.WriteLine("2");
                             ts = Environment.TickCount;
                             dq = await q.DequeueAsync().FastPath(); //Console.WriteLine("10");.
-                            if (dq < done - maxDiff && ts.ElapsedMs() > 0)
+                            if (dq < done - maxDiff)
                                 Console.WriteLine($"* diff = {done - dq}, {ts.ElapsedMs()}ms");
                         }
                         catch (Exception e)

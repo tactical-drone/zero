@@ -404,7 +404,8 @@ namespace zero.core.network.ip
         /// <param name="remoteEp"></param>
         /// <param name="timeout">A timeout</param>
         /// <returns>The number of bytes read</returns>
-        public override async ValueTask<int> ReceiveAsync(Memory<byte> buffer, int offset, int length, byte[] remoteEp = null, int timeout = 0)
+        public override async ValueTask<int> ReceiveAsync(Memory<byte> buffer, int offset, int length,
+            byte[] remoteEp = null, int timeout = 0)
         {
             try
             {

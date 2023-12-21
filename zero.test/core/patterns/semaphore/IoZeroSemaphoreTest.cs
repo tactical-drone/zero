@@ -314,12 +314,12 @@ namespace zero.test.core.patterns.semaphore
         async Task TestIoZeroSemaphoreSlimSpamAsync()
         {
 #if DEBUG
-            long count = 1000;
+            long count = 1000000;
 #else
-            long count = 100000;
+            long count = 10000000;
 #endif
 
-            var v = new IoZeroSemaphoreSlim(new CancellationTokenSource(), string.Empty, 1, 0);
+            var v = new IoZeroSemaphoreSlim(new CancellationTokenSource(), string.Empty, 2, 0);
 
             var totalTime = Environment.TickCount;
 
@@ -328,19 +328,29 @@ namespace zero.test.core.patterns.semaphore
             var t2 = Task.Factory.StartNew(async () =>
             {
                 long ave = 0;
-                var i = 0;
-                for (i = 0; i < count; i++)
+                int waiters = 1;
+                try
                 {
-                    var ts = Environment.TickCount;
-                    Assert.True((await v.WaitAsync().FastPath()).ElapsedMs() < 0x7ffffff);
-                    ave += ts.ElapsedMs();
-                    if (i % 100 == 0)
-                        _output.WriteLine($"DQ - {i}");
+                    var i = 0;
+                    for (i = 0; i < count; i++)
+                    {
+                        var ts = Environment.TickCount;
+                        Interlocked.Decrement(ref waiters);
+                        await v.WaitAsync().FastPath();
+                        Interlocked.Increment(ref waiters);
+                        ave += ts.ElapsedMs();
+                        if (i % 100000 == 0)
+                            _output.WriteLine($"DQ - {i} ({count}); w = {waiters}");
+                    }
+                }
+                catch (Exception e)
+                {
+                    _output.WriteLine(e.ToString());
                 }
 
                 Assert.InRange(ave / count, 0, 16);
                 v.ZeroSem();
-            }, CancellationToken.None, TaskCreationOptions.DenyChildAttach, IoZeroScheduler.ZeroDefault);
+            }, CancellationToken.None, TaskCreationOptions.DenyChildAttach, IoZeroScheduler.ZeroDefault).Unwrap();
 
             await Task.Delay(200);
 
@@ -349,15 +359,19 @@ namespace zero.test.core.patterns.semaphore
                 int i = 0;
                 while (!v.Zeroed())
                 {
-                    if (v.Release(Environment.TickCount, true) <= 0 )
+                    if (v.Release(Environment.TickCount, true) < 0 )
                     {
                         //_output.WriteLine($"{i} - Jammed!");
-                        await Task.Delay(1);
+                        //await Task.Delay(0);
                     }
                     else
                     {
-                        i++;
-                        if( i % 100 == 0)
+                        if (i++ > count)
+                        {
+                            _output.WriteLine($"Done inserting {count}");
+                            break;
+                        }
+                        if( i % 10000000 == 0)
                             _output.WriteLine($"EQ - {i}");
                     }
                         

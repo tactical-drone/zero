@@ -141,7 +141,7 @@ namespace zero.core.feat.models.protobuffer
         /// <summary>
         /// User data in the source
         /// </summary>
-        protected readonly byte[] RemoteEndPoint = new IPEndPoint(IPAddress.Any, 0).AsBytes();
+        protected byte[] RemoteEndpoint = new IPEndPoint(IPAddress.Any, 0).AsBytes();
 
         /// <summary>
         /// Produce a Message
@@ -161,7 +161,7 @@ namespace zero.core.feat.models.protobuffer
                             //Async read the message from the message stream
                             //CryptographicOperations.ZeroMemory(job.MemoryBuffer.Span);
                             var read = await ((IoNetClient<CcProtocMessage<TModel, TBatch>>)ioSocket).IoNetSocket
-                                .ReceiveAsync(job.MemoryBuffer, job.BufferOffset, job.BufferSize, job.RemoteEndPoint)
+                                .ReceiveAsync(job.MemoryBuffer, job.BufferOffset, job.BufferSize, job.RemoteEndpoint)
                                 .FastPath();
                             job.GenerateJobId();
 
@@ -185,8 +185,7 @@ namespace zero.core.feat.models.protobuffer
                                         socket.IoNetSocket.LastError != SocketError.OperationAborted &&
                                         socket.IoNetSocket.LastError != SocketError.ConnectionReset)
                                     {
-                                        await job.MessageService.DisposeAsync(ioJob,
-                                            $"socket: {job.MessageService.IoNetSocket.LastError}").FastPath();
+                                        await job.MessageService.DisposeAsync(ioJob, $"error: {job.MessageService.IoNetSocket.LastError}").FastPath();
                                         await ioJob.SetStateAsync(IoJobMeta.JobState.ProduceErr).FastPath();
                                         return false;
                                     }
@@ -289,7 +288,7 @@ namespace zero.core.feat.models.protobuffer
                 var next = CurrentBatch.Feed();
                 next.Zero = packet;
 
-                RemoteEndPoint.CopyTo(next.EndPoint, 0);
+                RemoteEndpoint.CopyTo(next.EndPoint, 0);
                 if (CurrentBatch.ReadyToFlush)
                     await ZeroBatchAsync().FastPath();
             }
@@ -336,13 +335,16 @@ namespace zero.core.feat.models.protobuffer
                         retry:
                         if ((r = chan.Release(nextBatch, forceAsync: true)) < 1)
                         {
-                            if (retried-- > 0 || chan.TotalOps == 0 || chan.WaitCount > 0)
+                            if (retried-- > 0 || chan.WaitCount > 0)
                             {
+                                if(@this.Zeroed() || chan.Zeroed())
+                                    return new ValueTask<bool>(false);
+
                                 spinWait.SpinOnce();
                                 goto retry;
                             }
 
-                            if (!((CcProtocBatchSource<chroniton, TBatch>)source).Zeroed() && !chan.Zeroed() && chan.TotalOps > 0)
+                            if (!((CcProtocBatchSource<chroniton, TBatch>)source).Zeroed() && !chan.Zeroed() && chan.TotalOps > 0 && chan.ReadyCount != chan.Capacity)
                                 _logger.Fatal($"{nameof(ZeroBatchAsync)}: Unable to q batch; released = {r}, ready = {chan.ReadyCount}, wait = {chan.WaitCount}, cap = {chan.Capacity}; {chan.Description} {@this.Description}");
                             
                             return new ValueTask<bool>(false);

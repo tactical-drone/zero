@@ -114,7 +114,7 @@ namespace zero.core.runtime.scheduler
 
         private const int InitExpected = 7;
         private int _initCount = 0;
-        private int _intialized = 0;
+        private int _initialized = 0;
 
         //TODO: <<--- these values need more research. It is not at all clear why
         //TODO: thread lockups happen when you change these values.Too high and you get CPU flat-lining without any work being done. To little, deadlock! How to tune is unclear?
@@ -254,14 +254,14 @@ namespace zero.core.runtime.scheduler
             //tasks
             for (var i = 0; i < _taskQueueCapacity; i++)
             {
-                _ = Task.Factory.StartNew(static state => ((IoZeroScheduler)state).HandleAsyncSchedulerTask().ConfigureAwait(false)
+                _ = Task.Factory.StartNew(static state => ((IoZeroScheduler)state).HandleAsyncSchedulerTask().FastPath().ConfigureAwait(false)
                 , this, CancellationToken.None, TaskCreationOptions.DenyChildAttach, Default);
             }
 
             //forks with context
             for (var i = 0; i < _asyncFallbackCapacity; i++)
             {
-                _ = Task.Factory.StartNew(static state =>((IoZeroScheduler)state).HandleAsyncFallback().ConfigureAwait(false)
+                _ = Task.Factory.StartNew(static state =>((IoZeroScheduler)state).HandleAsyncFallback().FastPath().ConfigureAwait(false)
                 , this, CancellationToken.None, TaskCreationOptions.DenyChildAttach, Default);
             }
 
@@ -327,7 +327,7 @@ namespace zero.core.runtime.scheduler
         private void TrackInit()
         {
             if (Interlocked.Increment(ref _initCount) == InitExpected)
-                Interlocked.Exchange(ref _intialized, 1);
+                Interlocked.Exchange(ref _initialized, 1);
         }
 
         private async ValueTask HandleAsyncSchedulerTask()
@@ -373,10 +373,18 @@ namespace zero.core.runtime.scheduler
                     job.Callback(job.State);
                     Interlocked.Increment(ref _asyncFallbackCount);
                 }
+                catch (TaskCanceledException) { }
+                catch (OperationCanceledException) { }
                 catch when (Zeroed) { }
+                catch (InvalidOperationException){}
+#if RELEASE
+                catch (NullReferenceException) { }
+#endif
                 catch (Exception e) when (!Zeroed)
                 {
+//#if DEBUG
                     LogManager.GetCurrentClassLogger().Error(e);
+//#endif
                 }
                 finally
                 {
@@ -546,10 +554,10 @@ namespace zero.core.runtime.scheduler
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private void EnsureInit()
         {
-            if (_intialized != 0) return;
+            if (_initialized != 0) return;
 
             var spinWait = new SpinWait();
-            while(_intialized == 0 && !Zeroed)
+            while(_initialized == 0 && !Zeroed)
                 spinWait.SpinOnce();
         }
 
@@ -565,7 +573,7 @@ namespace zero.core.runtime.scheduler
                 return;
 
             //schedule the task
-            if (_taskQueue.Release(task, true) <= 0)
+            if (_taskQueue.Release(task, true) < 0)
                 throw new InternalBufferOverflowException($"{nameof(_taskQueue)}: {_taskQueue.Description}");
 
             //insane checks
@@ -590,7 +598,7 @@ namespace zero.core.runtime.scheduler
                         _ = Task.Factory.StartNew(static state =>((IoZeroScheduler)state).HandleAsyncCallback()
                         , @this, CancellationToken.None, TaskCreationOptions.DenyChildAttach, ZeroDefault);
 
-                        _ = Task.Factory.StartNew(static state => ((IoZeroScheduler)state).HandleAsyncFallback()
+                        _ = Task.Factory.StartNew(static state => ((IoZeroScheduler)state).HandleAsyncFallback().ConfigureAwait(false)
                         , @this, CancellationToken.None, TaskCreationOptions.DenyChildAttach, ZeroDefault);
 
                         if (_workerSpawnBurstMax == 0)
