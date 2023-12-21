@@ -336,7 +336,7 @@ namespace zero.core.feat.models.protobuffer
                         retry:
                         if ((r = chan.Release(nextBatch, forceAsync: true)) < 1)
                         {
-                            if (retried-- > 0 || chan.TotalOps == 0)
+                            if (retried-- > 0 || chan.TotalOps == 0 || chan.WaitCount > 0)
                             {
                                 spinWait.SpinOnce();
                                 goto retry;

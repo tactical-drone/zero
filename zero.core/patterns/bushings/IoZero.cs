@@ -59,7 +59,7 @@ namespace zero.core.patterns.bushings
         {
             _description = description;
             Source = source;
-            var capacity = Source.PrefetchSize;
+            var capacity = Source.PrefetchSize + 1;
 
             //These numbers were numerically established
             if (ZeroRecoveryEnabled)
@@ -347,7 +347,7 @@ namespace zero.core.patterns.bushings
                         if (nextJob.State != IoJobMeta.JobState.ProdConnReset)
                             await nextJob.SetStateAsync(IoJobMeta.JobState.Queued).FastPath();
 
-                        if(_queue.Release(nextJob) < 0)
+                        if(_queue.Release(nextJob, true) < 0)
                         {
                             ts = ts.ElapsedMs();
 
@@ -612,7 +612,7 @@ namespace zero.core.patterns.bushings
                                 //cleanup
                                 await @this.ZeroJobAsync(curJob, curJob.FinalState is IoJobMeta.JobState.Reject).FastPath();
                                 //back pressure
-                                @this.Source.BackPressure(zeroAsync: true);
+                                @this.Source.BackPressure(zeroAsync: false);
                             }
                         }
                 }, (this, curJob, consume, context));

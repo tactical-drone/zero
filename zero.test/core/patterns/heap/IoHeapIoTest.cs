@@ -171,7 +171,7 @@ namespace zero.test.core.patterns.heap
             return ValueTask.FromResult((IIoHeapItem)this);
         }
 
-        public void HeapPush()
+        public void HeapPushAction()
         {
         }
 

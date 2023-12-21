@@ -7,6 +7,7 @@ using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Threading.Tasks.Sources;
+using System.Xml.Schema;
 using zero.core.misc;
 using zero.core.runtime.scheduler;
 using zero.core.runtime.threadpool;
@@ -335,7 +336,7 @@ namespace zero.core.patterns.semaphore.core
                 Volatile.Read(ref _continuation) ??
                 Interlocked.CompareExchange(ref _continuation, ManualResetValueTaskSourceCoreShared.s_sentinel, null);
 
-            if (continuation == null)
+            if (continuation == null || _continuation == null)
                 return;
 
             switch (_capturedContext)
@@ -345,7 +346,15 @@ namespace zero.core.patterns.semaphore.core
                     break;
                 
                 case null:
-                    _continuation(_continuationState);
+                    try
+                    {
+                        _continuation(_continuationState);
+                    }
+                    catch
+                    {
+                        // ignored
+                    }
+
                     break;
 
                 case ExecutionContext or CapturedSchedulerAndExecutionContext:
@@ -425,15 +434,16 @@ namespace zero.core.patterns.semaphore.core
                     continuation(state);
                     break;
 
-                //TODO: Experimental
-                case IoZeroScheduler ts:
-                    new Task(continuation, state).Start(ts);
-                    break;
+                //TODO: super fast but jams the runtime (same issue, under cpu pressure resuming interlock CAS cause a jam)
+                //case IoZeroScheduler zs:
+                //    zs.FallbackContext(continuation, state);
+                //    break;
 
-                case TaskScheduler ts:
-                    Schedule(ts, continuation, state);
+                //TODO: super slow for now, but works!
+                case IoZeroScheduler zs:
+                    Schedule(zs, continuation, state);
                     break;
-
+                
                 default:
                     var cc = (CapturedSchedulerAndExecutionContext)context;
                     if (cc._scheduler is SynchronizationContext ccsc)

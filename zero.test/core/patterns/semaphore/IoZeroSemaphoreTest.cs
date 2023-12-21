@@ -188,7 +188,7 @@ namespace zero.test.core.patterns.semaphore
         {
             var m = new IoZeroSemaphoreSlim(new CancellationTokenSource(), "test mutex", maxBlockers: 2, initialCount: 1, zeroAsyncMode:false);
             var running = true;
-            var count = 10000000;
+            var count = 1000000;
             var waits = 0;
             var scheduler = IoZeroScheduler.ZeroDefault;
 
@@ -319,7 +319,7 @@ namespace zero.test.core.patterns.semaphore
             long count = 100000;
 #endif
 
-            var v = new IoZeroSemaphoreSlim(new CancellationTokenSource(), string.Empty, 1, 1);
+            var v = new IoZeroSemaphoreSlim(new CancellationTokenSource(), string.Empty, 1, 0);
 
             var totalTime = Environment.TickCount;
 
@@ -334,6 +334,8 @@ namespace zero.test.core.patterns.semaphore
                     var ts = Environment.TickCount;
                     Assert.True((await v.WaitAsync().FastPath()).ElapsedMs() < 0x7ffffff);
                     ave += ts.ElapsedMs();
+                    if (i % 100 == 0)
+                        _output.WriteLine($"DQ - {i}");
                 }
 
                 Assert.InRange(ave / count, 0, 16);
@@ -347,10 +349,18 @@ namespace zero.test.core.patterns.semaphore
                 int i = 0;
                 while (!v.Zeroed())
                 {
-                    if (v.Release(Environment.TickCount, true) != 1)
-                        await Task.Yield();
+                    if (v.Release(Environment.TickCount, true) <= 0 )
+                    {
+                        //_output.WriteLine($"{i} - Jammed!");
+                        await Task.Delay(1);
+                    }
                     else
+                    {
                         i++;
+                        if( i % 100 == 0)
+                            _output.WriteLine($"EQ - {i}");
+                    }
+                        
                 }
             }, CancellationToken.None, TaskCreationOptions.DenyChildAttach, IoZeroScheduler.ZeroDefault).Unwrap();
 

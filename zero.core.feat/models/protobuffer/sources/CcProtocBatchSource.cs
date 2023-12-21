@@ -1,12 +1,11 @@
-﻿using System;
-using System.Runtime.CompilerServices;
+﻿using System.Runtime.CompilerServices;
 using System.Threading.Tasks;
 using Google.Protobuf;
 using zero.core.feat.models.bundle;
 using zero.core.patterns.bushings;
 using zero.core.patterns.bushings.contracts;
 using zero.core.patterns.misc;
-using zero.core.patterns.semaphore;
+using zero.core.patterns.semaphore.core;
 
 namespace zero.core.feat.models.protobuffer.sources
 {
@@ -29,18 +28,19 @@ namespace zero.core.feat.models.protobuffer.sources
             : base(description, false, prefetchSize, concurrencyLevel, zeroAsyncMode)//TODO config
         {
             UpstreamSource = ioSource;
-            BatchChannel = new IoZeroSemaphoreChannel<TBatch>($"{nameof(BatchChannel)}: {ioSource.Description}", concurrencyLevel);
+            IIoZeroSemaphoreBase<TBatch> c = new IoZeroCore<TBatch>(description, prefetchSize + 1, AsyncTasks, 0, zeroAsyncMode);
+            BatchChannel = c.ZeroRef(ref c, default);
         }
 
         /// <summary>
         /// Used to load the next value to be produced
         /// </summary>
-        protected readonly IoZeroSemaphoreChannel<TBatch> BatchChannel;
+        protected readonly IIoZeroSemaphoreBase<TBatch> BatchChannel;
 
         /// <summary>
         /// API (IO)
         /// </summary>
-        public IoZeroSemaphoreChannel<TBatch> Channel => BatchChannel;
+        public IIoZeroSemaphoreBase<TBatch> Channel => BatchChannel;
 
         /// <summary>
         /// Keys this instance.

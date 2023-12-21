@@ -203,7 +203,7 @@ namespace zero.core.patterns.bushings
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public void HeapPush()
+        public void HeapPushAction()
         {
             //_logger.Fatal($"PUSH - {nameof(HeapPush)}: <#{Serial}>[{Id}]; state = {State}  - {Description}");
         }

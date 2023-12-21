@@ -130,7 +130,8 @@ namespace zero.core.feat.models.protobuffer
 
                 try
                 {
-                    if ((job._batch = await ((CcProtocBatchSource<TModel, TBatch>)source).Channel.WaitAsync()) != null)
+                    Interlocked.Exchange(ref job._batch, await ((CcProtocBatchSource<TModel, TBatch>)source).Channel.WaitAsync());
+                    if (job._batch != null)
                     {
                         job.GenerateJobId();
                         return true;

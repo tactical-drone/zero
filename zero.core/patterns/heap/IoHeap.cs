@@ -164,10 +164,14 @@ namespace zero.core.patterns.heap
         {
             try
             {
+                race:
                 if (_refCount == Capacity || _refCount.ZeroNext(Capacity) > Capacity)
                 {
                     if (!IsAutoScaling)
                     {
+                        Interlocked.MemoryBarrierProcessWide();
+                        if (Volatile.Read(ref _refCount) < Capacity)
+                            goto race;
 #if DEBUG
                         _logger.Error($"{nameof(_ioHeapBuf)}: LEAK DETECTED!!! Heap -> {Description}");
 #endif
@@ -251,8 +255,10 @@ namespace zero.core.patterns.heap
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public virtual void Return(TItem item, bool zero = false, bool deDup = false)
         {
+#if DEBUG
             if (item == null)
-                 return;
+                 throw new ArgumentNullException(nameof(item));
+#endif
 
             try
             {
@@ -282,8 +288,6 @@ namespace zero.core.patterns.heap
                             }, asyncDisposable);
                         }
                     }
-
-                    Interlocked.Increment(ref _hit);
                 }
             }
             catch when (_zeroed > 0)

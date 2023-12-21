@@ -194,7 +194,7 @@ namespace zero.core.patterns.bushings
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public void HeapPush()
+        public void HeapPushAction()
         {
             
         }

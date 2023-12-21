@@ -107,18 +107,8 @@ namespace zero.core.patterns.heap
         /// <param name="zero">If the item is to be zeroed</param>
         /// <param name="deDup"></param>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public override void Return(TItem item, bool zero = false, bool deDup = false)
-        {
-            if (item == null)
-                return;
-
-            base.Return(item, zero, deDup);
-
-            if (zero && !deDup || Zeroed) //hack
-                item.Dispose();
-            else
-                item.HeapPush();
-        }
+        public override void Return(TItem item, bool zero = false, bool deDup = false) => base.Return(item, zero, deDup);
+        
     }
 
     public class IoHeapIo<TItem>: IoHeapIo<TItem, IIoNanite> where TItem : class, IIoHeapItem, IIoNanite

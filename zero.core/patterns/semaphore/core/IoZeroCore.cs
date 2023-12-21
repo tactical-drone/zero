@@ -62,7 +62,7 @@ namespace zero.core.patterns.semaphore.core
             _primeReady = primeResult;
             _primeContext = context;
 
-            for (var i = 0; i < _ready; i++)
+            for (int i = 0; i < _ready; i++)
             {
                 if(_primeReady == null)
                     throw new ArgumentNullException(nameof(_primeReady));
@@ -215,10 +215,14 @@ namespace zero.core.patterns.semaphore.core
                 goto retry;
 
             //Debug.Assert(_blockingCores.Count == 0 || b != 0);
-            return _results.TryEnqueue(value) > 0;
-            
-            //TODO: For some reason this makes things worse... I don't know why.
-            bank:
+            return _results.TryEnqueue(value) >= 0; //TODO: Critical. This should be bigger than. Hacked for now with equals? 
+
+        //TODO: For some reason this makes things worse... I don't know why.
+        //TODO: From what I can tell from my telemetry, there is an old interlocked instruction that is resurrected that jams the _results Q with bogus values.
+        //TODO: There might be a way to detect this with op-counts vs capacity trickery etc, but these are not foolproof. 
+        //TODO: This has been the same issue since forever now. The GC is pausing an Interlocked instruction that resumes slow jamming the system with gunk. 
+        //TODO: This might have something to do with runtime scheduler CPU banks etc. which I don't (cant) compensate for. (potential showstopper)
+        bank:
             //queue result for future blocker
             var pos = _results.TryEnqueue(value);
 

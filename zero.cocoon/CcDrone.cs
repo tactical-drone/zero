@@ -93,12 +93,12 @@ namespace zero.cocoon
                 try
                 {
                     if(!Zeroed())
-                        return _description = $"`drone[{Adjunct?.CcCollective?.EgressCount} of {Adjunct?.CcCollective?.IngressCount}] [{Adjunct?.Hub.Designation.IdString()}, {Adjunct?.Designation.IdString()}], {Adjunct?.Direction},{MessageService.IoNetSocket.LocalAddress} ~> {MessageService.IoNetSocket.RemoteAddress}, up = {TimeSpan.FromMilliseconds(UpTime.ElapsedUtcMs())}'";
-                    return _description = $"`drone[{Adjunct?.CcCollective?.EgressCount} of {Adjunct?.CcCollective?.IngressCount}] [{Adjunct?.Hub?.Designation?.IdString()}, {Adjunct?.Designation?.IdString()}], {MessageService?.IoNetSocket?.LocalAddress} ~> {MessageService?.IoNetSocket?.RemoteAddress}, up = {TimeSpan.FromMilliseconds(UpTime.ElapsedUtcMs())}'";
+                        return _description = $"`drone[{Adjunct?.CcCollective?.EgressCount} of {Adjunct?.CcCollective?.IngressCount}] [{Adjunct?.Hub.Designation.IdString()}, {Adjunct?.Designation.IdString()}], {Adjunct?.Direction},{MessageService.IoNetSocket.LocalAddress} ~> {MessageService.IoNetSocket.RemoteAddress}, {TimeSpan.FromMilliseconds(UpTime.ElapsedUtcMs()).TotalHours/24:0.0} days'";
+                    return _description = $"`drone[{Adjunct?.CcCollective?.EgressCount} of {Adjunct?.CcCollective?.IngressCount}] [{Adjunct?.Hub?.Designation?.IdString()}, {Adjunct?.Designation?.IdString()}], {MessageService?.IoNetSocket?.LocalAddress} ~> {MessageService?.IoNetSocket?.RemoteAddress}, {TimeSpan.FromMilliseconds(UpTime.ElapsedUtcMs()).TotalHours/24:0.0} days'";
                 }
                 catch
                 {
-                    return _description = $"`drone [{Adjunct?.Hub?.Designation?.IdString()} of {Adjunct?.Designation?.IdString()}], {MessageService?.IoNetSocket?.LocalAddress} ~> {MessageService?.IoNetSocket?.RemoteAddress}, up = {TimeSpan.FromMilliseconds(UpTime.ElapsedUtcMs())}'";
+                    return _description = $"`drone [{Adjunct?.Hub?.Designation?.IdString()} of {Adjunct?.Designation?.IdString()}], {MessageService?.IoNetSocket?.LocalAddress} ~> {MessageService?.IoNetSocket?.RemoteAddress}, up = {TimeSpan.FromMilliseconds(UpTime.ElapsedUtcMs()).TotalHours / 24:0.0}'";
                 }
             }
         }
