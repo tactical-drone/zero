@@ -203,8 +203,12 @@ namespace zero.core.core
                 await @this.ZeroAsync(static async state =>
                 {
                     var (@this, newSocket,listenerContext, onHandshake) = state;
-                    IoNeighbor<TJob> n;
-                    if (!await ZeroEnsureAsync(@this, n = @this.MallocNeighbor(@this, newSocket, null), onHandshake, listenerContext).FastPath())
+
+                    if (@this.Zeroed())
+                        return;
+
+                    IoNeighbor<TJob> n = null;
+                    if (!@this.Zeroed() && !await ZeroEnsureAsync(@this, n = @this.MallocNeighbor(@this, newSocket, null), onHandshake, listenerContext).FastPath())
                         @this._logger.Warn($"{nameof(ZeroEnsureAsync)}: Connection [REJECT]; from = {newSocket}");
                     else
                         @this._logger.Debug($"{nameof(ZeroEnsureAsync)}: Connection [ACCEPT]; {n.Description}");

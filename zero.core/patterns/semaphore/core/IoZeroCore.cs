@@ -94,7 +94,7 @@ namespace zero.core.patterns.semaphore.core
             }
         }
 
-        public bool Zeroed() => _zeroed > 0 || _asyncTasks.IsCancellationRequested;
+        public readonly bool Zeroed() => _zeroed > 0 || _asyncTasks.IsCancellationRequested;
         #endregion Memory management
 
         #region Aligned
@@ -146,21 +146,22 @@ namespace zero.core.patterns.semaphore.core
         private bool Unblock(T value, bool forceAsync, IIoManualResetValueTaskSourceCore<T> blockingCore = null)
         {
             retry:
+            var sw = new SpinWait();
             //fetch a blocking core from the Q
             if(blockingCore == null)
                 while (!_blockingCores.TryDequeue(out blockingCore))
                 {
                     if (_blockingCores.Count == 0 || Zeroed())
                         return false;
-
-                    Interlocked.MemoryBarrierProcessWide();
+                    sw.SpinOnce();
                 }
-
+            sw.Reset();
             //wait for the blocking core to synchronize
             while (blockingCore.SyncRoot == SyncWait)
             {
                 if (Zeroed())
                     return false;
+                sw.SpinOnce();
             }
 
             switch (blockingCore.SyncRoot)
@@ -191,6 +192,7 @@ namespace zero.core.patterns.semaphore.core
 #endif
         private int SetResult(T value, bool forceAsync = false, bool prime = true)
         {
+            var sw = new SpinWait();
             retry:
             //insane checks
             if (Zeroed() || _results.Count == Capacity || (!prime && _blockingCores.Count == 0))
@@ -202,14 +204,16 @@ namespace zero.core.patterns.semaphore.core
 
             //only set if there is a thread waiting
             if (!prime)
-                return -1;
+                return 0;
 
             //sloppy race detection that is probably good enough in worst case conditions
             //The other side does proper race detection since blockingCores have those bits attached to them
             if (_blockingCores.Count > 0 || _blocking > 0)
+            {
+                sw.SpinOnce();
                 goto retry;
+            }
 
-            //Debug.Assert(_blockingCores.Count == 0 || b != 0);
             return (int)_results.TryEnqueue(value) != -1? 1:0; //TODO: Critical. This should be bigger than. Hacked for now with equals? 
             
 
@@ -419,11 +423,6 @@ namespace zero.core.patterns.semaphore.core
                 throw new InvalidOperationException($"{nameof(IoZeroCore<T>)}: Invalid concurrency level detected, check that {_capacity} matches or exceeds the expected level of concurrent blockers expected. {Description}");
 
             return default;
-        }
-
-        int IIoZeroSemaphoreBase<T>.ZeroDecAsyncCount()
-        {
-            throw new NotImplementedException();
         }
 
         /// <summary>

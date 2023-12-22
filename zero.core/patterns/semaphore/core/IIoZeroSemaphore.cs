@@ -28,9 +28,6 @@ namespace zero.core.patterns.semaphore.core
         public string Description { get; }
         public int Capacity { get; }
 
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        protected internal int ZeroDecAsyncCount();
-        
         bool Zeroed();
 
         /// <summary>

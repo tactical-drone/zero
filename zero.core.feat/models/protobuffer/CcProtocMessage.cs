@@ -73,7 +73,7 @@ namespace zero.core.feat.models.protobuffer
         /// <summary>
         /// Whether grouping by endpoint is supported
         /// </summary>
-        private readonly bool _groupByEp;
+        //private readonly bool _groupByEp;
 
         /// <summary>
         /// Batch item heap
@@ -310,8 +310,12 @@ namespace zero.core.feat.models.protobuffer
                 if (CurrentBatch.Count == 0 || Zeroed())
                     return;
 
+                var sw = new SpinWait();
+                while(!Zeroed() && ProtocolConduit == null)
+                    sw.SpinOnce();
+
                 //cog the producer
-                if (!await ProtocolConduit.Source.ProduceAsync(static (source, ioJob) =>
+                if (!await ProtocolConduit!.Source.ProduceAsync(static (source, ioJob) =>
                 {
                     var @this = (CcProtocMessage<TModel, TBatch>)ioJob;
                     try
@@ -333,7 +337,7 @@ namespace zero.core.feat.models.protobuffer
                         var r = 0;
                         var spinWait = new SpinWait();
                         retry:
-                        if ((r = chan.Release(nextBatch, forceAsync: true)) < 1)
+                        if ((r = chan.Release(nextBatch)) < 1)
                         {
                             if (retried-- > 0 || chan.WaitCount > 0)
                             {
@@ -344,7 +348,7 @@ namespace zero.core.feat.models.protobuffer
                                 goto retry;
                             }
 
-                            if (!((CcProtocBatchSource<chroniton, TBatch>)source).Zeroed() && !chan.Zeroed() && chan.TotalOps > 0 && chan.ReadyCount != chan.Capacity)
+                            //if (!((CcProtocBatchSource<chroniton, TBatch>)source).Zeroed() && !chan.Zeroed() && chan.TotalOps > 0 && chan.ReadyCount != chan.Capacity)
                                 _logger.Fatal($"{nameof(ZeroBatchAsync)}: Unable to q batch; released = {r}, ready = {chan.ReadyCount}, wait = {chan.WaitCount}, cap = {chan.Capacity}; {chan.Description} {@this.Description}");
                             
                             return new ValueTask<bool>(false);

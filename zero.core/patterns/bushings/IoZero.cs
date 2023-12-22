@@ -115,7 +115,7 @@ namespace zero.core.patterns.bushings
         /// <summary>
         /// Syncs producer and consumer queues
         /// </summary>
-        private IoManualResetValueTaskSource<bool> _zeroSync;
+        private readonly IoManualResetValueTaskSource<bool> _zeroSync;
 
         /// <summary>
         /// Description backing field
@@ -347,7 +347,7 @@ namespace zero.core.patterns.bushings
                         if (nextJob.State != IoJobMeta.JobState.ProdConnReset)
                             await nextJob.SetStateAsync(IoJobMeta.JobState.Queued).FastPath();
 
-                        if(_queue.Release(nextJob, false) < 0)
+                        if(_queue.Release(nextJob, true) < 0)
                         {
                             ts = ts.ElapsedMs();
 
@@ -364,7 +364,7 @@ namespace zero.core.patterns.bushings
                             if(!Zeroed())
                                 _logger.Warn($"Producer stalled.... {Description}");
 
-                            return Source.BackPressure(zeroAsync: false) > 0; //maybe we retry instead of crashing the producer
+                            return Source.BackPressure() > 0; //maybe we retry instead of crashing the producer
                         }
 
                         //Pass control over to the consumer
@@ -578,22 +578,24 @@ namespace zero.core.patterns.bushings
                         {
                             try
                             {
-                                
-                                if (curJob.State is IoJobMeta.JobState.Fragmented or IoJobMeta.JobState.BadData)
+                                if (curJob != null)//TODO: For some strange reason curJob comes out mull here and crashes the runtime.
                                 {
-                                    await curJob.SetStateAsync(IoJobMeta.JobState.Recovering).FastPath();
-                                }
-                                else
-                                {
-                                    //Consume success?
-                                    await curJob.SetStateAsync(curJob.State is IoJobMeta.JobState.Consumed
-                                        ? IoJobMeta.JobState.Accept
-                                        : IoJobMeta.JobState.Reject).FastPath();
-                                }
+                                    if (curJob.State is IoJobMeta.JobState.Fragmented or IoJobMeta.JobState.BadData)
+                                    {
+                                        await curJob.SetStateAsync(IoJobMeta.JobState.Recovering).FastPath();
+                                    }
+                                    else
+                                    {
+                                        //Consume success?
+                                        await curJob.SetStateAsync(curJob.State is IoJobMeta.JobState.Consumed
+                                            ? IoJobMeta.JobState.Accept
+                                            : IoJobMeta.JobState.Reject).FastPath();
+                                    }
 
-                                //log stats to console
-                                if (curJob.Id % @this.parm_stats_mod_count == 0 && curJob.Id >= 9999)
-                                    @this.DumpStats();
+                                    //log stats to console
+                                    if (curJob.Id % @this.parm_stats_mod_count == 0 && curJob.Id >= 9999)
+                                        @this.DumpStats();
+                                }
                             }
                             catch when (@this.Zeroed())
                             {
@@ -605,9 +607,9 @@ namespace zero.core.patterns.bushings
                             finally
                             {
                                 //cleanup
-                                await @this.ZeroJobAsync(curJob, curJob.FinalState is IoJobMeta.JobState.Reject).FastPath();
+                                await @this.ZeroJobAsync(curJob, curJob?.FinalState is IoJobMeta.JobState.Reject).FastPath();
                                 //back pressure
-                                @this.Source.BackPressure(zeroAsync: true);
+                                @this.Source.BackPressure(zeroAsync: false);
                             }
                         }
                 }, (this, curJob, consume, context));

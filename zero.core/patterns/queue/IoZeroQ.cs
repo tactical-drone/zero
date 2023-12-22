@@ -47,7 +47,7 @@ namespace zero.core.patterns.queue
             _blockingCollection = asyncTasks != null;
 
 #if DEBUG
-            _fastStorageTime = new int[65535];
+            _fastStorageTime = new int[16384];
 #endif
 
             //if scaling is enabled
@@ -279,10 +279,11 @@ namespace zero.core.patterns.queue
                 long latch;
                 var modIdx = (latch = Tail) % Capacity;
 
+                SpinWait sw = new();
                 if (!IsAutoScaling)
                 {
                     ref var fastBloomPtr = ref _fastBloom[modIdx];
-
+                    sw = new SpinWait();
                     retry:
                     if (Tail != latch || (state = Interlocked.CompareExchange(ref fastBloomPtr, _reset, _zero)) != _zero)
                     {
@@ -295,7 +296,7 @@ namespace zero.core.patterns.queue
                         {
                             if (Tail != latch || state != _reset)
                                 return -1;
-
+                            sw.SpinOnce();
                             goto retry;
                         }
                     }
@@ -338,6 +339,7 @@ namespace zero.core.patterns.queue
                 var i2 = modIdx - ((1 << i) - 1);
                 ref var bloomPtr = ref _bloom[i][i2];
 
+                sw.Reset();
                 retry2:
                 if (Tail != latch || (state = Interlocked.CompareExchange(ref bloomPtr, _reset, _zero)) != _zero)
                 {
@@ -351,6 +353,7 @@ namespace zero.core.patterns.queue
                         if (Tail != latch || state != _reset)
                             return -1;
 
+                        sw.SpinOnce();
                         goto retry2;
                     }
                 }
@@ -415,11 +418,12 @@ namespace zero.core.patterns.queue
 
                 var latch = Head;
                 var modIdx = latch % Capacity;
-                
+
+                SpinWait sw = new();
                 if (!IsAutoScaling)
                 {
                     ref var fastBloomPtr = ref _fastBloom[modIdx];
-
+                    
                     retry:
                     if (Head != latch || (state = Interlocked.CompareExchange(ref fastBloomPtr, _reset, _set)) != _set)
                     {
@@ -442,7 +446,7 @@ namespace zero.core.patterns.queue
                                 value = default;
                                 return false;
                             }
-
+                            sw.SpinOnce();
                             goto retry;
                         }
                     }
@@ -497,6 +501,7 @@ namespace zero.core.patterns.queue
                 var i = Log2(modIdx + 1);
                 var i2 = modIdx - ((1 << i) - 1);
                 ref var bloomPtr = ref _bloom[i][i2];
+                sw.Reset();
                 retry2:
                 if (bloomPtr != _one && (Head != latch || (state = Interlocked.CompareExchange(ref bloomPtr, _reset, _set)) != _set))
                 {
@@ -520,7 +525,7 @@ namespace zero.core.patterns.queue
                             return false;
                         }
                     }
-
+                    sw.SpinOnce();
                     goto retry2;
                 }
 

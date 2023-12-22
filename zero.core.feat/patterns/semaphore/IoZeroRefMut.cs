@@ -84,11 +84,6 @@ namespace zero.core.feat.patterns.semaphore
         public int Capacity => 1;
         public bool RunContinuationsAsynchronously { get; }
 
-        int IIoZeroSemaphoreBase<bool>.ZeroDecAsyncCount()
-        {
-            throw new NotImplementedException();
-        }
-
         public bool Zeroed()
         {
             throw new NotImplementedException();

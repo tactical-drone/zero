@@ -1,4 +1,7 @@
-﻿#define BORG
+﻿//#define BORG
+#define RT_ONE_GC
+//#define ONE_GC
+//#define ZERO_GC
 using System;
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
@@ -214,7 +217,13 @@ namespace zero.core.patterns.semaphore.core
             if (!_completed)
                 throw new InvalidOperationException($"[{Environment.CurrentManagedThreadId}] {nameof(GetResult)}: core not completed!");
 
-            _error?.Throw();
+            if (_error != null)
+            {
+                if (AutoReset)
+                    Reset();
+                _error.Throw();
+            }
+            
 
             try
             {
@@ -432,14 +441,34 @@ namespace zero.core.patterns.semaphore.core
                     continuation(state);
                     break;
 #if BORG
-                //TODO: superfast (scheduled)
+                //TODO: superfast (scheduled) bricks the runtime...
+                //TODO: superfast (scheduled) suddenly it works. Turns out you have to track every thread's "full circle" or you might get stack overflow issues. As long as you keep track when to inject async threads things can be super fast without hitting that stack limit.
+                
                 case IoZeroScheduler zs:
+                    //zs.QueueCallback(continuation, state);
                     zs.FallbackContext(continuation, state);
                     break;
-#else
+#endif
+
+#if RT_ONE_GC
                 //TODO: superslow (runtime)!
                 case IoZeroScheduler zs:
                     Schedule(zs, continuation, state);
+                    break;
+#endif
+
+#if ONE_GC
+                //TODO: Why does this even work? 
+                case IoZeroScheduler zs:
+                    if (!TryExecuteInlineOnTargetScheduler(continuation, state, zs))
+                        Schedule(zs, continuation, state);
+                    break;
+#endif
+
+#if ZERO_GC
+                case IoZeroScheduler zs:
+                    //if (!TryExecuteInlineOnTargetScheduler(continuation, state, zs))
+                    //    Schedule(zs, continuation, state);
                     break;
 #endif
 
@@ -505,6 +534,34 @@ namespace zero.core.patterns.semaphore.core
             {
                 ExecutionContext.Run(((CapturedSchedulerAndExecutionContext)capturedContext)._executionContext, QueueCallback, (continuation, continuationState, capturedContext, runContinuationsAsynchronously));
             }
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static bool TryExecuteInlineOnTargetScheduler(Action<object> continuation, object state, TaskScheduler target)
+        {
+
+            var t = new Task(static s =>
+            {
+                try
+                {
+                    ((ValueTuple<Action<object>, object>)s).Item1(((ValueTuple<Action<object>, object>)s).Item2);
+                }
+                catch
+                {
+                    // ignored
+                }
+            }, (continuation, state));
+            try
+            {
+                t.RunSynchronously(target);
+                return true;
+            }
+            catch
+            {
+                _ = t.Exception;
+                throw;
+            }
+            finally { t.Dispose(); }
         }
     }
 }

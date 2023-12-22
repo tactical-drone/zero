@@ -71,9 +71,9 @@ namespace zero.cocoon.autopeer
             var capMult = CcCollective.ZeroDrone ? 10 : 7;
             var capBase = 2;
 
-            _probeRequest = new IoZeroMatcher($"{nameof(_probeRequest)}, proxy = {IsProxy}", CcCollective.MaxAdjuncts>>2, parm_max_network_latency_ms << 1, (int)Math.Pow(capBase, capMult), true);
-            _fuseRequest = new IoZeroMatcher($"{nameof(_fuseRequest)}, proxy = {IsProxy}", CcCollective.MaxAdjuncts>>2, parm_max_network_latency_ms << 1, (int)Math.Pow(capBase, capMult), true);
-            _scanRequest = new IoZeroMatcher($"{nameof(_scanRequest)}, proxy = {IsProxy}", CcCollective.MaxAdjuncts>>2, parm_max_network_latency_ms << 1, (int)Math.Pow(capBase, capMult), true);
+            _probeRequest = new IoZeroMatcher($"{nameof(_probeRequest)}, proxy = {IsProxy}", CcCollective.MaxAdjuncts>>3, parm_max_network_latency_ms << 1, (int)Math.Pow(capBase, capMult), true);
+            _fuseRequest = new IoZeroMatcher($"{nameof(_fuseRequest)}, proxy = {IsProxy}", CcCollective.MaxAdjuncts>>3, parm_max_network_latency_ms << 1, (int)Math.Pow(capBase, capMult), true);
+            _scanRequest = new IoZeroMatcher($"{nameof(_scanRequest)}, proxy = {IsProxy}", CcCollective.MaxAdjuncts>>3, parm_max_network_latency_ms << 1, (int)Math.Pow(capBase, capMult), true);
 
             if (extraData != null)
             {
@@ -659,10 +659,12 @@ namespace zero.cocoon.autopeer
 #endif
                             }
                         }
+#if TRACE
                         else
                         {
                             _logger.Trace($"ROUTER: cull ignored,wanted = [{Designation?.IdString()}], got [{currentRoute.Designation.IdString()}, serial1 = {Serial} vs {currentRoute.Serial}], {Description}");
                         }
+#endif
                     }
 
                     Router.V.TryRemove(Address.IpPort, out _);
@@ -712,7 +714,9 @@ namespace zero.cocoon.autopeer
             await _fuseRequest.DisposeAsync(this, $"{nameof(ZeroManagedAsync)}: teardown").FastPath();
             await _scanRequest.DisposeAsync(this, $"{nameof(ZeroManagedAsync)}: teardown").FastPath();
 
+#if TRACE
             _logger.Trace($"Closed {ZeroReason}");
+#endif
         }
 
         /// <summary>
@@ -1242,11 +1246,11 @@ namespace zero.cocoon.autopeer
             aesAlg.IV = iv;
 
             // Create the streams used for decryption.
-            using (MemoryStream msDecrypt = new MemoryStream(cipherText.AsArray()))
+            using (MemoryStream msDecrypt = new (cipherText.AsArray()))
             {
-                using (CryptoStream csDecrypt = new CryptoStream(msDecrypt, aesAlg.CreateDecryptor(aesAlg.Key, aesAlg.IV), CryptoStreamMode.Read))
+                using (CryptoStream csDecrypt = new (msDecrypt, aesAlg.CreateDecryptor(aesAlg.Key, aesAlg.IV), CryptoStreamMode.Read))
                 {
-                    using (BinaryReader srDecrypt = new BinaryReader(csDecrypt))
+                    using (BinaryReader srDecrypt = new (csDecrypt))
                     {
                         return srDecrypt.ReadBytes(cipherText.Length);
                     }

@@ -4,7 +4,9 @@ using System.Net;
 using System.Net.Sockets;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
+using System.Threading;
 using System.Threading.Tasks;
+using System.Threading.Tasks.Sources;
 using NLog;
 using zero.core.conf;
 using zero.core.misc;
@@ -239,11 +241,8 @@ namespace zero.core.network.ip
 
                 try
                 {
-                    var asyncResult = NativeSocket.BeginSendTo( buffer.AsArray(), offset, length, SocketFlags.None, endPoint, static result =>
-                    {
-                        var core = (IoManualResetValueStructTaskSource<bool>)result.AsyncState;
-                        core.SetResult(result.IsCompleted);
-                    }, core);
+                    var asyncResult = NativeSocket.BeginSendTo( buffer.AsArray(), offset, length, SocketFlags.None, endPoint, 
+                        static result => ((IoManualResetValueStructTaskSource<bool>)result.AsyncState).SetResult(result.IsCompleted), core);
 
                     if (!await waitCore.FastPath())
                         return 0;
@@ -364,11 +363,8 @@ namespace zero.core.network.ip
                         {
                             EndPoint ep = null;
                             
-                            var asyncResult = NativeSocket.BeginReceiveFrom(buffer.AsArray(), offset, length, SocketFlags.None, ref _anyAddress, static result =>
-                            {
-                                var core = (IoManualResetValueStructTaskSource<bool>)result.AsyncState;
-                                core.SetResult(result.IsCompleted);
-                            }, core);
+                            var asyncResult = NativeSocket.BeginReceiveFrom(buffer.AsArray(), offset, length, SocketFlags.None, ref _anyAddress,
+                                static result => ((IoManualResetValueStructTaskSource<bool>)result.AsyncState).SetResult(result.IsCompleted), core);
 
                             if (!await waitCore.FastPath())
                                 return 0;
@@ -378,6 +374,7 @@ namespace zero.core.network.ip
                                 ep = _endPointHeap.Take();
                                 if (ep == null)
                                     return 0;
+                                Interlocked.MemoryBarrier();
                                 read = NativeSocket.EndReceiveFrom(asyncResult, ref ep);
                                 ep.AsBytes(remoteEp);
                             }

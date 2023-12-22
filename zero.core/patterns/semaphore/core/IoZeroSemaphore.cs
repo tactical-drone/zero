@@ -1,6 +1,5 @@
 ﻿
 using System;
-using System.Data;
 using System.Diagnostics;
 using System.IO;
 using System.Runtime.CompilerServices;
@@ -10,9 +9,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Threading.Tasks.Sources;
 using NLog;
-using zero.core.misc;
 using zero.core.patterns.misc;
-using zero.core.runtime.scheduler;
 
 namespace zero.core.patterns.semaphore.core
 {
@@ -686,7 +683,7 @@ namespace zero.core.patterns.semaphore.core
                             }, (callback, state)))
                         {
                             _ = Task.Factory.StartNew(callback, state, CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Default);
-                        };
+                        }
 #endif
                     }
                     else
@@ -976,26 +973,15 @@ namespace zero.core.patterns.semaphore.core
             Release();
         }
 
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        int IIoZeroSemaphoreBase<T>.ZeroDecAsyncCount()
-        {
-            return Interlocked.Decrement(ref _curAsyncWorkerCount);
-        }
-
         /// <summary>
         /// Are we zeroed out?
         /// </summary>
         /// <returns>True if zeroed, false otherwise</returns>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public bool Zeroed()
-        {
-            //return _zeroed > 0 || _asyncTasks.IsCancellationRequested;
-            return _zeroed > 0;
-        }
-
+        public bool Zeroed() => _zeroed > 0 || _asyncTasks.IsCancellationRequested;
+        
         public double Cps(bool reset = false) => 0;
         
-
         /// <summary>
         /// Throw on error
         /// </summary>

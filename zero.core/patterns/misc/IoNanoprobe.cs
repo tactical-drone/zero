@@ -581,6 +581,10 @@ namespace zero.core.patterns.misc
         public async ValueTask<bool> ZeroAtomicAsync<T>(Func<IIoNanite, T, bool, ValueTask<bool>> ownershipAction,
             T userData = default, bool disposing = false, bool force = false)
         {
+            //insane checks
+            if (_zeroed > 0 && !force)
+                return false;
+
             try
             {
                 await ZeroRoot.WaitAsync().FastPath();

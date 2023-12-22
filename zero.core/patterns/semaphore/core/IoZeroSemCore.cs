@@ -401,10 +401,6 @@ namespace zero.core.patterns.semaphore.core
         //    throw new InvalidOperationException($"Concurrency bug! {Description}");
         //}
 
-        int IIoZeroSemaphoreBase<T>.ZeroDecAsyncCount()
-        {
-            throw new NotImplementedException();
-        }
         #endregion
     }
 }

@@ -19,22 +19,14 @@ namespace zero.core.runtime.threadpool
             Default = new IoThreadPoolHooks<TState>(unsafeQueueUserWorkItem);
         }
 
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static bool UnsafeQueueUserWorkItem(Action<TState> callBack, TState state, bool preferLocal = true)
+        static void WaitCallback(object context)
         {
-            if (Default != null)
-            {
-                return Default._unsafeQueueUserWorkItem(callBack, state, preferLocal);
-            }
-            else
-            {
-                return ThreadPool.UnsafeQueueUserWorkItem(WaitCallback, (callBack, state));
-                static void WaitCallback(object context)
-                {
-                    var (continuation, state) = (ValueTuple<Action<object>, object>)context;
-                    continuation(state);
-                }
-            }
+            var (continuation, state) = (ValueTuple<Action<object>, object>)context;
+            continuation(state);
         }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static bool UnsafeQueueUserWorkItem(Action<TState> callBack, TState state, bool preferLocal = true) => Default != null ? Default._unsafeQueueUserWorkItem(callBack, state, preferLocal) : ThreadPool.UnsafeQueueUserWorkItem(WaitCallback, (callBack, state));
+
     }
 }

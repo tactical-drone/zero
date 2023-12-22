@@ -24,11 +24,6 @@ namespace zero.core.patterns.semaphore
         public long TotalOps => _semaphore.TotalOps;
         public override string Description => _semaphore.Description;
 
-        public override void ZeroUnmanaged()
-        {
-            base.ZeroUnmanaged();
-        }
-
         public override async ValueTask ZeroManagedAsync()
         {
             await base.ZeroManagedAsync().FastPath();
@@ -36,46 +31,31 @@ namespace zero.core.patterns.semaphore
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public T GetResult(short token)
-        {
-            return _semaphore.GetResult(token);
-        }
+        public T GetResult(short token) => _semaphore.GetResult(token);
+        
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public ValueTaskSourceStatus GetStatus(short token)
-        {
-            return _semaphore.GetStatus(token);
-        }
+        public ValueTaskSourceStatus GetStatus(short token) => _semaphore.GetStatus(token);
+        
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public void OnCompleted(Action<object> continuation, object state, short token, ValueTaskSourceOnCompletedFlags flags)
-        {
-            _semaphore.OnCompleted(continuation, state, token, flags);
-        }
-
-        public IIoZeroSemaphoreBase<T> ZeroRef(ref IIoZeroSemaphoreBase<T> @ref, Func<object, T> primeResult,
-            object context = null) => _semaphore.ZeroRef(ref @ref, primeResult);
+        public void OnCompleted(Action<object> continuation, object state, short token, ValueTaskSourceOnCompletedFlags flags) => _semaphore.OnCompleted(continuation, state, token, flags);
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public int Release(T value, int releaseCount, bool forceAsync = false, bool prime = true)
-        {
-            return _semaphore.Release(value, releaseCount, forceAsync);
-        }
+        public IIoZeroSemaphoreBase<T> ZeroRef(ref IIoZeroSemaphoreBase<T> @ref, Func<object, T> primeResult, object context = null) => _semaphore.ZeroRef(ref @ref, primeResult);
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public int Release(T value, int releaseCount, bool forceAsync = false, bool prime = true) => _semaphore.Release(value, releaseCount, forceAsync);
+        
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public int Release(T value, bool forceAsync = false, bool prime = true) =>_semaphore.Release(value, forceAsync);
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public int Release(T[] value, bool forceAsync = false, bool prime = true)
-        {
-            return _semaphore.Release(value, forceAsync);
-        }
-
+        public int Release(T[] value, bool forceAsync = false, bool prime = true) => _semaphore.Release(value, forceAsync);
+        
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public ValueTask<T> WaitAsync()
-        {
-            return _semaphore.WaitAsync();
-        }
+        public ValueTask<T> WaitAsync() => _semaphore.WaitAsync();
+        
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void ZeroSem()
@@ -85,15 +65,10 @@ namespace zero.core.patterns.semaphore
         }
 
         public int ReadyCount => _semaphore.ReadyCount;
-        
         public int WaitCount => _semaphore.WaitCount;
         public bool ZeroAsyncMode => _semaphore.ZeroAsyncMode;
         public int Capacity => _semaphore.Capacity;
-        int IIoZeroSemaphoreBase<T>.ZeroDecAsyncCount()
-        {
-            throw new NotImplementedException();
-        }
-
+        
         public long Tail => ((IoZeroSemaphore<T>)_semaphore).Tail;
         public long Head => ((IoZeroSemaphore<T>)_semaphore).Head;
 

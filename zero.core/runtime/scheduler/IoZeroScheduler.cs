@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
+using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
@@ -75,13 +76,7 @@ namespace zero.core.runtime.scheduler
             _forkQueue = new IoZeroSemaphoreChannel<Action>($"{nameof(_forkQueue)}", size, 0, false);
             
             var initialCap = size;
-            _callbackHeap = new IoHeap<ZeroContinuation>($"{nameof(_callbackHeap)}", initialCap, (_, _) => new ZeroContinuation(), autoScale:true)
-            {
-                PopAction = (signal, _) =>
-                {
-                    signal.Timestamp = Environment.TickCount;
-                }
-            };
+            _callbackHeap = new IoHeap<ZeroContinuation>($"{nameof(_callbackHeap)}", initialCap, (_, _) => new ZeroContinuation(), autoScale:true);
 
             //_diagnosticsHeap = new IoHeap<List<int>>($"{nameof(_diagnosticsHeap)}", initialCap, (context, _) => new List<int>(context is int i ? i : 0), autoScale: true)
             //{
@@ -190,7 +185,7 @@ namespace zero.core.runtime.scheduler
         private int _forkLoad;
         public int ForkLoad => _forkLoad;
 
-        public double AQTime => (double)_asyncCallbackWithContextTime / _asyncTaskWithContextCount;
+        public double AqTime => (double)_asyncCallbackWithContextTime / _asyncTaskWithContextCount;
 
         private int _lastWorkerSpawnedTime;
 
@@ -254,35 +249,35 @@ namespace zero.core.runtime.scheduler
             //tasks
             for (var i = 0; i < _taskQueueCapacity; i++)
             {
-                _ = Task.Factory.StartNew(static state => ((IoZeroScheduler)state).HandleAsyncSchedulerTask().FastPath().ConfigureAwait(false)
-                , this, CancellationToken.None, TaskCreationOptions.DenyChildAttach, Default);
+                _ = Task.Factory.StartNew(static state => ((IoZeroScheduler)state).HandleAsyncSchedulerTask().ConfigureAwait(false)
+                , this, CancellationToken.None, TaskCreationOptions.DenyChildAttach | TaskCreationOptions.HideScheduler, Default);
             }
 
             //forks with context
             for (var i = 0; i < _asyncFallbackCapacity; i++)
             {
-                _ = Task.Factory.StartNew(static state =>((IoZeroScheduler)state).HandleAsyncFallback().FastPath().ConfigureAwait(false)
-                , this, CancellationToken.None, TaskCreationOptions.DenyChildAttach, Default);
+                _ = Task.Factory.StartNew(static state =>((IoZeroScheduler)state).HandleAsyncFallback().ConfigureAwait(false)
+                , this, CancellationToken.None, TaskCreationOptions.DenyChildAttach | TaskCreationOptions.HideScheduler, Default);
             }
 
             //async value callbacks with context
             for (var i = 0; i < _asyncTaskWithContextCapacity; i++)
             {
-                _ = Task.Factory.StartNew(static state => ((IoZeroScheduler)state).HandleAsyncValueTaskWithContext().FastPath()
+                _ = Task.Factory.StartNew(static state => ((IoZeroScheduler)state).HandleAsyncValueTaskWithContext()
                 , this, CancellationToken.None, TaskCreationOptions.DenyChildAttach, ZeroDefault);
             }
 
             //async value callbacks
             for (var i = 0; i < _asyncTaskCapacity; i++)
             {
-                _ = Task.Factory.StartNew(static state => ((IoZeroScheduler)state).HandleAsyncValueTask().FastPath()
+                _ = Task.Factory.StartNew(static state => ((IoZeroScheduler)state).HandleAsyncValueTask()
                 , this, CancellationToken.None, TaskCreationOptions.DenyChildAttach, ZeroDefault);
             }
 
             //async callbacks
             for (var i = 0; i < _asyncCallbackWithContextCapacity; i++)
             {
-                _ = Task.Factory.StartNew(static state => ((IoZeroScheduler)state).HandleAsyncCallback().FastPath()
+                _ = Task.Factory.StartNew(static state => ((IoZeroScheduler)state).HandleAsyncCallback()
                 , this, CancellationToken.None, TaskCreationOptions.DenyChildAttach, ZeroDefault);
             }
 
@@ -296,7 +291,7 @@ namespace zero.core.runtime.scheduler
             //forks
             for (var i = 0; i < _forkCapacity; i++)
             {
-                _ = Task.Factory.StartNew(static async state => await ((IoZeroScheduler)state).ForkCallbacks().FastPath()
+                _ = Task.Factory.StartNew(static async state => await ((IoZeroScheduler)state).ForkCallbacks()
                 , this, CancellationToken.None, TaskCreationOptions.DenyChildAttach, ZeroDefault);
             }
         }
@@ -369,6 +364,7 @@ namespace zero.core.runtime.scheduler
                 try
                 {
                     job = await _asyncFallbackQueue.WaitAsync().FastPath();//TODO:fallback?
+
                     Interlocked.Increment(ref _asyncFallBackLoad);
                     job.Callback(job.State);
                     Interlocked.Increment(ref _asyncFallbackCount);
@@ -377,15 +373,14 @@ namespace zero.core.runtime.scheduler
                 catch (OperationCanceledException) { }
                 catch when (Zeroed) { }
                 catch (InvalidOperationException){}
-#if RELEASE
+#if RELEASE //quality code enforced
                 catch (NullReferenceException) { }
-#endif
+#else
                 catch (Exception e) when (!Zeroed)
                 {
-//#if DEBUG
                     LogManager.GetCurrentClassLogger().Error(e);
-//#endif
                 }
+#endif
                 finally
                 {
                     Interlocked.Decrement(ref _asyncFallBackLoad);
@@ -422,10 +417,12 @@ namespace zero.core.runtime.scheduler
                     Interlocked.Add(ref _asyncTaskWithContextTime, job.Timestamp.ElapsedMs());
                 }
                 catch when (Zeroed) { }
+#if DEBUG
                 catch (Exception e) when (!Zeroed)
                 {
                     LogManager.GetCurrentClassLogger().Trace(e);
                 }
+#endif
                 finally
                 {
                     Interlocked.Decrement(ref _asyncTaskWithContextLoad);
@@ -449,10 +446,14 @@ namespace zero.core.runtime.scheduler
                     Interlocked.Add(ref _asyncCallbackWithContextTime, job.Timestamp.ElapsedMs());
                 }
                 catch when (Zeroed) { }
+#if DEBUG
                 catch (Exception e) when (!Zeroed)
                 {
+
                     LogManager.GetCurrentClassLogger().Error(e);
+
                 }
+#endif
                 finally
                 {
                     Interlocked.Decrement(ref _asyncCallbackWithContextLoad);
@@ -476,10 +477,12 @@ namespace zero.core.runtime.scheduler
                     Interlocked.Add(ref _asyncTaskTime, job.Timestamp.ElapsedMs());
                 }
                 catch when (Zeroed) { }
+#if DEBUG
                 catch (Exception e) when (!Zeroed)
                 {
                     LogManager.GetCurrentClassLogger().Error(e);
                 }
+#endif
                 finally
                 {
                     Interlocked.Decrement(ref _asyncTaskLoad);
@@ -502,10 +505,12 @@ namespace zero.core.runtime.scheduler
                     Interlocked.Increment(ref _asyncForkCount);
                 }
                 catch when (Zeroed) { }
+#if DEBUG
                 catch (Exception e) when (!Zeroed)
                 {
-                    LogManager.GetCurrentClassLogger().Trace(e);
+                    LogManager.GetCurrentClassLogger().Error(e);
                 }
+#endif
                 finally
                 {
                     Interlocked.Decrement(ref _asyncForkLoad);
@@ -526,10 +531,12 @@ namespace zero.core.runtime.scheduler
                     Interlocked.Increment(ref _forkCount);
                 }
                 catch when (Zeroed) { }
+#if DEBUG
                 catch (Exception e) when (!Zeroed)
                 {
-                    LogManager.GetCurrentClassLogger().Trace(e);
+                    LogManager.GetCurrentClassLogger().Error(e);
                 }
+#endif
                 finally
                 {
                     Interlocked.Decrement(ref _forkLoad);
@@ -543,12 +550,13 @@ namespace zero.core.runtime.scheduler
         /// <returns></returns>
         protected override IEnumerable<Task> GetScheduledTasks()
         {
-            var l = new List<Task>();
-            //while (_taskQueue.)
-            //{
-            //    l.Add(item);
-            //}
-            return l;
+            //var l = new List<Task>();
+            ////while (_taskQueue.)
+            ////{
+            ////    l.Add(item);
+            ////}
+            //return l;
+            return Enumerable.Empty<Task>();
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -580,7 +588,7 @@ namespace zero.core.runtime.scheduler
 
                 try
                 {
-                    TryExecuteTask(task);
+                    TryExecuteTaskInlineOnTargetScheduler(task, Default);
                 }
                 catch
                 {
@@ -614,7 +622,7 @@ namespace zero.core.runtime.scheduler
                         , @this, CancellationToken.None, TaskCreationOptions.DenyChildAttach, ZeroDefault);
 
                         _ = Task.Factory.StartNew(static state => ((IoZeroScheduler)state).HandleAsyncFallback().ConfigureAwait(false)
-                        , @this, CancellationToken.None, TaskCreationOptions.DenyChildAttach, ZeroDefault);
+                        , @this, CancellationToken.None, TaskCreationOptions.DenyChildAttach | TaskCreationOptions.HideScheduler, ZeroDefault);
 
                         if (_workerSpawnBurstMax == 0)
                             Interlocked.Exchange(ref _workerSpawnBurstMax, WorkerSpawnBurstMax);
@@ -624,8 +632,6 @@ namespace zero.core.runtime.scheduler
                         Console.WriteLine($" - Adding zero thread {@this._taskQueueCapacity}, load = {@this.LoadFactor * 100:0.0}%");
                     }
                 }, this);
-
-                Thread.Yield();
             }
 
             Interlocked.Increment(ref _taskEnqueueCount);
@@ -636,21 +642,7 @@ namespace zero.core.runtime.scheduler
         /// <param name="taskWasPreviouslyQueued">Whether the task was previously queued to the scheduler.</param>
         /// <returns>true if the task could be executed; otherwise, false.</returns>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        protected override bool TryExecuteTaskInline(Task task, bool taskWasPreviouslyQueued)
-        {
-            //////TODO:code smell
-            //return task.IsCompletedSuccessfully || TryExecuteTaskInlineOnTargetScheduler(task, _fallbackScheduler);
-
-            return (taskWasPreviouslyQueued) ?
-                    TryExecuteTaskInlineOnTargetScheduler(task, _fallbackScheduler) : TryExecuteTask(task);
-
-            //if (taskWasPreviouslyQueued)
-            //    return TryExecuteTaskInlineOnTargetScheduler(task, _fallbackScheduler);
-            //else
-            //{
-            //    QueueTask(task);
-            //}
-        }
+        protected override bool TryExecuteTaskInline(Task task, bool taskWasPreviouslyQueued) => (taskWasPreviouslyQueued) ? TryExecuteTaskInlineOnTargetScheduler(task, _fallbackScheduler) : TryExecuteTask(task);
 
         /// <summary>
         /// Implements a reasonable approximation for TryExecuteTaskInline on the underlying scheduler,
@@ -701,8 +693,8 @@ namespace zero.core.runtime.scheduler
                 
                 if (handler == null) return false;
 
-                handler.Callback = callback;
-                handler.State = state;
+                Volatile.Write(ref handler.Callback, callback);
+                Volatile.Write(ref handler.State, state);
                 return _asyncCallbackWithContextQueue.Release(handler, true) >= 0;
             }
             finally
@@ -729,7 +721,7 @@ namespace zero.core.runtime.scheduler
 
         
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public bool Fork(Action callback) => _forkQueue.Release(callback, true) >= 0;
+        public bool Fork(Action callback) => _forkQueue.Release(callback, true) > 0;
 
         /// <summary>
         /// Isolates the underlying scheduler API that this scheduler needs to function
@@ -745,11 +737,11 @@ namespace zero.core.runtime.scheduler
         {
             var qItem = Interlocked.CompareExchange(ref _fbQQuickSlot, null, _fbQQuickSlot)??_callbackHeap.Take();
             if (qItem == null) throw new OutOfMemoryException($"{nameof(FallbackContext)}: {_callbackHeap.Description}");
+
             qItem.Callback = callback;
             qItem.State = context;
             qItem.Timestamp = Environment.TickCount;
-            Interlocked.MemoryBarrier();
-
+            
             try
             {
                 return _asyncFallbackQueue.Release(qItem, true) > 0;

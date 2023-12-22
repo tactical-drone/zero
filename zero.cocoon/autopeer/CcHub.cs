@@ -10,6 +10,7 @@ using zero.core.feat.models.protobuffer;
 using zero.core.network.ip;
 using zero.core.patterns.misc;
 using Zero.Models.Protobuf;
+using Logger = Cassandra.Logger;
 
 namespace zero.cocoon.autopeer
 {
@@ -107,10 +108,18 @@ namespace zero.cocoon.autopeer
         /// <returns></returns>
         public bool ContainsId(string id)
         {
-            foreach (var adj in Neighbors.Values)
+            try
             {
-                if(adj.IoSource.Proxy && ((CcAdjunct)adj).Designation.IdString() == id)
-                    return true;
+                foreach (var adj in Neighbors.Values)
+                {
+                    if(adj.IoSource.Proxy && ((CcAdjunct)adj).Designation.IdString() == id)
+                        return true;
+                }
+            }
+            catch when(Zeroed()){}
+            catch (Exception e) when (!Zeroed())
+            {
+                LogManager.GetCurrentClassLogger().Error(e,"{nameof(ContainsId)}: ");
             }
 
             return false;
