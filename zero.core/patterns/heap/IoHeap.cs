@@ -301,6 +301,7 @@ namespace zero.core.patterns.heap
                     }, asyncDisposable);
                 }
             }
+            Interlocked.Decrement(ref _refCount);
         }
 
         /// <summary>
