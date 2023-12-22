@@ -108,7 +108,6 @@ namespace zero.core.patterns.heap
         /// <param name="deDup"></param>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public override void Return(TItem item, bool zero = false, bool deDup = false) => base.Return(item, zero, deDup);
-        
     }
 
     public class IoHeapIo<TItem>: IoHeapIo<TItem, IIoNanite> where TItem : class, IIoHeapItem, IIoNanite

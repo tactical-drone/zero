@@ -557,9 +557,9 @@ namespace zero.cocoon
         // ReSharper disable once InconsistentNaming
 
 #if DEBUG
-        public int parm_mean_pat_delay_s = 60;
+        public int parm_mean_pat_delay_s = 60 * 7;
 #else
-        public int parm_mean_pat_delay_s = 60 * 15;
+        public int parm_mean_pat_delay_s = 60 * 9;
 #endif
 
         /// <summary>
@@ -1097,7 +1097,7 @@ namespace zero.cocoon
             if(Equals(_gossipAddress.IpEndPoint, remoteEp) || packet.PublicKey.Memory.ArrayEqual(CcId.PublicKey))
                 throw new ApplicationException($"Connection inception from {remoteEp} (pk = {CcDesignation.FromPubKey(packet.PublicKey.Memory).IdString()}) on {_gossipAddress.IpEndPoint}: {Description}");
 
-            if (drone.AttachViaAdjunct(direction)) return true;
+            if (drone.Attach(direction)) return true;
 
             drone.Adjunct.CompareAndEnterState(CcAdjunct.AdjunctState.Verified, CcAdjunct.AdjunctState.Connecting);
 
@@ -1118,7 +1118,7 @@ namespace zero.cocoon
                     adjunct.Assimilating &&
                     !adjunct.IsDroneConnected &&
                     adjunct.State == CcAdjunct.AdjunctState.Connecting &&
-                    TotalConnections < parm_max_outbound
+                    EgressCount < parm_max_outbound
                     //_currentOutboundConnectionAttempts < MaxAsyncConnectionAttempts
                 )
             {

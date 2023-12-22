@@ -204,10 +204,10 @@ namespace zero.core.core
                 {
                     var (@this, newSocket,listenerContext, onHandshake) = state;
                     IoNeighbor<TJob> n;
-                    if (!await ZeroEnsureConnAsync(@this, n = @this.MallocNeighbor(@this, newSocket, null), onHandshake, listenerContext).FastPath())
-                        @this._logger.Warn($"{nameof(ZeroEnsureConnAsync)}: Connection [REJECT]; from = {newSocket}");
+                    if (!await ZeroEnsureAsync(@this, n = @this.MallocNeighbor(@this, newSocket, null), onHandshake, listenerContext).FastPath())
+                        @this._logger.Warn($"{nameof(ZeroEnsureAsync)}: Connection [REJECT]; from = {newSocket}");
                     else
-                        @this._logger.Debug($"{nameof(ZeroEnsureConnAsync)}: Connection [ACCEPT]; {n.Description}");
+                        @this._logger.Debug($"{nameof(ZeroEnsureAsync)}: Connection [ACCEPT]; {n.Description}");
 
                 }, (@this, newSocket, listenerContext, handshake: onHandshake));
             }, (this, context, handshake: onHandshake), bootFunc, bootData).FastPath();
@@ -222,7 +222,7 @@ namespace zero.core.core
         /// <param name="onHandshake"></param>
         /// <param name="listenerContext"></param>
         /// <returns>ValueTask</returns>
-        private static async ValueTask<bool> ZeroEnsureConnAsync<T>(IoNode<TJob> @this, IoNeighbor<TJob> newNeighbor, Func<IoNeighbor<TJob>, T, ValueTask<bool>> onHandshake, T listenerContext)
+        private static async ValueTask<bool> ZeroEnsureAsync<T>(IoNode<TJob> @this, IoNeighbor<TJob> newNeighbor, Func<IoNeighbor<TJob>, T, ValueTask<bool>> onHandshake, T listenerContext)
         {
             var ioNetClient = newNeighbor?.Source;
 
@@ -373,7 +373,7 @@ namespace zero.core.core
                 IoNetClient<TJob> newClient;
                 IoNeighbor<TJob> newAdjunct = null;
                 if ((newClient = await _netServer.ConnectAsync(remoteAddress, timeout: timeout).FastPath()) != null &&
-                    !await ZeroEnsureConnAsync(this, newAdjunct = MallocNeighbor(this, newClient, extraData), handshake, context).FastPath())
+                    !await ZeroEnsureAsync(this, newAdjunct = MallocNeighbor(this, newClient, extraData), handshake, context).FastPath())
                 {
                     return null;
                 }

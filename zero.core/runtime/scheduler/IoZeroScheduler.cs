@@ -335,7 +335,7 @@ namespace zero.core.runtime.scheduler
             TrackInit();
             while (!_asyncTasks.IsCancellationRequested)
             {
-                var job = await _taskQueue.WaitAsync().FastPath().ConfigureAwait(false);
+                var job = await _taskQueue.WaitAsync().FastPath();
                 try
                 {
                     Interlocked.Increment(ref _taskQueueLoad);
@@ -574,7 +574,22 @@ namespace zero.core.runtime.scheduler
 
             //schedule the task
             if (_taskQueue.Release(task, true) < 0)
-                throw new InternalBufferOverflowException($"{nameof(_taskQueue)}: {_taskQueue.Description}");
+            {
+                if (!_taskQueue.Zeroed())
+                    throw new InternalBufferOverflowException($"{nameof(_taskQueue)}: {_taskQueue.Description}");
+
+                try
+                {
+                    TryExecuteTask(task);
+                }
+                catch
+                {
+                    // ignored
+                }
+
+                return;
+            }
+                
 
             //insane checks
             if (Load > Environment.ProcessorCount && LoadFactor > WorkerSpawnThreshold && _lastWorkerSpawnedTime.ElapsedMs() > WorkerSpawnBurstTimeMs && _taskQueueCapacity < short.MaxValue / WorkerSpawnPassThrough || LoadFactor > 0.99)

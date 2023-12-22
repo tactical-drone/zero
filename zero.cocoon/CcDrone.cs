@@ -247,7 +247,7 @@ namespace zero.cocoon
         /// An adjunct becomes a drone
         /// </summary>
         /// <param name="direction"></param>
-        public bool AttachViaAdjunct(IIoSource.Heading direction)
+        public bool Attach(IIoSource.Heading direction)
         {
             try
             {
@@ -259,15 +259,15 @@ namespace zero.cocoon
                 var attached = Adjunct.AttachDrone(this, direction);
 
                 _logger?.Trace(attached
-                    ? $"{nameof(AttachViaAdjunct)}: {direction} attach to adjunct {Adjunct.Description}"
-                    : $"{nameof(AttachViaAdjunct)}: [RACE LOST]{direction} attach to adjunct {Adjunct.Description}, {Adjunct.MetaDesc}");
+                    ? $"{nameof(Attach)}: {direction}; {Adjunct.Description}"
+                    : $"{nameof(Attach)}: [RACE LOST]{direction}; {Adjunct.Description}, {Adjunct.MetaDesc}");
 
                 return attached;
             }
             catch (Exception) when (Zeroed()) { }
             catch (Exception e) when(!Zeroed())
             {
-                _logger?.Error(e, $"{nameof(AttachViaAdjunct)}:");                               
+                _logger?.Error(e, $"{nameof(Attach)}:");                               
             }            
             return false; 
         }

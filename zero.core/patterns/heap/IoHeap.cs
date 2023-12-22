@@ -63,7 +63,7 @@ namespace zero.core.patterns.heap
         /// <summary>
         /// 
         /// </summary>
-        public string Description => $"#{GetHashCode()}:{nameof(IoHeap<TItem,TContext>)}: [ratio = {CacheHitRatio * 100:0.0}%] {nameof(Count)} = {Count}, capacity = {Capacity}, refs = {_refCount}, desc = {_description}, bag ~> _ioHeapBuf.Description";
+        public string Description => $"#{GetHashCode()}:{nameof(IoHeap<TItem,TContext>)}: ops = {_hit+_miss} [ratio = {CacheHitRatio * 100:0.0}%] {nameof(Count)} = {Count}, capacity = {Capacity}, refs = {_refCount}, desc = {_description}, bag ~> _ioHeapBuf.Description";
 
         /// <summary>
         /// The heap buffer space
@@ -259,7 +259,6 @@ namespace zero.core.patterns.heap
             if (item == null)
                  throw new ArgumentNullException(nameof(item));
 #endif
-
             try
             {
                 retry:
@@ -272,23 +271,10 @@ namespace zero.core.patterns.heap
                         zero = true;
                         goto retry;
                     }
+                    Interlocked.Decrement(ref _refCount);
                 }
                 else
-                {
-                    if (item is not IIoHeapItem)
-                    {
-                        if (item is IDisposable disposable)
-                            disposable.Dispose();
-                        if (item is IAsyncDisposable asyncDisposable)
-                        {
-                            IoZeroScheduler.Zero.LoadAsyncContext(static async state =>
-                            {
-                                var item = (IAsyncDisposable)state;
-                                await item.DisposeAsync().FastPath();
-                            }, asyncDisposable);
-                        }
-                    }
-                }
+                    Destroy(item);
             }
             catch when (_zeroed > 0)
             {
@@ -297,9 +283,23 @@ namespace zero.core.patterns.heap
             {
                 _logger.Error(e, $"{GetType().Name}: Failed malloc {typeof(TItem)}");
             }
-            finally
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public void Destroy(TItem item)
+        {
+            if (item is not IIoHeapItem)
             {
-                Interlocked.Decrement(ref _refCount);
+                if (item is IDisposable disposable)
+                    disposable.Dispose();
+                if (item is IAsyncDisposable asyncDisposable)
+                {
+                    IoZeroScheduler.Zero.LoadAsyncContext(static async state =>
+                    {
+                        var item = (IAsyncDisposable)state;
+                        await item.DisposeAsync().FastPath();
+                    }, asyncDisposable);
+                }
             }
         }
 

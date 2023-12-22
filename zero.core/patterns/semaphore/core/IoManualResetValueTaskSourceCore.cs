@@ -433,18 +433,17 @@ namespace zero.core.patterns.semaphore.core
                 case IoZeroScheduler when !runContinuationsAsynchronously && TaskScheduler.Current is IoZeroScheduler:
                     continuation(state);
                     break;
-
-                //TODO: super fast but jams the runtime (same issue, under cpu pressure resuming interlock CAS cause a jam)
+#if BORG
+                //TODO: superfast (scheduled)
                 case IoZeroScheduler zs:
                     zs.FallbackContext(continuation, state);
                     break;
-
-                //TODO: super slow for now, but works!
-                //case IoZeroScheduler zs:
-                //    //Schedule(zs, continuation, state);
-                //    //Schedule(TaskScheduler.Default, continuation, state);
-                //    Schedule(zs, continuation, state);
-                //    break;
+#else
+                //TODO: superslow (runtime)!
+                case IoZeroScheduler zs:
+                    Schedule(zs, continuation, state);
+                    break;
+#endif
 
                 default:
                     var cc = (CapturedSchedulerAndExecutionContext)context;

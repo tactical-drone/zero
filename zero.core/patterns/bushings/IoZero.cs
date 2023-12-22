@@ -42,7 +42,7 @@ namespace zero.core.patterns.bushings
 
             //TODO tuning
             if (ZeroRecoveryEnabled)
-                _previousJobFragment = new IoQueue<IoSink<TJob>>($"{description}", (Source.PrefetchSize + Source.ZeroConcurrencyLevel) * 3, Source.PrefetchSize);
+                _previousJobFragment = new IoQueue<IoSink<TJob>>($"{description}", (Source.PrefetchSize) * 2 + 1, Source.PrefetchSize);
 
             _zeroSync = new IoManualResetValueTaskSource<bool>();
         }
@@ -59,7 +59,7 @@ namespace zero.core.patterns.bushings
         {
             _description = description;
             Source = source;
-            var capacity = Source.PrefetchSize + 1;
+            var capacity = Source.PrefetchSize + 2;
 
             //These numbers were numerically established
             if (ZeroRecoveryEnabled)
@@ -337,8 +337,8 @@ namespace zero.core.patterns.bushings
                             if (nextJob.FragmentIdx == null && _previousJobFragment.Count == _previousJobFragment.Capacity)
                             {
                                 var flushedJob = await _previousJobFragment.DequeueAsync().FastPath();
-                                _logger.Fatal($"{nameof(ProduceAsync)}: Flushing recovery tail index {flushedJob.Id}, {flushedJob.Description}");
                                 await ZeroJobAsync(flushedJob, true);
+                                _logger.Fatal($"{nameof(ProduceAsync)}: Flushing recovery tail index {flushedJob.Id}, {flushedJob.Description}");
                                 goto retry;
                             }
                         }
@@ -347,7 +347,7 @@ namespace zero.core.patterns.bushings
                         if (nextJob.State != IoJobMeta.JobState.ProdConnReset)
                             await nextJob.SetStateAsync(IoJobMeta.JobState.Queued).FastPath();
 
-                        if(_queue.Release(nextJob, true) < 0)
+                        if(_queue.Release(nextJob, false) < 0)
                         {
                             ts = ts.ElapsedMs();
 
@@ -482,8 +482,8 @@ namespace zero.core.patterns.bushings
                             job.PreviousJob = null;
                         }
 
-                        var latch = job.FragmentIdx;
                         var qid = job.FragmentIdx?.Qid ?? -1;
+                        var latch = job.FragmentIdx;
                         if (latch != null && Interlocked.CompareExchange(ref job.FragmentIdx, null, latch) == latch)
                         {
                             if(await _previousJobFragment.RemoveAsync(latch, qid).FastPath())
@@ -502,12 +502,12 @@ namespace zero.core.patterns.bushings
                             //It is unlikely that an accepted job has future jobs depending on it
                             if (job.FinalState == IoJobMeta.JobState.Accept)
                             {
-                                var latch = job.FragmentIdx;
                                 var qid = job.FragmentIdx?.Qid ?? -1;
+                                var latch = job.FragmentIdx;
                                 if (latch != null && Interlocked.CompareExchange(ref job.FragmentIdx, null, latch) ==
                                     latch)
                                 {
-                                    if(await _previousJobFragment.RemoveAsync(latch, qid).FastPath())
+                                    if (await _previousJobFragment.RemoveAsync(latch, qid).FastPath())
                                         JobHeap.Return(job);
                                 }
                             }
@@ -578,30 +578,22 @@ namespace zero.core.patterns.bushings
                         {
                             try
                             {
-                                if (!@this.Zeroed())
+                                
+                                if (curJob.State is IoJobMeta.JobState.Fragmented or IoJobMeta.JobState.BadData)
                                 {
-                                    if (curJob.State is IoJobMeta.JobState.Fragmented or IoJobMeta.JobState.BadData)
-                                    {
-                                        await curJob.SetStateAsync(IoJobMeta.JobState.Recovering).FastPath();
-                                    }
-                                    else
-                                    {
-                                        //Consume success?
-                                        await curJob.SetStateAsync(curJob.State is IoJobMeta.JobState.Consumed
-                                            ? IoJobMeta.JobState.Accept
-                                            : IoJobMeta.JobState.Reject).FastPath();
-                                    }
-
-                                    //log stats to console
-                                    if (curJob.Id % @this.parm_stats_mod_count == 0 && curJob.Id >= 9999)
-                                    {
-                                        await @this.ZeroAtomicAsync(static (_, @this, _) =>
-                                        {
-                                            @this.DumpStats();
-                                            return new ValueTask<bool>(true);
-                                        }, @this).FastPath();
-                                    }
+                                    await curJob.SetStateAsync(IoJobMeta.JobState.Recovering).FastPath();
                                 }
+                                else
+                                {
+                                    //Consume success?
+                                    await curJob.SetStateAsync(curJob.State is IoJobMeta.JobState.Consumed
+                                        ? IoJobMeta.JobState.Accept
+                                        : IoJobMeta.JobState.Reject).FastPath();
+                                }
+
+                                //log stats to console
+                                if (curJob.Id % @this.parm_stats_mod_count == 0 && curJob.Id >= 9999)
+                                    @this.DumpStats();
                             }
                             catch when (@this.Zeroed())
                             {
@@ -615,7 +607,7 @@ namespace zero.core.patterns.bushings
                                 //cleanup
                                 await @this.ZeroJobAsync(curJob, curJob.FinalState is IoJobMeta.JobState.Reject).FastPath();
                                 //back pressure
-                                @this.Source.BackPressure(zeroAsync: false);
+                                @this.Source.BackPressure(zeroAsync: true);
                             }
                         }
                 }, (this, curJob, consume, context));
@@ -664,6 +656,8 @@ namespace zero.core.patterns.bushings
                                 Interlocked.MemoryBarrier();
                                 return cur.Value.EnableRecoveryOneshot;
                             }
+
+                            JobHeap.Destroy(cur.Value);
                             return false;
                         }
                         cur = cur.Next;
