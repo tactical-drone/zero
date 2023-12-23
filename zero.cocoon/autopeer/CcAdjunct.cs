@@ -208,6 +208,7 @@ namespace zero.cocoon.autopeer
 #endif
 
         private Task BackOffAsync => Task.Delay(RandomNumberGenerator.GetInt32(parm_max_network_latency_ms >> 3, parm_max_network_latency_ms), AsyncTasks.Token);
+        private Task BackOffAsyncSmall => Task.Delay(RandomNumberGenerator.GetInt32(parm_max_network_latency_ms >> 5, parm_max_network_latency_ms>>4), AsyncTasks.Token);
 
         private bool StochasticRate => RandomNumberGenerator.GetInt32(0, 2) == 0;
 
@@ -2875,7 +2876,10 @@ namespace zero.cocoon.autopeer
                 var @this = (CcAdjunct)state;
                 try
                 {
-                    //await @this.BackOffAsync;
+                    if(@this.Zeroed())
+                        return;
+
+                    await @this.BackOffAsyncSmall;
 
                     var fuseRequest = new CcFuseRequest
                     {

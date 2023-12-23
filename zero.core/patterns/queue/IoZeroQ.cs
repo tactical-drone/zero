@@ -61,7 +61,7 @@ namespace zero.core.patterns.queue
                 _bloom = new int[32][];
                 _bloom[0] = _fastBloom = new int[1];
 
-                var v = Log2(capacity - 1);
+                var v = Log2(capacity + 1);
                 var scaled = false;
                 for (var i = 0; i < v; i++)
                 {
@@ -194,8 +194,7 @@ namespace zero.core.patterns.queue
             get
             {
                 Debug.Assert(idx >= 0);
-
-                //if (!IsAutoScaling) return Volatile.Read(ref _fastStorage[index % _capacity]);
+                ref var fs = ref _fastStorage[idx % _capacity];
                 if (!IsAutoScaling) return _fastStorage[idx % _capacity];
 
                 idx %= Capacity;
@@ -217,7 +216,6 @@ namespace zero.core.patterns.queue
                 idx %= Capacity;
                 var i = Log2(idx + 1);
                 _storage[i][idx - ((1 << i) - 1)] = value;
-                Interlocked.MemoryBarrier();
             }
         }
 
@@ -283,12 +281,10 @@ namespace zero.core.patterns.queue
                 if (!IsAutoScaling)
                 {
                     ref var fastBloomPtr = ref _fastBloom[modIdx];
-                    sw = new SpinWait();
                     retry:
                     if (Tail != latch || (state = Interlocked.CompareExchange(ref fastBloomPtr, _reset, _zero)) != _zero)
                     {
-                        if (Tail == latch && state == _one &&
-                            Interlocked.CompareExchange(ref fastBloomPtr, _reset, _one) == _one)
+                        if (state == _one && Interlocked.CompareExchange(ref fastBloomPtr, _reset, _one) == _one)
                         {
                             Interlocked.Decrement(ref _count);
                         }
@@ -296,14 +292,13 @@ namespace zero.core.patterns.queue
                         {
                             if (Tail != latch || state != _reset)
                                 return -1;
+
+                            state = -1;
                             sw.SpinOnce();
                             goto retry;
                         }
                     }
 
-                    Interlocked.Increment(ref _count);
-
-                    //if (Tail - latch >= Capacity>>1) //Covers choking throughput (possibly OS preempting threads and resurrecting them MUCH later than "sibling" threads) causing wrap around issues. CAS passes but at distant past tail and needs to be undone...
                     if (Tail != latch)
                     {
                         Interlocked.MemoryBarrierProcessWide();
@@ -313,11 +308,11 @@ namespace zero.core.patterns.queue
                             LogManager.GetCurrentClassLogger()
                                 .Fatal($"add-f: Unable to restore lock at {latch}, diff = {Tail - latch}, bloom = {fastBloomPtr}, state = {state} - {Description}");
                         }
-                        else
-                            Interlocked.Decrement(ref _count);
+
                         return -1;
                     }
 
+                    Interlocked.Increment(ref _count);
 
                     _lastInsertIndex = Interlocked.Increment(ref _tail) - 1;
                     _fastStorage[modIdx] = value;
@@ -343,33 +338,31 @@ namespace zero.core.patterns.queue
                 retry2:
                 if (Tail != latch || (state = Interlocked.CompareExchange(ref bloomPtr, _reset, _zero)) != _zero)
                 {
-                    if (Tail == latch && state == _one &&
+                    if (state == _one &&
                         Interlocked.CompareExchange(ref bloomPtr, _reset, _one) == _one)
                     {
-                        Interlocked.Decrement(ref _count);
+                        
                     }
                     else
                     {
                         if (Tail != latch || state != _reset)
                             return -1;
 
+                        state = -1;
                         sw.SpinOnce();
                         goto retry2;
                     }
                 }
 
-                Interlocked.Increment(ref _count);
-
                 if (Tail != latch)
-                //if (Tail - latch > Capacity>>1) 
                 {
                     Interlocked.MemoryBarrierProcessWide();
                     if (Interlocked.CompareExchange(ref bloomPtr, _zero, _reset) != _reset)
                         LogManager.GetCurrentClassLogger().Fatal($"add: Unable to restore lock at {latch}, bloom = {{fastBloomPtr}}  - {Description}");
-                    else
-                        Interlocked.Decrement(ref _count);
                     return -1;
                 }
+
+                Interlocked.Increment(ref _count);
 
                 _lastInsertIndex = Interlocked.Increment(ref _tail) - 1;
 
@@ -436,9 +429,8 @@ namespace zero.core.patterns.queue
 #else
                             _lastRemoveIndex = Interlocked.Increment(ref _head) - 1;
 #endif
-
-                            value = default;
-                            return false;
+                            //value = default;
+                            //return false;
                         }
                         else
                         {
@@ -447,30 +439,28 @@ namespace zero.core.patterns.queue
                                 value = default;
                                 return false;
                             }
-                            sw.SpinOnce();
-                            goto retry;
                         }
+
+                        sw.SpinOnce();
+                        goto retry;
                     }
 
-                    //Interlocked.Decrement(ref _count);
-
                     if (Head != latch)
-                    //if (Head % Capacity - latch > Capacity / 2)
                     {
                         Interlocked.MemoryBarrierProcessWide();
                         if (Interlocked.CompareExchange(ref fastBloomPtr, _set, _reset) != _reset)
                             LogManager.GetCurrentClassLogger().Fatal($"Rf> Unable to restore lock at {latch}, bloom = {fastBloomPtr}  - {Description}");
-                        //else
-                        //    Interlocked.Increment(ref _count);
+
                         value = default;
                         return false;
                     }
-                    Interlocked.Decrement(ref _count);
+                    
 #if !DEBUG
                     Interlocked.Increment(ref _head);
 #else
                     _lastRemoveIndex = Interlocked.Increment(ref _head) - 1;
 #endif
+                    Interlocked.Decrement(ref _count);
 
 
                     value = _fastStorage[modIdx];
@@ -514,9 +504,9 @@ namespace zero.core.patterns.queue
 #else
                         _lastRemoveIndex = Interlocked.Increment(ref _head) - 1;
 #endif
-
-                        value = default;
-                        return false;
+                        
+                        //value = default;
+                        //return false;
                     }
                     else
                     {
@@ -526,26 +516,23 @@ namespace zero.core.patterns.queue
                             return false;
                         }
                     }
+
                     sw.SpinOnce();
                     goto retry2;
                 }
 
-                //Interlocked.Decrement(ref _count);
-
                 if (Head != latch)
-                //if (Head - latch > Capacity >> 1)
                 {
                     Interlocked.MemoryBarrierProcessWide();
                     if (Interlocked.CompareExchange(ref bloomPtr, _set, _reset) != _reset)
                         LogManager.GetCurrentClassLogger().Fatal($"R> Unable to restore lock at {latch}, bloom = {bloomPtr}  - {Description}");
-                    //else
-                    //    Interlocked.Increment(ref _count);
 
                     value = default;
                     return false;
                 }
-                Interlocked.Decrement(ref _count);
+                
                 Interlocked.Increment(ref _head);
+                Interlocked.Decrement(ref _count);
 
                 value = _storage[i][i2];
                 //_storage[i][i2] = default;
@@ -584,14 +571,20 @@ namespace zero.core.patterns.queue
             try
             {
                 var modIdx = index % Capacity;
-
                 if (!IsAutoScaling)
-                    return Interlocked.CompareExchange(ref _fastBloom[modIdx], _one, _set) == _set;
+                {
+                    if (Interlocked.CompareExchange(ref _fastBloom[modIdx], _one, _set) != _set) return false;
+                    Interlocked.Decrement(ref _count);
+                    return true;
+                }
+                    
 
                 var i = Log2(modIdx + 1);
                 var i2 = modIdx - ((1 << i) - 1);
 
-                return Interlocked.CompareExchange(ref _bloom[i][i2], _one, _set) == _set;
+                if (Interlocked.CompareExchange(ref _bloom[i][i2], _one, _set) != _set) return false;
+                Interlocked.Decrement(ref _count);
+                return true;
             }
             finally
             {

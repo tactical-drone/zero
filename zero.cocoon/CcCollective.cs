@@ -171,12 +171,12 @@ namespace zero.cocoon
             if (Zeroed())
                 return;
 
-            _autoPeeringTask = _autoPeering.StartAsync(static async @this =>
+            _autoPeeringTask = _autoPeering.StartAsync(static @this =>
             {
                 var spinWait = new SpinWait();
 
                 //wait for the router to become available
-                while (@this.Hub.Router == null && !@this.Zeroed())
+                while (@this.Hub.Router == null && !@this.Zeroed() && !@this.Hub.Zeroed() && spinWait.Count < 100)
                     spinWait.SpinOnce();
 
                 if (@this.Hub?.Router != null && !@this.Hub.Router.Zeroed())
@@ -185,8 +185,10 @@ namespace zero.cocoon
                     @this.OnPropertyChanged(nameof(Ready));
                     @this.OnPropertyChanged(nameof(Online));
 
-                    await @this.DeepScanAsync().FastPath();
+                    return @this.DeepScanAsync().FastPath();
                 }
+
+                return default;
             }, this).AsTask();
         }
 

@@ -162,7 +162,7 @@ namespace zero.core.runtime.scheduler
         private readonly IoHeap<ZeroContinuation> _callbackHeap;
         private readonly IoHeap<ZeroValueContinuation> _contextHeap;
         //private readonly IoHeap<List<int>> _diagnosticsHeap;
-        private ZeroContinuation _fbQQuickSlot;
+        //private ZeroContinuation _fbQQuickSlot;
 
         private int _taskQueueLoad;
         public int Load => _taskQueueLoad;
@@ -363,7 +363,7 @@ namespace zero.core.runtime.scheduler
                 ZeroContinuation job = null;
                 try
                 {
-                    job = await _asyncFallbackQueue.WaitAsync().FastPath();//TODO:fallback?
+                    job = await _asyncFallbackQueue.WaitAsync().FastPath();
 
                     Interlocked.Increment(ref _asyncFallBackLoad);
                     job.Callback(job.State);
@@ -383,12 +383,8 @@ namespace zero.core.runtime.scheduler
 #endif
                 finally
                 {
+                    _callbackHeap.Return(job);
                     Interlocked.Decrement(ref _asyncFallBackLoad);
-                    if (!Zeroed)
-                    {
-                        //if (Interlocked.CompareExchange(ref _fbQQuickSlot, job, null) != null)
-                            _callbackHeap.Return(job);
-                    }
                 }
             }
         }
@@ -735,8 +731,13 @@ namespace zero.core.runtime.scheduler
         [MethodImpl(MethodImplOptions.NoInlining)]
         public bool FallbackContext(Action<object> callback, object context = null)
         {
-            //var qItem = Interlocked.CompareExchange(ref _fbQQuickSlot, null, _fbQQuickSlot)??_callbackHeap.Take();
+            //ZeroContinuation qItem;
+            //if( _fbQQuickSlot != null)
+            //    qItem = Interlocked.CompareExchange(ref _fbQQuickSlot, null, _fbQQuickSlot)??_callbackHeap.Take();
+            //else
             var qItem = _callbackHeap.Take();
+
+            //var qItem = _callbackHeap.Take();
             if (qItem == null) throw new OutOfMemoryException($"{nameof(FallbackContext)}: {_callbackHeap.Description}");
 
             qItem.Callback = callback;

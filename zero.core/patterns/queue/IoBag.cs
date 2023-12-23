@@ -118,7 +118,6 @@ namespace zero.core.patterns.queue
             get
             {
                 Debug.Assert(idx >= 0);
-                Interlocked.MemoryBarrier();
                 return _storage[idx % _capacity];
             }
 #if !DEBUG
@@ -128,7 +127,6 @@ namespace zero.core.patterns.queue
             {
                 Debug.Assert(idx >= 0);
                 _storage[idx % _capacity] = value;
-                Interlocked.MemoryBarrier();
             }
         }
 
@@ -186,23 +184,16 @@ namespace zero.core.patterns.queue
                         Interlocked.Increment(ref _count);
                         this[next] = item;
                         Interlocked.Exchange(ref fastBloom, 2);
-                        return next;
                     }
-
-                    if (Zeroed || Count == Capacity)
-                        return -1;
-
-                    switch (prev)
+                    else
                     {
-                        case 1: goto spin;
-                        case > 1: goto retry;
+                        if (Zeroed || Count == Capacity || next < Tail - Capacity)
+                            return -1;
+
+                        if (prev == 1)
+                            goto spin;
+                        goto retry;
                     }
-
-                    if (prev < Tail - Capacity) //slow threads
-                        return -1;
-
-                    if (!Zeroed)
-                        throw new InvalidOperationException($"{nameof(TryEnqueue)}: Control should never reach here; next = {next}({next%Capacity}), was = {prev}, bloom = {fastBloom}, {Description}");
                 }
                 else
                     return -1;
@@ -269,8 +260,12 @@ namespace zero.core.patterns.queue
             try
             {
                 retry:
-                if (Count == 0 || Zeroed)
+                if (_count == 0 || Zeroed || Head == Tail)
                 {
+                    var c = _count;
+                    if (c > 0 && Head == Tail)
+                        Interlocked.CompareExchange(ref _count, c - 1, c); //TODO: hack
+                    
                     slot = default;
                     return false;
                 }
@@ -287,29 +282,21 @@ namespace zero.core.patterns.queue
                     {
                         Interlocked.Decrement(ref _count);
                         slot = this[next];
-                        this[next] = default;
-
+                        //this[next] = default;
                         Interlocked.Exchange(ref fastBloom, 0);
                         return true;
                     }
 
-                    if (Zeroed || Count == 0)
+                    if (Zeroed || Count == 0 || next < Tail - Capacity)
                     {
                         slot = default;
                         return false;
                     }
 
-                    switch (prev)
-                    {
-                        case 0: goto retry;
-                        case > 0: goto spin;
-                    }
+                    if(prev == 1)
+                        goto spin;
+                    goto retry;
 
-                    if (next < Tail - Capacity) //slow threads
-                    {
-                        slot = default;
-                        return false;
-                    }
                     
                     if (!Zeroed)
                         throw new InvalidOperationException($"{nameof(TryDequeue)}[SET]: Control should never reach here; d = {next - Tail - Capacity}, next = {next}({next % Capacity}), bloom = {fastBloom}, was = {prev}, {Description}");

@@ -206,7 +206,10 @@ namespace zero.core.patterns.heap
                 if (!_ioHeapBuf.TryDequeue(out var heapItem))
                 {
                     if (_ioHeapBuf.Count > 0)
-                        goto retry; //TODO: hack
+                    {
+                        if (_ioHeapBuf.Head != _ioHeapBuf.Tail)
+                            goto retry; //TODO: hack    
+                    }
 
                     heapItem = Malloc(userData, Context);
 
