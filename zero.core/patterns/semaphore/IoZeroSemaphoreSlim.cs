@@ -50,7 +50,7 @@ namespace zero.core.patterns.semaphore
         
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public int Release(int value, bool forceAsync = false, bool prime = true) => _semaphore.Release(value, forceAsync, prime);
+        public bool Release(int value, bool forceAsync = false, bool prime = true) => _semaphore.Release(value, forceAsync, prime);
         
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]

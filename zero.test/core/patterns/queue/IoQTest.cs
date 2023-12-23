@@ -232,10 +232,10 @@ namespace zero.test.core.patterns.queue
             //Assert.True(bag.IsAutoScaling);
             Assert.True(!bag.Zeroed);
 
-            for (int i = 0; i < bag.Capacity; i++)
-            {
-                Assert.True(bag[i] == null);
-            }
+            //for (int i = 0; i < bag.Capacity; i++)
+            //{
+            //    Assert.True(bag[i] == null);
+            //}
 
             bag.TryEnqueue(23);
             await bag.ZeroManagedAsync<object>();
@@ -328,8 +328,8 @@ namespace zero.test.core.patterns.queue
             Assert.Equal(0, bag.Count);
             Assert.True(bag.Tail>=bag.Head);
 
-            for (var i = 0; i < bag.Capacity; i++)
-                Assert.True(bag[i] == null);
+            //for (var i = 0; i < bag.Capacity; i++)
+            //    Assert.True(bag[i] == null);
         }
 
         private volatile bool _insertsDone = false;

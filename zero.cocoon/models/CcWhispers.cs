@@ -537,7 +537,7 @@ namespace zero.cocoon.models
                     {
                         try
                         {
-                            if (CcCollective.DupSyncRoot.Release(Environment.TickCount) == -1)
+                            if (!CcCollective.DupSyncRoot.Release(Environment.TickCount))
                             {
                                 if (CcCollective != null && !CcCollective.DupSyncRoot.Zeroed() && !Zeroed())
                                 {

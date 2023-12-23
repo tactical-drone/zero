@@ -347,7 +347,7 @@ namespace zero.core.patterns.bushings
                         if (nextJob.State != IoJobMeta.JobState.ProdConnReset)
                             await nextJob.SetStateAsync(IoJobMeta.JobState.Queued).FastPath();
 
-                        if(_queue.Release(nextJob, true) < 0)
+                        if(!_queue.Release(nextJob))
                         {
                             ts = ts.ElapsedMs();
 
@@ -609,7 +609,7 @@ namespace zero.core.patterns.bushings
                                 //cleanup
                                 await @this.ZeroJobAsync(curJob, curJob?.FinalState is IoJobMeta.JobState.Reject).FastPath();
                                 //back pressure
-                                @this.Source.BackPressure(zeroAsync: false);
+                                @this.Source.BackPressure(zeroAsync: true);
                             }
                         }
                 }, (this, curJob, consume, context));

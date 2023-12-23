@@ -409,6 +409,7 @@ namespace zero.core.patterns.queue
 #if DEBUG
             var ts = Environment.TickCount;
 #endif
+            SpinWait sw = new();
             try
             {
 #if DEBUG
@@ -419,7 +420,7 @@ namespace zero.core.patterns.queue
                 var latch = Head;
                 var modIdx = latch % Capacity;
 
-                SpinWait sw = new();
+                
                 if (!IsAutoScaling)
                 {
                     ref var fastBloomPtr = ref _fastBloom[modIdx];
@@ -473,7 +474,7 @@ namespace zero.core.patterns.queue
 
 
                     value = _fastStorage[modIdx];
-                    _fastStorage[modIdx] = default;
+                    //_fastStorage[modIdx] = default;
 
 #if DEBUG
                     _fastStorageTime[modIdx] = -(Interlocked.Increment(ref _opCounter) - 1);
@@ -547,7 +548,7 @@ namespace zero.core.patterns.queue
                 Interlocked.Increment(ref _head);
 
                 value = _storage[i][i2];
-                _storage[i][i2] = default;
+                //_storage[i][i2] = default;
                 Interlocked.Exchange(ref bloomPtr, _zero);
 #if SUPER_SYNC
                 Interlocked.MemoryBarrierProcessWide();
@@ -564,7 +565,7 @@ namespace zero.core.patterns.queue
 #if DEBUG
                 if (ts.ElapsedMs() > _CASerror)
                 {
-                    LogManager.GetCurrentClassLogger().Fatal($"{nameof(AtomicRemove)}: CAS took => {ts.ElapsedMs()} ms");
+                    LogManager.GetCurrentClassLogger().Fatal($"{nameof(AtomicRemove)}: CAS[{sw.Count}] took => {ts.ElapsedMs()} ms");
                 }
 #endif
             }
@@ -638,7 +639,7 @@ namespace zero.core.patterns.queue
                     {
                         try
                         {
-                            return _balanceSync.Release(Environment.TickCount);
+                            return _balanceSync.Release(Environment.TickCount)? 1:0;
                         }
                         catch
                         {
@@ -660,7 +661,7 @@ namespace zero.core.patterns.queue
                     {
                         try
                         {
-                            return _zeroSync.Release(item);
+                            return _zeroSync.Release(item)? 1:0;
                         }
                         catch
                         {
@@ -688,7 +689,7 @@ namespace zero.core.patterns.queue
                 {
                     try
                     { 
-                        return _zeroSync.Release(item);
+                        return _zeroSync.Release(item)? 1:0;
                     }
                     catch
                     {

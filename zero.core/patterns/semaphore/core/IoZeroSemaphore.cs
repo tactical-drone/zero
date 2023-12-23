@@ -905,15 +905,15 @@ namespace zero.core.patterns.semaphore.core
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public int Release(T value, bool forceAsync = false, bool prime = true)
+        public bool Release(T value, bool forceAsync = false, bool prime = true)
         {
             Debug.Assert(value != null);
             //overfull semaphore exit here
             if (_curSignalCount + 1 > _maxBlockers && _ingressToken - _egressToken > _maxBlockers)
-                return Release(1, true);
+                return Release(1, true) > 0;
 
             _result[(Interlocked.Increment(ref _ingressToken) - 1) % (_maxBlockers << 1)] = value;
-            return Release(1,forceAsync);
+            return Release(1,forceAsync) > 0;
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]

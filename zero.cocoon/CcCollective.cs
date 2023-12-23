@@ -1118,7 +1118,7 @@ namespace zero.cocoon
                     adjunct.Assimilating &&
                     !adjunct.IsDroneConnected &&
                     adjunct.State == CcAdjunct.AdjunctState.Connecting &&
-                    EgressCount < parm_max_outbound
+                    TotalConnections < parm_max_outbound
                     //_currentOutboundConnectionAttempts < MaxAsyncConnectionAttempts
                 )
             {

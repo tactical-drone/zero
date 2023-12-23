@@ -1,16 +1,13 @@
 ﻿using System;
 using System.Collections;
 using System.Collections.Generic;
-using System.Collections.Specialized;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Linq;
-using System.Net.Http.Headers;
 using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
 using NLog;
-using NLog.LayoutRenderers;
 using zero.core.misc;
 using zero.core.patterns.misc;
 using zero.core.patterns.queue.enumerator;
@@ -175,30 +172,37 @@ namespace zero.core.patterns.queue
                     }
                 }
 
+                
                 long latch;
                 var next = _tail.ZeroNext(latch = Head + Capacity);
                 if (next < latch)
                 {
                     ref var fastBloom = ref _bloom[next % Capacity];
 
-                    while (fastBloom != 0)
-                    {
-                        if (Zeroed)
-                            return -1;
-                    }
-
-                    if (Interlocked.CompareExchange(ref fastBloom, 1, 0) == 0)
+                    spin:
+                    int prev;
+                    if ((prev = Interlocked.CompareExchange(ref fastBloom, 1, 0)) == 0)
                     {
                         Interlocked.Increment(ref _count);
                         this[next] = item;
                         Interlocked.Exchange(ref fastBloom, 2);
+                        return next;
                     }
-                    else if (next <= Head)
+
+                    if (Zeroed || Count == Capacity)
+                        return -1;
+
+                    switch (prev)
                     {
-                        goto retry;
+                        case 1: goto spin;
+                        case > 1: goto retry;
                     }
-                    else if(!Zeroed)
-                        throw new InvalidOperationException($"{nameof(TryEnqueue)}: Control should never reach here; next = {next}({next%Capacity}), bloom = {fastBloom}, {Description}");
+
+                    if (prev < Tail - Capacity) //slow threads
+                        return -1;
+
+                    if (!Zeroed)
+                        throw new InvalidOperationException($"{nameof(TryEnqueue)}: Control should never reach here; next = {next}({next%Capacity}), was = {prev}, bloom = {fastBloom}, {Description}");
                 }
                 else
                     return -1;
@@ -277,15 +281,7 @@ namespace zero.core.patterns.queue
                 if (next < latch) 
                 {
                     ref var fastBloom = ref _bloom[next % Capacity];
-
-                    while (fastBloom != 2)
-                    {
-                        if (!Zeroed) continue;
-
-                        slot = default;
-                        return false;
-                    }
-
+                    spin:
                     int prev;
                     if((prev = Interlocked.CompareExchange(ref fastBloom, 3, 2)) == 2)
                     {
@@ -295,13 +291,28 @@ namespace zero.core.patterns.queue
 
                         Interlocked.Exchange(ref fastBloom, 0);
                         return true;
-                    } 
+                    }
 
-                    if (next < Tail - Capacity)//slow threads
-                        goto retry;
+                    if (Zeroed || Count == 0)
+                    {
+                        slot = default;
+                        return false;
+                    }
 
+                    switch (prev)
+                    {
+                        case 0: goto retry;
+                        case > 0: goto spin;
+                    }
+
+                    if (next < Tail - Capacity) //slow threads
+                    {
+                        slot = default;
+                        return false;
+                    }
+                    
                     if (!Zeroed)
-                        throw new InvalidOperationException($"{nameof(TryDequeue)}[SET]: Control should never reach here; next = {next}({next % Capacity}), bloom = {fastBloom}, was = {prev}, {Description}");
+                        throw new InvalidOperationException($"{nameof(TryDequeue)}[SET]: Control should never reach here; d = {next - Tail - Capacity}, next = {next}({next % Capacity}), bloom = {fastBloom}, was = {prev}, {Description}");
                 }
             }
             catch (Exception e)

@@ -48,7 +48,7 @@ namespace zero.core.patterns.semaphore
         public int Release(T value, int releaseCount, bool forceAsync = false, bool prime = true) => _semaphore.Release(value, releaseCount, forceAsync);
         
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public int Release(T value, bool forceAsync = false, bool prime = true) =>_semaphore.Release(value, forceAsync);
+        public bool Release(T value, bool forceAsync = false, bool prime = true) =>_semaphore.Release(value, forceAsync);
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public int Release(T[] value, bool forceAsync = false, bool prime = true) => _semaphore.Release(value, forceAsync);

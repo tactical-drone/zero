@@ -41,7 +41,7 @@ namespace zero.core.patterns.semaphore.core
 
             _blockingCores = new IoZeroQ<IIoManualResetValueTaskSourceCore<T>>(string.Empty, capacity, false, asyncTasks:null, capacity);
             _results = new IoZeroQ<T>(string.Empty, capacity, false, asyncTasks: null, capacity);
-            _heapCore = new IoBag<IIoManualResetValueTaskSourceCore<T>>(string.Empty, capacity, asyncTasks: null, capacity);
+            _heapCore = new IoBag<IIoManualResetValueTaskSourceCore<T>>(string.Empty, capacity<<1, asyncTasks: null, capacity);
 
             _primeReady = _ => default;     
             _primeContext = null;
@@ -145,10 +145,10 @@ namespace zero.core.patterns.semaphore.core
 #endif
         private bool Unblock(T value, bool forceAsync, IIoManualResetValueTaskSourceCore<T> blockingCore = null)
         {
-            retry:
             var sw = new SpinWait();
+            retry:
             //fetch a blocking core from the Q
-            if(blockingCore == null)
+            if (blockingCore == null)
                 while (!_blockingCores.TryDequeue(out blockingCore))
                 {
                     if (_blockingCores.Count == 0 || Zeroed())
@@ -190,32 +190,31 @@ namespace zero.core.patterns.semaphore.core
 #if RELEASE
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
 #endif
-        private int SetResult(T value, bool forceAsync = false, bool prime = true)
+        private bool SetResult(T value, bool forceAsync = false, bool prime = true)
         {
-            var sw = new SpinWait();
             retry:
             //insane checks
             if (Zeroed() || _results.Count == Capacity || (!prime && _blockingCores.Count == 0))
-                return -1;
+                return false;
 
             //unblock
             if (Unblock(value, forceAsync))
-                return 1;
+                return true;
 
             //only set if there is a thread waiting
             if (!prime)
-                return 0;
+                return false;
 
-            //sloppy race detection that is probably good enough in worst case conditions
-            //The other side does proper race detection since blockingCores have those bits attached to them
-            if (_blockingCores.Count > 0 || _blocking > 0)
-            {
-                sw.SpinOnce();
+            ////sloppy race detection that is probably good enough in worst case conditions
+            ////The other side does proper race detection since blockingCores have those bits attached to them
+            if (_blockingCores.Count > 0 || _blocking > 0) 
                 goto retry;
-            }
 
-            return (int)_results.TryEnqueue(value) != -1? 1:0; //TODO: Critical. This should be bigger than. Hacked for now with equals? 
-            
+            //lol
+            if (_blocking == 0)
+                return _results.TryEnqueue(value) >= 0;
+
+            goto retry;
 
         //TODO: For some reason this makes things worse... I don't know why.
         //TODO: From what I can tell from my telemetry, there is an old interlocked instruction that is resurrected that jams the _results Q with bogus values.
@@ -227,8 +226,8 @@ namespace zero.core.patterns.semaphore.core
             var pos = _results.TryEnqueue(value);
 
             //saturated
-            if (pos <= 0)
-                return 0;
+            if (pos < 0)
+                goto retry;
 
             ////race
             if (_blockingCores.TryDequeue(out var blockingCore))
@@ -236,7 +235,7 @@ namespace zero.core.patterns.semaphore.core
                 Interlocked.MemoryBarrierProcessWide();
                 if (_results.Drop(pos))
                 {
-                    if (!Unblock(value, forceAsync, blockingCore))
+                    if (!Unblock(value, false, blockingCore))//TODO:Lever pulled
                     {
                         _blockingCores.TryEnqueue(blockingCore);
 #if DEBUG
@@ -249,16 +248,16 @@ namespace zero.core.patterns.semaphore.core
                     Console.WriteLine("."); //TODO: "duplicate un-blockers" appear when this msg triggers. Makes no sense 
 #endif
 
-                    return 1;
+                    return true;
                 }
 
-                _blockingCores.TryEnqueue(blockingCore);
+                //_blockingCores.TryEnqueue(blockingCore);//TODO:Lever pulled
 #if DEBUG
                 Console.WriteLine("X");
 #endif
             }
 
-            return 1;
+            return true;
         }
 
         /// <summary>
@@ -272,11 +271,9 @@ namespace zero.core.patterns.semaphore.core
 #endif
         private bool Block(out ValueTask<T> slowTaskCore)
         {
-            //Debug.Assert(_results.Count == 0 && _blockingCores.Count >= 0 || _results.Count >= 0 && _blockingCores.Count == 0);
+            Interlocked.Increment(ref _blocking);
             try
             {
-                Interlocked.Increment(ref _blocking);
-
                 IIoManualResetValueTaskSourceCore<T> blockingCore = null;
             
                 retry:
@@ -286,17 +283,19 @@ namespace zero.core.patterns.semaphore.core
                     slowTaskCore = default;
                     return false;
                 }
-            
-                int b;
+                
                 //fast path
-                if ((b = _blockingCores.Count) == 0 && _results.TryDequeue(out var readyResult))
+                if (_results.TryDequeue(out var readyResult))
                 {
                     Interlocked.Increment(ref _totalOps);
                     Interlocked.Increment(ref _curOps);
                     slowTaskCore = new ValueTask<T>(readyResult);
                     return true;
                 }
-            
+
+                //Debug.Assert(_results.Count == 0 && _blockingCores.Count >= 0 || _results.Count >= 0 && _blockingCores.Count == 0, $"r = {_results.Count}, b = {_blockingCores.Count}: {_heapCore.Description}");
+                Debug.Assert(_results.Count == 0 && _blockingCores.Count >= 0 || _results.Count >= 0 && _blockingCores.Count == 0);
+
                 //prepare a core from the heap
                 if (blockingCore == null && !_heapCore.TryDequeue(out blockingCore))
                 {
@@ -312,19 +311,24 @@ namespace zero.core.patterns.semaphore.core
                         Interlocked.Increment(ref @this._curOps);
 
                         if (@this._heapCore.TryEnqueue(blockingCore) < 0)
+                        {
                             Console.WriteLine($"Core Heap Overflow - {@this._heapCore.Description}");
+                            for (int i = 0; i < @this._heapCore.Count>>1; i++)
+                                @this._heapCore.TryDequeue(out _);
+                        }
                     
                     }, (this, blockingCore));
                 }
 
                 //maybe a result got populated while preparing a blocking core from the heap....
-                if (_results.Count > 0 && b == 0)
+                if (_results.Count > 0 )// && b == 0)
                     goto retry; //also, core is dropped
             
                 //core waiting to sync
                 blockingCore.SyncRoot = SyncWait;
 
                 long pos;
+                var sw = new SpinWait();
                 //Queue the core
                 while ((pos = _blockingCores.TryEnqueue(blockingCore)) < 0)
                 {
@@ -333,15 +337,15 @@ namespace zero.core.patterns.semaphore.core
                         slowTaskCore = default;
                         return false;
                     }
+                    sw.SpinOnce();
                 }
 
                 //race
-                if (b == 0 && _results.TryDequeue(out var racedResult))
+                if (/*b == 0 &&*/ _results.TryDequeue(out var racedResult))
                 {
                     //don't synchronize the core, it will be dropped
                     blockingCore.SyncRoot = SyncRace;
-                    _blockingCores.Drop(pos);
-
+                    
                     //unblock
                     slowTaskCore = new ValueTask<T>(racedResult);
 
@@ -354,7 +358,7 @@ namespace zero.core.patterns.semaphore.core
                 //core ready
                 slowTaskCore = new ValueTask<T>(blockingCore, 0);
 
-                if (b == 0 && _results.Count > 0)
+                if (/*b == 0 && */_results.Count > 0)
                 {
                     blockingCore.SyncRoot = SyncRace;
                     _blockingCores.Drop(pos);
@@ -388,7 +392,10 @@ namespace zero.core.patterns.semaphore.core
         {
             var released = 0;
             for (var i = 0; i < releaseCount; i++)
-                released += Release(value, forceAsync, prime);
+            {
+                if (Release(value, forceAsync, prime))
+                    released++;
+            }
             
             return released;
         }
@@ -398,13 +405,16 @@ namespace zero.core.patterns.semaphore.core
         {
             var released = 0;
             foreach (var t in value)
-                released += Release(t, forceAsync);
+            {
+                if(Release(t, forceAsync))
+                    released++;
+            }
 
             return released;
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public int Release(T value, bool forceAsync = false, bool prime = true) => SetResult(value,forceAsync, prime);
+        public bool Release(T value, bool forceAsync = false, bool prime = true) => SetResult(value,forceAsync, prime);
         
 
         /// <summary>

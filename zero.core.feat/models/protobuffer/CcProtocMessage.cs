@@ -334,10 +334,10 @@ namespace zero.core.feat.models.protobuffer
                             Debug.Assert(nextBatch[i].Zero != null);
 #endif
                         var retried = 2;
-                        var r = 0;
+                        
                         var spinWait = new SpinWait();
                         retry:
-                        if ((r = chan.Release(nextBatch)) < 1)
+                        if (!chan.Release(nextBatch, true))
                         {
                             if (retried-- > 0 || chan.WaitCount > 0)
                             {
@@ -349,7 +349,7 @@ namespace zero.core.feat.models.protobuffer
                             }
 
                             //if (!((CcProtocBatchSource<chroniton, TBatch>)source).Zeroed() && !chan.Zeroed() && chan.TotalOps > 0 && chan.ReadyCount != chan.Capacity)
-                                _logger.Fatal($"{nameof(ZeroBatchAsync)}: Unable to q batch; released = {r}, ready = {chan.ReadyCount}, wait = {chan.WaitCount}, cap = {chan.Capacity}; {chan.Description} {@this.Description}");
+                                _logger.Fatal($"{nameof(ZeroBatchAsync)}: Unable to q batch; ready = {chan.ReadyCount}, wait = {chan.WaitCount}, cap = {chan.Capacity}; {chan.Description} {@this.Description}");
                             
                             return new ValueTask<bool>(false);
                         }

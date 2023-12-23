@@ -165,7 +165,7 @@ namespace zero.core.patterns.heap
             try
             {
                 race:
-                if (_refCount == Capacity || _refCount.ZeroNext(Capacity) > Capacity)
+                if (_refCount.ZeroNext(Capacity) == Capacity)
                 {
                     if (!IsAutoScaling)
                     {
@@ -179,15 +179,19 @@ namespace zero.core.patterns.heap
                     }
                     else
                     {
+                        
                         var prev = _ioHeapBuf;
-                        Interlocked.Exchange(ref _ioHeapBuf, new IoBag<TItem>(Description, Interlocked.Exchange(ref _capacity, _capacity << 1) << 1));
+                        if(Interlocked.CompareExchange(ref _ioHeapBuf, new IoBag<TItem>(Description,  _capacity << 1), prev) == prev)
+                        {
+                            Interlocked.Exchange(ref _capacity, _capacity << 1);
+                        };
 
                         IoZeroScheduler.Zero.LoadAsyncContext(static async state =>
                         {
                             try
                             {
                                 //TODO, transfer memory to the new heap
-                                await ((IoHeap<TItem>)state).ZeroManagedAsync<object>();
+                                await ((IoBag<TItem>)state).ZeroManagedAsync<object>();
                             }
                             catch
                             {

@@ -369,10 +369,10 @@ namespace zero.core.runtime.scheduler
                     job.Callback(job.State);
                     Interlocked.Increment(ref _asyncFallbackCount);
                 }
-                catch (TaskCanceledException) { }
-                catch (OperationCanceledException) { }
+                catch (TaskCanceledException)when(!Zeroed) { }
+                catch (OperationCanceledException) when (!Zeroed) { }
                 catch when (Zeroed) { }
-                catch (InvalidOperationException){}
+                catch (InvalidOperationException)when (!Zeroed) {}
 #if RELEASE //quality code enforced
                 catch (NullReferenceException) { }
 #else
@@ -386,7 +386,7 @@ namespace zero.core.runtime.scheduler
                     Interlocked.Decrement(ref _asyncFallBackLoad);
                     if (!Zeroed)
                     {
-                        if (Interlocked.CompareExchange(ref _fbQQuickSlot, job, null) != null)
+                        //if (Interlocked.CompareExchange(ref _fbQQuickSlot, job, null) != null)
                             _callbackHeap.Return(job);
                     }
                 }
@@ -581,7 +581,7 @@ namespace zero.core.runtime.scheduler
                 return;
 
             //schedule the task
-            if (_taskQueue.Release(task, true) < 0)
+            if (!_taskQueue.Release(task, true))
             {
                 if (!_taskQueue.Zeroed())
                     throw new InternalBufferOverflowException($"{nameof(_taskQueue)}: {_taskQueue.Description}");
@@ -642,7 +642,7 @@ namespace zero.core.runtime.scheduler
         /// <param name="taskWasPreviouslyQueued">Whether the task was previously queued to the scheduler.</param>
         /// <returns>true if the task could be executed; otherwise, false.</returns>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        protected override bool TryExecuteTaskInline(Task task, bool taskWasPreviouslyQueued) => (taskWasPreviouslyQueued) ? TryExecuteTaskInlineOnTargetScheduler(task, _fallbackScheduler) : TryExecuteTask(task);
+        protected override bool TryExecuteTaskInline(Task task, bool taskWasPreviouslyQueued) => (taskWasPreviouslyQueued) ? TryExecuteTask(task) : TryExecuteTaskInlineOnTargetScheduler(task, _fallbackScheduler);
 
         /// <summary>
         /// Implements a reasonable approximation for TryExecuteTaskInline on the underlying scheduler,
@@ -695,7 +695,7 @@ namespace zero.core.runtime.scheduler
 
                 Volatile.Write(ref handler.Callback, callback);
                 Volatile.Write(ref handler.State, state);
-                return _asyncCallbackWithContextQueue.Release(handler, true) >= 0;
+                return _asyncCallbackWithContextQueue.Release(handler, false);
             }
             finally
             {
@@ -705,7 +705,7 @@ namespace zero.core.runtime.scheduler
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public bool LoadAsyncContext<T>(Func<object,ValueTask> valueTask, T context) => _asyncTaskWithContextQueue.Release(_contextHeap.Take().Prime(valueTask, context), true) >= 0;
+        public bool LoadAsyncContext<T>(Func<object,ValueTask> valueTask, T context) => _asyncTaskWithContextQueue.Release(_contextHeap.Take().Prime(valueTask, context), true);
         
         //API
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -713,15 +713,15 @@ namespace zero.core.runtime.scheduler
         {
             var c = _contextHeap.Take();
             c.ValueTask = task;
-            return _asyncTaskQueue.Release(c, true) >= 0;
+            return _asyncTaskQueue.Release(c, true);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public bool LoadAsyncCallback(Func<ValueTask> callback) => _asyncForkQueue.Release(callback, true) >= 0;
+        public bool LoadAsyncCallback(Func<ValueTask> callback) => _asyncForkQueue.Release(callback, true);
 
         
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public bool Fork(Action callback) => _forkQueue.Release(callback, true) > 0;
+        public bool Fork(Action callback) => _forkQueue.Release(callback, true);
 
         /// <summary>
         /// Isolates the underlying scheduler API that this scheduler needs to function
@@ -735,7 +735,8 @@ namespace zero.core.runtime.scheduler
         [MethodImpl(MethodImplOptions.NoInlining)]
         public bool FallbackContext(Action<object> callback, object context = null)
         {
-            var qItem = Interlocked.CompareExchange(ref _fbQQuickSlot, null, _fbQQuickSlot)??_callbackHeap.Take();
+            //var qItem = Interlocked.CompareExchange(ref _fbQQuickSlot, null, _fbQQuickSlot)??_callbackHeap.Take();
+            var qItem = _callbackHeap.Take();
             if (qItem == null) throw new OutOfMemoryException($"{nameof(FallbackContext)}: {_callbackHeap.Description}");
 
             qItem.Callback = callback;
@@ -744,7 +745,7 @@ namespace zero.core.runtime.scheduler
             
             try
             {
-                return _asyncFallbackQueue.Release(qItem, true) > 0;
+                return _asyncFallbackQueue.Release(qItem, true);
             }
             catch
             {

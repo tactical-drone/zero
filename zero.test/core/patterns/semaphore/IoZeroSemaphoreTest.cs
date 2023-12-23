@@ -100,7 +100,7 @@ namespace zero.test.core.patterns.semaphore
                         {
                             if (Interlocked.Decrement(ref _releaseCount) >= 0)
                             {
-                                if (m.Release(Environment.TickCount, true) <= 0)
+                                if (!m.Release(Environment.TickCount, true))
                                     await Task.Delay(100);
                             }
                         }
@@ -233,7 +233,7 @@ namespace zero.test.core.patterns.semaphore
                 {
                     try
                     {
-                        Assert.Equal(1, m.Release(Environment.TickCount, true));
+                        Assert.True(m.Release(Environment.TickCount, true));
                     }
                     catch (Exception e)
                     {
@@ -359,7 +359,7 @@ namespace zero.test.core.patterns.semaphore
                 int i = 0;
                 while (!v.Zeroed())
                 {
-                    if (v.Release(Environment.TickCount, true) < 0 )
+                    if (!v.Release(Environment.TickCount, true))
                     {
                         //_output.WriteLine($"{i} - Jammed!");
                         //await Task.Delay(0);

@@ -52,10 +52,10 @@ namespace zero.core.feat.patterns.semaphore
             throw new NotImplementedException();
         }
 
-        public int Release(bool value, bool forceAsync = false, bool prime = true)
+        public bool Release(bool value, bool forceAsync = false, bool prime = true)
         {
             _semaphore.Set();
-            return 1;
+            return true;
         }
 
         public int Release(bool[] value, bool forceAsync = false, bool prime = true)

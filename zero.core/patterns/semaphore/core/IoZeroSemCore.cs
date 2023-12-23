@@ -122,7 +122,10 @@ namespace zero.core.patterns.semaphore.core
         {
             var released = 0;
             for (var i = 0; i < releaseCount; i++)
-                released += Release(value, forceAsync);
+            {
+                if (Release(value, forceAsync))
+                    released++;
+            }
             
             return released;
         }
@@ -230,63 +233,56 @@ namespace zero.core.patterns.semaphore.core
             {
                 var r = Release(t, forceAsync);
 
-                if(prime && r == 0)
+                if(prime && !r)
                     break;
 
-                released += r;
+                released++;
             }
                 
             return released;
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public int Release(T value, bool forceAsync = false, bool prime = true)
+        public bool Release(T value, bool forceAsync = false, bool prime = true)
         {
             IIoManualResetValueTaskSourceCore<T> core = null;
             //Race for a core
-            try
+
+            var spinWait = new SpinWait();
+            long latch;
+            while ((latch = _head) < _tail && //dequeue
+                   (core = _cores[latch %= ModCapacity]) != null && //race
+                   Interlocked.CompareExchange(ref _cores[latch %= ModCapacity], null, core) != core) //reserve
             {
-                var spinWait = new SpinWait();
-                //while ((retry || (latch = _cores[(tail = _tail-1) % ModCapacity].Blocking ? tail : _head) < _tail + _capacity && //take the head //TODO:return the favor
-                var latch = 0L;
-                while ((latch = _head) < _tail && //dequeue
-                       (core = _cores[latch %= ModCapacity]) != null && //race
-                       Interlocked.CompareExchange(ref _cores[latch %= ModCapacity], null, core) != core) //reserve
-                {
-                    if (Zeroed())
-                        return 0;
+                if (Zeroed())
+                    return false;
 
-                    spinWait.SpinOnce();
+                spinWait.SpinOnce();
+            }
+
+            if (core == null)
+                return false;
+
+            if (core.Blocking || prime)
+            {
+                Interlocked.Increment(ref _head);
+                Interlocked.Exchange(ref _cores[latch], core);
+                try
+                {
+                    core.SetResult(value);
+                    return true;
                 }
-
-                if (core == null)
-                    return 0;
-
-                if (core.Blocking || prime)
+                catch
                 {
-                    Interlocked.Increment(ref _head);
-                    Interlocked.Exchange(ref _cores[latch], core);
-                    try
-                    {
-                        core.SetResult(value);
-                        return 1;
-                    }
-                    catch
-                    {
-                        // ignored
-                    }
-                }
-                else
-                {
-                    Interlocked.Exchange(ref _cores[latch], core);
+                    // ignored
                 }
             }
-            finally
+            else
             {
-                
-                    
+                Interlocked.Exchange(ref _cores[latch], core);
             }
-            return 0;
+
+            return false;
         }
 
         public ValueTask<T> WaitAsync()

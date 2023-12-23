@@ -1,7 +1,8 @@
-﻿//#define BORG
-#define RT_ONE_GC
+﻿#define BORG
+//#define RT_ONE_GC
 //#define ONE_GC
 //#define ZERO_GC
+//#define INCEPTION
 using System;
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
@@ -43,21 +44,19 @@ namespace zero.core.patterns.semaphore.core
         /// </summary>
         private object _capturedContext;
 
-        /// <summary>The exception with which the operation failed, or null if it hasn't yet completed or completed successfully.</summary>
-        private ExceptionDispatchInfo _error;
-
         /// <summary>The result with which the operation succeeded, or the default value if it hasn't yet completed or failed.</summary>
         private TResult _result;
-
-        private Action<object> _heapAction;
-        private object _heapContext;
-
-        //public object? _burnContext;
-        //public Action<bool, object>? _burnResult;
 
         /// <summary>Whether the current operation has completed.</summary>
         private bool _completed;
         private int _runContinuationsAsync; //Options on just in time async/sync calls
+
+        /// <summary>The exception with which the operation failed, or null if it hasn't yet completed or completed successfully.</summary>
+        private ExceptionDispatchInfo _error;
+        private Action<object> _heapAction;
+        private object _heapContext;
+        //public object? _burnContext;
+        //public Action<bool, object>? _burnResult;
 
 #if DEBUG
         private int _completeTime;
@@ -83,11 +82,11 @@ namespace zero.core.patterns.semaphore.core
         /// </summary>
         public bool AutoReset { get; set; }
 
-        private int _syncRoot;
+        private volatile int _syncRoot;
         /// <summary>
         /// Allows the core to be synchronized. Useful when splitting the results and blockers into different queues 
         /// </summary>
-        public int SyncRoot { readonly get => _syncRoot; set => Volatile.Write(ref _syncRoot, value); }
+        public int SyncRoot { readonly get => _syncRoot; set => _syncRoot = value; }
 
         /// <summary>
         /// Is this core primed with a sentinel?
@@ -217,16 +216,9 @@ namespace zero.core.patterns.semaphore.core
             if (!_completed)
                 throw new InvalidOperationException($"[{Environment.CurrentManagedThreadId}] {nameof(GetResult)}: core not completed!");
 
-            if (_error != null)
-            {
-                if (AutoReset)
-                    Reset();
-                _error.Throw();
-            }
-            
-
             try
             {
+                _error?.Throw();
                 return _result;
             }
             finally
@@ -437,15 +429,26 @@ namespace zero.core.patterns.semaphore.core
 
                 //TODO: I have no idea if this is dodgy or not. I am kinda hoping it is not. So far so good.
                 //TODO: The reward is one less Task to be malloced up and scheduled (which is async which is why I don't know why runtime still works like you expect?)
-                case IoZeroScheduler when !runContinuationsAsynchronously && TaskScheduler.Current is IoZeroScheduler:
-                    continuation(state);
+                //case IoZeroScheduler when !runContinuationsAsynchronously && TaskScheduler.Current is IoZeroScheduler:
+#if INCEPTION
+                case IoZeroScheduler zs:
+                    if (!runContinuationsAsynchronously && TaskScheduler.Current is IoZeroScheduler)
+                    {
+                        continuation(state);
+                    }
+                    else
+                    {
+                        new Task(continuation, state).Start(zs);
+
+                    }
                     break;
+#endif
+
 #if BORG
                 //TODO: superfast (scheduled) bricks the runtime...
                 //TODO: superfast (scheduled) suddenly it works. Turns out you have to track every thread's "full circle" or you might get stack overflow issues. As long as you keep track when to inject async threads things can be super fast without hitting that stack limit.
                 
                 case IoZeroScheduler zs:
-                    //zs.QueueCallback(continuation, state);
                     zs.FallbackContext(continuation, state);
                     break;
 #endif
@@ -457,20 +460,6 @@ namespace zero.core.patterns.semaphore.core
                     break;
 #endif
 
-#if ONE_GC
-                //TODO: Why does this even work? 
-                case IoZeroScheduler zs:
-                    if (!TryExecuteInlineOnTargetScheduler(continuation, state, zs))
-                        Schedule(zs, continuation, state);
-                    break;
-#endif
-
-#if ZERO_GC
-                case IoZeroScheduler zs:
-                    //if (!TryExecuteInlineOnTargetScheduler(continuation, state, zs))
-                    //    Schedule(zs, continuation, state);
-                    break;
-#endif
 
                 default:
                     var cc = (CapturedSchedulerAndExecutionContext)context;

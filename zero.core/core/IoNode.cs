@@ -46,7 +46,7 @@ namespace zero.core.core
         /// <summary>
         /// logger
         /// </summary>
-        private Logger _logger;
+        private readonly Logger _logger;
 
         /// <summary>
         /// The listening address of this node
@@ -138,7 +138,6 @@ namespace zero.core.core
             base.ZeroUnmanaged();
 
 #if SAFE_RELEASE
-            _logger = null;
             Neighbors = null;
             NeighborTasks = default;
             _netServer = null;

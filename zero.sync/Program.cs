@@ -649,7 +649,7 @@ namespace zero.sync
 
                     if (line == "L")
                     {
-                        Console.WriteLine($"[{IoZeroScheduler.Zero.Load}/{IoZeroScheduler.Zero.AsyncTaskWithContextLoad}/{IoZeroScheduler.Zero.ForkLoad}/{IoZeroScheduler.Zero.AsyncFallBackLoad}/{IoZeroScheduler.Zero.Capacity}] load = {IoZeroScheduler.Zero.Load/IoZeroScheduler.Zero.Capacity * 100:0.0}%, aq time = {IoZeroScheduler.Zero.AqTime:0.0}ms, sem = {IoZeroScheduler.Zero.Wait}/{IoZeroScheduler.Zero.Idle} ({IoZeroScheduler.Zero.Rate:0.0} s/s); {(IoZeroScheduler.Zero.AsyncForkCount - LC) / (double)LS.ElapsedMsToSec():0.0} o/s, {(IoZeroScheduler.Zero.TaskDequeueCount - QC) / (double)QS.ElapsedMsToSec():0.0} z/s ({IoZeroScheduler.Zero.TaskDequeueCount - QC})[{IoZeroScheduler.Zero.TaskDequeueCount}]; {(IoZeroScheduler.Zero.AsyncTaskWithContextCount - AC) / (double)AS.ElapsedMsToSec():0.0} a/s ({IoZeroScheduler.Zero.AsyncTaskWithContextCount - AC})[{IoZeroScheduler.Zero.AsyncTaskWithContextCount}]; {(IoZeroScheduler.Zero.AsyncFallbackCount - FC) / (double)FS.ElapsedMsToSec():0.0} b/s ({IoZeroScheduler.Zero.AsyncFallbackCount - FC})[{IoZeroScheduler.Zero.AsyncFallbackCount}];");
+                        Console.WriteLine($"[{IoZeroScheduler.Zero.Load}/{IoZeroScheduler.Zero.AsyncTaskWithContextLoad}/{IoZeroScheduler.Zero.ForkLoad}/{IoZeroScheduler.Zero.AsyncFallBackLoad}/{IoZeroScheduler.Zero.Capacity}] load = {IoZeroScheduler.Zero.Load/IoZeroScheduler.Zero.Capacity * 100:0.0}%, aq time = {IoZeroScheduler.Zero.AqTime:0.000}ms, sem = {IoZeroScheduler.Zero.Wait}/{IoZeroScheduler.Zero.Idle} ({IoZeroScheduler.Zero.Rate:0.0} s/s); {(IoZeroScheduler.Zero.AsyncForkCount - LC) / (double)LS.ElapsedMsToSec():0.0} o/s, {(IoZeroScheduler.Zero.TaskDequeueCount - QC) / (double)QS.ElapsedMsToSec():0.0} z/s ({IoZeroScheduler.Zero.TaskDequeueCount - QC})[{IoZeroScheduler.Zero.TaskDequeueCount}]; {(IoZeroScheduler.Zero.AsyncTaskWithContextCount - AC) / (double)AS.ElapsedMsToSec():0.0} a/s ({IoZeroScheduler.Zero.AsyncTaskWithContextCount - AC})[{IoZeroScheduler.Zero.AsyncTaskWithContextCount}]; {(IoZeroScheduler.Zero.AsyncFallbackCount - FC) / (double)FS.ElapsedMsToSec():0.0} b/s ({IoZeroScheduler.Zero.AsyncFallbackCount - FC})[{IoZeroScheduler.Zero.AsyncFallbackCount}];");
                         QS = Environment.TickCount;
                         AS = Environment.TickCount;
                         LS = Environment.TickCount;
@@ -1073,7 +1073,7 @@ namespace zero.sync
             {
                 Console.Write(".");
                 var i3 = i;
-                var maxDiff = rounds * 4;
+                var maxDiff = 10000;
                 var measuredConcurrency = 0;
                 _concurrentTasks.Add(Task.Factory.StartNew(async () =>
                 {
@@ -1086,27 +1086,27 @@ namespace zero.sync
                             await q.EnqueueAsync(Volatile.Read(ref done)).FastPath(); //Console.WriteLine("2");
                             var ts = Environment.TickCount;
                             var dq = await q.DequeueAsync().FastPath(); //Console.WriteLine("7");
-                            if (dq < done - maxDiff)
-                                Console.WriteLine($"* diff = {done -dq}, {ts.ElapsedMs()}ms");
+                            if (dq < done - maxDiff * 100)
+                                Console.Write($" -> * diff = {done -dq}, {ts.ElapsedMs()}ms");
 
                             //await q.EnqueueAsync(Volatile.Read(ref done)).FastPath(); //Console.WriteLine("2");
                             await q.PushBackAsync(Volatile.Read(ref done)).FastPath(); //Console.WriteLine("2");
                             ts = Environment.TickCount;
                             dq = await q.DequeueAsync().FastPath(); //Console.WriteLine("8");
-                            if (dq < done - maxDiff)
-                                Console.WriteLine($"* diff = {done - dq}, {ts.ElapsedMs()}ms");
+                            if (dq < done - maxDiff * 100)
+                                Console.Write($" -> * diff = {done - dq}, {ts.ElapsedMs()}ms");
 
                             await q.EnqueueAsync(Volatile.Read(ref done)).FastPath(); //Console.WriteLine("2");
                             ts = Environment.TickCount;
                             dq = await q.DequeueAsync().FastPath(); //Console.WriteLine("9");
-                            if (dq < done - maxDiff)
-                                Console.WriteLine($"* diff = {done - dq}, {ts.ElapsedMs()}ms");
+                            if (dq < done - maxDiff * 100)
+                                Console.Write($" -> * diff = {done - dq}, {ts.ElapsedMs()}ms");
 
                             await q.PushBackAsync(Volatile.Read(ref done)).FastPath(); //Console.WriteLine("2");
                             ts = Environment.TickCount;
                             dq = await q.DequeueAsync().FastPath(); //Console.WriteLine("10");.
-                            if (dq < done - maxDiff)
-                                Console.WriteLine($"* diff = {done - dq}, {ts.ElapsedMs()}ms");
+                            if (dq < done - maxDiff * 100)
+                                Console.Write($" -> * diff = {done - dq}, {ts.ElapsedMs()}ms");
                         }
                         catch (Exception e)
                         {
@@ -1119,7 +1119,7 @@ namespace zero.sync
                             var p = done * 100.0 / (rounds * mult);
                             if (p % 2 == 0)
                             {
-                                Console.Write($"({i3}-{q.Count} {p}% {done/ts.ElapsedMs()} Kq/s)");
+                                Console.Write($"({i3}-{q.Count} {p}% {maxDiff = done/ts.ElapsedMs()} Kq/s)");
                             }
                             Interlocked.Decrement(ref measuredConcurrency);
                             Debug.Assert(measuredConcurrency < rounds);

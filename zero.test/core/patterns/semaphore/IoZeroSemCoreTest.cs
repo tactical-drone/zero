@@ -86,7 +86,7 @@ namespace zero.test.core.patterns.semaphore
                     await Task.Delay(delayTime);
 
                     var ts = Environment.TickCount;
-                    if (m.Release(Environment.TickCount, true) <= 0)
+                    if (!m.Release(Environment.TickCount, true))
                     {
                         i--;
                         await Task.Delay(1);
@@ -189,7 +189,7 @@ namespace zero.test.core.patterns.semaphore
                     await Task.Delay(delayTime);
 
                     var ts = Environment.TickCount;
-                    if (m.Release(Environment.TickCount, true) <= 0)
+                    if (!m.Release(Environment.TickCount, true))
                     {
                         i--;
                         await Task.Delay(1);
