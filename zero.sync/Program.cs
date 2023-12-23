@@ -575,7 +575,7 @@ namespace zero.sync
             var AC = IoZeroScheduler.Zero.AsyncTaskWithContextCount;
 
             var FS = Environment.TickCount;
-            var FC = IoZeroScheduler.Zero.AsyncFallbackCount;
+            var FC = IoZeroScheduler.Zero.AsyncZeroCount;
 
             AppDomain.CurrentDomain.ProcessExit += (sender, eventArgs) =>
             {
@@ -649,7 +649,7 @@ namespace zero.sync
 
                     if (line == "L")
                     {
-                        Console.WriteLine($"[{IoZeroScheduler.Zero.Load}/{IoZeroScheduler.Zero.AsyncTaskWithContextLoad}/{IoZeroScheduler.Zero.ForkLoad}/{IoZeroScheduler.Zero.AsyncFallBackLoad}/{IoZeroScheduler.Zero.Capacity}] load = {IoZeroScheduler.Zero.Load/IoZeroScheduler.Zero.Capacity * 100:0.0}%, aq time = {IoZeroScheduler.Zero.AqTime:0.000}ms, sem = {IoZeroScheduler.Zero.Wait}/{IoZeroScheduler.Zero.Idle} ({IoZeroScheduler.Zero.Rate:0.0} s/s); {(IoZeroScheduler.Zero.AsyncForkCount - LC) / (double)LS.ElapsedMsToSec():0.0} o/s, {(IoZeroScheduler.Zero.TaskDequeueCount - QC) / (double)QS.ElapsedMsToSec():0.0} z/s ({IoZeroScheduler.Zero.TaskDequeueCount - QC})[{IoZeroScheduler.Zero.TaskDequeueCount}]; {(IoZeroScheduler.Zero.AsyncTaskWithContextCount - AC) / (double)AS.ElapsedMsToSec():0.0} a/s ({IoZeroScheduler.Zero.AsyncTaskWithContextCount - AC})[{IoZeroScheduler.Zero.AsyncTaskWithContextCount}]; {(IoZeroScheduler.Zero.AsyncFallbackCount - FC) / (double)FS.ElapsedMsToSec():0.0} b/s ({IoZeroScheduler.Zero.AsyncFallbackCount - FC})[{IoZeroScheduler.Zero.AsyncFallbackCount}];");
+                        Console.WriteLine($"[{IoZeroScheduler.Zero.Load}/{IoZeroScheduler.Zero.AsyncZeroLoad}/{IoZeroScheduler.Zero.ForkLoad}/{IoZeroScheduler.Zero.AsyncFallBackLoad}/{IoZeroScheduler.Zero.Capacity}] load = {IoZeroScheduler.Zero.Load/IoZeroScheduler.Zero.Capacity * 100:0.0}%, az time = {IoZeroScheduler.Zero.AqTime:0.000}ms, aq time = {IoZeroScheduler.Zero.AqTime:0.000}ms, sem = {IoZeroScheduler.Zero.Wait}/{IoZeroScheduler.Zero.Idle} ({IoZeroScheduler.Zero.Rate:0.0} s/s); {(IoZeroScheduler.Zero.AsyncForkCount - LC) / (double)LS.ElapsedMsToSec():0.0} o/s, {(IoZeroScheduler.Zero.TaskDequeueCount - QC) / (double)QS.ElapsedMsToSec():0.0} z/s ({IoZeroScheduler.Zero.TaskDequeueCount - QC})[{IoZeroScheduler.Zero.TaskDequeueCount}]; {(IoZeroScheduler.Zero.AsyncTaskWithContextCount - AC) / (double)AS.ElapsedMsToSec():0.0} a/s ({IoZeroScheduler.Zero.AsyncTaskWithContextCount - AC})[{IoZeroScheduler.Zero.AsyncTaskWithContextCount}]; {(IoZeroScheduler.Zero.AsyncZeroCount - FC) / (double)FS.ElapsedMsToSec():0.0} b/s ({IoZeroScheduler.Zero.AsyncZeroCount - FC})[{IoZeroScheduler.Zero.AsyncZeroCount}];");
                         QS = Environment.TickCount;
                         AS = Environment.TickCount;
                         LS = Environment.TickCount;
@@ -657,7 +657,7 @@ namespace zero.sync
                         QC = IoZeroScheduler.Zero.TaskDequeueCount;
                         LC = IoZeroScheduler.Zero.AsyncForkCount;
                         AC = IoZeroScheduler.Zero.AsyncTaskWithContextCount;
-                        FC = IoZeroScheduler.Zero.AsyncFallbackCount;
+                        FC = IoZeroScheduler.Zero.AsyncZeroCount;
                     }
 
                     
@@ -715,12 +715,12 @@ namespace zero.sync
                     if (line.StartsWith("loadTest"))
                     {
                         var n = _nodes.Where(n => !n.ZeroDrone).ToArray();
-                        IoZeroScheduler.Zero.LoadAsyncCallback(async () => await n[Random.Shared.Next(0, n.Length - 1)].BootAsync(1).FastPath());
+                        IoZeroScheduler.Zero.QueueAsyncFunction(async () => await n[Random.Shared.Next(0, n.Length - 1)].BootAsync(1).FastPath());
                         if (_nodes.Count >= 4)
                         {
-                            IoZeroScheduler.Zero.LoadAsyncCallback(async () => await n[Random.Shared.Next(0, n.Length - 1)].BootAsync(10).FastPath());
-                            IoZeroScheduler.Zero.LoadAsyncCallback(async () => await n[Random.Shared.Next(0, n.Length - 1)].BootAsync(20).FastPath());
-                            IoZeroScheduler.Zero.LoadAsyncCallback(async () => await n[Random.Shared.Next(0, n.Length - 1)].BootAsync(30).FastPath());
+                            IoZeroScheduler.Zero.QueueAsyncFunction(async () => await n[Random.Shared.Next(0, n.Length - 1)].BootAsync(10).FastPath());
+                            IoZeroScheduler.Zero.QueueAsyncFunction(async () => await n[Random.Shared.Next(0, n.Length - 1)].BootAsync(20).FastPath());
+                            IoZeroScheduler.Zero.QueueAsyncFunction(async () => await n[Random.Shared.Next(0, n.Length - 1)].BootAsync(30).FastPath());
                         }
 
                         Console.WriteLine("ZERO CORE test...");
@@ -748,7 +748,7 @@ namespace zero.sync
                             {
                                 _running = false;
                                 _startAccounting = false;
-                                IoZeroScheduler.Zero.LoadAsyncCallback(async () =>
+                                IoZeroScheduler.Zero.QueueAsyncFunction(async () =>
                                 {
                                     await Task.WhenAll(gossipTasks.ToArray());
                                     gossipTasks.Clear();
@@ -871,14 +871,14 @@ namespace zero.sync
 
                     if (line.StartsWith("stream"))
                     {
-                        IoZeroScheduler.Zero.LoadAsyncCallback(async () => await AutoPeeringEventService.ToggleActiveAsync());
+                        IoZeroScheduler.Zero.QueueAsyncFunction(async () => await AutoPeeringEventService.ToggleActiveAsync());
                         
                         Console.WriteLine($"event stream = {(AutoPeeringEventService.Operational? "On":"Off")}");
                     }
 
                     if (line.StartsWith("zero"))
                     {
-                        IoZeroScheduler.Zero.LoadAsyncCallback(async () =>
+                        IoZeroScheduler.Zero.QueueAsyncFunction(async () =>
                         {
                             await ZeroAsync(total).FastPath();
                             
@@ -1746,7 +1746,7 @@ namespace zero.sync
 
         private static void StartCocoon(CcCollective cocoon)
         {
-            //IoZeroScheduler.Zero.LoadAsyncContext(static async state =>
+            //IoZeroScheduler.Zero.QueueAsyncFunction(static async state =>
             //{
             //    var cocoon = (CcCollective)state;
             //    //await cocoon.StartAsync<object>().FastPath();

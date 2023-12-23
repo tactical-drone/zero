@@ -449,14 +449,19 @@ namespace zero.core.patterns.semaphore.core
                 //TODO: superfast (scheduled) suddenly it works. Turns out you have to track every thread's "full circle" or you might get stack overflow issues. As long as you keep track when to inject async threads things can be super fast without hitting that stack limit.
                 
                 case IoZeroScheduler zs:
-                    if (!runContinuationsAsynchronously && TaskScheduler.Current is IoZeroScheduler)
+                    switch (runContinuationsAsynchronously)
                     {
-                        continuation(state);
+                        case false:
+                            if(TaskScheduler.Current == zs)
+                                continuation(state);
+                            else
+                                TryExecuteInlineOnTargetScheduler(continuation, state, zs);
+                            break;
+                        default:
+                            Schedule(zs, continuation, state);
+                            break;
                     }
-                    else
-                    {
-                        zs.FallbackContext(continuation, state);
-                    }
+                    
                     break;
 #endif
 
@@ -482,7 +487,6 @@ namespace zero.core.patterns.semaphore.core
                     }
                     break;
             }
-
             return;
 
             static void ScheduleSynchronizationContext(SynchronizationContext sc, Action<object> continuation, object state) =>

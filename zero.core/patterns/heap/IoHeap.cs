@@ -186,7 +186,7 @@ namespace zero.core.patterns.heap
                             Interlocked.Exchange(ref _capacity, _capacity << 1);
                         };
 
-                        IoZeroScheduler.Zero.LoadAsyncContext(static async state =>
+                        IoZeroScheduler.Zero.QueueAsyncFunction(static async state =>
                         {
                             try
                             {
@@ -301,7 +301,7 @@ namespace zero.core.patterns.heap
                     disposable.Dispose();
                 if (item is IAsyncDisposable asyncDisposable)
                 {
-                    IoZeroScheduler.Zero.LoadAsyncContext(static async state =>
+                    IoZeroScheduler.Zero.QueueAsyncFunction(static async state =>
                     {
                         var item = (IAsyncDisposable)state;
                         await item.DisposeAsync().FastPath();

@@ -632,8 +632,8 @@ namespace zero.core.patterns.misc
         /// <summary>
         /// Executes a continuation asynchronously using runtime api.
         ///
-        /// We use this function as supposed to a more lightweight alternative <see cref="IoZeroScheduler.LoadAsyncContext{T}"/> when
-        /// the processes spawned is blocking in nature. If the workload is one shot in nature, use <see cref="IoZeroScheduler.LoadAsyncContext{T}"/>
+        /// We use this function as supposed to a more lightweight alternative <see cref="IoZeroScheduler.QueueAsyncFunction{T}"/> when
+        /// the processes spawned is blocking in nature. If the workload is one shot in nature, use <see cref="IoZeroScheduler.QueueAsyncFunction{T}"/>
         /// instead.
         /// </summary>
         /// <param name="continuation">The continuation</param>

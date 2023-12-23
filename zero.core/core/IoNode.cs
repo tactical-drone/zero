@@ -36,7 +36,7 @@ namespace zero.core.core
             //start the listener
             //_netServer = IoNetServer<TJob>.GetKindFromUrl(_address, _preFetch, ZeroConcurrencyLevel);
 
-            //IoZeroScheduler.Zero.LoadAsyncContext(static async @this =>
+            //IoZeroScheduler.Zero.QueueAsyncFunction(static async @this =>
             //{
             //    await ((IoNode<TJob>)@this)._netServer.ZeroHiveAsync((IoNode<TJob>)@this).FastPath();
             //},this);

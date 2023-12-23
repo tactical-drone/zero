@@ -92,7 +92,7 @@ namespace zero.cocoon.autopeer
                 //to prevent cascading into the hub we clone the source.
                 Source = new IoUdpClient<CcProtocMessage<chroniton, CcDiscoveryBatch>>($"UDP Proxy ~> {base.Description}", MessageService, _address.IpEndPoint, verified? IoSocket.Connection.Egress:IoSocket.Connection.Ingress);
                 
-                IoZeroScheduler.Zero.LoadAsyncContext(static async state =>
+                IoZeroScheduler.Zero.QueueAsyncFunction(static async state =>
                 {
                     if(!((IoNanoprobe)state).Zeroed())
                         await ((CcAdjunct)state).Source.ZeroHiveAsync((CcAdjunct)state).FastPath();
@@ -731,7 +731,7 @@ namespace zero.cocoon.autopeer
             {
                 //TODO: tuning, helps cluster test bootups not stalling on popdog spam
                 
-                var ioTimer = new IoTimer(TimeSpan.FromSeconds(@this.CcCollective.parm_mean_pat_delay_s>>3), @this.AsyncTasks.Token);
+                var ioTimer = new IoTimer(TimeSpan.FromSeconds(@this.CcCollective.parm_mean_pat_delay_s>>4), @this.AsyncTasks.Token);
                 var ts = Environment.TickCount;
                 while (!@this.Zeroed())
                 {
@@ -917,7 +917,7 @@ namespace zero.cocoon.autopeer
                     }
                 }
 
-                IoZeroScheduler.Zero.LoadAsyncContext(static async state =>
+                IoZeroScheduler.Zero.QueueAsyncFunction(static async state =>
                 {
                     var (@this,dest) = (ValueTuple<CcAdjunct, IPEndPoint>)state;
                     try
@@ -1019,7 +1019,7 @@ namespace zero.cocoon.autopeer
                                     //    continue;
                                     //}
 
-                                    IoZeroScheduler.Zero.LoadAsyncContext(static async state =>
+                                    IoZeroScheduler.Zero.QueueAsyncFunction(static async state =>
                                     {
                                         var (processCallback, message, nanite, proxy) = (ValueTuple<Func<CcBatchMessage, T, CcAdjunct, ValueTask>, CcBatchMessage, T, CcAdjunct>)state;
                                         await processCallback(message, nanite, proxy).FastPath();
@@ -1078,10 +1078,10 @@ namespace zero.cocoon.autopeer
                             //if (Equals(message.Zero.Header.Ip.Dst.GetEndpoint(),
                             //        Router.MessageService.IoNetSocket.NativeSocket.LocalEndPoint))
                             {
-                                //IoZeroScheduler.Zero.LoadAsyncContext(static async state =>
+                                //IoZeroScheduler.Zero.QueueAsyncFunction(static async state =>
                                 //{
                                    // var (processCallback, message, nanite, proxy) = (ValueTuple<Func<CcBatchMessage, T, CcAdjunct, ValueTask>, CcBatchMessage, T, CcAdjunct>)state;
-                                   IoZeroScheduler.Zero.LoadAsyncContext(static async state =>
+                                   IoZeroScheduler.Zero.QueueAsyncFunction(static async state =>
                                    {
                                        var (processCallback, message, nanite, proxy) = (ValueTuple<Func<CcBatchMessage, T, CcAdjunct, ValueTask>, CcBatchMessage, T, CcAdjunct>)state;
                                        await processCallback(message, nanite, proxy).FastPath();
@@ -1262,7 +1262,7 @@ namespace zero.cocoon.autopeer
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private async ValueTask ProcessMessagesAsync(IoSink<CcProtocBatchJob<chroniton, CcDiscoveryBatch>> batchJob, CcAdjunct @this)
         {
-            //IoZeroScheduler.Zero.LoadAsyncContext(static async state =>
+            //IoZeroScheduler.Zero.QueueAsyncFunction(static async state =>
             //{
                 //var (@this, batchJob) = (ValueTuple< CcAdjunct , IoSink <CcProtocBatchJob<chroniton, CcDiscoveryBatch>>>)state;
                 try
@@ -2355,7 +2355,7 @@ namespace zero.cocoon.autopeer
                 }
                 else if(CcCollective.Neighbors.Count <= CcCollective.EgressCount)
                 {
-                    IoZeroScheduler.Zero.LoadAsyncContext(static async state =>
+                    IoZeroScheduler.Zero.QueueAsyncFunction(static async state =>
                     {
                         var (@this, dest) = (ValueTuple<CcAdjunct, IPEndPoint>)state;
                         try
@@ -2871,7 +2871,7 @@ namespace zero.cocoon.autopeer
                 return false;
             }
 
-            IoZeroScheduler.Zero.LoadAsyncContext(static async state =>
+            IoZeroScheduler.Zero.QueueAsyncFunction(static async state =>
             {
                 var @this = (CcAdjunct)state;
                 try
@@ -3039,7 +3039,7 @@ namespace zero.cocoon.autopeer
                 AttachTimestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
 
                 //Scan for more...
-                IoZeroScheduler.Zero.LoadAsyncContext(static async state =>
+                IoZeroScheduler.Zero.QueueAsyncFunction(static async state =>
                 {
                     var @this = (CcAdjunct)state;
                     await Task.Delay(@this.parm_web_settle_ms);
@@ -3093,7 +3093,7 @@ namespace zero.cocoon.autopeer
                 if (!Zeroed())
                 {
                     //back off for a while... Try to re-establish a link 
-                    IoZeroScheduler.Zero.LoadAsyncContext(static async state =>
+                    IoZeroScheduler.Zero.QueueAsyncFunction(static async state =>
                     {
                         var @this = (CcAdjunct)state;
 

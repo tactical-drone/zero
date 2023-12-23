@@ -245,7 +245,7 @@ namespace zero.core.network.ip
 
                 if (timeout > 0)
                 {
-                    IoZeroScheduler.Zero.LoadAsyncContext(static async state =>
+                    IoZeroScheduler.Zero.QueueAsyncFunction(static async state =>
                     {
                         var (@this, taskCore, connectAsync, timeout) = (ValueTuple<IoTcpSocket, IIoManualResetValueTaskSourceCore<bool>, IAsyncResult, int>)state;
 

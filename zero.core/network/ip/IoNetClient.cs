@@ -50,7 +50,7 @@ namespace zero.core.network.ip
         /// <param name="proxy">Whether this source is a proxy</param>
         protected IoNetClient(string description, IoNetSocket netSocket, int prefetchSize, int concurrencyLevel, bool zeroAsyncMode, bool proxy = false) : base(description, proxy, prefetchSize, concurrencyLevel, zeroAsyncMode)
         {
-            IoZeroScheduler.Zero.LoadAsyncContext(static async state =>
+            IoZeroScheduler.Zero.QueueAsyncFunction(static async state =>
             {
                 var (@this, netSocket) = (ValueTuple<IoNetClient<TJob>, IoNetSocket>)state;
                 await @this.ZeroHiveAsync(netSocket, true).FastPath();

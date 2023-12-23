@@ -638,7 +638,7 @@ namespace zero.cocoon.models
                     //Console.WriteLine($"req -> {req}");
 
                     
-                    IoZeroScheduler.Zero.LoadAsyncContext(static state =>
+                    IoZeroScheduler.Zero.QueueAsyncFunction(static state =>
                     {
                         var (@this,req)  = (ValueTuple<CcWhispers, long>) state;
 
@@ -702,7 +702,7 @@ namespace zero.cocoon.models
                                     //    continue;
                                     //}
 #endif
-                                    IoZeroScheduler.Zero.LoadAsyncContext(static async context =>
+                                    IoZeroScheduler.Zero.QueueAsyncFunction(static async context =>
                                     {
                                         var (@this, drone, dupEndpoints, source,  socketBuf, length, req) = (ValueTuple<CcWhispers, CcDrone, List<string>,IoNetClient<CcProtocMessage<CcWhisperMsg, CcGossipBatch>>, byte[], int, long>) context;
 

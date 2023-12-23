@@ -174,7 +174,7 @@ namespace zero.core.network.ip
                 //Bootstrap on listener start
                 if (bootFunc != null)
                 {
-                    IoZeroScheduler.Zero.LoadAsyncContext(static async state =>
+                    IoZeroScheduler.Zero.QueueAsyncFunction(static async state =>
                     {
                         var (bootstrapAsync, bContext) = (ValueTuple<Func<TBoot, ValueTask>, TBoot>)state;
                         await bootstrapAsync(bContext).FastPath();

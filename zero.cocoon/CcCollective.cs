@@ -223,7 +223,7 @@ namespace zero.cocoon
         /// <returns></returns>
         private static async ValueTask RoboAsync(CcCollective @this)
         {
-            IoZeroScheduler.Zero.LoadAsyncContext(async state =>
+            IoZeroScheduler.Zero.QueueAsyncFunction(async state =>
             {
                 var ccCollective = (CcCollective)state;
                 while (!ccCollective.Zeroed())
@@ -1342,7 +1342,7 @@ namespace zero.cocoon
         {
             if (TotalConnections < MaxDrones)
             {
-                IoZeroScheduler.Zero.LoadAsyncContext(static async state =>
+                IoZeroScheduler.Zero.QueueAsyncFunction(static async state =>
                 {
                     var @this = (CcCollective)state;
                     try
@@ -1385,7 +1385,7 @@ namespace zero.cocoon
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void BroadcastReceived(CcWhisperMsg ccWhisperMsg)
         {
-            IoZeroScheduler.Zero.LoadAsyncContext(static async context =>
+            IoZeroScheduler.Zero.QueueAsyncFunction(static async context =>
             {
                 var (@this, ccWhisperMsg) = (ValueTuple<CcCollective,CcWhisperMsg>)context;
 
