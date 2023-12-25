@@ -170,10 +170,8 @@ namespace zero.core.patterns.queue
                     }
                 }
 
-                
-                long latch;
-                var next = _tail.ZeroNext(latch = Head + Capacity);
-                if (next < latch)
+                var next = _tail.ZeroNext(Head + Capacity);
+                if (next >= 0)
                 {
                     ref var fastBloom = ref _bloom[next % Capacity];
 
@@ -259,21 +257,20 @@ namespace zero.core.patterns.queue
         {
             try
             {
-                retry:
+                var sw = new SpinWait();
+            retry:
                 if (_count == 0 || Zeroed || Head == Tail)
                 {
                     var c = _count;
                     if (c > 0 && Head == Tail)
-                        Interlocked.CompareExchange(ref _count, c - 1, c); //TODO: hack
+                        Interlocked.CompareExchange(ref _count, c - 1, c); //TODO: hack. Slow CAS?
                     
                     slot = default;
                     return false;
                 }
 
-                long latch;
-                var next = _head.ZeroNext(latch = Tail);
-                
-                if (next < latch) 
+                var next = _head.ZeroNext(Tail);
+                if (next >= 0) 
                 {
                     ref var fastBloom = ref _bloom[next % Capacity];
                     spin:
@@ -282,7 +279,7 @@ namespace zero.core.patterns.queue
                     {
                         Interlocked.Decrement(ref _count);
                         slot = this[next];
-                        //this[next] = default;
+                        this[next] = default;
                         Interlocked.Exchange(ref fastBloom, 0);
                         return true;
                     }
@@ -293,13 +290,11 @@ namespace zero.core.patterns.queue
                         return false;
                     }
 
-                    if(prev == 1)
+                    if (prev == 1)
                         goto spin;
-                    goto retry;
 
-                    
-                    if (!Zeroed)
-                        throw new InvalidOperationException($"{nameof(TryDequeue)}[SET]: Control should never reach here; d = {next - Tail - Capacity}, next = {next}({next % Capacity}), bloom = {fastBloom}, was = {prev}, {Description}");
+                    sw.SpinOnce();
+                    goto retry;
                 }
             }
             catch (Exception e)

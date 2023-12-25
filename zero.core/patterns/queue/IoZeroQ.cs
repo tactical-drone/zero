@@ -194,13 +194,13 @@ namespace zero.core.patterns.queue
             get
             {
                 Debug.Assert(idx >= 0);
-                ref var fs = ref _fastStorage[idx % _capacity];
                 if (!IsAutoScaling) return _fastStorage[idx % _capacity];
 
                 idx %= Capacity;
 
                 var i = Log2(idx + 1);
                 return _storage[i][idx - ((1 << i) - 1)];
+               
             }
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
             protected set
@@ -429,8 +429,6 @@ namespace zero.core.patterns.queue
 #else
                             _lastRemoveIndex = Interlocked.Increment(ref _head) - 1;
 #endif
-                            //value = default;
-                            //return false;
                         }
                         else
                         {
@@ -464,7 +462,7 @@ namespace zero.core.patterns.queue
 
 
                     value = _fastStorage[modIdx];
-                    //_fastStorage[modIdx] = default;
+                    _fastStorage[modIdx] = default;
 
 #if DEBUG
                     _fastStorageTime[modIdx] = -(Interlocked.Increment(ref _opCounter) - 1);
@@ -504,9 +502,6 @@ namespace zero.core.patterns.queue
 #else
                         _lastRemoveIndex = Interlocked.Increment(ref _head) - 1;
 #endif
-                        
-                        //value = default;
-                        //return false;
                     }
                     else
                     {
@@ -535,7 +530,7 @@ namespace zero.core.patterns.queue
                 Interlocked.Decrement(ref _count);
 
                 value = _storage[i][i2];
-                //_storage[i][i2] = default;
+                _storage[i][i2] = default;
                 Interlocked.Exchange(ref bloomPtr, _zero);
 #if SUPER_SYNC
                 Interlocked.MemoryBarrierProcessWide();
@@ -757,11 +752,8 @@ namespace zero.core.patterns.queue
         /// </summary>
         /// <param name="slot">The item to be fetched</param>
         /// <returns>True if an item was found and returned, false otherwise</returns>
-#if DEBUG
-    [MethodImpl(MethodImplOptions.NoInlining)]
-#else
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-#endif
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public bool TryDequeue([MaybeNullWhen(false)] out T slot)
         {
             try
@@ -946,7 +938,7 @@ namespace zero.core.patterns.queue
                 {
                     if (cur >= Tail && (await _fanSync.WaitAsync().FastPath()).ElapsedMs() > 0x7ffffff)
                         break;
-
+                    
                     var newItem = this[cur];
                     if (newItem != null)
                         yield return newItem;

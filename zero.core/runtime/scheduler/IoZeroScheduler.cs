@@ -454,7 +454,7 @@ namespace zero.core.runtime.scheduler
             TrackInit();
             while (!_asyncTasks.IsCancellationRequested)
             {
-                var job = await _asyncZeroQueue.WaitAsync().FastPath();
+                var job = await _asyncZeroQueue.WaitAsync();
                 try
                 {
                     Interlocked.Increment(ref _asyncZeroLoad);
@@ -779,29 +779,14 @@ namespace zero.core.runtime.scheduler
         [MethodImpl(MethodImplOptions.NoInlining)]
         public bool FallbackContext(Action<object> callback, object context = null)
         {
-            //ZeroContinuation qItem;
-            //if( _fbQQuickSlot != null)
-            //    qItem = Interlocked.CompareExchange(ref _fbQQuickSlot, null, _fbQQuickSlot)??_callbackHeap.Take();
-            //else
             var qItem = _callbackHeap.Take();
-
-            //var qItem = _callbackHeap.Take();
-            if (qItem == null) throw new OutOfMemoryException($"{nameof(FallbackContext)}: {_callbackHeap.Description}");
-
+            
             qItem.Callback = callback;
             qItem.State = context;
             qItem.Timestamp = Environment.TickCount;
-            
-            try
-            {
-                return _asyncFallbackQueue.Release(qItem, true);
-            }
-            catch
-            {
-                // ignored
-            }
+            Interlocked.MemoryBarrier();
 
-            return false;
+            return _asyncFallbackQueue.Release(qItem, true);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]

@@ -13,8 +13,8 @@ namespace zero.core.patterns.semaphore.core
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static long ZeroNextBounded(this ref long val, long cap)
         {
-            if (val + 1 >= cap)
-                return cap;
+            if (val == cap)
+                return -1;
 
             long inc;
             long latch;
@@ -35,10 +35,9 @@ namespace zero.core.patterns.semaphore.core
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static long ZeroNextHard(this ref long val, long cap)
         {
-            if (val + 1 > cap)
-                return cap;
+            if (val == cap)
+                return -1;
 
-            long latch;
             //lock (_syncroot)
             {
 #if DEBUG
@@ -62,7 +61,7 @@ namespace zero.core.patterns.semaphore.core
                         }
 
                         Interlocked.MemoryBarrier();
-                        latch = val + 1;
+                        var latch = val + 1;
                         return latch > cap ? cap : Interlocked.Exchange(ref val, latch);
                     }
                     finally
@@ -85,7 +84,7 @@ namespace zero.core.patterns.semaphore.core
 #if DEBUG
                     if (ts.ElapsedMs() > 16)
                     {
-                        LogManager.GetCurrentClassLogger().Fatal($"{nameof(ZeroNext)}: CAS took => {ts.ElapsedMs()} ms");
+                        LogManager.GetCurrentClassLogger().Fatal($"{nameof(ZeroNextHard)}: CAS took => {ts.ElapsedMs()} ms");
                     }
 #endif
                 }
@@ -98,8 +97,8 @@ namespace zero.core.patterns.semaphore.core
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static long ZeroNext(this ref long val, long cap)
         {
-            if (val + 1 > cap)
-                return cap;
+            if (val >= cap)
+                return -1;
 
             var sw = new SpinWait();
             long latch;
@@ -117,8 +116,8 @@ namespace zero.core.patterns.semaphore.core
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static long ZeroNextTail(this ref long val, ref long cap)
         {
-            if (val + 1 > cap)
-                return cap;
+            if (val >= cap)
+                return -1;
 
             long latch;
             var sw = new SpinWait();
@@ -136,8 +135,8 @@ namespace zero.core.patterns.semaphore.core
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static long ZeroPrev(this ref long val, long cap)
         {
-            if (val - 1 < cap)
-                return cap;
+            if (val <= cap)
+                return -1;
 
             long latch;
             var sw = new SpinWait();
@@ -154,8 +153,8 @@ namespace zero.core.patterns.semaphore.core
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static int ZeroNext(this ref int val, int cap)
         {
-            if (val + 1 > cap)
-                return cap;
+            if (val >= cap)
+                return -1;
 
             int latch;
             var sw = new SpinWait();
@@ -172,6 +171,9 @@ namespace zero.core.patterns.semaphore.core
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static int ZeroPrev(this ref int val, int cap)
         {
+            if (val >= cap)
+                return -1;
+
             int dec;
             int latch;
             var sw = new SpinWait();

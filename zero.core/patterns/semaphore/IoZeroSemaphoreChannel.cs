@@ -58,11 +58,7 @@ namespace zero.core.patterns.semaphore
         
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public void ZeroSem()
-        {
-            _semaphore.ZeroSem();
-            Dispose();
-        }
+        public void ZeroSem() => Dispose();
 
         public int ReadyCount => _semaphore.ReadyCount;
         public int WaitCount => _semaphore.WaitCount;

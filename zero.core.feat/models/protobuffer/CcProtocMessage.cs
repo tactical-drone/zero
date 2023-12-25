@@ -36,23 +36,16 @@ namespace zero.core.feat.models.protobuffer
             //Init buffers
             BufferSize = DatumSize * parm_datums_per_buffer; //SET to MTU x2 for decompression
 
-            //MemoryOwner = MemoryPool<byte>.Shared.Rent(BufferSize + DatumProvisionLengthMax);
-            //if (MemoryMarshal.TryGetArray((ReadOnlyMemory<byte>)MemoryOwner.Memory, out var malloc))
-            {
-                if (Buffer != null && Buffer.Length < BufferSize)
-                {
-                    throw new InternalBufferOverflowException($"Invalid buffer size of {BufferSize} < {Buffer.Length}");
-                }
+            if (Buffer != null && Buffer.Length < BufferSize)
+                throw new InternalBufferOverflowException($"Invalid buffer size of {BufferSize} < {Buffer.Length}");
+            
+            Buffer = ArrayPool<byte>.Shared.Rent(blockSize<<1);
 
-                Buffer = ArrayPool<byte>.Shared.Rent(blockSize<<1);
-
-                ArraySegment = new ArraySegment<byte>(Buffer);
-
-                ReadOnlySequence = new ReadOnlySequence<byte>(Buffer);
-                MemoryBuffer = new Memory<byte>(Buffer);
-                ByteStream = new MemoryStream(Buffer!);
-                BufferBrotliStream = new BrotliStream(new MemoryStream(Buffer, 0, ArraySegment.Count), CompressionMode.Decompress, true);
-            }
+            ArraySegment = new ArraySegment<byte>(Buffer);
+            ReadOnlySequence = new ReadOnlySequence<byte>(Buffer);
+            MemoryBuffer = new Memory<byte>(Buffer);
+            ByteStream = new MemoryStream(Buffer!);
+            //BufferBrotliStream = new BrotliStream(new MemoryStream(Buffer, 0, ArraySegment.Count), CompressionMode.Decompress, true);
         }
 
         /// <summary>
@@ -110,7 +103,7 @@ namespace zero.core.feat.models.protobuffer
         {
             await base.ZeroManagedAsync();
 
-            await BufferBrotliStream.DisposeAsync();
+            //await BufferBrotliStream.DisposeAsync();
             await ByteStream.DisposeAsync();
 
             await BatchHeap.ZeroManagedAsync<object>().FastPath();

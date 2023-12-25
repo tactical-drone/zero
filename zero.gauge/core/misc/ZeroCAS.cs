@@ -26,7 +26,7 @@ namespace zero.gauge.core.misc
                 {
                     for (var i = 0; i < count; i++)
                     {
-                        if (_reg.ZeroNext(count) == count)
+                        if (_reg.ZeroNext(count) < 0)
                             break;
                     }
                 }, CancellationToken.None, TaskCreationOptions.DenyChildAttach, IoZeroScheduler.ZeroDefault));

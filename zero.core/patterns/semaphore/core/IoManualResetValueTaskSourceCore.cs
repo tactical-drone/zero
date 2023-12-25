@@ -30,7 +30,7 @@ namespace zero.core.patterns.semaphore.core
     {
         /// <summary>
         /// The callback to invoke when the operation completes if <see cref="OnCompleted"/> was called before the operation completed,
-        /// or <see cref="ManualResetValueTaskSourceCoreShared.s_sentinel"/> if the operation completed before a callback was supplied,
+        /// or <see cref="ManualResetValueTaskSourceCoreShared.SSentinel"/> if the operation completed before a callback was supplied,
         /// or null if a callback hasn't yet been provided and the operation hasn't yet completed.
         /// </summary>
         private Action<object> _continuation;
@@ -91,12 +91,12 @@ namespace zero.core.patterns.semaphore.core
         /// <summary>
         /// Is this core primed with a sentinel?
         /// </summary>
-        public bool Primed => Volatile.Read(ref _continuation) != null && _continuation == ManualResetValueTaskSourceCoreShared.s_sentinel;
+        public bool Primed => Volatile.Read(ref _continuation) != null && _continuation == ManualResetValueTaskSourceCoreShared.SSentinel;
 
         /// <summary>
         /// Is this core blocking?
         /// </summary>
-        public bool Blocking => Volatile.Read(ref _continuation) != null && _continuation != ManualResetValueTaskSourceCoreShared.s_sentinel && !_completed;
+        public bool Blocking => Volatile.Read(ref _continuation) != null && _continuation != ManualResetValueTaskSourceCoreShared.SSentinel && !_completed;
 
 #if DEBUG
         /// <summary>
@@ -141,7 +141,7 @@ namespace zero.core.patterns.semaphore.core
         public bool IsBlocking(bool reset = false)
         {
             
-            var blocked = Volatile.Read(ref _continuation) != null && Volatile.Read(ref _continuation) != ManualResetValueTaskSourceCoreShared.s_sentinel && !_completed;
+            var blocked = Volatile.Read(ref _continuation) != null && Volatile.Read(ref _continuation) != ManualResetValueTaskSourceCoreShared.SSentinel && !_completed;
 
             if (!reset) return blocked;
 
@@ -290,7 +290,7 @@ namespace zero.core.patterns.semaphore.core
             // At this point the storedContinuation should be the sentinel; if it's not, the instance was misused.
             //Debug.Assert(storedContinuation is not null, $"{nameof(storedContinuation)} is null");
             Debug.Assert(storedContinuation is not null);
-            if (!ReferenceEquals(storedContinuation, ManualResetValueTaskSourceCoreShared.s_sentinel))
+            if (!ReferenceEquals(storedContinuation, ManualResetValueTaskSourceCoreShared.SSentinel))
                 throw new InvalidOperationException();
 
             switch (_capturedContext)
@@ -326,14 +326,13 @@ namespace zero.core.patterns.semaphore.core
         private void SignalCompletion()
         {
             if (_completed)
-            {
-                throw new InvalidOperationException($"[{Environment.CurrentManagedThreadId}]: set => primed = {Primed}, blocking = {Blocking}, completed = {_completed}, status = {GetStatus()}");
-            }
+               throw new InvalidOperationException($"[{Environment.CurrentManagedThreadId}]: set => primed = {Primed}, blocking = {Blocking}, completed = {_completed}, status = {GetStatus()}");
+
             _completed = true;
 
             var continuation =
                 Volatile.Read(ref _continuation) ??
-                Interlocked.CompareExchange(ref _continuation, ManualResetValueTaskSourceCoreShared.s_sentinel, null);
+                Interlocked.CompareExchange(ref _continuation, ManualResetValueTaskSourceCoreShared.SSentinel, null);
 
             if (continuation == null || _continuation == null)
                 return;
@@ -388,8 +387,8 @@ namespace zero.core.patterns.semaphore.core
     /// <summary>A tuple of both a non-null scheduler and a non-null ExecutionContext.</summary>
     internal sealed class CapturedSchedulerAndExecutionContext
     {
-        internal readonly object _scheduler;
-        internal readonly ExecutionContext _executionContext;
+        internal readonly object Scheduler;
+        internal readonly ExecutionContext ExecutionContext;
 
         public CapturedSchedulerAndExecutionContext(object scheduler, ExecutionContext executionContext)
         {
@@ -398,14 +397,14 @@ namespace zero.core.patterns.semaphore.core
             Debug.Assert(scheduler is SynchronizationContext or TaskScheduler);
             Debug.Assert(executionContext is not null);
 
-            _scheduler = scheduler;
-            _executionContext = executionContext;
+            Scheduler = scheduler;
+            ExecutionContext = executionContext;
         }
     }
 
     internal static class ManualResetValueTaskSourceCoreShared // separated out of generic to avoid unnecessary duplication
     {
-        internal static readonly Action<object> s_sentinel = CompletionSentinel;
+        internal static readonly Action<object> SSentinel = CompletionSentinel;
 
         private static void CompletionSentinel(object _) // named method to aid debugging
         {
@@ -427,27 +426,6 @@ namespace zero.core.patterns.semaphore.core
                     ScheduleSynchronizationContext(sc, continuation, state);
                     break;
 
-                //TODO: I have no idea if this is dodgy or not. I am kinda hoping it is not. So far so good.
-                //TODO: The reward is one less Task to be malloced up and scheduled (which is async which is why I don't know why runtime still works like you expect?)
-                //case IoZeroScheduler when !runContinuationsAsynchronously && TaskScheduler.Current is IoZeroScheduler:
-#if INCEPTION
-                case IoZeroScheduler zs:
-                    if (!runContinuationsAsynchronously && TaskScheduler.Current is IoZeroScheduler)
-                    {
-                        continuation(state);
-                    }
-                    else
-                    {
-                        new Task(continuation, state).Start(zs);
-
-                    }
-                    break;
-#endif
-
-#if BORG
-                //TODO: superfast (scheduled) bricks the runtime...
-                //TODO: superfast (scheduled) suddenly it works. Turns out you have to track every thread's "full circle" or you might get stack overflow issues. As long as you keep track when to inject async threads things can be super fast without hitting that stack limit.
-                
                 case IoZeroScheduler zs:
                     switch (runContinuationsAsynchronously)
                     {
@@ -461,29 +439,19 @@ namespace zero.core.patterns.semaphore.core
                             Schedule(zs, continuation, state);
                             break;
                     }
-                    
                     break;
-#endif
-
-#if RT_ONE_GC
-                //TODO: superslow (runtime)!
-                case IoZeroScheduler zs:
-                    Schedule(zs, continuation, state);
-                    break;
-#endif
-
 
                 default:
                     var cc = (CapturedSchedulerAndExecutionContext)context;
-                    if (cc._scheduler is SynchronizationContext ccsc)
+                    if (cc.Scheduler is SynchronizationContext ccsc)
                     {
                         ScheduleSynchronizationContext(ccsc, continuation, state);
                     }
                     else
                     {
                         //Debug.Assert(cc._scheduler is TaskScheduler, $"{nameof(cc._scheduler)} is {cc._scheduler}");
-                        Debug.Assert(cc._scheduler is TaskScheduler);
-                        Schedule((TaskScheduler)cc._scheduler, continuation, state);
+                        Debug.Assert(cc.Scheduler is TaskScheduler);
+                        Schedule((TaskScheduler)cc.Scheduler, continuation, state);
                     }
                     break;
             }
@@ -532,12 +500,12 @@ namespace zero.core.patterns.semaphore.core
             }
             else
             {
-                ExecutionContext.Run(((CapturedSchedulerAndExecutionContext)capturedContext)._executionContext, QueueCallback, (continuation, continuationState, capturedContext, runContinuationsAsynchronously));
+                ExecutionContext.Run(((CapturedSchedulerAndExecutionContext)capturedContext).ExecutionContext, QueueCallback, (continuation, continuationState, capturedContext, runContinuationsAsynchronously));
             }
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private static bool TryExecuteInlineOnTargetScheduler(Action<object> continuation, object state, TaskScheduler target)
+        public static bool TryExecuteInlineOnTargetScheduler(Action<object> continuation, object state, TaskScheduler target)
         {
 
             var t = new Task(static s =>

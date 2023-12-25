@@ -83,8 +83,6 @@ namespace zero.core.patterns.semaphore.core
             {
                 try
                 {
-                    cancelled.RunContinuationsAsynchronouslyAlways = false;
-                    cancelled.RunContinuationsAsynchronously = false;
                     cancelled.SetException(new TaskCanceledException($"{nameof(ZeroSem)}: [TEARDOWN DIRECT] {Description}"));
                 }
                 catch
@@ -111,7 +109,7 @@ namespace zero.core.patterns.semaphore.core
         private int _zeroed;
         private readonly int _ready;
         private readonly CancellationTokenSource _asyncTasks;
-        private int _blocking;
+        private volatile int _blocking;
 
         #endregion
 
@@ -143,7 +141,7 @@ namespace zero.core.patterns.semaphore.core
 #if !DEBUG
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
 #endif
-        private bool Unblock(T value, bool forceAsync, IIoManualResetValueTaskSourceCore<T> blockingCore = null)
+        private readonly bool Unblock(T value, bool forceAsync, IIoManualResetValueTaskSourceCore<T> blockingCore = null)
         {
             var sw = new SpinWait();
             retry:
@@ -190,9 +188,9 @@ namespace zero.core.patterns.semaphore.core
 #if RELEASE
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
 #endif
-        private bool SetResult(T value, bool forceAsync = false, bool prime = true)
+        private readonly bool SetResult(T value, bool forceAsync = false, bool prime = true)
         {
-            retry:
+            race:
             //insane checks
             if (Zeroed() || _results.Count == Capacity || (!prime && _blockingCores.Count == 0))
                 return false;
@@ -205,59 +203,14 @@ namespace zero.core.patterns.semaphore.core
             if (!prime)
                 return false;
 
-            ////sloppy race detection that is probably good enough in worst case conditions
-            ////The other side does proper race detection since blockingCores have those bits attached to them
-            if (_blockingCores.Count > 0 || _blocking > 0) 
-                goto retry;
-
-            //lol
-            if (_blocking == 0)
-                return _results.TryEnqueue(value) >= 0;
-
-            goto retry;
-
-        //TODO: For some reason this makes things worse... I don't know why.
-        //TODO: From what I can tell from my telemetry, there is an old interlocked instruction that is resurrected that jams the _results Q with bogus values.
-        //TODO: There might be a way to detect this with op-counts vs capacity trickery etc, but these are not foolproof. 
-        //TODO: This has been the same issue since forever now. The GC is pausing an Interlocked instruction that resumes slow jamming the system with gunk. 
-        //TODO: This might have something to do with runtime scheduler CPU banks etc. which I don't (cant) compensate for. (potential showstopper)
-        bank:
-            //queue result for future blocker
-            var pos = _results.TryEnqueue(value);
-
-            //saturated
-            if (pos < 0)
-                goto retry;
-
-            ////race
-            if (_blockingCores.TryDequeue(out var blockingCore))
+            if (_blocking == 0 || _blockingCores.Count == 0)
             {
-                Interlocked.MemoryBarrierProcessWide();
-                if (_results.Drop(pos))
-                {
-                    if (!Unblock(value, false, blockingCore))//TODO:Lever pulled
-                    {
-                        _blockingCores.TryEnqueue(blockingCore);
-#if DEBUG
-                        Console.WriteLine("x");
-#endif
-                        goto bank;
-                    }
-
-#if DEBUG
-                    Console.WriteLine("."); //TODO: "duplicate un-blockers" appear when this msg triggers. Makes no sense 
-#endif
-
+                if (_results.TryEnqueue(value) >= 0)
                     return true;
-                }
-
-                //_blockingCores.TryEnqueue(blockingCore);//TODO:Lever pulled
-#if DEBUG
-                Console.WriteLine("X");
-#endif
+                if (_blocking == 0)
+                    return false;
             }
-
-            return true;
+            goto race;
         }
 
         /// <summary>
@@ -294,7 +247,7 @@ namespace zero.core.patterns.semaphore.core
                 }
 
                 //Debug.Assert(_results.Count == 0 && _blockingCores.Count >= 0 || _results.Count >= 0 && _blockingCores.Count == 0, $"r = {_results.Count}, b = {_blockingCores.Count}: {_heapCore.Description}");
-                Debug.Assert(_results.Count == 0 && _blockingCores.Count >= 0 || _results.Count >= 0 && _blockingCores.Count == 0);
+                //Debug.Assert(_results.Count == 0 && _blockingCores.Count >= 0 || _results.Count >= 0 && _blockingCores.Count == 0);
 
                 //prepare a core from the heap
                 if (blockingCore == null && !_heapCore.TryDequeue(out blockingCore))
@@ -388,7 +341,7 @@ namespace zero.core.patterns.semaphore.core
         public void OnCompleted(Action<object> continuation, object state, short token, ValueTaskSourceOnCompletedFlags flags) => throw new NotImplementedException(nameof(OnCompleted));
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public int Release(T value, int releaseCount, bool forceAsync = false, bool prime = true)
+        public readonly int Release(T value, int releaseCount, bool forceAsync = false, bool prime = true)
         {
             var released = 0;
             for (var i = 0; i < releaseCount; i++)
@@ -401,7 +354,7 @@ namespace zero.core.patterns.semaphore.core
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public int Release(T[] value, bool forceAsync = false, bool prime = true)
+        public readonly int Release(T[] value, bool forceAsync = false, bool prime = true)
         {
             var released = 0;
             foreach (var t in value)
@@ -414,7 +367,7 @@ namespace zero.core.patterns.semaphore.core
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public bool Release(T value, bool forceAsync = false, bool prime = true) => SetResult(value,forceAsync, prime);
+        public readonly bool Release(T value, bool forceAsync = false, bool prime = true) => SetResult(value,forceAsync, prime);
         
 
         /// <summary>

@@ -2,6 +2,7 @@
 using System;
 using System.Buffers;
 using System.Collections.Concurrent;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
@@ -71,9 +72,9 @@ namespace zero.cocoon.autopeer
             var capMult = CcCollective.ZeroDrone ? 10 : 7;
             var capBase = 2;
 
-            _probeRequest = new IoZeroMatcher($"{nameof(_probeRequest)}, proxy = {IsProxy}", CcCollective.MaxAdjuncts>>3, parm_max_network_latency_ms << 1, (int)Math.Pow(capBase, capMult), true);
-            _fuseRequest = new IoZeroMatcher($"{nameof(_fuseRequest)}, proxy = {IsProxy}", CcCollective.MaxAdjuncts>>3, parm_max_network_latency_ms << 1, (int)Math.Pow(capBase, capMult), true);
-            _scanRequest = new IoZeroMatcher($"{nameof(_scanRequest)}, proxy = {IsProxy}", CcCollective.MaxAdjuncts>>3, parm_max_network_latency_ms << 1, (int)Math.Pow(capBase, capMult), true);
+            _probeRequest = new IoZeroMatcher($"{nameof(_probeRequest)}, proxy = {IsProxy}", CcCollective.MaxAdjuncts>>2, parm_max_network_latency_ms << 1, (int)Math.Pow(capBase, capMult), true);
+            _fuseRequest = new IoZeroMatcher($"{nameof(_fuseRequest)}, proxy = {IsProxy}", CcCollective.MaxAdjuncts>>2, parm_max_network_latency_ms << 1, (int)Math.Pow(capBase, capMult), true);
+            _scanRequest = new IoZeroMatcher($"{nameof(_scanRequest)}, proxy = {IsProxy}", CcCollective.MaxAdjuncts>>2, parm_max_network_latency_ms << 1, (int)Math.Pow(capBase, capMult), true);
 
             if (extraData != null)
             {
@@ -123,11 +124,11 @@ namespace zero.cocoon.autopeer
 #endif
 
             //TODO tuning:
-            _chronitonHeap = new IoHeap<chroniton, CcAdjunct>(packetHeapDesc, CcCollective.ZeroDrone & !IsProxy ? 32 : 16,
+            _chronitonHeap = new IoHeap<chroniton, CcAdjunct>(packetHeapDesc, CcCollective.MaxAdjuncts<<2,
                 static (_, @this) => new chroniton
                 {
                     PublicKey = UnsafeByteOperations.UnsafeWrap(@this.CcCollective.CcId.PublicKey)
-                }, true, this);
+                }, false, this);
 
             _sendBuf = new IoHeap<Tuple<byte[],byte[]>>(protoHeapDesc, CcCollective.ZeroDrone & !IsProxy ? 32 : 16, static (_, _) => Tuple.Create(new byte[1492 / 2], new byte[1492 / 2]), autoScale: true);
 
@@ -730,7 +731,6 @@ namespace zero.cocoon.autopeer
             try
             {
                 //TODO: tuning, helps cluster test bootups not stalling on popdog spam
-                
                 var ioTimer = new IoTimer(TimeSpan.FromSeconds(@this.CcCollective.parm_mean_pat_delay_s>>4), @this.AsyncTasks.Token);
                 var ts = Environment.TickCount;
                 while (!@this.Zeroed())
@@ -1655,7 +1655,7 @@ namespace zero.cocoon.autopeer
                         }
                     });
             }
-            else
+            else if(!Zeroed())
                 _logger.Error($"<\\-  {nameof(CcFuseRequest)}: Send fuse response [FAILED], {Description}, {MetaDesc}");
 
             if (!CcCollective.ZeroDrone && !fuseResponse.Accept && StochasticRate)
@@ -2162,11 +2162,7 @@ namespace zero.cocoon.autopeer
                 .ThenByDescending(n => ((CcAdjunct)n)._openSlots).ToList();
 
             if (!certified.Any())
-            {
-                certified = Hub.Neighbors.Values.Where(
-                        n => n != this && ((CcAdjunct)n).IsProxy && ((CcAdjunct)n).MessageService?.IoNetSocket?.RemoteNodeAddress?.IpEndPoint != null)
-                    .OrderByDescending(n => ((CcAdjunct)n).UpTime.ElapsedUtcMs()).ToList();
-            }
+                certified = Hub.Neighbors.Values.Where(n => n != this && ((CcAdjunct)n).IsProxy && ((CcAdjunct)n).MessageService?.IoNetSocket?.RemoteNodeAddress?.IpEndPoint != null).OrderByDescending(n => ((CcAdjunct)n).UpTime.ElapsedUtcMs()).ToList();
 
             foreach (var ioNeighbor in certified.Take((int)parm_max_swept_drones))
             {
@@ -2678,7 +2674,7 @@ namespace zero.cocoon.autopeer
 #if DEBUG
                         try
                         {
-                            _logger.Trace($"+/> {nameof(ProbeAsync)} ({sent}) [{probeMsgBuf.PayloadSig()}]: [[{desc}]] {MessageService.IoNetSocket.RemoteNodeAddress} - [{Designation.IdString()}]");
+                            _logger.Trace($"-/> {nameof(ProbeAsync)} ({sent}) [{probeMsgBuf.PayloadSig()}]: [[{desc}]] {MessageService.IoNetSocket.RemoteNodeAddress} - [{Designation.IdString()}]");
                         }
                         catch when (Zeroed()){}
                         catch (Exception e)when(!Zeroed())
@@ -2703,14 +2699,14 @@ namespace zero.cocoon.autopeer
                     else
                     {
 #if DEBUG
-                        _logger.Trace($"+/> {nameof(ProbeAsync)} ({sent}) [{probeMsgBuf.PayloadSig()} ~ {challenge.Value.Hash.HashSig()}]: Send [FAILED] [[{desc}]], [{Description}]");
+                        _logger.Trace($"-/> {nameof(ProbeAsync)} ({sent}) [{probeMsgBuf.PayloadSig()} ~ {challenge.Value.Hash.HashSig()}]: Send [FAILED] [[{desc}]], [{Description}]");
 #endif
                     }
 
                     await _probeRequest.RemoveAsync(challenge).FastPath();
 
                     if(!Zeroed() && sent != -1)
-                        _logger.Error($"+/> {nameof(ProbeAsync)}: [FAILED], {Description}");
+                        _logger.Error($"-/> {nameof(ProbeAsync)}: [FAILED], {Description}");
 
                     return false;
                 }
@@ -2722,7 +2718,7 @@ namespace zero.cocoon.autopeer
                     if (sent > 0)
                     {
 #if DEBUG
-                        _logger.Trace($"+/> {nameof(ProbeAsync)} ({sent}) [{probeMsgBuf.PayloadSig()} {challenge.Value.Hash.HashSig()}]: [[{desc}]], dest = {dest}, [{id}]");
+                        _logger.Trace($"-/> {nameof(ProbeAsync)} ({sent}) [{probeMsgBuf.PayloadSig()} {challenge.Value.Hash.HashSig()}]: [[{desc}]], dest = {dest}, [{id}]");
 #endif
                         if (!CcCollective.ZeroDrone && AutoPeeringEventService.Operational)
                             AutoPeeringEventService.AddEvent(new AutoPeerEvent
@@ -2742,7 +2738,7 @@ namespace zero.cocoon.autopeer
                     await _probeRequest.RemoveAsync(challenge).FastPath();
 
                     if(!Zeroed() && sent != -1)
-                        _logger.Error($"+/> {nameof(ProbeAsync)}:({desc}) [FAILED], {Description}");
+                        _logger.Error($"-/> {nameof(ProbeAsync)}:({desc}) [FAILED], {Description}");
 
                     return false;
                 }
@@ -2814,7 +2810,7 @@ namespace zero.cocoon.autopeer
                     Interlocked.Increment(ref _scanCount);
 
 #if TRACE
-                    _logger.Trace($"+/> {nameof(CcScanRequest)} ({sent}) {sweepMsgBuf.PayloadSig()}: {RemoteAddress}, [{Designation.IdString()}]");
+                    _logger.Trace($"-/> {nameof(CcScanRequest)} ({sent}) {sweepMsgBuf.PayloadSig()}: {RemoteAddress}, [{Designation.IdString()}]");
 #endif
 
                     //Emit message event
@@ -2835,7 +2831,7 @@ namespace zero.cocoon.autopeer
 
                 await _scanRequest.RemoveAsync(challenge).FastPath();
                 if(!Zeroed() && sent != -1)
-                    _logger.Error($"+/> {nameof(CcScanRequest)}: [FAILED], {Description} ");
+                    _logger.Error($"-/> {nameof(CcScanRequest)}: [FAILED], {Description} ");
             }
             catch when (Zeroed()){}
             catch (Exception e) when (!Zeroed())
@@ -2899,7 +2895,7 @@ namespace zero.cocoon.autopeer
                     if (sent > 0)
                     {
                         Interlocked.Increment(ref @this._connectionAttempts);
-                        @this._logger.Debug($"+/> {nameof(CcFuseRequest)} ({sent}) [{fuseRequestBuf.PayloadSig()}]: {@this.Address}, [{@this.Designation.IdString()}]");
+                        @this._logger.Debug($"-/> {nameof(CcFuseRequest)} ({sent}) [{fuseRequestBuf.PayloadSig()}]: {@this.Address}, [{@this.Designation.IdString()}]");
                         
                         if (!@this.CcCollective.ZeroDrone && AutoPeeringEventService.Operational)
                             AutoPeeringEventService.AddEvent(new AutoPeerEvent
@@ -2919,7 +2915,7 @@ namespace zero.cocoon.autopeer
                     await @this._fuseRequest.RemoveAsync(challenge).FastPath();
 
                     if (!@this.Zeroed() && sent != -1 )
-                        @this._logger.Error($"+/> {nameof(CcFuseRequest)}: [FAILED], {@this.Description}, {@this.MetaDesc}");
+                        @this._logger.Error($"-/> {nameof(CcFuseRequest)}: [FAILED], {@this.Description}, {@this.MetaDesc}");
                 }
                 catch when (@this.Zeroed()) { }
                 catch (Exception e) when (!@this.Zeroed())
@@ -3015,8 +3011,7 @@ namespace zero.cocoon.autopeer
 
                 if (Direction == IIoSource.Heading.Ingress)
                 {
-                    if (CcCollective.IngressCount.ZeroNext(CcCollective.parm_max_inbound) >=
-                        CcCollective.parm_max_inbound)
+                    if (CcCollective.IngressCount.ZeroNext(CcCollective.parm_max_inbound) < 0)
                     {
                         _logger.Trace($"{nameof(AttachDrone)}: {Direction} [FULL!]; {ccDrone.Description}");
                         return false;
@@ -3024,8 +3019,7 @@ namespace zero.cocoon.autopeer
                 }
                 else
                 {
-                    if (CcCollective.EgressCount.ZeroNext(CcCollective.parm_max_outbound) >=
-                        CcCollective.parm_max_outbound)
+                    if (CcCollective.EgressCount.ZeroNext(CcCollective.parm_max_outbound) < 0)
                     {
                         _logger.Trace($"{nameof(AttachDrone)}: {Direction} [FULL!]; {ccDrone.Description}");
                         return false;

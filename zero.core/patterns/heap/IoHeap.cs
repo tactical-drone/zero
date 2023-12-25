@@ -165,7 +165,7 @@ namespace zero.core.patterns.heap
             try
             {
                 race:
-                if (_refCount.ZeroNext(Capacity) == Capacity)
+                if (_refCount.ZeroNext(Capacity) < 0)
                 {
                     if (!IsAutoScaling)
                     {

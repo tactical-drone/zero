@@ -230,7 +230,7 @@ namespace zero.test.core.patterns.queue
             Assert.Equal(0, bag.Count);
             Assert.Equal(bag.Head, bag.Tail);
             //Assert.True(bag.IsAutoScaling);
-            Assert.True(!bag.Zeroed);
+            Assert.False(bag.Zeroed);
 
             //for (int i = 0; i < bag.Capacity; i++)
             //{
@@ -293,7 +293,7 @@ namespace zero.test.core.patterns.queue
 
             bag.TryEnqueue(0);
             bag.TryEnqueue(1);
-            var idx = bag.TryEnqueue(2);
+            bag.TryEnqueue(2);
             bag.TryEnqueue(3);
             bag.TryEnqueue(4);
 

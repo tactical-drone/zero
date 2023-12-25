@@ -673,7 +673,6 @@ namespace zero.cocoon
         /// <returns>The number of bytes sent</returns>
         private async ValueTask<int> SendMessageAsync(CcDrone drone, ByteString msg, string type, int timeout = 0)
         {
-
             var responsePacket = new chroniton
             {
                 Type = (int)CcDiscoveries.MessageTypes.Handshake,
@@ -684,14 +683,11 @@ namespace zero.cocoon
             //TODO: tuning
             responsePacket.Signature = UnsafeByteOperations.UnsafeWrap(new ReadOnlyMemory<byte>(CcId.Sign(responsePacket.Data.Memory.AsArray(), 0, responsePacket.Data.Length)));
             responsePacket.Sabot = UnsafeByteOperations.UnsafeWrap(CcDesignation.HashRe(responsePacket.Data.Memory, 0, responsePacket.Data.Length));
-
-
             var protocolRaw = responsePacket.ToByteArray();
 
             int sent = 0;
             if (!drone.Zeroed() && (sent = await drone.MessageService.IoNetSocket.SendAsync(protocolRaw, 0, protocolRaw.Length, timeout: timeout).FastPath()) == protocolRaw.Length)
             {
-                //_logger.Trace($"~/> {type}({sent}) [{protocolRaw.PayloadSig()} {msg.Memory.PayloadSig("D")}]: {drone.MessageService.IoNetSocket.LocalAddress} ~> {drone.MessageService.IoNetSocket.RemoteAddress} ({Enum.GetName(typeof(CcDiscoveries.MessageTypes), responsePacket.Type)}); {protocolRaw.Print()}");
                 _logger.Trace($"~/> {type}({sent}) [{protocolRaw.PayloadSig()} {msg.Memory.PayloadSig("D")}]: {drone.MessageService.IoNetSocket.LocalAddress} ~> {drone.MessageService.IoNetSocket.RemoteAddress} ({Enum.GetName(typeof(CcDiscoveries.MessageTypes), responsePacket.Type)})");
                 return sent;
             }
@@ -701,8 +697,6 @@ namespace zero.cocoon
             
             return 0;
         }
-
-
 
         /// <summary>
         /// Broadcasts a msg to all drones
@@ -753,12 +747,11 @@ namespace zero.cocoon
                     int sent;
 
                     if (!ccDrone.Zeroed() &&
-                        (sent = await ccDrone.MessageService.IoNetSocket
-                            .SendAsync(buffer, 0, buffer.Length, crc: hash, timeout: timeout).FastPath()) == buffer.Length)
+                        (sent = await ccDrone.MessageService.IoNetSocket.SendAsync(buffer, 0, buffer.Length, crc: hash, timeout: timeout).FastPath()) == buffer.Length)
                     {
                         totalSent += sent;
 #if TRACE
-                    _logger.Trace($"~/> ({sent}) [{protocolRaw.PayloadSig()} {msg.Data.Memory.PayloadSig("D")}]: {ccDrone.MessageService.IoNetSocket.LocalAddress} ~> {ccDrone.MessageService.IoNetSocket.RemoteAddress} ({Enum.GetName(typeof(CcDiscoveries.MessageTypes), msg.Type)})");
+                        _logger.Trace($"~/> ({sent}) [{protocolRaw.PayloadSig()} {msg.Data.Memory.PayloadSig("D")}]: {ccDrone.MessageService.IoNetSocket.LocalAddress} ~> {ccDrone.MessageService.IoNetSocket.RemoteAddress} ({Enum.GetName(typeof(CcDiscoveries.MessageTypes), msg.Type)})");
 #endif
                     }
 
@@ -774,7 +767,7 @@ namespace zero.cocoon
             }
             finally
             {
-                ArrayPool<byte>.Shared.Return(buffer);
+                //ArrayPool<byte>.Shared.Return(buffer);
             }
 
             return totalSent;

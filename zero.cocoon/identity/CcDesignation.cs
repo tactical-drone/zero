@@ -207,11 +207,11 @@ namespace zero.cocoon.identity
 
                 ECDiffieHellman alice = ECDiffieHellman.Create();
                 alice.ImportSubjectPublicKeyInfo(msg[offset..len], out var read);
-                if (read > 0)
+                if (read > 0 && _dhr.ZeroNext(2) >= 0)
                 {
                     //var key = ECDiffieHellmanCngPublicKey.FromByteArray(msg[offset..len], CngKeyBlobFormat.EccPublicBlob);
                     var frequency = DiffieHellman.DeriveKeyFromHash(alice.PublicKey, HashAlgorithmName.SHA512);
-                    Interlocked.Exchange(ref _ssf[Interlocked.Increment(ref _dhr)], new byte[frequency.Length + sabot.Sabot.BlockLength]);
+                    Interlocked.Exchange(ref _ssf[_dhr], new byte[frequency.Length + sabot.Sabot.BlockLength]);
                     frequency.CopyTo(Ssf.AsSpan());
                 }
             }

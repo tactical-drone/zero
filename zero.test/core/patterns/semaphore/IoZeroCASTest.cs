@@ -25,7 +25,7 @@ namespace zero.test.core.patterns.semaphore
                 Console.WriteLine("using IoZeroScheduler");
         }
 
-        readonly ConcurrentBag<long> _selection = new();
+        readonly ConcurrentBag<long> _selection = [];
         private int _accepted;
         private int _rejected;
 
@@ -59,7 +59,7 @@ namespace zero.test.core.patterns.semaphore
                         if (r >= _count)
                             break;
 
-                        Assert.InRange(r, l, cap);
+                        Assert.InRange(r, -1, cap);
                     }
                 }, CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Default));
             }
@@ -74,6 +74,8 @@ namespace zero.test.core.patterns.semaphore
             var duplicates = 0;
             foreach (var next in sorted)
             {
+                if (next == -1)
+                    continue;
                 //_output.WriteLine($"next = {next}");
                 if (next != prev + 1)
                     bad++;
@@ -83,6 +85,7 @@ namespace zero.test.core.patterns.semaphore
 
                 Assert.True(next > prev);
                 Assert.True(next == prev + 1);
+                
                 prev = next;
             }
             _output.WriteLine($"Bad = {bad}/{_count}, {(double)bad / (_count) * 100:0.0}%, rejected = {_rejected}/{_accepted} = {(double)_rejected / _accepted * 100:0.0}%, duplicates = {duplicates}");

@@ -119,7 +119,7 @@ namespace zero.cocoon.autopeer
             catch when(Zeroed()){}
             catch (Exception e) when (!Zeroed())
             {
-                LogManager.GetCurrentClassLogger().Error(e,"{nameof(ContainsId)}: ");
+                LogManager.GetCurrentClassLogger().Error(e,$"{nameof(ContainsId)}: ");
             }
 
             return false;
