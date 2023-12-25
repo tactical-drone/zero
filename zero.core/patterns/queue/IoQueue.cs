@@ -77,18 +77,19 @@ namespace zero.core.patterns.queue
                 }
             };
 
-            IIoZeroSemaphoreBase<int> q = new IoZeroCore<int>(desc, concurrencyLevel, _asyncTasks,1);
+            var c = configuration.HasFlag(Mode.DynamicSize) ? Environment.ProcessorCount << 3 : concurrencyLevel;
+            IIoZeroSemaphoreBase<int> q = new IoZeroCore<int>(desc, c, _asyncTasks,1);
             _syncRoot = q.ZeroRef(ref q, _ => Environment.TickCount);
 
             if (configuration.HasFlag(Mode.Pressure))
             {
-                _pressure = new IoZeroCore<int>($"qp {description}", concurrencyLevel, _asyncTasks, zeroAsyncMode:false);
+                _pressure = new IoZeroCore<int>($"qp {description}", c, _asyncTasks, zeroAsyncMode:false);
                 _pressure.ZeroRef(ref _pressure, _ => Environment.TickCount);
             }
             
             if (configuration.HasFlag(Mode.BackPressure))
             {
-                _backPressure = new IoZeroCore<int>($"qbp {description}", backPressure, _asyncTasks, backPressure, false);
+                _backPressure = new IoZeroCore<int>($"qbp {description}", configuration.HasFlag(Mode.DynamicSize) ? Environment.ProcessorCount << 3 : backPressure + 1, _asyncTasks, configuration.HasFlag(Mode.DynamicSize) ? Environment.ProcessorCount << 3 : backPressure, false);
                 _backPressure.ZeroRef(ref _backPressure, _ => Environment.TickCount);
             }
 

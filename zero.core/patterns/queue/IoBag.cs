@@ -34,7 +34,7 @@ namespace zero.core.patterns.queue
         {
 
             if (capacity > ushort.MaxValue)
-                throw new ArgumentOutOfRangeException(nameof(capacity), $"Argument out of range. Max practical value: {uint.MaxValue}");
+                throw new ArgumentOutOfRangeException(nameof(capacity), $"Argument out of range. Max practical value: {capacity} > {ushort.MaxValue}");
 #if DEBUG
             _description = description;
 #else

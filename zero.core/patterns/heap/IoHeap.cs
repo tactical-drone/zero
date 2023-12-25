@@ -244,7 +244,7 @@ namespace zero.core.patterns.heap
                 if (t > Capacity << 1)
                 {
                     var r = (double)_miss / (t);
-                    if (r is > 0.75)
+                    if (r is > 0.75 && _hit > 0)
                     {
                         _logger.Warn($"{nameof(Make)}: Bad cache miss ratio of {r * 100:0.0}%, hit = {_hit}, miss = {_miss}, {Description}");
                     }
