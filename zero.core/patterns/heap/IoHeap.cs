@@ -179,9 +179,11 @@ namespace zero.core.patterns.heap
                     }
                     else
                     {
-                        
+                        if (_capacity > int.MaxValue>>2)
+                            throw new OutOfMemoryException($"{nameof(Make)}: Unable to grow further than {_capacity}");
+
                         var prev = _ioHeapBuf;
-                        if(Interlocked.CompareExchange(ref _ioHeapBuf, new IoBag<TItem>(Description,  _capacity << 1), prev) == prev)
+                        if(prev.Count == prev.Capacity && Interlocked.CompareExchange(ref _ioHeapBuf, new IoBag<TItem>(Description,  _capacity << 1), prev) == prev)
                         {
                             Interlocked.Exchange(ref _capacity, _capacity << 1);
                         };

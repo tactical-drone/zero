@@ -149,15 +149,14 @@ namespace zero.core.patterns.semaphore.core
             if (blockingCore == null)
                 while (!_blockingCores.TryDequeue(out blockingCore))
                 {
-                    if (_blockingCores.Count == 0 || Zeroed())
+                    if (_blockingCores.Count == 0 || Zeroed() || sw.Count > short.MaxValue)
                         return false;
                     sw.SpinOnce();
                 }
-            sw.Reset();
             //wait for the blocking core to synchronize
             while (blockingCore.SyncRoot == SyncWait)
             {
-                if (Zeroed())
+                if (Zeroed() || sw.Count > short.MaxValue)
                     return false;
                 sw.SpinOnce();
             }
@@ -171,7 +170,6 @@ namespace zero.core.patterns.semaphore.core
                     return true;
                 case SyncRace://discard the core (also from the heap)
                     blockingCore = null; // SAFE_RELEASE
-                    Interlocked.MemoryBarrierProcessWide();
                     goto retry;
             }
 

@@ -290,7 +290,7 @@ namespace zero.core.patterns.queue
                         }
                         else
                         {
-                            if (Tail != latch || state != _reset)
+                            if (Tail != latch || state != _reset || sw.Count > short.MaxValue)
                                 return -1;
 
                             state = -1;
@@ -413,7 +413,6 @@ namespace zero.core.patterns.queue
                 var latch = Head;
                 var modIdx = latch % Capacity;
 
-                
                 if (!IsAutoScaling)
                 {
                     ref var fastBloomPtr = ref _fastBloom[modIdx];
@@ -432,7 +431,7 @@ namespace zero.core.patterns.queue
                         }
                         else
                         {
-                            if (Head != latch || state != _reset)
+                            if (Head != latch || state != _reset || sw.Count > short.MaxValue)
                             {
                                 value = default;
                                 return false;
@@ -459,7 +458,6 @@ namespace zero.core.patterns.queue
                     _lastRemoveIndex = Interlocked.Increment(ref _head) - 1;
 #endif
                     Interlocked.Decrement(ref _count);
-
 
                     value = _fastStorage[modIdx];
                     _fastStorage[modIdx] = default;

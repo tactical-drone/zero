@@ -32,6 +32,9 @@ namespace zero.core.patterns.queue
         /// <exception cref="ArgumentOutOfRangeException"></exception>
         public IoBag(string description, int capacity, CancellationTokenSource asyncTasks = null, int concurrencyLevel = 1, bool zeroAsyncMode = false)
         {
+
+            if (capacity > ushort.MaxValue)
+                throw new ArgumentOutOfRangeException(nameof(capacity), $"Argument out of range. Max practical value: {uint.MaxValue}");
 #if DEBUG
             _description = description;
 #else
@@ -170,6 +173,7 @@ namespace zero.core.patterns.queue
                     }
                 }
 
+                var sw = new SpinWait();
                 var next = _tail.ZeroNext(Head + Capacity);
                 if (next >= 0)
                 {
@@ -185,8 +189,10 @@ namespace zero.core.patterns.queue
                     }
                     else
                     {
-                        if (Zeroed || Count == Capacity || next < Tail - Capacity)
+                        if (Zeroed || Count == Capacity || next < Tail - Capacity || sw.Count > short.MaxValue)
                             return -1;
+
+                        sw.SpinOnce(); //TODO: this hides errors, it needs to be moved down but I am getting perma race. Slow CAS again.
 
                         if (prev == 1)
                             goto spin;
@@ -280,20 +286,21 @@ namespace zero.core.patterns.queue
                         Interlocked.Decrement(ref _count);
                         slot = this[next];
                         this[next] = default;
-                        Interlocked.Exchange(ref fastBloom, 0);
+                        Interlocked.Exchange(ref fastBloom, 0); //TODO: a CAS would not always match a fastBloom of 3 here. This is a problem.
                         return true;
                     }
 
-                    if (Zeroed || Count == 0 || next < Tail - Capacity)
+                    if (Zeroed || Count == 0 || next < Tail - Capacity || sw.Count > short.MaxValue)
                     {
                         slot = default;
                         return false;
                     }
 
+                    sw.SpinOnce(); //TODO: this hides errors
+
                     if (prev == 1)
                         goto spin;
 
-                    sw.SpinOnce();
                     goto retry;
                 }
             }
