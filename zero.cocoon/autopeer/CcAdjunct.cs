@@ -2873,7 +2873,7 @@ namespace zero.cocoon.autopeer
                 var @this = (CcAdjunct)state;
                 try
                 {
-                    if(@this.Zeroed())
+                    if(@this.Zeroed() || @this.CcCollective.TotalConnections > @this.CcCollective.parm_max_outbound)
                         return;
 
                     await @this.BackOffAsyncSmall;
@@ -2915,7 +2915,7 @@ namespace zero.cocoon.autopeer
 
                     await @this._fuseRequest.RemoveAsync(challenge).FastPath();
 
-                    if (!@this.Zeroed() && sent != -1 )
+                    if (!@this.Zeroed() && sent == -1 )
                         @this._logger.Error($"-/> {nameof(CcFuseRequest)}: [FAILED], {@this.Description}, {@this.MetaDesc}");
                 }
                 catch when (@this.Zeroed()) { }

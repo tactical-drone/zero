@@ -164,6 +164,7 @@ namespace zero.core.patterns.heap
         {
             try
             {
+                var sw = new SpinWait();
                 race:
                 if (_refCount.ZeroNext(Capacity) < 0)
                 {
@@ -171,7 +172,10 @@ namespace zero.core.patterns.heap
                     {
                         Interlocked.MemoryBarrierProcessWide();
                         if (Volatile.Read(ref _refCount) < Capacity)
+                        {
+                            sw.SpinOnce();
                             goto race;
+                        }
 #if DEBUG
                         _logger.Error($"{nameof(_heap)}: LEAK DETECTED!!! Heap -> {Description}");
 #endif
@@ -183,10 +187,15 @@ namespace zero.core.patterns.heap
                             throw new OutOfMemoryException($"{nameof(Make)}: Unable to grow further than {_capacity}");
 
                         var prev = _heap;
-                        if(prev.Count == Capacity && Interlocked.CompareExchange(ref _heap, new IoBag<TItem>(Description,  _capacity << 1), prev) == prev)
+                        if(prev.Capacity == Capacity && Interlocked.CompareExchange(ref _heap, new IoBag<TItem>(Description,  _capacity << 1), prev) == prev)
                         {
                             Interlocked.Exchange(ref _capacity, _capacity << 1);
-                        };
+                        }
+                        else if(sw.Count < byte.MaxValue)
+                        {
+                            sw.SpinOnce();
+                            goto race;
+                        }
 
                         IoZeroScheduler.Zero.QueueAsyncFunction(static async state =>
                         {
@@ -203,19 +212,17 @@ namespace zero.core.patterns.heap
                     }
                 }
 
-                var sw = new SpinWait();
-
+                sw.Reset();
                 retry:
                 if (!_heap.TryDequeue(out var heapItem))
                 {
                     if (_heap.Count > 0)
                     {
-                        if (_heap.Head != _heap.Tail)
+                        if (_heap.Head != _heap.Tail && sw.Count < byte.MaxValue)
                         {
                             sw.SpinOnce();
                             goto retry; //TODO: hack    
                         }
-                            
                     }
 
                     heapItem = Malloc(userData, Context);

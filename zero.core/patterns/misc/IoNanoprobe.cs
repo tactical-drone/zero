@@ -62,8 +62,8 @@ namespace zero.core.patterns.misc
             _concurrencyLevel = concurrencyLevel <= 0 ? 1 : concurrencyLevel;
 
             //TODO: tuning
-            _zeroHive = new IoQueue<IoZeroSub>(string.Empty, _concurrencyLevel<<1, _concurrencyLevel, IoQueue<IoZeroSub>.Mode.DynamicSize);
-            _zeroHiveMind = new IoQueue<IIoNanite>(string.Empty, _concurrencyLevel<<1, _concurrencyLevel, IoQueue<IIoNanite>.Mode.DynamicSize);
+            _zeroHive = new IoQueue<IoZeroSub>(string.Empty, _concurrencyLevel<<3, _concurrencyLevel<<1, IoQueue<IoZeroSub>.Mode.DynamicSize);
+            _zeroHiveMind = new IoQueue<IIoNanite>(string.Empty, _concurrencyLevel<<3, _concurrencyLevel<<1, IoQueue<IIoNanite>.Mode.DynamicSize);
 
             Interlocked.Exchange(ref UpTime, DateTimeOffset.UtcNow.ToUnixTimeMilliseconds());
         }
