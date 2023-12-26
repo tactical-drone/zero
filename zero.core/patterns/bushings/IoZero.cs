@@ -634,18 +634,11 @@ namespace zero.core.patterns.bushings
             //Sync previous fragments into this job
             if (ZeroRecoveryEnabled)
             {
-                _previousJobFragment.Modified = false;
+                var sw = new SpinWait();
                 var cur = _previousJobFragment.Head;
                 var c = _previousJobFragment.Count << 1;
                 while (cur != null && c-- > 0)
                 {
-                    if (_previousJobFragment.Modified)
-                    {
-                        _previousJobFragment.Modified = false;
-                        cur = _previousJobFragment.Head;
-                        continue;
-                    }
-
                     try
                     {
                         var qid = cur.Qid;
@@ -656,7 +649,7 @@ namespace zero.core.patterns.bushings
                                 curJob.PreviousJob = cur.Value;
                                 cur.Value.EnableRecoveryOneshot = true;
                                 Interlocked.MemoryBarrier();
-                                return cur.Value.EnableRecoveryOneshot;
+                                return true;
                             }
 
                             JobHeap.Destroy(cur.Value);
@@ -666,8 +659,13 @@ namespace zero.core.patterns.bushings
                     }
                     catch
                     {
-                        _previousJobFragment.Modified = false;
+                        if (Zeroed() || sw.Count > byte.MaxValue)
+                        {
+                            break;
+                        }
                         cur = _previousJobFragment.Head;
+                        c = _previousJobFragment.Count << 1;
+                        sw.SpinOnce();
                     }
                 }
             }

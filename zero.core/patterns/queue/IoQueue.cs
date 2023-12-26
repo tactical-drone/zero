@@ -124,12 +124,6 @@ namespace zero.core.patterns.queue
         private readonly Mode _configuration;
         public Mode Configuration => _configuration;
 
-        public bool Modified
-        {
-            get => _curEnumerator.Modified;
-            set => _curEnumerator.Modified = value;
-        }
-
         public bool Zeroed => _zeroed > 0 || _pressure != null && _pressure.Zeroed() || _backPressure != null && _backPressure.Zeroed();
 
         public bool IsAutoScaling => _nodeHeap.IsAutoScaling;
@@ -294,8 +288,8 @@ namespace zero.core.patterns.queue
 #if DEBUG
                             Interlocked.Decrement(ref _insaneExclusive);
 #endif
-                            _pressure?.Release(Environment.TickCount, true);
-                            _syncRoot.Release(Environment.TickCount, true);
+                            _syncRoot.Release(Environment.TickCount, false);
+                            _pressure?.Release(Environment.TickCount, false);
                         }
                     }
                 }
@@ -361,8 +355,8 @@ namespace zero.core.patterns.queue
 #if DEBUG
                         Interlocked.Decrement(ref _insaneExclusive);
 #endif
-                        _pressure?.Release(Environment.TickCount, true);
-                        _syncRoot.Release(Environment.TickCount, true);
+                        _syncRoot.Release(Environment.TickCount, false);
+                        _pressure?.Release(Environment.TickCount, false);
                     }
                 }
             }
@@ -428,9 +422,6 @@ namespace zero.core.patterns.queue
 #endif
                         try
                         {
-                            
-                            
-
                             //DQ cost being load balanced
                             if (dq != null)
                             {
@@ -439,7 +430,7 @@ namespace zero.core.patterns.queue
                             }
 
                             _backPressure?.Release(Environment.TickCount, true);
-                            _syncRoot.Release(Environment.TickCount, false);
+                            _syncRoot.Release(Environment.TickCount, true);
                         }
                         catch when (_zeroed > 0)
                         {
@@ -545,7 +536,7 @@ namespace zero.core.patterns.queue
                 
                 
                 _backPressure?.Release(Environment.TickCount, true);
-                _syncRoot.Release(Environment.TickCount, false);
+                _syncRoot.Release(Environment.TickCount, true);
             }
         }
 

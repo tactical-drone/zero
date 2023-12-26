@@ -422,7 +422,6 @@ namespace zero.core.patterns.queue
                     {
                         if (fastBloomPtr == _one && Interlocked.CompareExchange(ref fastBloomPtr, _zero, _one) == _one)
                         {
-                            Interlocked.Decrement(ref _count);
 #if !DEBUG
                             Interlocked.Increment(ref _head);
 #else
@@ -494,7 +493,6 @@ namespace zero.core.patterns.queue
                 {
                     if (bloomPtr == _one && Interlocked.CompareExchange(ref bloomPtr, _zero, _one) == _one)
                     {
-                        Interlocked.Decrement(ref _count);
 #if !DEBUG
                         Interlocked.Increment(ref _head);
 #else

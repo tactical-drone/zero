@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Runtime.CompilerServices;
+using System.Runtime.ConstrainedExecution;
 using System.Security.Cryptography;
 using System.Threading;
 using System.Threading.Tasks;
@@ -231,19 +232,11 @@ namespace zero.core.feat.misc
         /// <returns>True if matched, false otherwise</returns>
         public async ValueTask<bool> ResponseAsync(string key, ByteString reqHash)
         {
-            _lut.Modified = false;
+            var sw = new SpinWait();
             var cur = _lut.Head;
             
             while (cur != null)
             {
-                //restart on collisions
-                if (_lut.Modified)
-                {
-                    _lut.Modified = false;
-                    cur = _lut.Head;
-                    continue;
-                }
-
                 try
                 {
                     var qid = cur.Qid;
@@ -262,18 +255,6 @@ namespace zero.core.feat.misc
                         return true;
                     }
 
-                    if (cur.Value == null)
-                    {
-                        if (_lut.Modified)
-                        {
-                            _lut.Modified = false;
-                            cur = _lut.Head;
-                            continue;
-                        }
-
-                        break;
-                    }
-
                     if (cur.Value.TimestampMs.ElapsedUtcMs() > _ttlMs)
                     {
                         var value = Volatile.Read(ref cur.Value);
@@ -282,20 +263,17 @@ namespace zero.core.feat.misc
 #endif
                         await _lut.RemoveAsync(cur, qid).FastPath();
                         cur = _lut.Head;
-                        _lut.Modified = false;
                         _valHeap.Return(value);
                         continue;
                     }
 
                     cur = cur.Next;
                 }
-                catch
+                catch (Exception e)
                 {
-                    if (_lut.Modified)
-                    {
-                        _lut.Modified = false;
+                    _logger.Trace(e, $"{nameof(ResponseAsync)}: {Description}");
+                    if (sw.Count < byte.MaxValue && !Zeroed())
                         cur = _lut.Head;
-                    }
                     else
                         break;
                 }
@@ -314,6 +292,7 @@ namespace zero.core.feat.misc
         /// <returns>A value task</returns>
         private async ValueTask PurgeAsync()
         {
+            var sw = new SpinWait();
             if (_lut.Count > _capacity * 2 / 3)
             {
                 var c = _lut.Capacity * 2;
@@ -335,6 +314,12 @@ namespace zero.core.feat.misc
                     catch (Exception e) when(!Zeroed())
                     {
                         _logger.Trace(e,$"{Description}");
+                        if (sw.Count < short.MaxValue)
+                        {
+                            n = _lut.Head;
+                            continue;
+                        }
+                        break;
                     }
                     n = t;
                 }

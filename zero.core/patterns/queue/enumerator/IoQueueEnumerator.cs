@@ -23,12 +23,6 @@ namespace zero.core.patterns.queue.enumerator
                 if (Q.Count == 0 || _iteratorIoZNode == null)
                     return false;
 
-                if (Q.Modified)
-                {
-                    Q.Reset();
-                    return MoveNext();
-                }
-                
                 Interlocked.Exchange(ref _iteratorIoZNode, _iteratorIoZNode.Next);
 
                 return _iteratorIoZNode != null;
@@ -37,6 +31,7 @@ namespace zero.core.patterns.queue.enumerator
             catch (Exception e) when (!Zeroed && Disposed == 0)
             {
                 LogManager.GetCurrentClassLogger().Error(e, $"{nameof(MoveNext)}:");
+                Q.Reset();
             }
 
             return false;

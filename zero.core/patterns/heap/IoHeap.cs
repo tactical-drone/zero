@@ -43,7 +43,7 @@ namespace zero.core.patterns.heap
             _description = description;
             Malloc = malloc;
 
-            _ioHeapBuf = new IoBag<TItem>($"{nameof(_ioHeapBuf)}: {description}", capacity);
+            _heap = new IoBag<TItem>($"{nameof(_heap)}: {description}", capacity);
 
             Context = context;
             _capacity = capacity;
@@ -63,13 +63,13 @@ namespace zero.core.patterns.heap
         /// <summary>
         /// 
         /// </summary>
-        public string Description => $"#{GetHashCode()}:{nameof(IoHeap<TItem,TContext>)}: ops = {_hit+_miss} [ratio = {CacheHitRatio * 100:0.0}%] {nameof(Count)} = {Count}, capacity = {Capacity}, refs = {_refCount}, desc = {_description}, bag ~> _ioHeapBuf.Description";
+        public string Description => $"#{GetHashCode()}:{nameof(IoHeap<TItem,TContext>)}: ops = {_hit+_miss} [ratio = {CacheHitRatio * 100:0.0}%] {nameof(Count)} = {Count}, capacity = {Capacity}, refs = {_refCount}, desc = {_description}, bag ~> _heap.Description";
 
         /// <summary>
         /// The heap buffer space
         /// </summary>
-        //private Channel<TItem> _ioHeapBuf;
-        private IoBag<TItem> _ioHeapBuf;
+        //private Channel<TItem> _heap;
+        private IoBag<TItem> _heap;
 
         /// <summary>
         /// Whether this object has been cleaned up
@@ -79,8 +79,8 @@ namespace zero.core.patterns.heap
         /// <summary>
         /// The current WorkHeap size
         /// </summary>
-        //public int Count => _ioHeapBuf.Reader.Count;
-        public int Count => _ioHeapBuf.Count;
+        //public int Count => _heap.Reader.Count;
+        public int Count => _heap.Count;
 
 
         /// <summary>
@@ -104,7 +104,7 @@ namespace zero.core.patterns.heap
         /// <summary>
         /// If we are in zero state
         /// </summary>
-        public bool Zeroed => _zeroed > 0 || _ioHeapBuf.Zeroed;
+        public bool Zeroed => _zeroed > 0 || _heap.Zeroed;
 
         /// <summary>
         /// The number of outstanding references
@@ -122,7 +122,7 @@ namespace zero.core.patterns.heap
         public void ZeroUnmanaged()
         {
 #if SAFE_RELEASE
-            _ioHeapBuf = default;
+            _heap = default;
             Context = null;
             Malloc = null;
 #endif
@@ -136,7 +136,7 @@ namespace zero.core.patterns.heap
             if (Interlocked.CompareExchange(ref _zeroed, 1, 0) != 0 )
                 return;
 
-            await _ioHeapBuf.ZeroManagedAsync<object>(zero: true).FastPath();
+            await _heap.ZeroManagedAsync<object>(zero: true).FastPath();
 
             Volatile.Write(ref _refCount, 0);
         }
@@ -173,7 +173,7 @@ namespace zero.core.patterns.heap
                         if (Volatile.Read(ref _refCount) < Capacity)
                             goto race;
 #if DEBUG
-                        _logger.Error($"{nameof(_ioHeapBuf)}: LEAK DETECTED!!! Heap -> {Description}");
+                        _logger.Error($"{nameof(_heap)}: LEAK DETECTED!!! Heap -> {Description}");
 #endif
                         Interlocked.Exchange(ref _refCount, _refCount >> 1);
                     }
@@ -182,8 +182,8 @@ namespace zero.core.patterns.heap
                         if (_capacity > int.MaxValue>>2)
                             throw new OutOfMemoryException($"{nameof(Make)}: Unable to grow further than {_capacity}");
 
-                        var prev = _ioHeapBuf;
-                        if(prev.Count == prev.Capacity && Interlocked.CompareExchange(ref _ioHeapBuf, new IoBag<TItem>(Description,  _capacity << 1), prev) == prev)
+                        var prev = _heap;
+                        if(prev.Count == prev.Capacity && Interlocked.CompareExchange(ref _heap, new IoBag<TItem>(Description,  _capacity << 1), prev) == prev)
                         {
                             Interlocked.Exchange(ref _capacity, _capacity << 1);
                         };
@@ -203,14 +203,19 @@ namespace zero.core.patterns.heap
                     }
                 }
 
+                var sw = new SpinWait();
+
                 retry:
-                //If the heap is empty
-                if (!_ioHeapBuf.TryDequeue(out var heapItem))
+                if (!_heap.TryDequeue(out var heapItem))
                 {
-                    if (_ioHeapBuf.Count > 0)
+                    if (_heap.Count > 0)
                     {
-                        if (_ioHeapBuf.Head != _ioHeapBuf.Tail)
+                        if (_heap.Head != _heap.Tail)
+                        {
+                            sw.SpinOnce();
                             goto retry; //TODO: hack    
+                        }
+                            
                     }
 
                     heapItem = Malloc(userData, Context);
@@ -222,7 +227,7 @@ namespace zero.core.patterns.heap
                     Interlocked.Increment(ref _miss);
                     return (heapItem, true);
                 }
-                else //take the item from the heap
+                else
                 {
                     Interlocked.Increment(ref _hit);
 
@@ -251,7 +256,6 @@ namespace zero.core.patterns.heap
                 }
 #endif
             }
-            Interlocked.Decrement(ref _refCount);
             return default;
         }
 
@@ -274,7 +278,7 @@ namespace zero.core.patterns.heap
                 if (!zero)
                 {
                     PushAction?.Invoke(item);
-                    if (_ioHeapBuf.TryEnqueue(item, deDup) < 0 && !Zeroed)
+                    if (_heap.TryEnqueue(item, deDup) < 0 && !Zeroed)
                     {
                         _logger.Warn($"{nameof(Return)}: Unable to return {item} to the heap, {Description}");
                         zero = true;
@@ -297,6 +301,7 @@ namespace zero.core.patterns.heap
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Destroy(TItem item)
         {
+            Interlocked.Decrement(ref _refCount);
             if (item is not IIoHeapItem)
             {
                 if (item is IDisposable disposable)
@@ -310,7 +315,6 @@ namespace zero.core.patterns.heap
                     }, asyncDisposable);
                 }
             }
-            Interlocked.Decrement(ref _refCount);
         }
 
         /// <summary>
