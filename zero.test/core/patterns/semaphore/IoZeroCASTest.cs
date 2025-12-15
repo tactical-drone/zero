@@ -94,27 +94,6 @@ public class IoZeroCasTest
         Assert.InRange(bad, 0, 0);
     }
 
-    //[Fact]
-    private async Task NextOneAsync()
-    {
-        var threads = Environment.ProcessorCount;
-
-        var tasks = new List<Task>();
-        for (var t = 0; t < threads; t++)
-            tasks.Add(Task.Factory.StartNew(() =>
-            {
-                for (var i = 0; i < _count; i++)
-                {
-                    var l = _reg;
-                    Assert.InRange(_reg.ZeroNextBounded(_count), l, _count);
-                }
-            }, CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Default));
-
-        await Task.WhenAll(tasks).WaitAsync(TimeSpan.FromSeconds(120));
-
-        Assert.Equal(_count - 1, _reg);
-    }
-
     [Fact]
     private void Smoke()
     {

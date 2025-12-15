@@ -47,7 +47,7 @@ public class IoQueue<T> : IEnumerable<IoQueue<T>.IoZNode>
     {
 #if DEBUG
         _description = description;
-        var desc = $"{nameof(_nodeHeap)}: {_description}";
+        var desc = $"{nameof(IoQueue<>)}: {_description}";
 #else
         var desc = _description = string.Empty;
 #endif
