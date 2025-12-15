@@ -16,37 +16,37 @@ namespace zero.gauge.core.misc
         private long _nonVolatile64;
 
         [Benchmark]
-        private void SingleThreadedNonVolatileInt32()
+        public void SingleThreadedNonVolatileInt32()
         {
             _nonVolatile++;
         }
 
         [Benchmark]
-        private void SingleThreadedVolatileInt32_interlocked()
+        public void SingleThreadedVolatileInt32_interlocked()
         {
             Interlocked.Increment(ref _volatile);
         }
 
         [Benchmark]
-        private void SingleThreadedNonVolatileInt32_interlocked()
+        public void SingleThreadedNonVolatileInt32_interlocked()
         {
             Interlocked.Increment(ref _nonVolatile);
         }
 
         [Benchmark]
-        private void SingleThreadedNonVolatileInt64()
+        public void SingleThreadedNonVolatileInt64()
         {
             _nonVolatile64++;
         }
 
         [Benchmark]
-        private void SingleThreadedVolatileInt64_interlocked()
+        public void SingleThreadedVolatileInt64_interlocked()
         {
             Interlocked.Increment(ref _nonVolatile64);
         }
 
         [Benchmark]
-        private void SingleThreadedNonVolatileInt64_interlocked()
+        public void SingleThreadedNonVolatileInt64_interlocked()
         {
             Interlocked.Increment(ref _nonVolatile64);
         }
