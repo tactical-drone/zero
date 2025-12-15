@@ -1,85 +1,82 @@
 ﻿using System;
 using System.Threading.Tasks;
-using zero.core.misc;
 using zero.core.patterns.heap;
 using zero.core.patterns.misc;
 
-namespace zero.core.patterns.bushings.contracts
+namespace zero.core.patterns.bushings.contracts;
+
+/// <summary>
+///     Fake work
+/// </summary>
+/// <seealso cref="IIoJob" />
+public class IoZeroProduct : IoSink<IoZeroProduct>
 {
     /// <summary>
-    /// Fake work
+    ///     The time it takes to manufacture this production
     /// </summary>
-    /// <seealso cref="IIoJob" />
-    public class IoZeroProduct: IoSink<IoZeroProduct>
+    private readonly int _constructionDelay;
+
+    private volatile bool _consumed;
+    private volatile bool _produced;
+
+    /// <summary>
+    ///     sentinel
+    /// </summary>
+    public IoZeroProduct()
     {
-        private volatile bool _produced;
-        private volatile bool _consumed;
+    }
 
-        /// <summary>
-        /// The time it takes to manufacture this production
-        /// </summary>
-        private readonly int _constructionDelay;
+    public IoZeroProduct(string description, IoSource<IoZeroProduct> source, int constructionDelay = 1000) : base(
+        $"{nameof(IoZeroProduct)}:{description}", "stub", source, source.ZeroConcurrencyLevel)
+    {
+        _constructionDelay = constructionDelay;
+    }
 
-        public bool Produced => _produced;
-        public bool Consumed => _consumed;
+    public bool Produced => _produced;
+    public bool Consumed => _consumed;
 
-        /// <summary>
-        /// sentinel
-        /// </summary>
-        public IoZeroProduct()
-        {
-            
-        }
-
-        public IoZeroProduct(string description, IoSource<IoZeroProduct> source, int constructionDelay = 1000) : base($"{nameof(IoZeroProduct)}:{description}", "stub", source, source.ZeroConcurrencyLevel)
-        {
-            _constructionDelay = constructionDelay;
-        }
-        public override async ValueTask<IoJobMeta.JobState> ProduceAsync<T>(T ioZero)
-        {
-            if (!await Source.ProduceAsync(static async (source,  ioJob) =>
-                {
-                    var job = (IoZeroProduct)ioJob;
-
-                    //mock production delay
-                    if (job._constructionDelay > 0)
-                        await Task.Delay(job._constructionDelay);
-
-                    job.GenerateJobId();
-
-                    return job._produced = ((IoZeroSource)source).Produce();
-                }, this).FastPath())
+    public override async ValueTask<IoJobMeta.JobState> ProduceAsync<T>(T ioZero)
+    {
+        if (!await Source.ProduceAsync(static async (source, ioJob) =>
             {
-                return await SetStateAsync(IoJobMeta.JobState.ProduceErr);
-            }
+                var job = (IoZeroProduct)ioJob;
 
-            return await SetStateAsync(IoJobMeta.JobState.Produced);
-        }
+                //mock production delay
+                if (job._constructionDelay > 0)
+                    await Task.Delay(job._constructionDelay);
 
-        public override async ValueTask<IIoHeapItem> HeapPopAsync(object context)
-        {
-            await base.HeapPopAsync(context).FastPath();
+                job.GenerateJobId();
 
-            //user safety, rtfm?/rtfc!
-            await SetStateAsync(IoJobMeta.JobState.Undefined).FastPath();
+                return job._produced = ((IoZeroSource)source).Produce();
+            }, this).FastPath())
+            return await SetStateAsync(IoJobMeta.JobState.ProduceErr);
 
-            return this;
-        }
+        return await SetStateAsync(IoJobMeta.JobState.Produced);
+    }
 
-        public override ValueTask<IoJobMeta.JobState> ConsumeAsync()
-        {
-            _consumed = true;
-            return SetStateAsync (IoJobMeta.JobState.Consumed);
-        }
+    public override async ValueTask<IIoHeapItem> HeapPopAsync(object context)
+    {
+        await base.HeapPopAsync(context).FastPath();
 
-        protected internal override ValueTask AddRecoveryBitsAsync()
-        {
-            throw new NotImplementedException();
-        }
+        //user safety, rtfm?/rtfc!
+        await SetStateAsync(IoJobMeta.JobState.Undefined).FastPath();
 
-        protected internal override bool ZeroEnsureRecovery()
-        {
-            throw new NotImplementedException();
-        }
+        return this;
+    }
+
+    public override ValueTask<IoJobMeta.JobState> ConsumeAsync()
+    {
+        _consumed = true;
+        return SetStateAsync(IoJobMeta.JobState.Consumed);
+    }
+
+    protected internal override ValueTask AddRecoveryBitsAsync()
+    {
+        throw new NotImplementedException();
+    }
+
+    protected internal override bool ZeroEnsureRecovery()
+    {
+        throw new NotImplementedException();
     }
 }

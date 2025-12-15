@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Buffers;
 using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
 using System.Security.Cryptography;
 using System.Threading;
 using System.Threading.Tasks;
@@ -11,38 +12,38 @@ using zero.core.feat.misc;
 using zero.core.misc;
 using zero.core.patterns.misc;
 using zero.core.runtime.scheduler;
-using zero.test.core.patterns.queue;
 
-namespace zero.test.core.feat
+namespace zero.test.core.feat;
+
+[SuppressMessage("CodeQuality", "IDE0051:Remove unused private members", Justification = "<Pending>")]
+public class IoZeroMatcherTest
 {
-    [System.Diagnostics.CodeAnalysis.SuppressMessage("CodeQuality", "IDE0051:Remove unused private members", Justification = "<Pending>")]
-    public class IoZeroMatcherTest
+    [ThreadStatic] private static SHA256 _sha256;
+
+    private readonly int _delayTime = 15 * 30;
+
+
+    public IoZeroMatcherTest(ITestOutputHelper output)
     {
-        [ThreadStatic]
-        private static SHA256 _sha256;
-        public static SHA256 Sha256 => _sha256 ??= SHA256.Create();
+        var prime = IoZeroScheduler.ZeroDefault;
+        if (prime.Id > 1)
+            Console.WriteLine("using IoZeroScheduler");
+    }
+
+    public static SHA256 Sha256 => _sha256 ??= SHA256.Create();
 
 
-        public IoZeroMatcherTest(ITestOutputHelper output)
-        { 
-            var prime = IoZeroScheduler.ZeroDefault;
-            if (prime.Id > 1)
-                Console.WriteLine("using IoZeroScheduler");
-        }
+    [Fact]
+    private async Task SmokeAsync()
+    {
+        var threads = 2;
+        var count = 100;
+        var capacity = threads * count;
+        var m = new IoZeroMatcher("Test matcher", threads, 256, 10000, false);
 
-
-        [Fact]
-        async Task SmokeAsync()
-        {
-            var threads = 2;
-            var count = 100;
-            var capacity = threads * count;
-            var m = new IoZeroMatcher("Test matcher", threads, 256, 10000, autoscale: false);
-
-            var oneShotTasks = new List<Task>();
-            for (var i = 0; i < threads; i++)
-            {
-                oneShotTasks.Add(await Task.Factory.StartNew(async payload =>
+        var oneShotTasks = new List<Task>();
+        for (var i = 0; i < threads; i++)
+            oneShotTasks.Add(await Task.Factory.StartNew(async payload =>
                 {
                     var array = payload as byte[];
                     var key = ((ReadOnlyMemory<byte>)array).HashSig();
@@ -53,41 +54,42 @@ namespace zero.test.core.feat
                     Sha256.TryComputeHash(array, reqHash, out var written);
 
                     await Task.Factory.StartNew(static async state =>
-                    {
-                        var (k, hash, matcher) = (ValueTuple<string, byte[], IoZeroMatcher>)state;
-                        
-                        var dud = new byte[hash.Length];
-                        hash.CopyTo(dud, 0);
-                        
-                        Volatile.Write(ref dud[0]  , dud[1]);
-                        Volatile.Write(ref dud[^1] , dud[^2]);
-                        Volatile.Write(ref dud[^2] , dud[^3]);
-                        Volatile.Write(ref dud[^3] , dud[^4]);
-                        Volatile.Write(ref dud[dud.Length>>1] , dud[(dud.Length >> 1) - 1]);
+                        {
+                            var (k, hash, matcher) = (ValueTuple<string, byte[], IoZeroMatcher>)state;
 
-                        Assert.False(await matcher.ResponseAsync(k, UnsafeByteOperations.UnsafeWrap(dud)).FastPath());
-                        Assert.True(await matcher.ResponseAsync(k, UnsafeByteOperations.UnsafeWrap(hash)).FastPath());
-                    }, (key, reqHash, m), CancellationToken.None, TaskCreationOptions.DenyChildAttach, IoZeroScheduler.ZeroDefault).Unwrap();
+                            var dud = new byte[hash.Length];
+                            hash.CopyTo(dud, 0);
 
-                }, BitConverter.GetBytes(i), CancellationToken.None,TaskCreationOptions.DenyChildAttach, IoZeroScheduler.ZeroDefault));
-            }
+                            Volatile.Write(ref dud[0], dud[1]);
+                            Volatile.Write(ref dud[^1], dud[^2]);
+                            Volatile.Write(ref dud[^2], dud[^3]);
+                            Volatile.Write(ref dud[^3], dud[^4]);
+                            Volatile.Write(ref dud[dud.Length >> 1], dud[(dud.Length >> 1) - 1]);
 
-            await Task.WhenAll(oneShotTasks).WaitAsync(TimeSpan.FromSeconds(30));
-            Assert.Equal(0,m.Count);
-        }
+                            Assert.False(
+                                await matcher.ResponseAsync(k, UnsafeByteOperations.UnsafeWrap(dud)).FastPath());
+                            Assert.True(
+                                await matcher.ResponseAsync(k, UnsafeByteOperations.UnsafeWrap(hash)).FastPath());
+                        }, (key, reqHash, m), CancellationToken.None, TaskCreationOptions.DenyChildAttach,
+                        IoZeroScheduler.ZeroDefault).Unwrap();
+                }, BitConverter.GetBytes(i), CancellationToken.None, TaskCreationOptions.DenyChildAttach,
+                IoZeroScheduler.ZeroDefault));
 
-        [Fact]
-        async Task SpamTestAsync()
-        {
-            var threads = 20;
-            var count = 10000;
-            var capacity = threads * count;
-            var m = new IoZeroMatcher("Test matcher", threads, capacity, autoscale: false);
+        await Task.WhenAll(oneShotTasks).WaitAsync(TimeSpan.FromSeconds(30));
+        Assert.Equal(0, m.Count);
+    }
 
-            var oneShotTasks = new List<Task>();
-            for (int i = 0; i < threads; i++)
-            {
-                oneShotTasks.Add(await Task.Factory.StartNew(async payload =>
+    [Fact]
+    private async Task SpamTestAsync()
+    {
+        var threads = 20;
+        var count = 10000;
+        var capacity = threads * count;
+        var m = new IoZeroMatcher("Test matcher", threads, capacity, autoscale: false);
+
+        var oneShotTasks = new List<Task>();
+        for (var i = 0; i < threads; i++)
+            oneShotTasks.Add(await Task.Factory.StartNew(async payload =>
                 {
                     var array = payload as byte[];
                     var key = ((ReadOnlyMemory<byte>)array).HashSig();
@@ -98,38 +100,34 @@ namespace zero.test.core.feat
                     Sha256.TryComputeHash(array, reqHash, out var written);
 
                     await Task.Factory.StartNew(static async state =>
-                    {
-                        var (k, hash, matcher) = (ValueTuple<string, byte[], IoZeroMatcher>)state;
-                        var dud = new byte[hash.Length];
-                        hash.CopyTo(dud, 0);
-                        dud[0] = 0;
+                        {
+                            var (k, hash, matcher) = (ValueTuple<string, byte[], IoZeroMatcher>)state;
+                            var dud = new byte[hash.Length];
+                            hash.CopyTo(dud, 0);
+                            dud[0] = 0;
 
-                        Assert.False(await matcher.ResponseAsync(k, UnsafeByteOperations.UnsafeWrap(dud)));
-                        Assert.True(await matcher.ResponseAsync(k, UnsafeByteOperations.UnsafeWrap(hash)));
-                    }, (key, reqHash, m), CancellationToken.None, TaskCreationOptions.DenyChildAttach, IoZeroScheduler.ZeroDefault).Unwrap();
+                            Assert.False(await matcher.ResponseAsync(k, UnsafeByteOperations.UnsafeWrap(dud)));
+                            Assert.True(await matcher.ResponseAsync(k, UnsafeByteOperations.UnsafeWrap(hash)));
+                        }, (key, reqHash, m), CancellationToken.None, TaskCreationOptions.DenyChildAttach,
+                        IoZeroScheduler.ZeroDefault).Unwrap();
+                }, BitConverter.GetBytes(i), CancellationToken.None, TaskCreationOptions.DenyChildAttach,
+                IoZeroScheduler.ZeroDefault));
 
-                }, BitConverter.GetBytes(i), CancellationToken.None, TaskCreationOptions.DenyChildAttach, IoZeroScheduler.ZeroDefault));
-            }
+        await Task.WhenAll(oneShotTasks).WaitAsync(TimeSpan.FromSeconds(60));
+        Assert.Equal(0, m.Count);
+    }
 
-            await Task.WhenAll(oneShotTasks).WaitAsync(TimeSpan.FromSeconds(60));
-            Assert.Equal(0, m.Count);
+    [Fact]
+    private async Task TimeoutAsync()
+    {
+        var threads = 1;
+        var count = 100;
+        var capacity = threads * count;
+        var m = new IoZeroMatcher("Test matcher", threads, _delayTime, capacity, false);
 
-        }
-
-        readonly int _delayTime = 15 * 30;
-
-        [Fact]
-        async Task TimeoutAsync()
-        {
-            var threads = 1;
-            var count = 100;
-            var capacity = threads * count;
-            var m = new IoZeroMatcher("Test matcher", threads, _delayTime, capacity, autoscale: false);
-
-            var oneShotTasks = new List<Task>();
-            for (int i = 0; i < threads; i++)
-            {
-                oneShotTasks.Add(await Task.Factory.StartNew(async payload =>
+        var oneShotTasks = new List<Task>();
+        for (var i = 0; i < threads; i++)
+            oneShotTasks.Add(await Task.Factory.StartNew(async payload =>
                 {
                     var array = payload as byte[];
                     var key = ((ReadOnlyMemory<byte>)array).HashSig();
@@ -140,23 +138,23 @@ namespace zero.test.core.feat
                     Sha256.TryComputeHash(array, reqHash, out var written);
 
                     await Task.Factory.StartNew(static async state =>
-                    {
-                        //Delay time
-                        var (k, hash, matcher, delay) = (ValueTuple<string, byte[], IoZeroMatcher, int>)state;
-                        var dud = new byte[hash.Length];
-                        hash.CopyTo(dud, 0);
-                        dud[0] = 0;
+                        {
+                            //Delay time
+                            var (k, hash, matcher, delay) = (ValueTuple<string, byte[], IoZeroMatcher, int>)state;
+                            var dud = new byte[hash.Length];
+                            hash.CopyTo(dud, 0);
+                            dud[0] = 0;
 
-                        Assert.False(await matcher.ResponseAsync(k, UnsafeByteOperations.UnsafeWrap(dud)));
-                        await Task.Delay(delay);
-                        Assert.False(await matcher.ResponseAsync(k, UnsafeByteOperations.UnsafeWrap(hash)));
-                    }, (key, reqHash, m, _delayTime * 2), CancellationToken.None, TaskCreationOptions.DenyChildAttach, IoZeroScheduler.ZeroDefault).Unwrap();
+                            Assert.False(await matcher.ResponseAsync(k, UnsafeByteOperations.UnsafeWrap(dud)));
+                            await Task.Delay(delay);
+                            Assert.False(await matcher.ResponseAsync(k, UnsafeByteOperations.UnsafeWrap(hash)));
+                        }, (key, reqHash, m, _delayTime * 2), CancellationToken.None,
+                        TaskCreationOptions.DenyChildAttach,
+                        IoZeroScheduler.ZeroDefault).Unwrap();
+                }, BitConverter.GetBytes(i), CancellationToken.None, TaskCreationOptions.DenyChildAttach,
+                IoZeroScheduler.ZeroDefault));
 
-                }, BitConverter.GetBytes(i), CancellationToken.None, TaskCreationOptions.DenyChildAttach, IoZeroScheduler.ZeroDefault));
-            }
-
-            await Task.WhenAll(oneShotTasks).WaitAsync(TimeSpan.FromSeconds(60));
-            Assert.Equal(0, m.Count);
-        }
+        await Task.WhenAll(oneShotTasks).WaitAsync(TimeSpan.FromSeconds(60));
+        Assert.Equal(0, m.Count);
     }
 }

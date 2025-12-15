@@ -1,5 +1,4 @@
-﻿using System;
-using System.Runtime.CompilerServices;
+﻿using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
 using zero.core.patterns.bushings.contracts;
@@ -7,125 +6,125 @@ using zero.core.patterns.heap;
 using zero.core.patterns.misc;
 using zero.core.patterns.queue;
 
-namespace zero.core.patterns.bushings
+namespace zero.core.patterns.bushings;
+
+/// <summary>
+///     Sink where <see cref="IoJob{TJob}" /> is consumed.
+/// </summary>
+/// <typeparam name="TJob">The type of the job</typeparam>
+public abstract class IoSink<TJob> : IoJob<TJob>
+    where TJob : IIoJob
+
 {
+#if DEBUG
     /// <summary>
-    /// Sink where <see cref="IoJob{TJob}"/> is consumed.
+    ///     A description of the load
     /// </summary>
-    /// <typeparam name="TJob">The type of the job</typeparam>
-    public abstract class IoSink<TJob> : IoJob<TJob>
-        where TJob : IIoJob
+    private readonly string _sinkDesc;
+#endif
 
+    /// <summary>
+    ///     Q handler
+    /// </summary>
+    protected internal IoQueue<IoSink<TJob>>.IoZNode FragmentIdx;
+
+    /// <summary>
+    ///     sentinel
+    /// </summary>
+    public IoSink()
     {
-        /// <summary>
-        /// sentinel
-        /// </summary>
-        public IoSink()
-        {
-            
-        }
-        /// <summary>
-        /// Constructor
-        /// </summary>
-        protected IoSink(string sinkDesc, string jobDesc, IoSource<TJob> source, int concurrencyLevel = 1) : base(jobDesc, source, concurrencyLevel)
-        {
-#if DEBUG
-            _sinkDesc = sinkDesc;   
-#endif
-        }
+    }
 
+    /// <summary>
+    ///     Constructor
+    /// </summary>
+    protected IoSink(string sinkDesc, string jobDesc, IoSource<TJob> source, int concurrencyLevel = 1) : base(jobDesc,
+        source, concurrencyLevel)
+    {
 #if DEBUG
-        /// <summary>
-        /// A description of the load
-        /// </summary>
-        private readonly string _sinkDesc;
+        _sinkDesc = sinkDesc;
 #endif
+    }
 
-        /// <inheritdoc />
-        /// <summary>
-        /// The overall description of the work that needs to be done and the job that is doing it
-        /// </summary>
-        //public override string ProductionDescription => $"{Source.ChannelSource?.Description} {Source.Description} {LoadDescription} {base.Description}";
-        public override string Description
+    /// <inheritdoc />
+    /// <summary>
+    ///     The overall description of the work that needs to be done and the job that is doing it
+    /// </summary>
+    //public override string ProductionDescription => $"{Source.ChannelSource?.Description} {Source.Description} {LoadDescription} {base.Description}";
+    public override string Description
+    {
+        get
         {
-            get
-            {
 #if DEBUG
-                return $"<#{Serial}>[{Id}] {_sinkDesc} ~> {base.Description}";
+            return $"<#{Serial}>[{Id}] {_sinkDesc} ~> {base.Description}";
 #else
                 return string.Empty;
 #endif
-            }
         }
+    }
 
-        /// <summary>
-        /// ZeroAsync handle
-        /// </summary>
-        public IoZero<TJob> IoZero { get; protected internal set; }
+    /// <summary>
+    ///     ZeroAsync handle
+    /// </summary>
+    public IoZero<TJob> IoZero { get; protected internal set; }
 
-        /// <summary>
-        /// Q handler
-        /// </summary>
-        protected internal IoQueue<IoSink<TJob>>.IoZNode FragmentIdx;
+    /// <summary>
+    ///     Heap constructor
+    /// </summary>
+    /// <param name="context"></param>
+    /// <returns></returns>
+    public override async ValueTask<IIoHeapItem> HeapPopAsync(object context)
+    {
+        await base.HeapPopAsync(context).FastPath();
+        Interlocked.Exchange(ref FragmentIdx, null);
+        return this;
+    }
 
-        /// <summary>
-        /// Heap constructor
-        /// </summary>
-        /// <param name="context"></param>
-        /// <returns></returns>
-        public override async ValueTask<IIoHeapItem> HeapPopAsync(object context)
-        {
-            await base.HeapPopAsync(context).FastPath();
-            Interlocked.Exchange(ref FragmentIdx, null);
-            return this;
-        }
-
-        /// <summary>
-        /// zero unmanaged
-        /// </summary>
-        public override void ZeroUnmanaged()
-        {
-            base.ZeroUnmanaged();
+    /// <summary>
+    ///     zero unmanaged
+    /// </summary>
+    public override void ZeroUnmanaged()
+    {
+        base.ZeroUnmanaged();
 
 #if SAFE_RELEASE
-            IoZero = null;
+        IoZero = null;
 #endif
-        }
+    }
 
-        /// <summary>
-        /// ZeroAsync managed
-        /// </summary>
-        public override ValueTask ZeroManagedAsync()
-        {
-            return base.ZeroManagedAsync();
-        }
+    /// <summary>
+    ///     ZeroAsync managed
+    /// </summary>
+    public override ValueTask ZeroManagedAsync()
+    {
+        return base.ZeroManagedAsync();
+    }
 
-        /// <summary>
-        /// Handle fragmented jobs
-        /// </summary>
-        protected internal abstract ValueTask AddRecoveryBitsAsync();
+    /// <summary>
+    ///     Handle fragmented jobs
+    /// </summary>
+    protected internal abstract ValueTask AddRecoveryBitsAsync();
 
-        /// <summary>
-        /// Updates buffer meta data
-        /// </summary>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        protected internal abstract bool ZeroEnsureRecovery();
+    /// <summary>
+    ///     Updates buffer meta data
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    protected internal abstract bool ZeroEnsureRecovery();
 
-        /// <summary>
-        /// Used to debug
-        /// </summary>
-        /// <returns></returns>
-        public virtual bool Verify([CallerMemberName] string desc = "", [CallerLineNumber] int sourceLineNumber = 0)
-        {
-            return true;
-        }
+    /// <summary>
+    ///     Used to debug
+    /// </summary>
+    /// <returns></returns>
+    public virtual bool Verify([CallerMemberName] string desc = "", [CallerLineNumber] int sourceLineNumber = 0)
+    {
+        return true;
+    }
 
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public long GenerateJobId()
-        {
-            if (Id < 0)
-                return Id = Source.NextJobIdSeed();
-            return Id;
-        }
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public long GenerateJobId()
+    {
+        if (Id < 0)
+            return Id = Source.NextJobIdSeed();
+        return Id;
     }
 }

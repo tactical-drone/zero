@@ -1,19 +1,14 @@
-﻿using System;
-using System.Collections.Generic;
-using Newtonsoft.Json.Bson;
+﻿namespace zero.core.feat.models.bundle;
 
-namespace zero.core.feat.models.bundle
+public interface IIoMessageBundle
 {
-    public interface IIoMessageBundle
-    {
-        IIoBundleMessage this[int i] { get; protected set; }
-        IIoBundleMessage Feed();
-        int Count { get; }
-        int Capacity { get; }
+    IIoBundleMessage this[int i] { get; protected set; }
+    int Count { get; }
+    int Capacity { get; }
 
-        bool ReadyToFlush => Count >= Capacity;
+    bool ReadyToFlush => Count >= Capacity;
+    IIoBundleMessage Feed();
 
-        void Reset();
-        //public Dictionary<byte[], Tuple<byte[], List<T>>> GroupBy { get; }
-    }
+    void Reset();
+    //public Dictionary<byte[], Tuple<byte[], List<T>>> GroupBy { get; }
 }

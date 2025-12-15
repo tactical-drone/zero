@@ -5,57 +5,58 @@ using System.Threading;
 using zero.core.feat.models.bundle;
 using zero.core.misc;
 
-namespace zero.cocoon.models.batches
+namespace zero.cocoon.models.batches;
+
+public class CcDiscoveryBatch : IIoMessageBundle
 {
-    public class CcDiscoveryBatch: IIoMessageBundle
+    private int _count;
+
+    public Dictionary<byte[], Tuple<byte[], List<CcBatchMessage>>> GroupBy;
+
+    public CcDiscoveryBatch(int size, bool groupByEp = false)
     {
-        public CcDiscoveryBatch(int size, bool groupByEp = false)
-        {
-            _messages = new CcBatchMessage[size];
-            _groupByEpEnabled = groupByEp;
+        Messages = new CcBatchMessage[size];
+        GroupByEpEnabled = groupByEp;
 
-            for (var i = 0; i < _messages.Length; i++)
-                _messages[i] = new CcBatchMessage();
+        for (var i = 0; i < Messages.Length; i++)
+            Messages[i] = new CcBatchMessage();
 
-            if (_groupByEpEnabled)
-                GroupBy = new Dictionary<byte[], Tuple<byte[], List<CcBatchMessage>>>(new IoByteArrayComparer());
-        }
+        if (GroupByEpEnabled)
+            GroupBy = new Dictionary<byte[], Tuple<byte[], List<CcBatchMessage>>>(new IoByteArrayComparer());
+    }
 
-        private readonly CcBatchMessage[] _messages;
+    public CcBatchMessage[] Messages { get; }
 
-        public CcBatchMessage[] Messages => _messages;
+    public bool GroupByEpEnabled { get; }
 
-        public Dictionary<byte[], Tuple<byte[], List<CcBatchMessage>>> GroupBy;
+    IIoBundleMessage IIoMessageBundle.this[int i]
+    {
+        get => Messages[i];
+        set => Messages[i] = (CcBatchMessage)value;
+    }
 
-        /// <summary>
-        /// Return this instance to the heap
-        /// </summary>
-        /// <returns></returns>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public void ReturnToHeap()
-        {
-            CcDiscoveries.Heap.Return(this);
-        }
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public IIoBundleMessage Feed()
+    {
+        return Messages[Interlocked.Increment(ref _count) - 1];
+    }
 
-        private int _count;
-        IIoBundleMessage IIoMessageBundle.this[int i]
-        {
-            get => _messages[i];
-            set => _messages[i] = (CcBatchMessage)value;
-        }
+    public int Count => _count;
+    public int Capacity => Messages.Length;
 
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public IIoBundleMessage Feed() => _messages[Interlocked.Increment(ref _count) - 1];
-        public int Count => _count;
-        public int Capacity => _messages.Length;
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public void Reset()
+    {
+        Interlocked.Exchange(ref _count, 0);
+    }
 
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public void Reset()
-        {
-            Interlocked.Exchange(ref _count, 0);
-        }
-
-        private readonly bool _groupByEpEnabled;
-        public bool GroupByEpEnabled => _groupByEpEnabled;
+    /// <summary>
+    ///     Return this instance to the heap
+    /// </summary>
+    /// <returns></returns>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public void ReturnToHeap()
+    {
+        CcDiscoveries.Heap.Return(this);
     }
 }

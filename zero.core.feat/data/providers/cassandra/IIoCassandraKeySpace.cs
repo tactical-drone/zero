@@ -1,7 +1,6 @@
-﻿namespace zero.core.feat.data.providers.cassandra
+﻿namespace zero.core.feat.data.providers.cassandra;
+
+public interface IIoCassandraKeySpace
 {
-    public interface IIoCassandraKeySpace
-    {
-        string Name { get; }
-    }
+    string Name { get; }
 }

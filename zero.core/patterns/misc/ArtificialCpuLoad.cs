@@ -1,33 +1,34 @@
 ﻿using System;
 
-namespace zero.core.patterns.misc
+namespace zero.core.patterns.misc;
+
+/// <summary>
+///     A simple spin wait that generates CPU load.
+/// </summary>
+internal class ArtificialCpuLoad
 {
+    private static readonly Random Random = new((int)DateTime.Now.Ticks);
+
     /// <summary>
-    /// A simple spin wait that generates CPU load.
+    ///     Randoms the load.
     /// </summary>
-    class ArtificialCpuLoad
+    /// <param name="probability">The probability load would be generated</param>
+    /// <param name="ms">The time the load lasts.</param>
+    public static void RandomLoad(int probability, int ms)
     {
-        private static readonly Random Random = new((int) DateTime.Now.Ticks);
+        if (Random.Next(1000) < probability)
+            Load(ms);
+    }
 
-        /// <summary>
-        /// Randoms the load.
-        /// </summary>
-        /// <param name="probability">The probability load would be generated</param>
-        /// <param name="ms">The time the load lasts.</param>
-        public static void RandomLoad(int probability, int ms)
+    /// <summary>
+    ///     Generates a spin load for a period of time
+    /// </summary>
+    /// <param name="ms">The time to spin for</param>
+    public static void Load(int ms)
+    {
+        var end = DateTime.Now + TimeSpan.FromMilliseconds(ms);
+        while (DateTime.Now < end)
         {
-            if( Random.Next(1000) < probability )
-                Load(ms);
-        }
-
-        /// <summary>
-        /// Generates a spin load for a period of time
-        /// </summary>
-        /// <param name="ms">The time to spin for</param>
-        public static void Load(int ms)
-        {
-            var end = DateTime.Now + TimeSpan.FromMilliseconds(ms);
-            while (DateTime.Now < end){}
         }
     }
 }

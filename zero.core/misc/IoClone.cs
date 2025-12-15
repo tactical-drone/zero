@@ -1,11 +1,13 @@
-﻿namespace zero.core.misc
+﻿namespace zero.core.misc;
+
+/// <summary>
+///     Clones
+/// </summary>
+public static class IoClone
 {
-    /// <summary>
-    /// Clones
-    /// </summary>
-    public static class IoClone
+    //Clone a struct
+    public static T Clone<T>(this T source) where T : struct
     {
-        //Clone a struct
-        public static T Clone<T>(this T source) where T:struct => source;
+        return source;
     }
 }

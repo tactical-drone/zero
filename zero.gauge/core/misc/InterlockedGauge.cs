@@ -1,103 +1,96 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+﻿using System.Diagnostics.CodeAnalysis;
 using BenchmarkDotNet.Attributes;
 
-namespace zero.gauge.core.misc
+namespace zero.gauge.core.misc;
+
+[SuppressMessage("CodeQuality", "IDE0051:Remove unused private members", Justification = "<Pending>")]
+public class InterlockedGauge
 {
-    [System.Diagnostics.CodeAnalysis.SuppressMessage("CodeQuality", "IDE0051:Remove unused private members", Justification = "<Pending>")]
-    public class InterlockedGauge
+    private int _nonVolatile;
+
+    private long _nonVolatile64;
+    private volatile int _volatile;
+
+    [Benchmark]
+    public void SingleThreadedNonVolatileInt32()
     {
-        private int _nonVolatile;
-        private volatile int _volatile;
+        _nonVolatile++;
+    }
 
-        private long _nonVolatile64;
+    [Benchmark]
+    public void SingleThreadedVolatileInt32_interlocked()
+    {
+        Interlocked.Increment(ref _volatile);
+    }
 
-        [Benchmark]
-        public void SingleThreadedNonVolatileInt32()
+    [Benchmark]
+    public void SingleThreadedNonVolatileInt32_interlocked()
+    {
+        Interlocked.Increment(ref _nonVolatile);
+    }
+
+    [Benchmark]
+    public void SingleThreadedNonVolatileInt64()
+    {
+        _nonVolatile64++;
+    }
+
+    [Benchmark]
+    public void SingleThreadedVolatileInt64_interlocked()
+    {
+        Interlocked.Increment(ref _nonVolatile64);
+    }
+
+    [Benchmark]
+    public void SingleThreadedNonVolatileInt64_interlocked()
+    {
+        Interlocked.Increment(ref _nonVolatile64);
+    }
+
+    private void StNvCompareInt32()
+    {
+        var c = 100000000;
+        while (c-- > 0)
+            Interlocked.CompareExchange(ref _nonVolatile, 1, 0);
+    }
+
+    private void MtNvCompareInt32()
+    {
+        var c = 100000000;
+
+        new Thread(() =>
         {
-            _nonVolatile++;
-        }
-
-        [Benchmark]
-        public void SingleThreadedVolatileInt32_interlocked()
-        {
-            Interlocked.Increment(ref _volatile);
-        }
-
-        [Benchmark]
-        public void SingleThreadedNonVolatileInt32_interlocked()
-        {
-            Interlocked.Increment(ref _nonVolatile);
-        }
-
-        [Benchmark]
-        public void SingleThreadedNonVolatileInt64()
-        {
-            _nonVolatile64++;
-        }
-
-        [Benchmark]
-        public void SingleThreadedVolatileInt64_interlocked()
-        {
-            Interlocked.Increment(ref _nonVolatile64);
-        }
-
-        [Benchmark]
-        public void SingleThreadedNonVolatileInt64_interlocked()
-        {
-            Interlocked.Increment(ref _nonVolatile64);
-        }
-
-        private void StNvCompareInt32()
-        {
-            var c = 100000000;
-            while(c--> 0)
+            var C = 100000000;
+            while (C-- > 0)
                 Interlocked.CompareExchange(ref _nonVolatile, 1, 0);
-        }
+        }).Start();
 
-        private void MtNvCompareInt32()
-        {
-            var c = 100000000;
+        while (c-- > 0)
+            Interlocked.CompareExchange(ref _nonVolatile, 0, 1);
+    }
 
-            new Thread(() =>
-            {
-                var C = 100000000;
-                while (C-- > 0)
-                    Interlocked.CompareExchange(ref _nonVolatile, 1, 0);
-            }).Start();
-
-            while (c-- > 0)
-                Interlocked.CompareExchange(ref _nonVolatile, 0, 1);
-        }
-
-        private void StNvCompareInt64()
-        {
-            var c = 100000000;
-            while (c-- > 0)
-            {
-                if(c%2 ==0)
-                    Interlocked.CompareExchange(ref _nonVolatile64, 1, 0);
-                else
-                    Interlocked.CompareExchange(ref _nonVolatile64, 0, 1);
-            }
-        }
-
-        private void MtNvCompareInt64()
-        {
-            var c = 100000000;
-
-            new Thread(() =>
-            {
-                var C = 100000000;
-                while (C-- > 0)
-                    Interlocked.CompareExchange(ref _nonVolatile64, 1, 0);
-            }).Start();
-
-            while (c-- > 0)
+    private void StNvCompareInt64()
+    {
+        var c = 100000000;
+        while (c-- > 0)
+            if (c % 2 == 0)
+                Interlocked.CompareExchange(ref _nonVolatile64, 1, 0);
+            else
                 Interlocked.CompareExchange(ref _nonVolatile64, 0, 1);
-        }
+    }
+
+    private void MtNvCompareInt64()
+    {
+        var c = 100000000;
+
+        new Thread(() =>
+        {
+            var C = 100000000;
+            while (C-- > 0)
+                Interlocked.CompareExchange(ref _nonVolatile64, 1, 0);
+        }).Start();
+
+        while (c-- > 0)
+            Interlocked.CompareExchange(ref _nonVolatile64, 0, 1);
     }
 }

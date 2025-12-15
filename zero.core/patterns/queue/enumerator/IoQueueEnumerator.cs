@@ -3,58 +3,60 @@ using System.Runtime.CompilerServices;
 using System.Threading;
 using NLog;
 
-namespace zero.core.patterns.queue.enumerator
+namespace zero.core.patterns.queue.enumerator;
+
+public class IoQueueEnumerator<T> : IoEnumBase<IoQueue<T>.IoZNode>
 {
-    public class IoQueueEnumerator<T> : IoEnumBase<IoQueue<T>.IoZNode>
+    private IoQueue<T>.IoZNode _iteratorIoZNode;
+
+    public volatile bool Modified;
+
+    public IoQueueEnumerator(IoQueue<T> queue) : base(queue)
     {
-        private IoQueue<T> Q => (IoQueue<T>)Collection;
-        private IoQueue<T>.IoZNode _iteratorIoZNode;
+        Reset();
+    }
 
-        public IoQueueEnumerator(IoQueue<T> queue):base(queue)
+    private IoQueue<T> Q => (IoQueue<T>)Collection;
+
+    public override IoQueue<T>.IoZNode Current => _iteratorIoZNode;
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public override bool MoveNext()
+    {
+        try
         {
-            Reset();
+            if (Q.Count == 0 || _iteratorIoZNode == null)
+                return false;
+
+            Interlocked.Exchange(ref _iteratorIoZNode, _iteratorIoZNode.Next);
+
+            return _iteratorIoZNode != null;
+        }
+        catch when (Zeroed || Disposed > 0)
+        {
+        }
+        catch (Exception e) when (!Zeroed && Disposed == 0)
+        {
+            LogManager.GetCurrentClassLogger().Error(e, $"{nameof(MoveNext)}:");
+            Q.Reset();
         }
 
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public override bool MoveNext()
-        {
-            try
-            {
-                if (Q.Count == 0 || _iteratorIoZNode == null)
-                    return false;
+        return false;
+    }
 
-                Interlocked.Exchange(ref _iteratorIoZNode, _iteratorIoZNode.Next);
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public sealed override void Reset()
+    {
+        var node = new IoQueue<T>.IoZNode { Next = Q.Head };
+        Interlocked.Exchange(ref _iteratorIoZNode, node);
+    }
 
-                return _iteratorIoZNode != null;
-            }
-            catch when(Zeroed || Disposed > 0) {}
-            catch (Exception e) when (!Zeroed && Disposed == 0)
-            {
-                LogManager.GetCurrentClassLogger().Error(e, $"{nameof(MoveNext)}:");
-                Q.Reset();
-            }
+    public override void Dispose()
+    {
+        if (Disposed > 0 || Interlocked.CompareExchange(ref Disposed, 1, 0) != 0)
+            return;
 
-            return false;
-        }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public sealed override void Reset()
-        {
-            var node = new IoQueue<T>.IoZNode { Next = Q.Head };
-            Interlocked.Exchange(ref _iteratorIoZNode, node);
-        }
-
-        public override IoQueue<T>.IoZNode Current => _iteratorIoZNode;
-
-        public volatile bool Modified;
-
-        public override void Dispose()
-        {
-            if(Disposed > 0 || Interlocked.CompareExchange(ref Disposed, 1, 0) != 0)
-                return;
-
-            Interlocked.Exchange(ref _iteratorIoZNode, null); 
-            Collection = null;
-        }
+        Interlocked.Exchange(ref _iteratorIoZNode, null);
+        Collection = null;
     }
 }

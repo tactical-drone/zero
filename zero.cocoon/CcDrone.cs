@@ -21,167 +21,173 @@ using Zero.Models.Protobuf;
 using static System.Runtime.InteropServices.MemoryMarshal;
 using Logger = NLog.Logger;
 
-namespace zero.cocoon
+namespace zero.cocoon;
+
+public class CcDrone : IoNeighbor<CcProtocMessage<CcWhisperMsg, CcGossipBatch>>
 {
-    public class CcDrone : IoNeighbor<CcProtocMessage<CcWhisperMsg, CcGossipBatch>>
+    /// <summary>
+    ///     Ctor
+    /// </summary>
+    /// <param name="node">The node this peer belongs to </param>
+    /// <param name="adjunct">Optional neighbor association</param>
+    /// <param name="ioNetClient">The peer transport carrier</param>
+    public CcDrone(IoNode<CcProtocMessage<CcWhisperMsg, CcGossipBatch>> node, CcAdjunct adjunct,
+        IoNetClient<CcProtocMessage<CcWhisperMsg, CcGossipBatch>> ioNetClient)
+        : base
+        (
+            node,
+            ioNetClient,
+            //static (ioZero, _) => new CcWhispers(string.Empty, string.Empty, ((CcDrone)ioZero)?.MessageService), false
+            static (ioZero, _) => new CcSubnet(string.Empty, string.Empty, ((CcDrone)ioZero)?.MessageService), false
+        )
     {
-        /// <summary>
-        /// Ctor
-        /// </summary>
-        /// <param name="node">The node this peer belongs to </param>
-        /// <param name="adjunct">Optional neighbor association</param>
-        /// <param name="ioNetClient">The peer transport carrier</param>
-        public CcDrone(IoNode<CcProtocMessage<CcWhisperMsg, CcGossipBatch>> node, CcAdjunct adjunct,
-            IoNetClient<CcProtocMessage<CcWhisperMsg, CcGossipBatch>> ioNetClient)
-            : base
-            (
-                node,
-                ioNetClient,
-                //static (ioZero, _) => new CcWhispers(string.Empty, string.Empty, ((CcDrone)ioZero)?.MessageService), false
-                static (ioZero, _) => new CcSubnet(string.Empty, string.Empty, ((CcDrone)ioZero)?.MessageService), false
-            )
+        _logger = LogManager.GetCurrentClassLogger();
+
+        Adjunct = adjunct;
+
+        //Testing
+        //var rand = new Random(DateTimeOffset.Now.Ticks.GetHashCode() * DateTimeOffset.Now.Ticks.GetHashCode());
+
+        //var t = ZeroAsync(static async @this  =>
+        //{
+        //    while (!@this.Zeroed())
+        //    {
+        //        await Task.Delay(@this.parm_insane_checks_delay_s * 1000, @this.AsyncTasks.Token);
+        //        if (!@this.Zeroed() && @this.Adjunct == null || @this.Adjunct?.Direction == CcAdjunct.Heading.Undefined || @this.Adjunct?.State < CcAdjunct.AdjunctState.Connected && @this.Adjunct?.Direction != CcAdjunct.Heading.Undefined && @this.Adjunct.IsDroneConnected)
+        //        {
+        //            if (!@this.Zeroed() && @this.Adjunct == null)
+        //            {
+        //                @this._logger.Debug($"! {@this.Description} - n = {@this.Adjunct}, d = {@this.Adjunct?.Direction}, s = {@this.Adjunct?.State} (wants {CcAdjunct.AdjunctState.Connected}), {@this.Adjunct?.MetaDesc}");
+        //            }
+        //            await @this.DisposeAsync(@this, $"Invalid state after {@this.parm_insane_checks_delay_s}: s = {@this.Adjunct?.State}, wants = {CcAdjunct.AdjunctState.Connected}), {@this.Adjunct?.MetaDesc}");
+        //        }
+        //        else if (@this.Adjunct != null && @this.MessageService.IsOperational()) 
+        //            @this.Adjunct.WasAttached = true;
+        //    }
+        //},this, TaskCreationOptions.DenyChildAttach);
+
+        _m = new CcWhisperMsg { Data = UnsafeByteOperations.UnsafeWrap(new ReadOnlyMemory<byte>(_vb)) };
+
+        _sendBuf = new IoHeap<byte[]>($"{nameof(_sendBuf)}: {Description}", 16, (_, _) => new byte[32], true);
+    }
+
+    /// <summary>
+    ///     The logger
+    /// </summary>
+    private Logger _logger;
+
+
+    /// <summary>
+    ///     Description
+    /// </summary>
+    private string _description;
+
+    public override string Description
+    {
+        get
         {
-            _logger = LogManager.GetCurrentClassLogger();
+            //if (_lastDescGen.CurrentUtcMsDelta() > 100 && _description != null)
+            //    return _description;
 
-            Adjunct = adjunct;
-
-            //Testing
-            //var rand = new Random(DateTimeOffset.Now.Ticks.GetHashCode() * DateTimeOffset.Now.Ticks.GetHashCode());
-
-            //var t = ZeroAsync(static async @this  =>
-            //{
-            //    while (!@this.Zeroed())
-            //    {
-            //        await Task.Delay(@this.parm_insane_checks_delay_s * 1000, @this.AsyncTasks.Token);
-            //        if (!@this.Zeroed() && @this.Adjunct == null || @this.Adjunct?.Direction == CcAdjunct.Heading.Undefined || @this.Adjunct?.State < CcAdjunct.AdjunctState.Connected && @this.Adjunct?.Direction != CcAdjunct.Heading.Undefined && @this.Adjunct.IsDroneConnected)
-            //        {
-            //            if (!@this.Zeroed() && @this.Adjunct == null)
-            //            {
-            //                @this._logger.Debug($"! {@this.Description} - n = {@this.Adjunct}, d = {@this.Adjunct?.Direction}, s = {@this.Adjunct?.State} (wants {CcAdjunct.AdjunctState.Connected}), {@this.Adjunct?.MetaDesc}");
-            //            }
-            //            await @this.DisposeAsync(@this, $"Invalid state after {@this.parm_insane_checks_delay_s}: s = {@this.Adjunct?.State}, wants = {CcAdjunct.AdjunctState.Connected}), {@this.Adjunct?.MetaDesc}");
-            //        }
-            //        else if (@this.Adjunct != null && @this.MessageService.IsOperational()) 
-            //            @this.Adjunct.WasAttached = true;
-            //    }
-            //},this, TaskCreationOptions.DenyChildAttach);
-
-            _m = new CcWhisperMsg { Data = UnsafeByteOperations.UnsafeWrap(new ReadOnlyMemory<byte>(_vb)) };
-
-            _sendBuf = new IoHeap<byte[]>($"{nameof(_sendBuf)}: {Description}", 16, (_, _) => new byte[32],true);
-        }
-
-        /// <summary>
-        /// The logger
-        /// </summary>
-        private Logger _logger;
-
-        
-        /// <summary>
-        /// Description
-        /// </summary>
-        private string _description;
-        
-        public override string Description
-        {
-            get
+            //_lastDescGen = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+            try
             {
-                //if (_lastDescGen.CurrentUtcMsDelta() > 100 && _description != null)
-                //    return _description;
-                
-                //_lastDescGen = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-                try
-                {
-                    if(!Zeroed())
-                        return _description = $"`drone[{Adjunct?.CcCollective?.EgressCount} of {Adjunct?.CcCollective?.IngressCount}] [{Adjunct?.Hub.Designation.IdString()}, {Adjunct?.Designation.IdString()}], {Adjunct?.Direction},{MessageService.IoNetSocket.LocalAddress} ~> {MessageService.IoNetSocket.RemoteAddress}, {TimeSpan.FromMilliseconds(UpTime.ElapsedUtcMs()).TotalHours/24:0.0} days'";
-                    return _description = $"`drone[{Adjunct?.CcCollective?.EgressCount} of {Adjunct?.CcCollective?.IngressCount}] [{Adjunct?.Hub?.Designation?.IdString()}, {Adjunct?.Designation?.IdString()}], {MessageService?.IoNetSocket?.LocalAddress} ~> {MessageService?.IoNetSocket?.RemoteAddress}, {TimeSpan.FromMilliseconds(UpTime.ElapsedUtcMs()).TotalHours/24:0.0} days'";
-                }
-                catch
-                {
-                    return _description = $"`drone [{Adjunct?.Hub?.Designation?.IdString()} of {Adjunct?.Designation?.IdString()}], {MessageService?.IoNetSocket?.LocalAddress} ~> {MessageService?.IoNetSocket?.RemoteAddress}, up = {TimeSpan.FromMilliseconds(UpTime.ElapsedUtcMs()).TotalHours / 24:0.0}'";
-                }
+                if (!Zeroed())
+                    return _description =
+                        $"`drone[{Adjunct?.CcCollective?.EgressCount} of {Adjunct?.CcCollective?.IngressCount}] [{Adjunct?.Hub.Designation.IdString()}, {Adjunct?.Designation.IdString()}], {Adjunct?.Direction},{MessageService.IoNetSocket.LocalAddress} ~> {MessageService.IoNetSocket.RemoteAddress}, {TimeSpan.FromMilliseconds(UpTime.ElapsedUtcMs()).TotalHours / 24:0.0} days'";
+                return _description =
+                    $"`drone[{Adjunct?.CcCollective?.EgressCount} of {Adjunct?.CcCollective?.IngressCount}] [{Adjunct?.Hub?.Designation?.IdString()}, {Adjunct?.Designation?.IdString()}], {MessageService?.IoNetSocket?.LocalAddress} ~> {MessageService?.IoNetSocket?.RemoteAddress}, {TimeSpan.FromMilliseconds(UpTime.ElapsedUtcMs()).TotalHours / 24:0.0} days'";
+            }
+            catch
+            {
+                return _description =
+                    $"`drone [{Adjunct?.Hub?.Designation?.IdString()} of {Adjunct?.Designation?.IdString()}], {MessageService?.IoNetSocket?.LocalAddress} ~> {MessageService?.IoNetSocket?.RemoteAddress}, up = {TimeSpan.FromMilliseconds(UpTime.ElapsedUtcMs()).TotalHours / 24:0.0}'";
             }
         }
+    }
 
 
-        // private string _description;
-        //
-        // /// <summary>
-        // /// A description of this peer
-        // /// </summary>
-        // public override string Description
-        // {
-        //     get
-        //     {
-        //         //if (_description != null)
-        //         //    return _description;
-        //         return $"`peer({Neighbor?.Direction.ToString().PadLeft(CcNeighbor.Heading.IsEgress.ToString().Length)} - {(Source?.IsOperational??false?"Connected":"Zombie")}) {Key}'";
-        //         
-        //     }
-        // }
-        private CcAdjunct _adjunct;
-        /// <summary>
-        /// The attached neighbor
-        /// </summary>
-        public CcAdjunct Adjunct
+    // private string _description;
+    //
+    // /// <summary>
+    // /// A description of this peer
+    // /// </summary>
+    // public override string Description
+    // {
+    //     get
+    //     {
+    //         //if (_description != null)
+    //         //    return _description;
+    //         return $"`peer({Neighbor?.Direction.ToString().PadLeft(CcNeighbor.Heading.IsEgress.ToString().Length)} - {(Source?.IsOperational??false?"Connected":"Zombie")}) {Key}'";
+    //         
+    //     }
+    // }
+    private CcAdjunct _adjunct;
+
+    /// <summary>
+    ///     The attached neighbor
+    /// </summary>
+    public CcAdjunct Adjunct
+    {
+        get => _adjunct;
+        protected internal set => Interlocked.Exchange(ref _adjunct, value);
+    }
+
+    public IoNetClient<CcProtocMessage<CcWhisperMsg, CcGossipBatch>> MessageService =>
+        (IoNetClient<CcProtocMessage<CcWhisperMsg, CcGossipBatch>>)Source;
+
+    private string _key;
+
+    /// <summary>
+    ///     CcId
+    /// </summary>
+    public override string Key
+    {
+        get
         {
-            get => _adjunct;
-            protected internal set => Interlocked.Exchange(ref _adjunct, value);
-        }
-
-        public IoNetClient<CcProtocMessage<CcWhisperMsg, CcGossipBatch>> MessageService => (IoNetClient<CcProtocMessage<CcWhisperMsg, CcGossipBatch>>)Source;
-
-        private string _key;
-        /// <summary>
-        /// CcId
-        /// </summary>
-        public override string Key
-        {
-            get
-            {
-                if (_key != null)
-                    return _key;
-
-                Volatile.Write(ref _key, $"{Source.Key}`{Adjunct?.Key}");
+            if (_key != null)
                 return _key;
-            }
+
+            Volatile.Write(ref _key, $"{Source.Key}`{Adjunct?.Key}");
+            return _key;
         }
+    }
 
-        /// <summary>
-        /// Used for testing
-        /// </summary>
-        public volatile bool AccountingBit = true;
+    /// <summary>
+    ///     Used for testing
+    /// </summary>
+    public volatile bool AccountingBit = true;
 
-        private int _zeroSyncRemote;
-        private int _zeroSyncHost;
-        
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public bool ZeroSynced(int time)
+    private int _zeroSyncRemote;
+    private int _zeroSyncHost;
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public bool ZeroSynced(int time)
+    {
+        if (_zeroSyncHost == 0)
         {
-            if (_zeroSyncHost == 0)
-            {
-                _zeroSyncRemote = time;
-                _zeroSyncHost = Environment.TickCount;
-                return true;
-            }
-
-            var diff = time - _zeroSyncRemote - (Environment.TickCount - _zeroSyncHost);
-            
             _zeroSyncRemote = time;
-            Interlocked.MemoryBarrier();
             _zeroSyncHost = Environment.TickCount;
-            
-
-            return diff * diff < _adjunct.CcCollective.parm_time_e * _adjunct.CcCollective.parm_time_e * 1000000;
+            return true;
         }
+
+        var diff = time - _zeroSyncRemote - (Environment.TickCount - _zeroSyncHost);
+
+        _zeroSyncRemote = time;
+        Interlocked.MemoryBarrier();
+        _zeroSyncHost = Environment.TickCount;
+
+
+        return diff * diff < _adjunct.CcCollective.parm_time_e * _adjunct.CcCollective.parm_time_e * 1000000;
+    }
 
 #if DEBUG
-        /// <summary>
-        /// Grace time for sanity checks
-        /// </summary>
-        [IoParameter]
-        // ReSharper disable once InconsistentNaming
-        public int parm_insane_checks_delay_s = 30;
+    /// <summary>
+    ///     Grace time for sanity checks
+    /// </summary>
+    [IoParameter]
+    // ReSharper disable once InconsistentNaming
+    public int parm_insane_checks_delay_s = 30;
 #else
         /// <summary>
         /// Grace time for sanity checks
@@ -191,196 +197,199 @@ namespace zero.cocoon
         public int parm_insane_checks_delay_s = 1;
 #endif
 
-        /// <summary>
-        /// zero unmanaged
-        /// </summary>
-        public override void ZeroUnmanaged()
-        {
-            base.ZeroUnmanaged();
+    /// <summary>
+    ///     zero unmanaged
+    /// </summary>
+    public override void ZeroUnmanaged()
+    {
+        base.ZeroUnmanaged();
 #if SAFE_RELEASE
-            _logger = null;
-            Adjunct = null;
-            _sendBuf = null;
+        _logger = null;
+        Adjunct = null;
+        _sendBuf = null;
 #endif
+    }
+
+    /// <summary>
+    ///     zero managed
+    /// </summary>
+    public override async ValueTask ZeroManagedAsync()
+    {
+        await base.ZeroManagedAsync().FastPath();
+        try
+        {
+            await DropAdjunctAsync().FastPath();
+        }
+        catch (Exception e)
+        {
+            _logger.Trace(e, $"{Description}");
         }
 
-        /// <summary>
-        /// zero managed
-        /// </summary>
-        public override async ValueTask ZeroManagedAsync()
+        try
         {
-            await base.ZeroManagedAsync().FastPath();
+            if ((Adjunct?.WasAttached ?? true) && UpTime.ElapsedUtcMs() > parm_min_uptime_ms)
+                _logger.Info($"- {Description}, from: {ZeroedFrom?.Description}");
+
+            await _sendBuf.ZeroManagedAsync<object>().FastPath();
+        }
+        catch
+        {
+            // ignored
+        }
+    }
+
+    /// <summary>
+    ///     Zeroed
+    /// </summary>
+    /// <returns>True if zeroed</returns>
+    public override bool Zeroed()
+    {
+        return base.Zeroed() || Source.Zeroed();
+    }
+
+    /// <summary>
+    ///     Drones attach to the collective via an adjunct that accepts them.
+    ///     An adjunct becomes a drone
+    /// </summary>
+    /// <param name="direction"></param>
+    public bool Attach(IIoSource.Heading direction)
+    {
+        try
+        {
+            //Raced?
+            if (Adjunct.IsDroneAttached || Zeroed())
+                return false;
+
+            //Attach the other way
+            var attached = Adjunct.AttachDrone(this, direction);
+
+            _logger?.Trace(attached
+                ? $"{nameof(Attach)}: {direction}; {Adjunct.Description}"
+                : $"{nameof(Attach)}: [RACE LOST]{direction}; {Adjunct.Description}, {Adjunct.MetaDesc}");
+
+            return attached;
+        }
+        catch (Exception) when (Zeroed())
+        {
+        }
+        catch (Exception e) when (!Zeroed())
+        {
+            _logger?.Error(e, $"{nameof(Attach)}:");
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    ///     Detaches current neighbor
+    /// </summary>
+    public async ValueTask DropAdjunctAsync()
+    {
+        var latch = _adjunct;
+        if (latch != null && Interlocked.CompareExchange(ref _adjunct, null, latch) == latch)
+            await latch.DetachDroneAsync().FastPath();
+    }
+
+    /// <summary>
+    ///     Toggle accounting bit
+    /// </summary>
+    public void ToggleAccountingBit()
+    {
+        AccountingBit = !AccountingBit;
+    }
+
+    /// <summary>
+    ///     A test mode
+    /// </summary>
+    private readonly byte[] _vb = new byte[sizeof(ulong)];
+
+    private readonly CcWhisperMsg _m;
+    private IoHeap<byte[]> _sendBuf;
+
+    public async ValueTask EmitTestGossipMsgAsync(long v)
+    {
+        try
+        {
+            if (Interlocked.Read(ref ((CcCollective)Node).Testing) == 0)
+                return;
+
+            if (!Source.IsOperational() || Adjunct.CcCollective.TotalConnections < 1)
+            {
+                _logger.Trace($"{Source.Description}");
+                return;
+            }
+
+
+            //if (Interlocked.Read(ref _isTesting) > 0)
+            //    return;
+
+            //if (Interlocked.CompareExchange(ref _isTesting, 1, 0) != 0)
+            //    return;
+
+            //if (Adjunct?.Direction == CcAdjunct.Heading.IsEgress)
+            byte[] buf = null;
             try
             {
-                await DropAdjunctAsync().FastPath();
-            }
-            catch (Exception e)
-            {
-                _logger.Trace(e, $"{Description}");
-            }
+                Write(_vb.AsSpan(), ref v);
 
-            try
-            {
-                if ((Adjunct?.WasAttached??true) && UpTime.ElapsedUtcMs() > parm_min_uptime_ms)
-                    _logger.Info($"- {Description}, from: {ZeroedFrom?.Description}");
+                var protoBuf = _m.ToByteString().Memory;
+                buf = _sendBuf.Take();
+                var compressed = (ulong)LZ4Codec.Encode(protoBuf.AsArray(), 0, protoBuf.Length, buf, sizeof(ulong),
+                    buf.Length - sizeof(ulong));
+                Write(buf, ref compressed);
+                //Console.WriteLine($"pr->{compressed}({protoBuf.Length}) - {buf.AsSpan().Slice(sizeof(ulong), (int)compressed).ToArray().PayloadSig()}");
 
-                await _sendBuf.ZeroManagedAsync<object>().FastPath();
-            }
-            catch
-            {
-                // ignored
-            }
-        }
+                //buf = _sendBuf.Take(); ;
+                //var bl = new BrotliStream(new MemoryStream(buf), CompressionLevel.Optimal);
+                //bl.BaseStream.Seek(sizeof(ulong), SeekOrigin.Begin);
+                //await bl.WriteAsync(protoBuf.AsArray(), 0, protoBuf.Length);
+                //await bl.FlushAsync();
 
-        /// <summary>
-        /// Zeroed
-        /// </summary>
-        /// <returns>True if zeroed</returns>
-        public override bool Zeroed()
-        {
-            return base.Zeroed() || Source.Zeroed();
-        }
+                //var tmp = new byte[32];
+                //var tmp2 = new byte[32];
+                //var tmpS = new BrotliStream(new MemoryStream(buf), CompressionMode.Decompress);
 
-        /// <summary>
-        /// Drones attach to the collective via an adjunct that accepts them.
-        ///
-        /// An adjunct becomes a drone
-        /// </summary>
-        /// <param name="direction"></param>
-        public bool Attach(IIoSource.Heading direction)
-        {
-            try
-            {
-                //Raced?
-                if (Adjunct.IsDroneAttached || Zeroed())
-                    return false;
+                //tmpS.BaseStream.Seek(sizeof(ulong), SeekOrigin.Begin);
+                //await tmpS.ReadAsync(tmp).FastPath();
 
-                //Attach the other way
-                var attached = Adjunct.AttachDrone(this, direction);
+                //Unsafe.As<long[]>(buf)[0] = bl.BaseStream.Position - sizeof(ulong);
 
-                _logger?.Trace(attached
-                    ? $"{nameof(Attach)}: {direction}; {Adjunct.Description}"
-                    : $"{nameof(Attach)}: [RACE LOST]{direction}; {Adjunct.Description}, {Adjunct.MetaDesc}");
-
-                return attached;
-            }
-            catch (Exception) when (Zeroed()) { }
-            catch (Exception e) when(!Zeroed())
-            {
-                _logger?.Error(e, $"{nameof(Attach)}:");                               
-            }            
-            return false; 
-        }
-
-        /// <summary>
-        /// Detaches current neighbor
-        /// </summary>
-        public async ValueTask DropAdjunctAsync()
-        {
-            var latch = _adjunct;
-            if (latch != null && Interlocked.CompareExchange(ref _adjunct, null, latch) == latch)
-                await latch.DetachDroneAsync().FastPath();
-        }
-
-        /// <summary>
-        /// Toggle accounting bit
-        /// </summary>
-        public void ToggleAccountingBit()
-        {
-            AccountingBit = !AccountingBit;
-        }
-
-        /// <summary>
-        /// A test mode
-        /// </summary>
-        /// 
-        private readonly byte[] _vb = new byte[sizeof(ulong)];
-        private readonly CcWhisperMsg _m;
-        private IoHeap<byte[]> _sendBuf;
-        public async ValueTask EmitTestGossipMsgAsync(long v)
-        {
-            try
-            {
-                if (Interlocked.Read(ref ((CcCollective) Node).Testing) == 0)
-                    return;
-
-                if (!Source.IsOperational() || Adjunct.CcCollective.TotalConnections < 1)
+                if (!Zeroed())
                 {
-                    _logger.Trace($"{Source.Description}");
-                    return;
-                }
-                    
+                    //Interlocked.Increment(ref AccountingBit);
 
-                //if (Interlocked.Read(ref _isTesting) > 0)
-                //    return;
-
-                //if (Interlocked.CompareExchange(ref _isTesting, 1, 0) != 0)
-                //    return;
-            
-                //if (Adjunct?.Direction == CcAdjunct.Heading.IsEgress)
-                byte[] buf = null;
-                try
-                {
-                    
-                    Write(_vb.AsSpan(), ref v);
-
-                    var protoBuf = _m.ToByteString().Memory;
-                    buf = _sendBuf.Take();
-                    ulong compressed = (ulong)LZ4Codec.Encode(protoBuf.AsArray(), 0, protoBuf.Length, buf, sizeof(ulong), buf.Length - sizeof(ulong));
-                    Write(buf, ref compressed);
-                    //Console.WriteLine($"pr->{compressed}({protoBuf.Length}) - {buf.AsSpan().Slice(sizeof(ulong), (int)compressed).ToArray().PayloadSig()}");
-
-                    //buf = _sendBuf.Take(); ;
-                    //var bl = new BrotliStream(new MemoryStream(buf), CompressionLevel.Optimal);
-                    //bl.BaseStream.Seek(sizeof(ulong), SeekOrigin.Begin);
-                    //await bl.WriteAsync(protoBuf.AsArray(), 0, protoBuf.Length);
-                    //await bl.FlushAsync();
-
-                    //var tmp = new byte[32];
-                    //var tmp2 = new byte[32];
-                    //var tmpS = new BrotliStream(new MemoryStream(buf), CompressionMode.Decompress);
-
-                    //tmpS.BaseStream.Seek(sizeof(ulong), SeekOrigin.Begin);
-                    //await tmpS.ReadAsync(tmp).FastPath();
-
-                    //Unsafe.As<long[]>(buf)[0] = bl.BaseStream.Position - sizeof(ulong);
-
-                    if (!Zeroed())
-                    {
-                        //Interlocked.Increment(ref AccountingBit);
-
-                        var socket = MessageService.IoNetSocket;
-                        var sent = 0;
-                        _logger.Trace($"{nameof(EmitTestGossipMsgAsync)}: hup sending {(int)compressed + sizeof(ulong)} bytes to {socket.RemoteAddress}...");
-                        if ((sent = await socket.SendAsync(buf, 0, (int)compressed + sizeof(ulong), timeout: 20).FastPath()) > 0) 
+                    var socket = MessageService.IoNetSocket;
+                    var sent = 0;
+                    _logger.Trace(
+                        $"{nameof(EmitTestGossipMsgAsync)}: hup sending {(int)compressed + sizeof(ulong)} bytes to {socket.RemoteAddress}...");
+                    if ((sent = await socket.SendAsync(buf, 0, (int)compressed + sizeof(ulong), timeout: 20)
+                            .FastPath()) > 0)
                         //if (await socket.SendAsync(buf, 0, (int)bl.BaseStream.Position, timeout: 20).FastPath() > 0)
-                        {
-                            _logger.Trace($"{nameof(EmitTestGossipMsgAsync)}: hup sent {sent} bytes to {socket.RemoteAddress}; [SUCCESS]");
-                            if (!Adjunct.CcCollective.ZeroDrone && AutoPeeringEventService.Operational)
-                                AutoPeeringEventService.AddEvent(new AutoPeerEvent
+                    {
+                        _logger.Trace(
+                            $"{nameof(EmitTestGossipMsgAsync)}: hup sent {sent} bytes to {socket.RemoteAddress}; [SUCCESS]");
+                        if (!Adjunct.CcCollective.ZeroDrone && AutoPeeringEventService.Operational)
+                            AutoPeeringEventService.AddEvent(new AutoPeerEvent
+                            {
+                                EventType = AutoPeerEventType.SendProtoMsg,
+                                Msg = new ProtoMsg
                                 {
-                                    EventType = AutoPeerEventType.SendProtoMsg,
-                                    Msg = new ProtoMsg
-                                    {
-                                        CollectiveId = Adjunct.CcCollective.Hub.Router.Designation.IdString(),
-                                        Id = Adjunct.Designation.IdString(),
-                                        Type = "gossip"
-                                    }
-                                });
-                        }
+                                    CollectiveId = Adjunct.CcCollective.Hub.Router.Designation.IdString(),
+                                    Id = Adjunct.Designation.IdString(),
+                                    Type = "gossip"
+                                }
+                            });
                     }
                 }
-                finally
-                {
-                    _sendBuf.Return(buf);
-                }
             }
-            catch (Exception e)
+            finally
             {
-                _logger.Trace(e,Description);
+                _sendBuf.Return(buf);
             }
         }
-
-
+        catch (Exception e)
+        {
+            _logger.Trace(e, Description);
+        }
     }
 }

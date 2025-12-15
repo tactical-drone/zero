@@ -1,10 +1,8 @@
-﻿using System;
-using System.Threading.Tasks;
+﻿using System.Threading.Tasks;
 
-namespace zero.core.feat.patterns.time
+namespace zero.core.feat.patterns.time;
+
+public interface IIoTimer
 {
-    public interface IIoTimer
-    {
-        ValueTask<int> TickAsync();
-    }
+    ValueTask<int> TickAsync();
 }

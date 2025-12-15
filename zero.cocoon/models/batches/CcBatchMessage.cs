@@ -4,12 +4,17 @@ using zero.core.feat.models.bundle;
 using zero.core.misc;
 using Zero.Models.Protobuf;
 
-namespace zero.cocoon.models.batches
+namespace zero.cocoon.models.batches;
+
+public class CcBatchMessage : IIoBundleMessage
 {
-    public class CcBatchMessage :IIoBundleMessage
+    private chroniton _zero;
+
+    public chroniton Zero
     {
-        private chroniton _zero;
-        public chroniton Zero { get => _zero; set => Interlocked.Exchange(ref _zero, value); }
-        public byte[] EndPoint { get; } = new IPEndPoint(IPAddress.Any, 0).AsBytes();
+        get => _zero;
+        set => Interlocked.Exchange(ref _zero, value);
     }
+
+    public byte[] EndPoint { get; } = new IPEndPoint(IPAddress.Any, 0).AsBytes();
 }
