@@ -697,7 +697,7 @@ public class IoZeroScheduler : TaskScheduler, IDisposable
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     protected override bool TryExecuteTaskInline(Task task, bool taskWasPreviouslyQueued)
     {
-        return (taskWasPreviouslyQueued)
+        return taskWasPreviouslyQueued
             ? TryExecuteTask(task)
             : TryExecuteTaskInlineOnTargetScheduler(task, _fallbackScheduler);
     }

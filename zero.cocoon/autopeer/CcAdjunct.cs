@@ -222,7 +222,8 @@ public class CcAdjunct : IoNeighbor<CcProtocMessage<chroniton, CcDiscoveryBatch>
             AsyncTasks.Token));
 
     private ValueTask BackOffAsyncSmall =>
-        new (Task.Delay(RandomNumberGenerator.GetInt32(parm_max_network_latency_ms >> 5, parm_max_network_latency_ms >> 4),
+        new(Task.Delay(
+            RandomNumberGenerator.GetInt32(parm_max_network_latency_ms >> 5, parm_max_network_latency_ms >> 4),
             AsyncTasks.Token));
 
     private bool StochasticRate => RandomNumberGenerator.GetInt32(0, 2) == 0;

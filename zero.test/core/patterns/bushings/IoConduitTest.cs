@@ -2,12 +2,12 @@
 using System.Threading;
 using System.Threading.Tasks;
 using Xunit;
-using Xunit.Abstractions;
 using zero.core.misc;
 using zero.core.patterns.bushings;
 using zero.core.patterns.bushings.contracts;
 using zero.core.patterns.misc;
 using zero.core.runtime.scheduler;
+using ITestOutputHelper = Xunit.ITestOutputHelper;
 
 namespace zero.test.core.patterns.bushings;
 
@@ -42,7 +42,7 @@ public class IoConduitTest
             {
                 if (c1.EventCount > count || ts.ElapsedMs() > totalTime * 3) await c1.DisposeAsync(null, "test done");
                 _output.WriteLine($"{c1.EventCount}/{count}");
-                await Task.Delay(500);
+                await Task.Delay(500, CancellationToken.None);
             }
             catch (Exception e)
             {
@@ -50,12 +50,12 @@ public class IoConduitTest
                 throw;
             }
 
-        await z1.WaitAsync(TimeSpan.FromMilliseconds(totalTime * 4));
+        await z1.WaitAsync(TimeSpan.FromMilliseconds(totalTime * 4), CancellationToken.None);
 
         Assert.InRange(ts.ElapsedMs(), totalTime / 2, totalTime * 2);
         _output.WriteLine($"{ts.ElapsedMs()}ms ~ {totalTime}ms");
 
-        await Task.Delay(100);
+        await Task.Delay(100, CancellationToken.None);
         Assert.InRange(c1.EventCount, count, count * 2);
         _output.WriteLine($"#event = {c1.EventCount} ~ {count}");
     }
@@ -86,12 +86,12 @@ public class IoConduitTest
                 break;
             }
 
-        await z1.WaitAsync(TimeSpan.FromMilliseconds(targetTime * 5));
+        await z1.WaitAsync(TimeSpan.FromMilliseconds(targetTime * 5), CancellationToken.None);
 
         _output.WriteLine($"{ts.ElapsedMs()}ms ~ {targetTime}");
         Assert.InRange(ts.ElapsedMs(), targetTime / 2, targetTime * 3);
 
-        await Task.Delay(100);
+        await Task.Delay(100, CancellationToken.None);
         Assert.InRange(c1.EventCount, count, count * 2);
         _output.WriteLine($"#event = {c1.EventCount} ~ {count}");
     }
@@ -124,10 +124,10 @@ public class IoConduitTest
             }
 
             _output.WriteLine($"{c1.EventCount}/{count}");
-            await Task.Delay(2000);
+            await Task.Delay(2000, CancellationToken.None);
         }
 
-        await z1.WaitAsync(TimeSpan.FromMilliseconds(targetTime));
+        await z1.WaitAsync(TimeSpan.FromMilliseconds(targetTime), CancellationToken.None);
 
         var fpses = c1.EventCount / (double)ts.ElapsedMs();
 
@@ -138,7 +138,7 @@ public class IoConduitTest
 #endif
         _output.WriteLine($"FPSes = {fpses:0.0} kub/s, {ts.ElapsedMs()}ms ~ {targetTime}ms");
 
-        await Task.Delay(100);
+        await Task.Delay(100, CancellationToken.None);
         Assert.InRange(c1.EventCount, count, int.MaxValue);
         _output.WriteLine($"#event = {c1.EventCount} ~ {count}");
     }
@@ -171,16 +171,17 @@ public class IoConduitTest
             //    Assert.Fail($"Producer stalled at {c1.EventCount}");
 
             _output.WriteLine((last = c1.EventCount).ToString());
-            await Task.Delay(500);
+            await Task.Delay(500, CancellationToken.None);
         }
 
-        await z1.WaitAsync(TimeSpan.FromMilliseconds(totalTimeMs / (double)concurrencyLevel) * 4);
+        await z1.WaitAsync(TimeSpan.FromMilliseconds(totalTimeMs / (double)concurrencyLevel) * 4,
+            CancellationToken.None);
 
         _output.WriteLine($"{ts.ElapsedMs()}ms ~ {totalTimeMs / concurrencyLevel}ms");
         Assert.InRange(ts.ElapsedMs(), totalTimeMs / concurrencyLevel / 2, totalTimeMs / concurrencyLevel * 2);
 
 
-        await Task.Delay(100);
+        await Task.Delay(100, CancellationToken.None);
         Assert.InRange(c1.EventCount, count, count * 3);
         _output.WriteLine($"#event = {c1.EventCount} ~ {count}");
     }

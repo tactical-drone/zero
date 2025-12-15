@@ -43,7 +43,7 @@ public class IoHeapIoTest
                 }
             }, (this, h), CancellationToken.None, TaskCreationOptions.DenyChildAttach, IoZeroScheduler.ZeroDefault));
 
-        await Task.WhenAll(spamTasks).WaitAsync(TimeSpan.FromSeconds(60));
+        await Task.WhenAll(spamTasks).WaitAsync(TimeSpan.FromSeconds(5), CancellationToken.None);
 
         Assert.Equal(0, h.ReferenceCount);
         Assert.InRange(h.Count, 0, _capacity * _capacity);

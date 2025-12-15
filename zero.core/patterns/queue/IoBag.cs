@@ -39,7 +39,7 @@ public class IoBag<T> : IEnumerable<T>
 #if DEBUG
         _description = description;
 #else
-            _description = string.Empty;
+        _description = string.Empty;
 #endif
 
         _blockingCollection = asyncTasks != null;
@@ -189,14 +189,14 @@ public class IoBag<T> : IEnumerable<T>
                 {
                     Interlocked.Increment(ref _count);
                     this[next] = item;
-                    Interlocked.Exchange(ref fastBloom, 2);
+                    fastBloom = 2;
                 }
                 else
                 {
                     if (Zeroed || Count == Capacity || next < Tail - Capacity || sw.Count > short.MaxValue)
                         return -1;
 
-                    sw.SpinOnce(); //TODO: this hides errors, it needs to be moved down but I am getting perma race. Slow CAS again.
+                    sw.SpinOnce();
 
                     if (prev == 1)
                         goto spin;
@@ -291,8 +291,7 @@ public class IoBag<T> : IEnumerable<T>
                     Interlocked.Decrement(ref _count);
                     slot = this[next];
                     this[next] = default;
-                    Interlocked.Exchange(ref fastBloom,
-                        0); //TODO: a CAS would not always match a fastBloom of 3 here. This is a problem.
+                    fastBloom = 0;
                     return true;
                 }
 

@@ -4,11 +4,11 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using Xunit;
-using Xunit.Abstractions;
 using zero.core.misc;
 using zero.core.patterns.misc;
 using zero.core.patterns.queue;
 using zero.core.runtime.scheduler;
+using ITestOutputHelper = Xunit.ITestOutputHelper;
 
 namespace zero.test.core.patterns.queue;
 
@@ -130,8 +130,8 @@ public class IoQTest
             }, (this, bag), CancellationToken.None, TaskCreationOptions.DenyChildAttach, IoZeroScheduler.ZeroDefault));
         }
 
-        await Task.WhenAll(insert).WaitAsync(TimeSpan.FromSeconds(30));
-        await Task.WhenAll(remove).WaitAsync(TimeSpan.FromSeconds(30));
+        await Task.WhenAll(insert).WaitAsync(TimeSpan.FromSeconds(30), CancellationToken.None);
+        await Task.WhenAll(remove).WaitAsync(TimeSpan.FromSeconds(30), CancellationToken.None);
     }
 
     [Fact]
@@ -212,7 +212,7 @@ public class IoQTest
 
         try
         {
-            await Task.WhenAll(spam).WaitAsync(TimeSpan.FromSeconds(15));
+            await Task.WhenAll(spam).WaitAsync(TimeSpan.FromSeconds(15), CancellationToken.None);
         }
         catch (Exception e)
         {
@@ -403,13 +403,13 @@ public class IoQTest
         }
 
 
-        await Task.WhenAll(insert).WaitAsync(TimeSpan.FromSeconds(20));
+        await Task.WhenAll(insert).WaitAsync(TimeSpan.FromSeconds(20), CancellationToken.None);
         _output.WriteLine($"Inserts tasks {insert.Count}");
 
         _smokeTestDone = true;
         await bag.ZeroManagedAsync<object>(zero: true).FastPath();
         //bag.TryEnqueue(-1);
-        await Task.WhenAll(remove).WaitAsync(TimeSpan.FromSeconds(20));
+        await Task.WhenAll(remove).WaitAsync(TimeSpan.FromSeconds(20), CancellationToken.None);
         _output.WriteLine("remove done");
 
         //Assert.Equal(threads * InsertsPerThread + 4, bag.Count);
@@ -511,10 +511,10 @@ public class IoQTest
         }
 
         _output.WriteLine($"Inserts tasks {insert.Count}");
-        await Task.WhenAll(insert).WaitAsync(TimeSpan.FromSeconds(30));
+        await Task.WhenAll(insert).WaitAsync(TimeSpan.FromSeconds(30), CancellationToken.None);
         _output.WriteLine("Inserts done");
         await bag.ZeroManagedAsync<object>(zero: true).FastPath();
-        await Task.WhenAll(remove).WaitAsync(TimeSpan.FromSeconds(30));
+        await Task.WhenAll(remove).WaitAsync(TimeSpan.FromSeconds(30), CancellationToken.None);
 
         Assert.Equal(0, bag.Count);
         Assert.InRange(SpamTestAsyncThreadId, threads * InsertsPerThread, int.MaxValue);
@@ -528,8 +528,7 @@ public class IoQTest
     [Fact]
     public async Task PumpOnConsumeTestAsync()
     {
-        var threads = 1;
-        //var threads = 1;
+        var threads = 2;
 
         var cs = new CancellationTokenSource();
         var bag = new IoZeroQ<IoInt32>("test", 8192, false, cs, threads);
@@ -555,7 +554,7 @@ public class IoQTest
         var remove = new List<Task>();
         for (var i = 0; i < threads; i++)
         {
-            if (i < threads)
+            if (i < threads/2)
                 remove.Add(Task.Factory.StartNew(static async state =>
                     {
                         var (@this, bag, threads, i) = (ValueTuple<IoQTest, IoZeroQ<IoInt32>, int, int>)state!;
@@ -608,10 +607,10 @@ public class IoQTest
         }
 
         _output.WriteLine($"Inserts tasks {insert.Count}");
-        await Task.WhenAll(remove).WaitAsync(TimeSpan.FromSeconds(15));
+        await Task.WhenAll(remove).WaitAsync(TimeSpan.FromSeconds(5), CancellationToken.None);
         _output.WriteLine("Inserts done");
         _smokeTestDone = true;
-        await Task.WhenAll(insert).WaitAsync(TimeSpan.FromSeconds(15));
+        await Task.WhenAll(insert).WaitAsync(TimeSpan.FromSeconds(5), CancellationToken.None);
 
         bag.TryEnqueue(-1);
 

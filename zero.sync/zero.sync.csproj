@@ -35,6 +35,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <Content Include="..\global.json" Link="global.json" />
     <Content Include="nlog.config">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </Content>

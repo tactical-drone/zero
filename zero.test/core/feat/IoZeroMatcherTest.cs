@@ -7,11 +7,11 @@ using System.Threading;
 using System.Threading.Tasks;
 using Google.Protobuf;
 using Xunit;
-using Xunit.Abstractions;
 using zero.core.feat.misc;
 using zero.core.misc;
 using zero.core.patterns.misc;
 using zero.core.runtime.scheduler;
+using ITestOutputHelper = Xunit.ITestOutputHelper;
 
 namespace zero.test.core.feat;
 
@@ -75,7 +75,9 @@ public class IoZeroMatcherTest
                 }, BitConverter.GetBytes(i), CancellationToken.None, TaskCreationOptions.DenyChildAttach,
                 IoZeroScheduler.ZeroDefault));
 
+#pragma warning disable xUnit1051
         await Task.WhenAll(oneShotTasks).WaitAsync(TimeSpan.FromSeconds(30));
+#pragma warning restore xUnit1051
         Assert.Equal(0, m.Count);
     }
 
@@ -113,7 +115,9 @@ public class IoZeroMatcherTest
                 }, BitConverter.GetBytes(i), CancellationToken.None, TaskCreationOptions.DenyChildAttach,
                 IoZeroScheduler.ZeroDefault));
 
+#pragma warning disable xUnit1051
         await Task.WhenAll(oneShotTasks).WaitAsync(TimeSpan.FromSeconds(60));
+#pragma warning restore xUnit1051
         Assert.Equal(0, m.Count);
     }
 
@@ -154,7 +158,9 @@ public class IoZeroMatcherTest
                 }, BitConverter.GetBytes(i), CancellationToken.None, TaskCreationOptions.DenyChildAttach,
                 IoZeroScheduler.ZeroDefault));
 
+#pragma warning disable xUnit1051
         await Task.WhenAll(oneShotTasks).WaitAsync(TimeSpan.FromSeconds(60));
+#pragma warning restore xUnit1051
         Assert.Equal(0, m.Count);
     }
 }

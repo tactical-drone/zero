@@ -6,11 +6,11 @@ using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.VisualStudio.Threading;
 using Xunit;
-using Xunit.Abstractions;
 using zero.core.misc;
 using zero.core.patterns.misc;
 using zero.core.patterns.queue;
 using zero.core.runtime.scheduler;
+using ITestOutputHelper = Xunit.ITestOutputHelper;
 
 namespace zero.test.core.patterns.queue;
 
@@ -249,7 +249,7 @@ public class IoQueueTest : IDisposable
                     //@this._output.WriteLine($"({@this.context.Q.Count})");
                 }, this, CancellationToken.None, TaskCreationOptions.DenyChildAttach, IoZeroScheduler.ZeroDefault)
                 .Unwrap());
-        await Task.WhenAll(concurrentTasks).WaitAsync(TimeSpan.FromSeconds(60));
+        await Task.WhenAll(concurrentTasks).WaitAsync(TimeSpan.FromSeconds(60), CancellationToken.None);
 
         _output.WriteLine(
             $"count = {context.Q.Count}, Head = {context.Q?.Tail?.Value}, tail = {context.Q?.Head?.Value}, time = {Environment.TickCount - start}ms, {rounds * mult * 6 / (Environment.TickCount - start + 1)} kOPS");
@@ -314,7 +314,7 @@ public class IoQueueTest : IDisposable
                 }, (this, q, i, itemsPerThread, _output), CancellationToken.None, TaskCreationOptions.DenyChildAttach,
                 IoZeroScheduler.ZeroDefault).Unwrap());
 
-        await Task.WhenAll(insert).WaitAsync(TimeSpan.FromSeconds(60));
+        await Task.WhenAll(insert).WaitAsync(TimeSpan.FromSeconds(60), CancellationToken.None);
 
         Assert.Equal(capacity, _inserted);
 
@@ -440,7 +440,7 @@ public class IoQueueTest : IDisposable
             }
         }, this, CancellationToken.None, TaskCreationOptions.DenyChildAttach, IoZeroScheduler.ZeroDefault).Unwrap();
 
-        await Task.WhenAll(insertTask, dequeTask).WaitAsync(TimeSpan.FromSeconds(60));
+        await Task.WhenAll(insertTask, dequeTask).WaitAsync(TimeSpan.FromSeconds(60), CancellationToken.None);
     }
 
     [Fact]
@@ -520,7 +520,7 @@ public class IoQueueTest : IDisposable
                 }
             }, CancellationToken.None, TaskContinuationOptions.DenyChildAttach, IoZeroScheduler.ZeroDefault);
 
-        await Task.WhenAll(insertTask, dequeTask).WaitAsync(TimeSpan.FromSeconds(30));
+        await Task.WhenAll(insertTask, dequeTask).WaitAsync(TimeSpan.FromSeconds(30), CancellationToken.None);
     }
 
     [Fact]
@@ -611,7 +611,7 @@ public class IoQueueTest : IDisposable
 
         try
         {
-            await Task.WhenAll(q, dq).WithTimeout(TimeSpan.FromSeconds(30));
+            await Task.WhenAll(q, dq).WithTimeout(TimeSpan.FromSeconds(5));
         }
         catch (TaskCanceledException)
         {

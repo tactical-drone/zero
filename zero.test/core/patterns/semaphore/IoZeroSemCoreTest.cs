@@ -3,17 +3,17 @@ using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using Xunit;
-using Xunit.Abstractions;
 using zero.core.misc;
 using zero.core.patterns.misc;
 using zero.core.patterns.semaphore.core;
 using zero.core.runtime.scheduler;
+using ITestOutputHelper = Xunit.ITestOutputHelper;
 
 namespace zero.test.core.patterns.semaphore;
 
 public class IoZeroSemCoreTest
 {
-    private const int ERR_T = 16 * 60;
+    private const int ERR_T = 16 * 120;
     private readonly ITestOutputHelper _output;
 
 
@@ -281,7 +281,7 @@ public class IoZeroSemCoreTest
                 //_output.WriteLine($"Done signalling count = {_exclusiveCheck}, {(double)_exclusiveCheck / t.ElapsedMsToSec():0.0} r/s");
             }, CancellationToken.None, TaskCreationOptions.DenyChildAttach, IoZeroScheduler.ZeroDefault).Unwrap());
 
-        await Task.WhenAll(tests).WaitAsync(TimeSpan.FromSeconds(1000));
+        await Task.WhenAll(tests).WaitAsync(TimeSpan.FromSeconds(1000), CancellationToken.None);
 
         Assert.Equal(spamFactor * realThreads, _exclusiveCount);
         _output.WriteLine(

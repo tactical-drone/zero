@@ -62,7 +62,7 @@ public class IoHashCodesTest
                 bag.Add(Interlocked.Increment(ref idx));
             }, (this, bag, idx), CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Default));
 
-        await Task.WhenAll(insert).WaitAsync(TimeSpan.FromSeconds(60));
+        await Task.WhenAll(insert).WaitAsync(TimeSpan.FromSeconds(60), CancellationToken.None);
 
         Assert.Equal(threads, bag.Count);
 

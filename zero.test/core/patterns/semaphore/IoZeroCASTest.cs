@@ -5,9 +5,9 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Xunit;
-using Xunit.Abstractions;
 using zero.core.patterns.semaphore.core;
 using zero.core.runtime.scheduler;
+using ITestOutputHelper = Xunit.ITestOutputHelper;
 
 namespace zero.test.core.patterns.semaphore;
 
@@ -64,7 +64,7 @@ public class IoZeroCasTest
                 }
             }, CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Default));
 
-        await Task.WhenAll(tasks).WaitAsync(TimeSpan.FromSeconds(120));
+        await Task.WhenAll(tasks).WaitAsync(TimeSpan.FromSeconds(5),CancellationToken.None);
 
         Assert.Equal(_count, _reg);
         var sorted = _selection.OrderBy(i => i);
