@@ -322,7 +322,7 @@ public class IoZeroQ<T> : IEnumerable<T>
             _lastInsertIndex = Interlocked.Increment(ref _tail) - 1;
             _fastStorage[modIdx] = value;
 #if DEBUG
-                _fastStorageTime[modIdx] = Interlocked.Increment(ref _opCounter) - 1;
+            _fastStorageTime[modIdx] = Interlocked.Increment(ref _opCounter) - 1;
 #endif
             Interlocked.Exchange(ref fastBloomPtr, _set);
 
@@ -399,7 +399,7 @@ public class IoZeroQ<T> : IEnumerable<T>
 #endif
         SpinWait sw = new();
 #if DEBUG
-            var latchOp = _opCounter;
+        var latchOp = _opCounter;
 #endif
         var state = -1;
 
@@ -418,7 +418,7 @@ public class IoZeroQ<T> : IEnumerable<T>
 #if !DEBUG
                     Interlocked.Increment(ref _head);
 #else
-                        _lastRemoveIndex = Interlocked.Increment(ref _head) - 1;
+                    _lastRemoveIndex = Interlocked.Increment(ref _head) - 1;
 #endif
                 }
                 else
@@ -448,7 +448,7 @@ public class IoZeroQ<T> : IEnumerable<T>
 #if !DEBUG
             Interlocked.Increment(ref _head);
 #else
-                _lastRemoveIndex = Interlocked.Increment(ref _head) - 1;
+            _lastRemoveIndex = Interlocked.Increment(ref _head) - 1;
 #endif
             Interlocked.Decrement(ref _count);
 
@@ -456,11 +456,11 @@ public class IoZeroQ<T> : IEnumerable<T>
             _fastStorage[modIdx] = default;
 
 #if DEBUG
-                _fastStorageTime[modIdx] = -(Interlocked.Increment(ref _opCounter) - 1);
+            _fastStorageTime[modIdx] = -(Interlocked.Increment(ref _opCounter) - 1);
 
-                if (_fastStorageTime[modIdx] - latchOp > 3)
-                    Console.WriteLine(
-                        $"-------> & zero skew ({_opCounter - latchOp}/{Capacity}) == ({(_opCounter - latchOp) / (float)Capacity * 100:0.0}%)");
+            if (_fastStorageTime[modIdx] - latchOp > 3)
+                Console.WriteLine(
+                    $"-------> & zero skew ({_opCounter - latchOp}/{Capacity}) == ({(_opCounter - latchOp) / (float)Capacity * 100:0.0}%)");
 #endif
             Interlocked.Exchange(ref fastBloomPtr, _zero);
 
@@ -490,7 +490,7 @@ public class IoZeroQ<T> : IEnumerable<T>
 #if !DEBUG
                 Interlocked.Increment(ref _head);
 #else
-                    _lastRemoveIndex = Interlocked.Increment(ref _head) - 1;
+                _lastRemoveIndex = Interlocked.Increment(ref _head) - 1;
 #endif
             }
             else

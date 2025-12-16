@@ -8,6 +8,7 @@ using System.Threading.Tasks;
 using NLog;
 using zero.core.conf;
 using zero.core.data.contracts;
+using zero.core.misc;
 using zero.core.patterns.bushings.contracts;
 using zero.core.patterns.misc;
 using zero.core.patterns.semaphore.core;

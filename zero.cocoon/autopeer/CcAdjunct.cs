@@ -3272,7 +3272,7 @@ public class CcAdjunct : IoNeighbor<CcProtocMessage<chroniton, CcDiscoveryBatch>
             //force hung states
             if (overrideHung > 0)
             {
-                var hung = _state.EnterTime.ElapsedMs() > overrideHung;
+                var hung = CurrentState.EnterTime.ElapsedMs() > overrideHung;
                 if (hung)
                 {
                     oldValue = cmp;
@@ -3301,7 +3301,7 @@ public class CcAdjunct : IoNeighbor<CcProtocMessage<chroniton, CcDiscoveryBatch>
                 }
 #endif
 #if DEBUG
-            Interlocked.Exchange(ref _state, _state.Exit(nextState));
+            CurrentState = CurrentState.Exit(nextState);
 #endif
         }
         catch when (!Zeroed())
@@ -3341,7 +3341,7 @@ public class CcAdjunct : IoNeighbor<CcProtocMessage<chroniton, CcDiscoveryBatch>
 #endif
     {
 #if DEBUG
-        var ioStateTransition = _state.GetStartState();
+        var ioStateTransition = CurrentState.GetStartState();
         var sb = new StringBuilder();
 
         while (ioStateTransition != null)
@@ -3360,7 +3360,7 @@ public class CcAdjunct : IoNeighbor<CcProtocMessage<chroniton, CcDiscoveryBatch>
     /// <summary>
     ///     The current state
     /// </summary>
-    public IoStateTransition<AdjunctState> CurrentState { get; } = new()
+    public IoStateTransition<AdjunctState> CurrentState { get; set; } = new()
     {
         FinalState = AdjunctState.FinalState
     };

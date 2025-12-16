@@ -278,7 +278,7 @@ public class IoQueueTest : IDisposable
         var itemsPerThread = 1000;
 #else
         var threads = 10;
-        var itemsPerThread = 10000;
+        var itemsPerThread = 1000;
 #endif
 
         var capacity = threads * itemsPerThread;

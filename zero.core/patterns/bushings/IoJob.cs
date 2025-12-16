@@ -8,6 +8,7 @@ using zero.core.conf;
 using zero.core.patterns.bushings.contracts;
 using zero.core.patterns.heap;
 using zero.core.patterns.misc;
+using zero.core.patterns.queue;
 using zero.core.patterns.semaphore.core;
 
 namespace zero.core.patterns.bushings;

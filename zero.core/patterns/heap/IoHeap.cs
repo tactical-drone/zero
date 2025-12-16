@@ -273,13 +273,11 @@ public class IoHeap<TItem, TContext>
                 Interlocked.Increment(ref _miss);
                 return (heapItem, true);
             }
-            else
-            {
-                Interlocked.Increment(ref _hit);
 
-                PopAction?.Invoke(heapItem, userData);
-                return (heapItem, false);
-            }
+            Interlocked.Increment(ref _hit);
+
+            PopAction?.Invoke(heapItem, userData);
+            return (heapItem, false);
         }
         catch (Exception) when (Zeroed)
         {
