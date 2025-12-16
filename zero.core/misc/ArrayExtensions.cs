@@ -228,45 +228,45 @@ public static class ArrayExtensions
         return $"{T}{BitConverter.ToString(memory)}";
     }
 #else
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static string PayloadSig(this byte[] payload, string tag = "P")
-        {
-            return null;
-        }
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static string PayloadSig(this byte[] payload, string tag = "P")
+    {
+        return null;
+    }
 
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static string PayloadSig(this ReadOnlyMemory<byte> memory, string tag = "P")
-        {
-            return null;
-        }
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static string PayloadSig(this ReadOnlyMemory<byte> memory, string tag = "P")
+    {
+        return null;
+    }
 
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static string HashSig(this byte[] hash)
-        {
-            return null;
-        }
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static string HashSig(this byte[] hash)
+    {
+        return null;
+    }
 
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static string HashSig(this Span<byte> hash)
-        {
-            return null;
-        }
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static string HashSig(this Span<byte> hash)
+    {
+        return null;
+    }
 
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static string HashSig(this ReadOnlyMemory<byte> memory)
-        {
-            return null;
-        }
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static string HashSig(this ReadOnlyMemory<byte> memory)
+    {
+        return null;
+    }
 
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static string PayloadSig(this ReadOnlySpan<byte> span, string tag = "P")
-        {
-            return null;
-        }
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static string PayloadSig(this ReadOnlySpan<byte> span, string tag = "P")
+    {
+        return null;
+    }
 
-        public static string Print(this byte[] memory, string T = "F-")
-        {
-            return null;
-        }
+    public static string Print(this byte[] memory, string T = "F-")
+    {
+        return null;
+    }
 #endif
 }

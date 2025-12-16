@@ -35,8 +35,8 @@ public class IoZeroSemaphoreTest
         var loopCount = 10;
         var targetSleep = 100;
 #else
-            int loopCount = 20;
-            int targetSleep = 50;
+        var loopCount = 20;
+        var targetSleep = 50;
 #endif
         var m = new IoZeroSemaphoreSlim(new CancellationTokenSource(), "test mutex", 1, 1);
 
@@ -308,7 +308,7 @@ public class IoZeroSemaphoreTest
 #if DEBUG
         long count = 1000000;
 #else
-            long count = 10000000;
+        long count = 10000000;
 #endif
 
         var v = new IoZeroSemaphoreSlim(new CancellationTokenSource(), string.Empty, 2);

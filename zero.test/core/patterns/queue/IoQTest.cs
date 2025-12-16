@@ -554,7 +554,7 @@ public class IoQTest
         var remove = new List<Task>();
         for (var i = 0; i < threads; i++)
         {
-            if (i < threads/2)
+            if (i < threads / 2)
                 remove.Add(Task.Factory.StartNew(static async state =>
                     {
                         var (@this, bag, threads, i) = (ValueTuple<IoQTest, IoZeroQ<IoInt32>, int, int>)state!;

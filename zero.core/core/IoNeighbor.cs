@@ -34,11 +34,10 @@ public class IoNeighbor<TJob> : IoZero<TJob>
     /// <param name="mallocJob">The callback that allocates new message buffer space</param>
     /// <param name="enableZeroRecovery"></param>
     /// <param name="cascade"></param>
-    /// <param name="concurrencyLevel"></param>
     public IoNeighbor(IoNode<TJob> node, IoNetClient<TJob> ioNetClient, Func<object, IIoNanite, IoSink<TJob>> mallocJob,
-        bool enableZeroRecovery, bool cascade = true, int concurrencyLevel = 1)
+        bool enableZeroRecovery, bool cascade = true)
         : base($"neighbor({ioNetClient?.Description})", ioNetClient, mallocJob, enableZeroRecovery, cascade,
-            concurrencyLevel)
+            ioNetClient?.PrefetchSize ?? 0)
     {
         _logger = LogManager.GetCurrentClassLogger();
         Node = node;

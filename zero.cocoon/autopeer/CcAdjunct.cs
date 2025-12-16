@@ -54,7 +54,7 @@ public class CcAdjunct : IoNeighbor<CcProtocMessage<chroniton, CcDiscoveryBatch>
             node,
             ioNetClient,
             static (ioZero, _) => new CcDiscoveries((CcAdjunct)ioZero, "discovery msg"),
-            extraData == null, false, ioNetClient.ZeroConcurrencyLevel
+            extraData == null, false
         )
     {
         //parm_io_batch_size = CcCollective.parm_max_adjunct * 2;
@@ -122,8 +122,8 @@ public class CcAdjunct : IoNeighbor<CcProtocMessage<chroniton, CcDiscoveryBatch>
         var packetHeapDesc = $"{nameof(_chronitonHeap)}, {_description}";
         var protoHeapDesc = $"{nameof(_sendBuf)}, {_description}";
 #else
-            string packetHeapDesc = string.Empty;
-            string protoHeapDesc = string.Empty;
+        var packetHeapDesc = string.Empty;
+        var protoHeapDesc = string.Empty;
 #endif
 
         //TODO tuning:
@@ -158,18 +158,6 @@ public class CcAdjunct : IoNeighbor<CcProtocMessage<chroniton, CcDiscoveryBatch>
         Connecting = 6,
         Connected = 7
     }
-
-    /// <summary>
-    ///     The current state
-    /// </summary>
-    private
-#if RELEASE
-        readonly
-#endif
-        IoStateTransition<AdjunctState> _state = new()
-        {
-            FinalState = AdjunctState.FinalState
-        };
 
     /// <summary>
     ///     logger
@@ -213,7 +201,7 @@ public class CcAdjunct : IoNeighbor<CcProtocMessage<chroniton, CcDiscoveryBatch>
     public string MetaDesc =>
         $"{(Zeroed() ? "Zeroed!!!," : "")} d={Direction},s={State},v={(Verified ? "1" : "0")},a={(Assimilating ? "1" : "0")},da={(IsDroneAttached ? "1" : "0")},cc={(IsDroneConnected ? "1" : "0")},g={(IsGossiping ? "1" : "0")},arb={(IsArbitrating ? "1" : "0")}";
 #else
-        public string MetaDesc => string.Empty;
+    public string MetaDesc => string.Empty;
 #endif
 
     private ValueTask BackOffAsync =>
@@ -535,7 +523,7 @@ public class CcAdjunct : IoNeighbor<CcProtocMessage<chroniton, CcDiscoveryBatch>
 #if DEBUG
     public int parm_max_network_latency_ms = 2000;
 #else
-        public int parm_max_network_latency_ms = 1000;
+    public int parm_max_network_latency_ms = 1000;
 #endif
 
     /// <summary>
@@ -1543,58 +1531,7 @@ public class CcAdjunct : IoNeighbor<CcProtocMessage<chroniton, CcDiscoveryBatch>
 
             do
             {
-                //The consumer
-                var width = _protocolConduit.Source.ZeroConcurrencyLevel;
-                for (var i = 0; i < width; i++)
-                    await ZeroAsync(static async state =>
-                    {
-                        var (@this, i) = (ValueTuple<CcAdjunct, int>)state;
-                        try
-                        {
-                            while (!@this.Zeroed())
-                                await @this._protocolConduit.ConsumeAsync(@this.ProcessMessagesAsync, @this).FastPath();
-                        }
-                        catch when (@this.Zeroed() || @this._protocolConduit?.UpstreamSource == null)
-                        {
-                        }
-                        catch (Exception e) when (!@this.Zeroed() && @this._protocolConduit?.UpstreamSource != null)
-                        {
-                            @this._logger?.Error(e, $"{@this.Description}");
-                        }
-                    }, (this, i)).FastPath();
-
-                //producer;
-                for (var i = 0; i < width; i++)
-                    await ZeroAsync(static async @this =>
-                    {
-                        try
-                        {
-                            while (!@this.Zeroed())
-                                try
-                                {
-                                    if (!await @this._protocolConduit.ProduceAsync().FastPath())
-                                        await Task.Delay(@this.parm_min_failed_production_time, @this.AsyncTasks.Token);
-                                }
-                                catch when (@this.Zeroed())
-                                {
-                                }
-                                catch (Exception e) when (!@this.Zeroed())
-                                {
-                                    @this._logger.Error(e, $"Production failed for {@this.Description}");
-                                    break;
-                                }
-                        }
-                        catch when (@this.Zeroed() || @this.Source.Zeroed() ||
-                                    @this._protocolConduit?.UpstreamSource == null)
-                        {
-                        }
-                        catch (Exception e) when (!@this.Zeroed())
-                        {
-                            @this._logger?.Error(e, $"{@this.Description}");
-                        }
-                    }, this).FastPath();
-
-                await AsyncTasks.BlockOnNotCanceledAsync().FastPath();
+                await _protocolConduit.BlockOnReplicateAsync(ProcessMessagesAsync, this);
             } while (!Zeroed());
         }
         catch when (Zeroed())
@@ -1688,7 +1625,7 @@ public class CcAdjunct : IoNeighbor<CcProtocMessage<chroniton, CcDiscoveryBatch>
 
         if (fuseResponse.Accept)
         {
-            var origState = _state.Value;
+            var origState = CurrentState.Value;
             var stateIsValid =
                 CompareAndEnterState(AdjunctState.Fusing, AdjunctState.Verified,
                     overrideHung: parm_max_network_latency_ms) == AdjunctState.Verified;
@@ -1701,9 +1638,9 @@ public class CcAdjunct : IoNeighbor<CcProtocMessage<chroniton, CcDiscoveryBatch>
                     stateIsValid = true;
 
             fuseResponse.Accept &= stateIsValid;
-            if (!stateIsValid && _state.EnterTime.ElapsedMs() > parm_max_network_latency_ms)
+            if (!stateIsValid && CurrentState.EnterTime.ElapsedMs() > parm_max_network_latency_ms)
                 _logger.Warn(
-                    $"{Description}: Invalid state ~{_state.Value}, age = {_state.EnterTime.ElapsedMs()}ms. Wanted {nameof(AdjunctState.Verified)} -  [RACE OK!]");
+                    $"{Description}: Invalid state ~{CurrentState.Value}, age = {CurrentState.EnterTime.ElapsedMs()}ms. Wanted {nameof(AdjunctState.Verified)} -  [RACE OK!]");
         }
 
         if ((sent = await SendMessageAsync(fuseResponse.ToByteArray(),
@@ -1775,7 +1712,7 @@ public class CcAdjunct : IoNeighbor<CcProtocMessage<chroniton, CcDiscoveryBatch>
         switch (response.Accept)
         {
             //Race for 
-            case true when _state.Value == AdjunctState.Fusing && _direction == 0:
+            case true when CurrentState.Value == AdjunctState.Fusing && _direction == 0:
             {
                 Interlocked.Exchange(ref _lastSeduced, Environment.TickCount);
                 Interlocked.Exchange(ref _seduceBurst, 0);
@@ -1789,15 +1726,16 @@ public class CcAdjunct : IoNeighbor<CcProtocMessage<chroniton, CcDiscoveryBatch>
             case false:
             {
                 AdjunctState oldState;
-                if (_state.Value != AdjunctState.Unverified &&
-                    !(_state.Value == AdjunctState.Verified && _state is not { Prev.Value: AdjunctState.Unverified }) &&
+                if (CurrentState.Value != AdjunctState.Unverified &&
+                    !(CurrentState.Value == AdjunctState.Verified && CurrentState is not
+                        { Prev.Value: AdjunctState.Unverified }) &&
                     (oldState = CompareAndEnterState(AdjunctState.Verified, AdjunctState.Fusing)) !=
                     AdjunctState.Fusing)
                     if (oldState != AdjunctState.Connected &&
-                        _state.EnterTime.ElapsedMs() > parm_max_network_latency_ms)
+                        CurrentState.EnterTime.ElapsedMs() > parm_max_network_latency_ms)
                     {
                         _logger.Warn(
-                            $"-/h> {nameof(CcFuseResponse)}(f) - {Description}: Invalid state, {oldState}, age = {_state.EnterTime.ElapsedMs()}ms. Wanted {nameof(AdjunctState.Fusing)}");
+                            $"-/h> {nameof(CcFuseResponse)}(f) - {Description}: Invalid state, {oldState}, age = {CurrentState.EnterTime.ElapsedMs()}ms. Wanted {nameof(AdjunctState.Fusing)}");
                         ResetState(AdjunctState.Verified);
                     }
 
@@ -1842,11 +1780,19 @@ public class CcAdjunct : IoNeighbor<CcProtocMessage<chroniton, CcDiscoveryBatch>
                     throw new OutOfMemoryException(
                         $"{nameof(_chronitonHeap)}: {_chronitonHeap.Description}, {Description}");
 
-                if (Probed && Designation.Primed)
+                retry:
+                if (Probed && Designation.Primed && Designation.Round > 0)
                 {
                     (packet.Aes, var key) = Designation.GetRound();
-                    packet.Data = UnsafeByteOperations.UnsafeWrap(AesEncryptToBytes(data, key, Designation));
-                    packet.Size = data.Length;
+                    if (key != null)
+                    {
+                        packet.Data = UnsafeByteOperations.UnsafeWrap(AesEncryptToBytes(data, key, Designation));
+                        packet.Size = data.Length;
+                    }
+                    else
+                    {
+                        goto retry;
+                    }
                 }
                 else
                 {
@@ -2702,7 +2648,7 @@ public class CcAdjunct : IoNeighbor<CcProtocMessage<chroniton, CcDiscoveryBatch>
     public async ValueTask<bool> SeduceAsync(string desc, IIoSource.Heading heading, IoNodeAddress dmzEndpoint = null)
     {
         var success = false;
-        if (Zeroed() || IsDroneAttached || _state.Value > AdjunctState.Connecting ||
+        if (Zeroed() || IsDroneAttached || CurrentState.Value > AdjunctState.Connecting ||
             _lastSeduced.ElapsedMs() < parm_max_network_latency_ms >> 1)
             return false;
 
@@ -2980,7 +2926,7 @@ public class CcAdjunct : IoNeighbor<CcProtocMessage<chroniton, CcDiscoveryBatch>
     /// <returns>Task</returns>
     public bool Fuse()
     {
-        if (IsDroneAttached || CcCollective.ZeroDrone || _state.Value == AdjunctState.Connected || !Probed ||
+        if (IsDroneAttached || CcCollective.ZeroDrone || CurrentState.Value == AdjunctState.Connected || !Probed ||
             CcCollective.EgressCount >= CcCollective.parm_max_outbound)
         {
             if (!CcCollective.ZeroDrone && Probed)
@@ -2989,7 +2935,7 @@ public class CcAdjunct : IoNeighbor<CcProtocMessage<chroniton, CcDiscoveryBatch>
             return false;
         }
 
-        if (_state.Value <= AdjunctState.Unverified) return true;
+        if (CurrentState.Value <= AdjunctState.Unverified) return true;
 
         AdjunctState oldState;
 
@@ -2998,10 +2944,10 @@ public class CcAdjunct : IoNeighbor<CcProtocMessage<chroniton, CcDiscoveryBatch>
                 overrideHung: parm_max_network_latency_ms)) == AdjunctState.Verified;
         if (!stateIsValid)
         {
-            if (_state.Value is >= AdjunctState.Fusing and <= AdjunctState.Connected &&
-                _state.EnterTime.ElapsedMs() > parm_max_network_latency_ms)
+            if (CurrentState.Value is >= AdjunctState.Fusing and <= AdjunctState.Connected &&
+                CurrentState.EnterTime.ElapsedMs() > parm_max_network_latency_ms)
                 _logger.Warn(
-                    $"{nameof(Fuse)} - {Description}: Invalid state, {oldState}, age = {_state.EnterTime.ElapsedMs()}ms. Wanted {nameof(AdjunctState.Verified)} - [RACE OK!] ");
+                    $"{nameof(Fuse)} - {Description}: Invalid state, {oldState}, age = {CurrentState.EnterTime.ElapsedMs()}ms. Wanted {nameof(AdjunctState.Verified)} - [RACE OK!] ");
             return false;
         }
 
@@ -3290,9 +3236,9 @@ public class CcAdjunct : IoNeighbor<CcProtocMessage<chroniton, CcDiscoveryBatch>
         Interlocked.Exchange(ref _openSlots, 0);
         Interlocked.Exchange(ref _connectionAttempts, 0);
 
-        _state.Set((int)state);
+        CurrentState.Set((int)state);
 
-        return _state.Value;
+        return CurrentState.Value;
     }
 
     /// <summary>
@@ -3310,13 +3256,13 @@ public class CcAdjunct : IoNeighbor<CcProtocMessage<chroniton, CcDiscoveryBatch>
 #if DEBUG
     [MethodImpl(MethodImplOptions.Synchronized)]
 #else
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
 #endif
 
     public AdjunctState CompareAndEnterState(AdjunctState state, AdjunctState cmp, bool compare = true,
         int overrideHung = 0)
     {
-        var oldValue = _state.Value;
+        var oldValue = CurrentState.Value;
 #if DEBUG
         try
         {
@@ -3366,26 +3312,21 @@ public class CcAdjunct : IoNeighbor<CcProtocMessage<chroniton, CcDiscoveryBatch>
             _logger.Error(e, $"{nameof(CompareAndEnterState)} failed!");
         }
 #else
-            if (overrideHung > 0)
-            {
-                var hung = _state.EnterTime.ElapsedMs() > overrideHung;
+        if (overrideHung > 0)
+        {
+            var hung = CurrentState.EnterTime.ElapsedMs() > overrideHung;
 
-                if (hung)
-                {
-                    oldValue = cmp;
-                    _connectionAttempts = _scanCount = 0;
-                    compare = false;
-                }
+            if (hung)
+            {
+                oldValue = cmp;
+                _connectionAttempts = _scanCount = 0;
+                compare = false;
             }
+        }
 
-            if (compare)
-            {
-                return _state.CompareAndEnterState((int)state, (int)cmp);
-            }
-            else
-            {
-                _state.Set((int)state);
-            }
+        if (compare) return CurrentState.CompareAndEnterState((int)state, (int)cmp);
+
+        CurrentState.Set((int)state);
 #endif
         return oldValue;
     }
@@ -3396,7 +3337,7 @@ public class CcAdjunct : IoNeighbor<CcProtocMessage<chroniton, CcDiscoveryBatch>
 #if DEBUG
     public void PrintStateHistory()
 #else
-        public static void PrintStateHistory()
+    public static void PrintStateHistory()
 #endif
     {
 #if DEBUG
@@ -3412,16 +3353,22 @@ public class CcAdjunct : IoNeighbor<CcProtocMessage<chroniton, CcDiscoveryBatch>
         if (sb.Length > 0)
             LogManager.GetCurrentClassLogger().Fatal(sb.ToString()[..(sb.Length - 3)]);
 #else
-            //return default;
+        //return default;
 #endif
     }
 
-    public IoStateTransition<AdjunctState> CurrentState => _state;
+    /// <summary>
+    ///     The current state
+    /// </summary>
+    public IoStateTransition<AdjunctState> CurrentState { get; } = new()
+    {
+        FinalState = AdjunctState.FinalState
+    };
 
     /// <summary>
     ///     Gets and sets the state of the work
     /// </summary>
-    public AdjunctState State => _state.Value;
+    public AdjunctState State => CurrentState.Value;
 
     /// <summary>
     ///     Don't retry on destruction

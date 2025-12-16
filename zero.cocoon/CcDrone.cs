@@ -189,12 +189,12 @@ public class CcDrone : IoNeighbor<CcProtocMessage<CcWhisperMsg, CcGossipBatch>>
     // ReSharper disable once InconsistentNaming
     public int parm_insane_checks_delay_s = 30;
 #else
-        /// <summary>
-        /// Grace time for sanity checks
-        /// </summary>
-        [IoParameter]
-        // ReSharper disable once InconsistentNaming
-        public int parm_insane_checks_delay_s = 1;
+    /// <summary>
+    ///     Grace time for sanity checks
+    /// </summary>
+    [IoParameter]
+    // ReSharper disable once InconsistentNaming
+    public int parm_insane_checks_delay_s = 1;
 #endif
 
     /// <summary>

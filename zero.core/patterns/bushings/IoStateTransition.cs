@@ -130,7 +130,7 @@ public class IoStateTransition<TState> : IoQueue<int>.IoZNode, IIoHeapItem
 #if DEBUG
         return $"[{Id}] {prevStr}[{Enum.GetName(typeof(TState), Value)}]{nextStr}";
 #else
-            return $"{prevStr}[{Enum.GetName(typeof(TState), Value)}]{nextStr}";
+        return $"{prevStr}[{Enum.GetName(typeof(TState), Value)}]{nextStr}";
 #endif
     }
 

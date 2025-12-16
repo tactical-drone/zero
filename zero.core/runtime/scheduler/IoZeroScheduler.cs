@@ -379,7 +379,9 @@ public class IoZeroScheduler : TaskScheduler, IDisposable
             {
             }
 #if RELEASE //quality code enforced
-                catch (NullReferenceException) { }
+            catch (NullReferenceException)
+            {
+            }
 #else
             catch (Exception e) when (!Zeroed)
             {

@@ -1,5 +1,4 @@
 ﻿using System;
-using System.Diagnostics;
 using System.IO;
 using System.Runtime.CompilerServices;
 using System.Text;
@@ -146,7 +145,7 @@ public class IoNanoprobe : IIoNanite, IAsyncDisposable, IDisposable
 #if DEBUG
         Description = description ?? GetType().Name;
 #else
-            Description = string.Empty;
+        Description = string.Empty;
 #endif
 
         _concurrencyLevel = concurrencyLevel <= 0 ? 1 : concurrencyLevel;
@@ -216,7 +215,7 @@ public class IoNanoprobe : IIoNanite, IAsyncDisposable, IDisposable
 
         ZeroedFrom = from;
 #if RELEASE
-            ZeroReason = $"{reason??"N/A"}";
+        ZeroReason = $"{reason ?? "N/A"}";
 #else
         ZeroReason = $"{methodName}:{lineNumber} - {reason ?? "N/A"}";
 #endif
@@ -368,7 +367,7 @@ public class IoNanoprobe : IIoNanite, IAsyncDisposable, IDisposable
         _zeroHive = null;
         _zeroHiveMind = null;
 #if RELEASE
-            ZeroReason = null;
+        ZeroReason = null;
 #endif
 
 #if DEBUG
@@ -544,7 +543,9 @@ public class IoNanoprobe : IIoNanite, IAsyncDisposable, IDisposable
             _logger.Error(e, $"[{this}] {nameof(ZeroManagedAsync)} returned with errors!");
         }
 #else
-                catch when (Zeroed()){}
+        catch when (Zeroed())
+        {
+        }
 #endif
 
         TearDownTime = TearDownTime.ElapsedMs();
@@ -629,10 +630,10 @@ public class IoNanoprobe : IIoNanite, IAsyncDisposable, IDisposable
             _logger.Error(e, $"ZeroDisposeAsync [Un]managed errors: {Description}");
         }
 #else
-            catch
-            {
-                // ignored
-            }
+        catch
+        {
+            // ignored
+        }
 #endif
         if (!managed)
             try
@@ -701,7 +702,9 @@ public class IoNanoprobe : IIoNanite, IAsyncDisposable, IDisposable
                 //    _logger.Trace(e,$"{Path.GetFileName(fileName)}:{methodName}() line {lineNumber} - [{@this.Description}]: {nameof(DisposeAsync)}");
                 //}
 #else
-                    catch (TaskCanceledException) { }
+                catch (TaskCanceledException)
+                {
+                }
 #endif
                 catch when ((nanoprobe != null && nanoprobe.Zeroed()) || (nanoprobe == null && @this._zeroed > 0))
                 {

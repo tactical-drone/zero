@@ -241,7 +241,7 @@ public abstract class CcProtocMessage<TModel, TBatch> : IoMessage<CcProtocMessag
     ///     This function should not run if byte streams contain verbatim data.
     /// </summary>
 #if RELEASE
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
 #endif
     protected int ZeroSync()
     {

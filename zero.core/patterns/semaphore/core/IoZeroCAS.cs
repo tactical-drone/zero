@@ -1,9 +1,6 @@
-﻿using System;
-using System.Diagnostics;
+﻿using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using System.Threading;
-using NLog;
-using zero.core.misc;
 
 namespace zero.core.patterns.semaphore.core;
 
@@ -44,48 +41,37 @@ public static class IoZeroCAS
 #endif
             try
             {
-                try
+                retry:
+                var curLevel = Redundancy;
+                while (curLevel > 0)
                 {
-                    retry:
-                    var curLevel = Redundancy;
-                    while (curLevel > 0)
+                    while (Interlocked.CompareExchange(ref _cheapMonitor, curLevel - 1, curLevel) != curLevel)
                     {
-                        while (Interlocked.CompareExchange(ref _cheapMonitor, curLevel - 1, curLevel) != curLevel)
-                        {
-                            Debug.Assert(false);
-                            Interlocked.MemoryBarrierProcessWide();
-                            goto retry;
-                        }
-
-                        curLevel--;
+                        Debug.Assert(false);
+                        Interlocked.MemoryBarrierProcessWide();
+                        goto retry;
                     }
 
-                    Interlocked.MemoryBarrier();
-                    var latch = val + 1;
-                    return latch > cap ? cap : Interlocked.Exchange(ref val, latch);
-                }
-                finally
-                {
-                    Interlocked.Exchange(ref _cheapMonitor, Redundancy);
+                    curLevel--;
                 }
 
-                //Interlocked.MemoryBarrier();
-                //while ((latch = val) + 1 > cap || Interlocked.CompareExchange(ref val, latch + 1, latch) != latch)
-                //{
-                //    if (latch + 1 > cap)
-                //        return cap;
-                //    //Interlocked.MemoryBarrierProcessWide();
-                //    //Interlocked.MemoryBarrier();
-                //}
+                Interlocked.MemoryBarrier();
+                var latch = val + 1;
+                return latch > cap ? cap : Interlocked.Exchange(ref val, latch);
             }
             finally
             {
-#if DEBUG
-                if (ts.ElapsedMs() > 16)
-                    LogManager.GetCurrentClassLogger()
-                        .Fatal($"{nameof(ZeroNextHard)}: CAS took => {ts.ElapsedMs()} ms");
-#endif
+                Interlocked.Exchange(ref _cheapMonitor, Redundancy);
             }
+
+            //Interlocked.MemoryBarrier();
+            //while ((latch = val) + 1 > cap || Interlocked.CompareExchange(ref val, latch + 1, latch) != latch)
+            //{
+            //    if (latch + 1 > cap)
+            //        return cap;
+            //    //Interlocked.MemoryBarrierProcessWide();
+            //    //Interlocked.MemoryBarrier();
+            //}
             //Debug.Assert(latch < cap);
             //return latch;
         }

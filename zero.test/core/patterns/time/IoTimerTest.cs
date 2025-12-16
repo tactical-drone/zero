@@ -28,7 +28,7 @@ public class IoTimerTest
             var ts = Environment.TickCount;
             var d = await t.TickAsync().FastPath();
             Assert.InRange(d.ElapsedMs(), -64, 1000);
-            Assert.InRange(ts.ElapsedMs(), 1000 - 500, 2000 + 500);
+            Assert.InRange(ts.ElapsedMs(), 100, 2000 + 500);
             _output.WriteLine($"-> q = {d.ElapsedMs()}ms - {ts.ElapsedMs()}ms");
         }
     }

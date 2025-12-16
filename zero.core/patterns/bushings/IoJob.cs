@@ -8,7 +8,6 @@ using zero.core.conf;
 using zero.core.patterns.bushings.contracts;
 using zero.core.patterns.heap;
 using zero.core.patterns.misc;
-using zero.core.patterns.queue;
 using zero.core.patterns.semaphore.core;
 
 namespace zero.core.patterns.bushings;
@@ -74,7 +73,7 @@ public abstract class IoJob<TJob> : IoNanoprobe, IIoJob
             $"{nameof(StateTransitionHistory)}: {desc}", 64, concurrencyLevel,
             IoQueue<IoStateTransition<IoJobMeta.JobState>>.Mode.DynamicSize);
 #else
-            _jobDesc = string.Empty;
+        _jobDesc = string.Empty;
 #endif
 
         ZeroRecovery = new IoManualResetValueTaskSource<bool>(true);
@@ -109,7 +108,7 @@ public abstract class IoJob<TJob> : IoNanoprobe, IIoJob
 #if DEBUG
     public override string Description => $"{_jobDesc}, {StateTransitionHistory?.Tail?.Value}";
 #else
-        public override string Description => string.Empty;
+    public override string Description => string.Empty;
 #endif
 
 
@@ -119,7 +118,7 @@ public abstract class IoJob<TJob> : IoNanoprobe, IIoJob
 #if DEBUG
     public virtual string TraceDescription => $"{Description}|#{Id} -";
 #else
-        public virtual string TraceDescription => string.Empty;
+    public virtual string TraceDescription => string.Empty;
 #endif
 
     /// <summary>
@@ -133,7 +132,7 @@ public abstract class IoJob<TJob> : IoNanoprobe, IIoJob
 #if DEBUG
     public IoQueue<IoStateTransition<IoJobMeta.JobState>> StateTransitionHistory;
 #else
-        //public IoStateTransition<IoJobMeta.JobState>[] StateTransitionHistory;
+    //public IoStateTransition<IoJobMeta.JobState>[] StateTransitionHistory;
 #endif
 
 
@@ -143,7 +142,7 @@ public abstract class IoJob<TJob> : IoNanoprobe, IIoJob
 #if DEBUG
     private volatile IoStateTransition<IoJobMeta.JobState> _stateMeta;
 #else
-        private readonly IoStateTransition<IoJobMeta.JobState> _stateMeta = new();
+    private readonly IoStateTransition<IoJobMeta.JobState> _stateMeta = new();
 #endif
     /// <summary>
     ///     Enables async jobs to synchronize at certain parts of the pipeline, effectively chaining them into a unique
@@ -187,7 +186,7 @@ public abstract class IoJob<TJob> : IoNanoprobe, IIoJob
             await StateTransitionHistory.ClearAsync().FastPath();
             Interlocked.Exchange(ref _stateMeta, null);
 #else
-                _stateMeta.Set((int)IoJobMeta.JobState.Undefined);
+            _stateMeta.Set((int)IoJobMeta.JobState.Undefined);
 #endif
             Debug.Assert(PreviousJob == null);
             PreviousJob = null;
@@ -198,7 +197,7 @@ public abstract class IoJob<TJob> : IoNanoprobe, IIoJob
 #if DEBUG
             return this;
 #else
-                return new ValueTask<IIoHeapItem>(this);
+            return new ValueTask<IIoHeapItem>(this);
 #endif
         }
         catch when (Zeroed())
@@ -334,7 +333,7 @@ public abstract class IoJob<TJob> : IoNanoprobe, IIoJob
 #if DEBUG
         _logger.Warn($"[{stateMeta.Id}] {stateMeta.DefaultPadded}");
 #else
-            _logger.Warn($"{stateMeta.DefaultPadded}");
+        _logger.Warn($"{stateMeta.DefaultPadded}");
 #endif
 
         //stateMeta.Next == null ? stateMeta.DefaultPadded : stateMeta.Next.PaddedStr(),
@@ -448,11 +447,11 @@ public abstract class IoJob<TJob> : IoNanoprobe, IIoJob
             if (StateTransitionHistory != null)
                 await StateTransitionHistory.EnqueueAsync(_stateMeta).FastPath();
 #else
-                _stateMeta.ExitTime = Environment.TickCount;
-                Interlocked.Increment(ref Source.Counters[(int)_stateMeta.Value]);
-                Interlocked.Add(ref Source.ServiceTimes[(int)_stateMeta.Value], _stateMeta.Mu);
-                _stateMeta.Set((int)value);
-                _stateMeta.EnterTime = Environment.TickCount;
+            _stateMeta.ExitTime = Environment.TickCount;
+            Interlocked.Increment(ref Source.Counters[(int)_stateMeta.Value]);
+            Interlocked.Add(ref Source.ServiceTimes[(int)_stateMeta.Value], _stateMeta.Mu);
+            _stateMeta.Set((int)value);
+            _stateMeta.EnterTime = Environment.TickCount;
 #endif
             //sentinel 
             if (value is IoJobMeta.JobState.Accept or IoJobMeta.JobState.Reject or IoJobMeta.JobState.Recovering)

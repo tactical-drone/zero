@@ -11,7 +11,6 @@ using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Threading.Tasks.Sources;
-using zero.core.misc;
 using zero.core.runtime.scheduler;
 using zero.core.runtime.threadpool;
 
@@ -171,7 +170,7 @@ public struct IoManualResetValueTaskSourceCore<TResult> : IIoManualResetValueTas
     /// <summary>Completes with a successful result.</summary>
     /// <param name="result"> The result.</param>
 #if !DEBUG
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
 #endif
     //public void SetResult<TContext>(TResult result, Action<bool, TContext> async = null, TContext context = default)
     public void SetResult(TResult result)
@@ -204,7 +203,7 @@ public struct IoManualResetValueTaskSourceCore<TResult> : IIoManualResetValueTas
     /// <summary>Gets the status of the operation.</summary>
     /// <param name="token">Opaque value that was provided to the <see cref="ValueTask" />'s constructor.</param>
 #if !DEBUG
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
 #endif
     public ValueTaskSourceStatus GetStatus(short token = 0)
     {
@@ -221,7 +220,7 @@ public struct IoManualResetValueTaskSourceCore<TResult> : IIoManualResetValueTas
     /// <summary>Gets the result of the operation.</summary>
     /// <param name="token">Opaque value that was provided to the <see cref="ValueTask" />'s constructor.</param>
 #if !DEBUG
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
 #endif
     public TResult GetResult(short token)
     {
@@ -255,7 +254,7 @@ public struct IoManualResetValueTaskSourceCore<TResult> : IIoManualResetValueTas
     /// <param name="token">Opaque value that was provided to the <see cref="ValueTask" />'s constructor.</param>
     /// <param name="flags">The flags describing the behavior of the continuation.</param>
 #if !DEBUG
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
 #endif
     public void OnCompleted(Action<object> continuation, object state, short token,
         ValueTaskSourceOnCompletedFlags flags)
@@ -337,7 +336,7 @@ public struct IoManualResetValueTaskSourceCore<TResult> : IIoManualResetValueTas
 
     /// <summary>Signals that the operation has completed.  Invoked after the result or error has been set.</summary>
 #if !DEBUG
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
 #endif
     //private void SignalCompletion<TContext>(Action<bool, TContext> async = null, TContext context = default)
     private void SignalCompletion()

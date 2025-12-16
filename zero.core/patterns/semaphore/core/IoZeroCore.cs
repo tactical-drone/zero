@@ -36,13 +36,13 @@ public struct IoZeroCore<T> : IIoZeroSemaphoreBase<T>
 
         _zeroed = 0;
         _description = description;
-        _capacity = capacity;
+        _capacity = capacity++;
         ZeroAsyncMode = zeroAsyncMode;
 
         _blockingCores =
             new IoZeroQ<IIoManualResetValueTaskSourceCore<T>>(string.Empty, capacity, false, null, capacity);
         _results = new IoZeroQ<T>(string.Empty, capacity, false, null, capacity);
-        _heapCore = new IoBag<IIoManualResetValueTaskSourceCore<T>>(string.Empty, capacity << 1, null, capacity);
+        _heapCore = new IoBag<IIoManualResetValueTaskSourceCore<T>>(string.Empty, capacity, null, capacity);
 
         _primeReady = _ => default;
         _primeContext = null;
@@ -151,7 +151,7 @@ public struct IoZeroCore<T> : IIoZeroSemaphoreBase<T>
     /// <param name="blockingCore">optional core to use instead of dequeuing one</param>
     /// <returns>True on success</returns>
 #if !DEBUG
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
 #endif
     private readonly bool Unblock(T value, bool forceAsync, IIoManualResetValueTaskSourceCore<T> blockingCore = null)
     {
@@ -197,7 +197,7 @@ public struct IoZeroCore<T> : IIoZeroSemaphoreBase<T>
     /// <param name="prime">Prime a result</param>
     /// <returns>If a waiter was unblocked, false otherwise</returns>
 #if RELEASE
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
 #endif
     private readonly bool SetResult(T value, bool forceAsync = false, bool prime = true)
     {
@@ -232,7 +232,7 @@ public struct IoZeroCore<T> : IIoZeroSemaphoreBase<T>
     /// <param name="slowTaskCore">The resulting core that will most likely result in a block</param>
     /// <returns>True if there was a core created, false if all <see cref="_capacity" /> cores are still blocked</returns>
 #if !DEBUG
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
 #endif
     private bool Block(out ValueTask<T> slowTaskCore)
     {

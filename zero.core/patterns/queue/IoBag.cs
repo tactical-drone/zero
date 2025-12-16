@@ -62,36 +62,6 @@ public class IoBag<T> : IEnumerable<T>
         }
     }
 
-    #region packed
-
-    private long _head;
-    private readonly string _description;
-
-    private readonly T[] _storage;
-    private readonly int[] _bloom;
-
-    private readonly IoZeroSemaphoreSlim _fanSync;
-    private readonly IoZeroSemaphoreChannel<T> _zeroSync;
-    private readonly IoZeroSemaphoreSlim _balanceSync;
-    private readonly AsyncDelegate[] _fanSyncs;
-    private readonly AsyncDelegate[] _balanceSyncs;
-    private readonly AsyncDelegate[] _zeroSyncs;
-    private long _tail;
-
-    private delegate IAsyncEnumerable<T> AsyncDelegate();
-
-    private readonly bool _blockingCollection;
-
-    private readonly int _capacity;
-    private int _zeroed;
-    private int _clearing;
-    private int _blockingConsumers;
-    private int _sharingConsumers;
-    private int _pumpingConsumers;
-    private int _count;
-
-    #endregion
-
     public long Tail => Interlocked.Read(ref _tail);
     public long Head => Interlocked.Read(ref _head);
 
@@ -104,12 +74,12 @@ public class IoBag<T> : IEnumerable<T>
     ///     Description
     /// </summary>
     public string Description =>
-        $"{nameof(IoBag<T>)}: z = {_zeroed > 0}, {nameof(Count)} = {_count}/{Capacity}, h = {Head}/{Tail}({Head % Capacity}/{Tail % Capacity}) (max: {Capacity}) (d:{Tail - Head}), desc = {_description}";
+        $"{nameof(IoBag<T>)}: z = {_zeroed > 0}, {nameof(Count)} = {Count}/{Capacity}, h = {Head}/{Tail}({Head % Capacity}/{Tail % Capacity}) (max: {Capacity}) (d:{Tail - Head}), desc = {_description}";
 
     /// <summary>
     ///     Current number of items in the bag
     /// </summary>
-    public int Count => _count;
+    public int Count => (int)(_tail - _head);
 
     /// <summary>
     ///     Capacity
@@ -124,7 +94,7 @@ public class IoBag<T> : IEnumerable<T>
     public T this[long idx]
     {
 #if !DEBUG
-            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
 #endif
         get
         {
@@ -132,13 +102,36 @@ public class IoBag<T> : IEnumerable<T>
             return _storage[idx % _capacity];
         }
 #if !DEBUG
-            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
 #endif
         set
         {
             Debug.Assert(idx >= 0);
             _storage[idx % _capacity] = value;
         }
+    }
+
+    /// <summary>
+    ///     Returns the bag enumerator
+    /// </summary>
+    /// <returns>The bag enumerator</returns>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public IEnumerator<T> GetEnumerator()
+    {
+        //_curEnumerator = (IoQEnumerator<T>)_curEnumerator.Reuse(this, b => new IoQEnumerator<T>((IoZeroQ<T>)b));
+        //return _curEnumerator;
+        //return _curEnumerator = new IoQEnumerator<T>(this);
+        return new IoBagEnumerator<T>(this);
+    }
+
+    /// <summary>
+    ///     Returns the bag enumerator
+    /// </summary>
+    /// <returns>The bag enumerator</returns>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    IEnumerator IEnumerable.GetEnumerator()
+    {
+        return GetEnumerator();
     }
 
     /// <summary>
@@ -150,13 +143,13 @@ public class IoBag<T> : IEnumerable<T>
     /// <param name="context">Action context</param>
     /// <exception cref="OutOfMemoryException">Thrown if we are internally OOM</exception>
 #if !DEBUG
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
 #endif
     public long TryEnqueue<TC>(T item, bool deDup = false, Action<TC> onAtomicAdd = null, TC context = default)
     {
         Debug.Assert(Zeroed || item != null);
         retry:
-        if (Zeroed || _clearing > 0 || _count >= Capacity)
+        if (Zeroed || _clearing > 0 || Count >= Capacity)
             return -1;
 
         if (deDup)
@@ -169,7 +162,7 @@ public class IoBag<T> : IEnumerable<T>
             if (_blockingCollection && _pumpingConsumers > 0)
                 try
                 {
-                    _zeroSync.Release(item);
+                    _zeroSync.Release(item, true);
                     return 0;
                 }
                 catch
@@ -187,9 +180,8 @@ public class IoBag<T> : IEnumerable<T>
                 int prev;
                 if ((prev = Interlocked.CompareExchange(ref fastBloom, 1, 0)) == 0)
                 {
-                    Interlocked.Increment(ref _count);
                     this[next] = item;
-                    fastBloom = 2;
+                    Interlocked.Exchange(ref fastBloom, 2);
                 }
                 else
                 {
@@ -215,7 +207,7 @@ public class IoBag<T> : IEnumerable<T>
             if (_blockingCollection && _sharingConsumers > 0)
                 try
                 {
-                    _balanceSync.Release(Environment.TickCount);
+                    _balanceSync.Release(Environment.TickCount, true);
                 }
                 catch
                 {
@@ -225,7 +217,7 @@ public class IoBag<T> : IEnumerable<T>
             if (_blockingCollection && _blockingConsumers > 0)
                 try
                 {
-                    _fanSync.Release(Environment.TickCount, _blockingConsumers);
+                    _fanSync.Release(Environment.TickCount, _fanSync.WaitCount, true);
                 }
                 catch
                 {
@@ -247,7 +239,7 @@ public class IoBag<T> : IEnumerable<T>
         return -1;
     }
 #if !DEBUG
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
 #endif
     public long TryEnqueue(T item, bool deDup = false)
     {
@@ -270,12 +262,8 @@ public class IoBag<T> : IEnumerable<T>
         {
             var sw = new SpinWait();
             retry:
-            if (_count == 0 || Zeroed || Head == Tail)
+            if (Count == 0 || Zeroed)
             {
-                var c = _count;
-                if (c > 0 && Head == Tail)
-                    Interlocked.CompareExchange(ref _count, c - 1, c); //TODO: hack. Slow CAS?
-
                 slot = default;
                 return false;
             }
@@ -288,10 +276,9 @@ public class IoBag<T> : IEnumerable<T>
                 int prev;
                 if ((prev = Interlocked.CompareExchange(ref fastBloom, 3, 2)) == 2)
                 {
-                    Interlocked.Decrement(ref _count);
                     slot = this[next];
                     this[next] = default;
-                    fastBloom = 0;
+                    Interlocked.Exchange(ref fastBloom, 0);
                     return true;
                 }
 
@@ -398,7 +385,7 @@ public class IoBag<T> : IEnumerable<T>
         }
         finally
         {
-            _count = (int)(_head = _tail = 0);
+            _head = _tail = 0;
             Interlocked.Exchange(ref _clearing, 0);
         }
 
@@ -430,19 +417,6 @@ public class IoBag<T> : IEnumerable<T>
         }
 
         return false;
-    }
-
-    /// <summary>
-    ///     Returns the bag enumerator
-    /// </summary>
-    /// <returns>The bag enumerator</returns>
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public IEnumerator<T> GetEnumerator()
-    {
-        //_curEnumerator = (IoQEnumerator<T>)_curEnumerator.Reuse(this, b => new IoQEnumerator<T>((IoZeroQ<T>)b));
-        //return _curEnumerator;
-        //return _curEnumerator = new IoQEnumerator<T>(this);
-        return new IoBagEnumerator<T>(this);
     }
 
     /// <summary>
@@ -564,13 +538,32 @@ public class IoBag<T> : IEnumerable<T>
         return _zeroSyncs[threadIndex]();
     }
 
-    /// <summary>
-    ///     Returns the bag enumerator
-    /// </summary>
-    /// <returns>The bag enumerator</returns>
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    IEnumerator IEnumerable.GetEnumerator()
-    {
-        return GetEnumerator();
-    }
+    #region packed
+
+    private long _head;
+    private readonly string _description;
+
+    private readonly T[] _storage;
+    private readonly int[] _bloom;
+
+    private readonly IoZeroSemaphoreSlim _fanSync;
+    private readonly IoZeroSemaphoreChannel<T> _zeroSync;
+    private readonly IoZeroSemaphoreSlim _balanceSync;
+    private readonly AsyncDelegate[] _fanSyncs;
+    private readonly AsyncDelegate[] _balanceSyncs;
+    private readonly AsyncDelegate[] _zeroSyncs;
+    private long _tail;
+
+    private delegate IAsyncEnumerable<T> AsyncDelegate();
+
+    private readonly bool _blockingCollection;
+
+    private readonly int _capacity;
+    private int _zeroed;
+    private int _clearing;
+    private int _blockingConsumers;
+    private int _sharingConsumers;
+    private int _pumpingConsumers;
+
+    #endregion
 }

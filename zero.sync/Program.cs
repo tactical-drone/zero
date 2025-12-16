@@ -1692,7 +1692,7 @@ internal class Program
             IoNodeAddress.Create(extAddress),
             bootStrapAddress.Select(IoNodeAddress.Create).Where(a => a.Port.ToString() != peerAddress.Split(":")[2])
                 .ToList(),
-            3, 2, 2, 1, zeroDrone);
+            2, 2, 1, 1, zeroDrone);
 
         _nodes.Add(cocoon);
         return cocoon;

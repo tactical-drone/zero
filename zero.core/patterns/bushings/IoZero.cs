@@ -10,7 +10,6 @@ using zero.core.patterns.heap;
 using zero.core.patterns.misc;
 using zero.core.patterns.queue;
 using zero.core.patterns.semaphore.core;
-using zero.core.runtime.scheduler;
 
 namespace zero.core.patterns.bushings;
 
@@ -60,7 +59,7 @@ public abstract class IoZero<TJob> : IoNanoprobe, IIoZero
     {
         _description = description;
         Source = source;
-        var capacity = Source.PrefetchSize + 2;
+        var capacity = Source.PrefetchSize + 1;
 
         //These numbers were numerically established
         if (ZeroRecoveryEnabled)
@@ -172,7 +171,7 @@ public abstract class IoZero<TJob> : IoNanoprobe, IIoZero
 #if DEBUG
     public int parm_stats_mod_count = 50000;
 #else
-        public int parm_stats_mod_count = 1000000;
+    public int parm_stats_mod_count = 1000000;
 #endif
 
     /// <summary>
@@ -308,6 +307,9 @@ public abstract class IoZero<TJob> : IoNanoprobe, IIoZero
 
         try
         {
+            //Wait for backpressure
+            await Source.WaitForBackPressureAsync().FastPath();
+
             //Allocate a job from the heap
             nextJob = await JobHeap.TakeAsync(null, this).FastPath();
 
@@ -317,10 +319,11 @@ public abstract class IoZero<TJob> : IoNanoprobe, IIoZero
 #if DEBUG
                 //sanity check _previousJobFragment
                 if (ZeroRecoveryEnabled &&
-                    _previousJobFragment.Count >= _previousJobFragment.Capacity * 3 / 4)
+                    _previousJobFragment.Count >= _previousJobFragment.Capacity * 7 / 8)
                     _logger.Warn(
                         $"({GetType().Name}<{typeof(TJob).Name}>) {nameof(_previousJobFragment)} has grown large {_previousJobFragment.Count}/{_previousJobFragment.Capacity} ");
 #endif
+
                 var ts = Environment.TickCount;
                 //Produce job input
                 if ((!Zeroed() && await nextJob.ProduceAsync(this).FastPath() == IoJobMeta.JobState.Produced) ||
@@ -328,8 +331,6 @@ public abstract class IoZero<TJob> : IoNanoprobe, IIoZero
                 {
                     //If a job Id has not been assigned it's not ideal, but we do it here in case...
                     nextJob.GenerateJobId();
-
-                    await Source.WaitForBackPressureAsync().FastPath();
 
                     if (ZeroRecoveryEnabled)
                     {
@@ -351,7 +352,7 @@ public abstract class IoZero<TJob> : IoNanoprobe, IIoZero
                     if (nextJob.State != IoJobMeta.JobState.ProdConnReset)
                         await nextJob.SetStateAsync(IoJobMeta.JobState.Queued).FastPath();
 
-                    if (!_queue.Release(nextJob))
+                    if (!_queue.Release(nextJob, true))
                     {
                         ts = ts.ElapsedMs();
 
@@ -547,11 +548,11 @@ public abstract class IoZero<TJob> : IoNanoprobe, IIoZero
                 await curJob.SetStateAsync(IoJobMeta.JobState.Consuming).FastPath();
 
             //Consume the job
-            IoZeroScheduler.Zero.QueueAsyncFunction(static async state =>
+            //IoZeroScheduler.Zero.QueueAsyncFunction(static async state =>
             {
-                //var @this = this;
-                var (@this, curJob, consume, context) =
-                    (ValueTuple<IoZero<TJob>, IoSink<TJob>, Func<IoSink<TJob>, T, ValueTask>, T>)state;
+                var @this = this;
+                //var (@this, curJob, consume, context) =
+                //    (ValueTuple<IoZero<TJob>, IoSink<TJob>, Func<IoSink<TJob>, T, ValueTask>, T>)state;
                 try
                 {
                     if (await curJob.ConsumeAsync().FastPath() == IoJobMeta.JobState.Consumed ||
@@ -602,6 +603,10 @@ public abstract class IoZero<TJob> : IoNanoprobe, IIoZero
                             if (curJob.Id % @this.parm_stats_mod_count == 0 && curJob.Id >= 9999)
                                 @this.DumpStats();
                         }
+                        else
+                        {
+                            throw new InvalidOperationException();
+                        }
                     }
                     catch when (@this.Zeroed())
                     {
@@ -615,10 +620,11 @@ public abstract class IoZero<TJob> : IoNanoprobe, IIoZero
                         //cleanup
                         await @this.ZeroJobAsync(curJob, curJob?.FinalState is IoJobMeta.JobState.Reject).FastPath();
                         //back pressure
-                        @this.Source.BackPressure(zeroAsync: true);
+                        @this.Source.BackPressure(zeroAsync: false);
                     }
                 }
-            }, (this, curJob, consume, context));
+                //}, (this, curJob, consume, context));
+            }
             return true;
         }
         catch (Exception) when (Zeroed())
@@ -697,10 +703,16 @@ public abstract class IoZero<TJob> : IoNanoprobe, IIoZero
         return string.Empty;
     }
 
+    public virtual async ValueTask BlockOnReplicateAsync()
+    {
+        await BlockOnReplicateAsync<object>().FastPath();
+    }
+
     /// <summary>
     ///     Starts processing work queues
     /// </summary>
-    public virtual async ValueTask BlockOnReplicateAsync()
+    public async ValueTask BlockOnReplicateAsync<T>(Func<IoSink<TJob>, T, ValueTask> consume = null,
+        T context = default)
     {
         try
         {
@@ -710,18 +722,17 @@ public abstract class IoZero<TJob> : IoNanoprobe, IIoZero
 #endif
             //Consumer
             var width = Source.ZeroConcurrencyLevel;
-            //var width = 1;
             for (var i = 0; i < width; i++)
                 await ZeroAsync(static async state =>
                 {
-                    var (@this, i) = state;
+                    var (@this, i, consume, context) = state;
                     try
                     {
                         //While supposed to be working
                         while (!@this.Zeroed())
                             try
                             {
-                                await @this.ConsumeAsync<object>().FastPath();
+                                await @this.ConsumeAsync(consume, context).FastPath();
                             }
                             catch when (@this.Zeroed())
                             {
@@ -739,11 +750,10 @@ public abstract class IoZero<TJob> : IoNanoprobe, IIoZero
                     {
                         @this._logger.Error(e, $"Consumption failed! {@this.Description}");
                     }
-                }, (this, i)).FastPath(); //TODO tuningO tuning
+                }, (this, i, consume, context)).FastPath(); //TODO tuningO tuning
 
             //Producer
-            width = Source.PrefetchSize;
-            for (var i = 0; i < width; i++)
+            for (var i = 0; i < Source.PrefetchSize; i++)
                 await ZeroAsync(static async @this =>
                 {
                     try
@@ -752,7 +762,7 @@ public abstract class IoZero<TJob> : IoNanoprobe, IIoZero
                         while (!@this.Zeroed())
                             try
                             {
-                                if (!await @this.ProduceAsync().FastPath())
+                                if (!await @this.ProduceAsync().FastPath() && !@this.Zeroed())
                                     await Task.Delay(@this.parm_min_failed_production_time, @this.AsyncTasks.Token);
                             }
                             catch when (@this.Zeroed())

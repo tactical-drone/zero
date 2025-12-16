@@ -103,8 +103,8 @@ public class IoConduitTest
         var count = 500000;
         var concurrencyLevel = 4;
 #else
-            var count = 3000000;
-            var concurrencyLevel = Environment.ProcessorCount;
+        var count = 3000000;
+        var concurrencyLevel = Environment.ProcessorCount;
 #endif
         var s1 = new IoZeroSource("zero source 1", false, concurrencyLevel + concurrencyLevel / 2, concurrencyLevel);
         var c1 = new IoConduit<IoZeroProduct>("conduit spam test", null, s1, static (ioZero, _)
@@ -134,7 +134,7 @@ public class IoConduitTest
 #if DEBUG
         Assert.InRange(fpses, 0, int.MaxValue);
 #else
-            Assert.InRange(fpses, 5, int.MaxValue);
+        Assert.InRange(fpses, 5, int.MaxValue);
 #endif
         _output.WriteLine($"FPSes = {fpses:0.0} kub/s, {ts.ElapsedMs()}ms ~ {targetTime}ms");
 

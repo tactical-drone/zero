@@ -211,8 +211,8 @@ public class IoQueueTest : IDisposable
         var rounds = 16;
         var mult = 10000;
 #else
-            var rounds = 32;
-            var mult = 20000;
+        var rounds = 32;
+        var mult = 20000;
 #endif
 
         var start = Environment.TickCount;
@@ -277,8 +277,8 @@ public class IoQueueTest : IDisposable
         var threads = 3;
         var itemsPerThread = 1000;
 #else
-            var threads = 10;
-            var itemsPerThread = 10000;
+        var threads = 10;
+        var itemsPerThread = 10000;
 #endif
 
         var capacity = threads * itemsPerThread;

@@ -1,10 +1,8 @@
 ﻿using System;
-using System.Collections.Concurrent;
 using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
 using Google.Protobuf;
-using zero.core.core;
 using zero.core.feat.models.bundle;
 using zero.core.feat.models.protobuffer.sources;
 using zero.core.patterns.bushings;
@@ -43,10 +41,9 @@ public class CcProtocBatchJob<TModel, TBatch> : IoSink<CcProtocBatchJob<TModel, 
     ///     ctor
     /// </summary>
     /// <param name="source">This message is forwarded by <see cref="CcProtocBatchSource{TModel,TBatch}" /></param>
-    /// <param name="concurrencyLevel"></param>
-    public CcProtocBatchJob(IoSource<CcProtocBatchJob<TModel, TBatch>> source, int concurrencyLevel = 1)
-        : base($"{nameof(CcProtocBatchJob<TModel, TBatch>)}", $"job: {nameof(CcProtocBatchJob<TModel, TBatch>)}",
-            source, concurrencyLevel)
+    public CcProtocBatchJob(IoSource<CcProtocBatchJob<TModel, TBatch>> source)
+        : base($"{nameof(CcProtocBatchJob<,>)}", $"job: {nameof(CcProtocBatchJob<,>)}",
+            source, source.PrefetchSize)
     {
     }
 
@@ -130,9 +127,8 @@ public class CcProtocBatchJob<TModel, TBatch> : IoSink<CcProtocBatchJob<TModel, 
 
                 try
                 {
-                    Interlocked.Exchange(ref job._batch,
-                        await ((CcProtocBatchSource<TModel, TBatch>)source).Channel.WaitAsync());
-                    if (job._batch != null)
+                    if ((job._batch =
+                            await ((CcProtocBatchSource<TModel, TBatch>)source).Channel.WaitAsync().FastPath()) != null)
                     {
                         job.GenerateJobId();
                         return true;

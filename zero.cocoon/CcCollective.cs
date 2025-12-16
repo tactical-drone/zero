@@ -548,7 +548,7 @@ public class CcCollective : IoNode<CcProtocMessage<CcWhisperMsg, CcGossipBatch>>
 #if DEBUG
     public int parm_time_e = 60;
 #else
-        public int parm_time_e = 4;
+    public int parm_time_e = 4;
 #endif
 
 
@@ -562,7 +562,7 @@ public class CcCollective : IoNode<CcProtocMessage<CcWhisperMsg, CcGossipBatch>>
 #if DEBUG
     public int parm_mean_pat_delay_s = 60 * 5;
 #else
-        public int parm_mean_pat_delay_s = 60 * 9;
+    public int parm_mean_pat_delay_s = 60 * 9;
 #endif
 
     /// <summary>

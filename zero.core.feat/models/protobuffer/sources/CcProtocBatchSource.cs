@@ -37,7 +37,7 @@ public class CcProtocBatchSource<TModel, TBatch> : IoSource<CcProtocBatchJob<TMo
     {
         UpstreamSource = ioSource;
         IIoZeroSemaphoreBase<TBatch> c =
-            new IoZeroCore<TBatch>(description, prefetchSize + 1, AsyncTasks, 0, zeroAsyncMode);
+            new IoZeroCore<TBatch>(description, prefetchSize * 2, AsyncTasks, 0, zeroAsyncMode);
         BatchChannel = c.ZeroRef(ref c);
     }
 

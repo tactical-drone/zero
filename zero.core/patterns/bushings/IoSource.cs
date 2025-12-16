@@ -8,7 +8,6 @@ using System.Threading.Tasks;
 using NLog;
 using zero.core.conf;
 using zero.core.data.contracts;
-using zero.core.misc;
 using zero.core.patterns.bushings.contracts;
 using zero.core.patterns.misc;
 using zero.core.patterns.semaphore.core;
@@ -95,6 +94,7 @@ public abstract class IoSource<TJob> : IoNanoprobe, IIoSource where TJob : IIoJo
     public ConcurrentDictionary<string, IIoConduit> IoConduits { get; protected set; } = new();
 
     public int BackPressureReady => _backPressure.ReadyCount;
+    public int BackPressureWait => _backPressure.WaitCount;
 
     //public bool BackPressureEnabled { get; protected set; }
 
@@ -293,19 +293,18 @@ public abstract class IoSource<TJob> : IoNanoprobe, IIoSource where TJob : IIoJo
     /// </summary>
     /// <typeparam name="TFJob">The type of job serviced</typeparam>
     /// <param name="id">The conduit id</param>
-    /// <param name="concurrencyLevel"></param>
     /// <param name="channelSource">The source of this conduit, if new</param>
     /// <param name="jobMalloc">Used to allocate jobs</param>
     /// <returns></returns>
     public async ValueTask<IoConduit<TFJob>> CreateConduitOnceAsync<TFJob>(string id,
         IoSource<TFJob> channelSource = null,
-        Func<object, IIoNanite, IoSink<TFJob>> jobMalloc = null, int concurrencyLevel = 1) where TFJob : IIoJob
+        Func<object, IIoNanite, IoSink<TFJob>> jobMalloc = null) where TFJob : IIoJob
     {
         if (channelSource != null && !IoConduits.ContainsKey(id))
             //var locker = UpstreamSource ?? this;
             if (!await ZeroAtomicAsync(static (_, @params, _) =>
                 {
-                    var (@this, id, channelSource, jobMalloc, concurrencyLevel) = @params;
+                    var (@this, id, channelSource, jobMalloc) = @params;
 
                     if (@this.IoConduits.ContainsKey(id))
                         return new ValueTask<bool>(true);
@@ -323,7 +322,7 @@ public abstract class IoSource<TJob> : IoNanoprobe, IIoSource where TJob : IIoJo
 #endif
 
                     return new ValueTask<bool>(true);
-                }, ValueTuple.Create(this, id, channelSource, jobMalloc, concurrencyLevel)).FastPath())
+                }, ValueTuple.Create(this, id, channelSource, jobMalloc)).FastPath())
             {
                 if (!Zeroed())
                     try

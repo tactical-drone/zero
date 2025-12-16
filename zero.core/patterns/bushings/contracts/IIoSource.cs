@@ -195,5 +195,5 @@ public interface IIoSource : IIoNanite
     /// <param name="jobMalloc">Used to allocate jobs</param>
     /// <returns></returns>
     ValueTask<IoConduit<TFJob>> CreateConduitOnceAsync<TFJob>(string id, IoSource<TFJob> channelSource = null,
-        Func<object, IIoNanite, IoSink<TFJob>> jobMalloc = null, int concurrencyLevel = 1) where TFJob : IIoJob;
+        Func<object, IIoNanite, IoSink<TFJob>> jobMalloc = null) where TFJob : IIoJob;
 }

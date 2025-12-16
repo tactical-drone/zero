@@ -370,7 +370,7 @@ public class CcDesignation
         }
         catch
         {
-            return GetRound();
+            return _dhr != 0 ? GetRound() : (0, null);
         }
     }
 

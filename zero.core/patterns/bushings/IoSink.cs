@@ -58,7 +58,7 @@ public abstract class IoSink<TJob> : IoJob<TJob>
 #if DEBUG
             return $"<#{Serial}>[{Id}] {_sinkDesc} ~> {base.Description}";
 #else
-                return string.Empty;
+            return string.Empty;
 #endif
         }
     }

@@ -185,7 +185,7 @@ public class IoHeap<TItem, TContext>
     /// <exception cref="InternalBufferOverflowException">Thrown when the max heap size is breached</exception>
     /// <returns>True if the item required malloc, false if popped from the heap otherwise<see cref="TItem" /></returns>
 #if !DEBUG
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
 #endif
     public TItem Take(object userData = null, Action<TItem, object> customConstructor = null) =>
         Make(userData, customConstructor).item;
@@ -197,7 +197,7 @@ public class IoHeap<TItem, TContext>
     /// <exception cref="InternalBufferOverflowException">Thrown when the max heap size is breached</exception>
     /// <returns>True if the item required malloc, false if popped from the heap otherwise<see cref="TItem" /></returns>
 #if !DEBUG
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
 #endif
     public (TItem item, bool malloc) Make(object userData = null, Action<TItem, object> customConstructor = null)
     {
@@ -287,19 +287,6 @@ public class IoHeap<TItem, TContext>
         catch (Exception e) when (!Zeroed)
         {
             _logger.Error(e, $"{GetType().Name}: Failed to malloc {typeof(TItem)}");
-        }
-        finally
-        {
-#if DEBUG
-            var t = _hit + _miss;
-            if (t > Capacity << 1)
-            {
-                var r = (double)_miss / t;
-                if (r is > 0.75 && _hit > 0)
-                    _logger.Warn(
-                        $"{nameof(Make)}: Bad cache miss ratio of {r * 100:0.0}%, hit = {_hit}, miss = {_miss}, {Description}");
-            }
-#endif
         }
 
         return default;

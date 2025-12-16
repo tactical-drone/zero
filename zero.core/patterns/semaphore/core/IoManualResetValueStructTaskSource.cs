@@ -76,18 +76,50 @@ public struct IoManualResetValueStructTaskSource<T> : IValueTaskSource<T>, IValu
         _coreRef.OnCompleted(continuation, state, token, flags);
     }
 #else
-        private IIoManualResetValueTaskSourceCore<T> _coreRef;
+    private IIoManualResetValueTaskSourceCore<T> _coreRef;
 
-        public bool RunContinuationsAsynchronously { get => _coreRef.RunContinuationsAsynchronously; set => _coreRef.RunContinuationsAsynchronously
- = value; }
-        public void Reset() => _coreRef.Reset();
-        public void SetResult(T result) => _coreRef.SetResult(result);
-        public void SetException(Exception error) => _coreRef.SetException(error);
+    public bool RunContinuationsAsynchronously
+    {
+        get => _coreRef.RunContinuationsAsynchronously;
+        set => _coreRef.RunContinuationsAsynchronously
+            = value;
+    }
 
-        public T GetResult(short token) => _coreRef.GetResult(token);
-        void IValueTaskSource.GetResult(short token) => _coreRef.GetResult(token);
-        public ValueTaskSourceStatus GetStatus(short token) => _coreRef.GetStatus(token);
-        public void OnCompleted(Action<object> continuation, object state, short token, ValueTaskSourceOnCompletedFlags flags) => _coreRef.OnCompleted(continuation, state, token, flags);
+    public void Reset()
+    {
+        _coreRef.Reset();
+    }
+
+    public void SetResult(T result)
+    {
+        _coreRef.SetResult(result);
+    }
+
+    public void SetException(Exception error)
+    {
+        _coreRef.SetException(error);
+    }
+
+    public T GetResult(short token)
+    {
+        return _coreRef.GetResult(token);
+    }
+
+    void IValueTaskSource.GetResult(short token)
+    {
+        _coreRef.GetResult(token);
+    }
+
+    public ValueTaskSourceStatus GetStatus(short token)
+    {
+        return _coreRef.GetStatus(token);
+    }
+
+    public void OnCompleted(Action<object> continuation, object state, short token,
+        ValueTaskSourceOnCompletedFlags flags)
+    {
+        _coreRef.OnCompleted(continuation, state, token, flags);
+    }
 #endif
     public bool IsBlocked(bool reset = false)
     {

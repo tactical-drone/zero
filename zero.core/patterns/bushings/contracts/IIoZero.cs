@@ -1,5 +1,4 @@
 ﻿using System.Runtime.CompilerServices;
-using System.Threading.Tasks;
 using zero.core.patterns.misc;
 
 namespace zero.core.patterns.bushings.contracts;
@@ -19,6 +18,4 @@ public interface IIoZero : IIoNanite
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     void ZeroEventCounter();
-
-    ValueTask BlockOnReplicateAsync();
 }

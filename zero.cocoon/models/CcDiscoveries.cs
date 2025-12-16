@@ -101,9 +101,6 @@ public class CcDiscoveries : CcProtocMessage<chroniton, CcDiscoveryBatch>
 
         //IoZero = (IoZero<CcProtocMessage<chroniton, CcDiscoveryBatch>>)context;
 
-        var pf = Source.PrefetchSize + 10;
-        var cc = Source.ZeroConcurrencyLevel + 10;
-
         //if (!Source.Proxy && Adjunct.CcCollective.ZeroDrone)
         //{
         //    pf = Source.PrefetchSize * 3;
@@ -121,9 +118,6 @@ public class CcDiscoveries : CcProtocMessage<chroniton, CcDiscoveryBatch>
 
         //Create the conduit source
         const string conduitId = nameof(CcAdjunct);
-        Interlocked.Exchange(ref ProtocolConduit,
-            await MessageService.CreateConduitOnceAsync<CcProtocBatchJob<chroniton, CcDiscoveryBatch>>(conduitId)
-                .FastPath());
 
         if (CurrentBatch == null)
             Interlocked.Exchange(ref CurrentBatch, BatchHeap.Take());
@@ -131,16 +125,19 @@ public class CcDiscoveries : CcProtocMessage<chroniton, CcDiscoveryBatch>
         if (CurrentBatch == null)
             throw new OutOfMemoryException($"{Description}: {nameof(CcDiscoveries)}.{nameof(CurrentBatch)}");
 
-        //create the channel
+        ////create the channel
+
         if (ProtocolConduit == null)
         {
             //TODO tuning
-            var source = new CcProtocBatchSource<chroniton, CcDiscoveryBatch>(Description, MessageService, pf, cc);
-            Interlocked.Exchange(ref ProtocolConduit, await MessageService.CreateConduitOnceAsync(conduitId, source,
-                static (ioZero, _) =>
-                    new CcProtocBatchJob<chroniton, CcDiscoveryBatch>(
-                        (IoSource<CcProtocBatchJob<chroniton, CcDiscoveryBatch>>)((IIoZero)ioZero).IoSource,
-                        ((IIoZero)ioZero).ZeroConcurrencyLevel), cc).FastPath());
+            var batchSource = new CcProtocBatchSource<chroniton, CcDiscoveryBatch>(Description, MessageService,
+                CcCollective.MaxAdjuncts, CcCollective.MaxDrones);
+            Interlocked.Exchange(ref ProtocolConduit, await MessageService.CreateConduitOnceAsync(conduitId,
+                    batchSource,
+                    static (ioZero, _) =>
+                        new CcProtocBatchJob<chroniton, CcDiscoveryBatch>(
+                            (IoSource<CcProtocBatchJob<chroniton, CcDiscoveryBatch>>)((IIoZero)ioZero).IoSource))
+                .FastPath());
         }
 
         return this;
@@ -268,11 +265,11 @@ public class CcDiscoveries : CcProtocMessage<chroniton, CcDiscoveryBatch>
                                 $"Parse failed: buf[{BufferOffset}], r = {BytesRead - BytesLeftToProcess}/{BytesRead}/{BytesLeftToProcess}, d = {DatumCount}, {Description}");
                         }
 #else
-                            catch
-                            {
-                                await SetStateAsync(IoJobMeta.JobState.BadData).FastPath();
-                                //_logger.Trace(e, $"Parse failed: buf[{BufferOffset}], r = {BytesRead - BytesLeftToProcess }/{BytesRead}/{BytesLeftToProcess }, d = {DatumCount}, syncing = {InRecovery}, {Description}");
-                            }
+                        catch
+                        {
+                            await SetStateAsync(IoJobMeta.JobState.BadData).FastPath();
+                            //_logger.Trace(e, $"Parse failed: buf[{BufferOffset}], r = {BytesRead - BytesLeftToProcess }/{BytesRead}/{BytesLeftToProcess }, d = {DatumCount}, syncing = {InRecovery}, {Description}");
+                        }
 #endif
                     }
 

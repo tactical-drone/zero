@@ -178,11 +178,11 @@ public class CcSubnet : CcProtocMessage<CcWhisperMsg, CcGossipBatch>
                                 $"Parse failed: buf[{BufferOffset}], r = {BytesRead - BytesLeftToProcess}/{BytesRead}/{BytesLeftToProcess}, d = {DatumCount}, {Description}");
                         }
 #else
-                            catch
-                            {
-                                await SetStateAsync(IoJobMeta.JobState.BadData).FastPath();
-                                //_logger.Trace(e, $"Parse failed: buf[{BufferOffset}], r = {BytesRead - BytesLeftToProcess }/{BytesRead}/{BytesLeftToProcess }, d = {DatumCount}, syncing = {InRecovery}, {Description}");
-                            }
+                        catch
+                        {
+                            await SetStateAsync(IoJobMeta.JobState.BadData).FastPath();
+                            //_logger.Trace(e, $"Parse failed: buf[{BufferOffset}], r = {BytesRead - BytesLeftToProcess }/{BytesRead}/{BytesLeftToProcess }, d = {DatumCount}, syncing = {InRecovery}, {Description}");
+                        }
 #endif
                     }
 
@@ -433,10 +433,8 @@ public class CcSubnet : CcProtocMessage<CcWhisperMsg, CcGossipBatch>
                 //    _logger.Fatal($"[{Id}] FRAGGED = {DatumCount}, {BytesRead}/{BytesLeftToProcess }");
                 //}
 #else
-                    else if (State == IoJobMeta.JobState.Fragmented && !IoZero.ZeroRecoveryEnabled)
-                    {
-                        await SetStateAsync(IoJobMeta.JobState.BadData).FastPath();
-                    }
+                else if (State == IoJobMeta.JobState.Fragmented && !IoZero.ZeroRecoveryEnabled)
+                    await SetStateAsync(IoJobMeta.JobState.BadData).FastPath();
 #endif
                 if (IoZero.ZeroRecoveryEnabled && !Zeroed() && !zeroRecovery && !fastPath && BytesLeftToProcess > 0 &&
                     PreviousJob != null)

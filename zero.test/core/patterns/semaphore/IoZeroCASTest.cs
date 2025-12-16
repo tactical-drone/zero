@@ -64,7 +64,7 @@ public class IoZeroCasTest
                 }
             }, CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Default));
 
-        await Task.WhenAll(tasks).WaitAsync(TimeSpan.FromSeconds(5),CancellationToken.None);
+        await Task.WhenAll(tasks).WaitAsync(TimeSpan.FromSeconds(5), CancellationToken.None);
 
         Assert.Equal(_count, _reg);
         var sorted = _selection.OrderBy(i => i);

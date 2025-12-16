@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Diagnostics;
-using System.IO;
 using System.Runtime.CompilerServices;
 using System.Runtime.ExceptionServices;
 using System.Runtime.InteropServices;
@@ -47,7 +46,7 @@ public struct IoZeroSemaphore<T> : IIoZeroSemaphoreBase<T>
 #if DEBUG
         _description = description;
 #else
-            _description = string.Empty;
+        _description = string.Empty;
 #endif
 
         //validation
@@ -178,25 +177,25 @@ public struct IoZeroSemaphore<T> : IIoZeroSemaphoreBase<T>
     private object[] _signalCapturedContext;
 
 #else
-        /// <summary>
-        /// A queue of waiting continuations. The queue has strong order guarantees, FIFO
-        /// </summary>
-        private readonly Action<object>[] _signalAwaiter;
+    /// <summary>
+    ///     A queue of waiting continuations. The queue has strong order guarantees, FIFO
+    /// </summary>
+    private readonly Action<object>[] _signalAwaiter;
 
-        /// <summary>
-        /// Holds the state of a queued item
-        /// </summary>
-        private readonly object[] _signalAwaiterState;
+    /// <summary>
+    ///     Holds the state of a queued item
+    /// </summary>
+    private readonly object[] _signalAwaiterState;
 
-        /// <summary>
-        /// Holds the state of a queued item
-        /// </summary>
-        private readonly ExecutionContext[] _signalExecutionState;
+    /// <summary>
+    ///     Holds the state of a queued item
+    /// </summary>
+    private readonly ExecutionContext[] _signalExecutionState;
 
-        /// <summary>
-        /// Holds the state of a queued item
-        /// </summary>
-        private readonly object[] _signalCapturedContext;
+    /// <summary>
+    ///     Holds the state of a queued item
+    /// </summary>
+    private readonly object[] _signalCapturedContext;
 
 #endif
 
@@ -223,7 +222,7 @@ public struct IoZeroSemaphore<T> : IIoZeroSemaphoreBase<T>
 #if DEBUG
     private int _maxBlockers;
 #else
-        private readonly int _maxBlockers;
+    private readonly int _maxBlockers;
 #endif
 
     /// <summary>
@@ -372,7 +371,6 @@ public struct IoZeroSemaphore<T> : IIoZeroSemaphoreBase<T>
     }
 
 #if DEBUG
-
     /// <summary>
     ///     Lock
     /// </summary>
