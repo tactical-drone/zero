@@ -743,20 +743,21 @@ public class CcAdjunct : IoNeighbor<CcProtocMessage<chroniton, CcDiscoveryBatch>
             //TODO: tuning, helps cluster test bootups not stalling on popdog spam
             var ioTimer = new IoTimer(TimeSpan.FromSeconds(@this.CcCollective.parm_mean_pat_delay_s >> 4),
                 @this.AsyncTasks.Token);
-            var ts = Environment.TickCount;
+
             while (!@this.Zeroed())
             {
+                var ts = Environment.TickCount;
+
+                var targetDelay = (@this.CcCollective.TotalConnections < @this.CcCollective.parm_max_outbound
+                    ? @this.CcCollective.parm_mean_pat_delay_s >> 3
+                    : @this.CcCollective.parm_mean_pat_delay_s) * 1000;
+
                 _ = await ioTimer.TickAsync().FastPath();
                 if (@this.Zeroed())
                     break;
 
-                var targetDelay = (@this.CcCollective.TotalConnections < @this.CcCollective.parm_max_outbound
-                    ? @this.CcCollective.parm_mean_pat_delay_s >> 2
-                    : @this.CcCollective.parm_mean_pat_delay_s) * 1000;
-
                 if (ts.ElapsedMs() < targetDelay)
                     continue;
-
 
 #if TRACE
                     @this._logger.Trace($"Robo - {TimeSpan.FromMilliseconds(d)}, {@this.Description}");
@@ -807,7 +808,11 @@ public class CcAdjunct : IoNeighbor<CcProtocMessage<chroniton, CcDiscoveryBatch>
     {
         try
         {
-            if (SecondsSincePat >= CcCollective.parm_mean_pat_delay_s >> 2)
+            var targetDelay = CcCollective.TotalConnections < CcCollective.parm_max_outbound
+                ? CcCollective.parm_mean_pat_delay_s >> 3
+                : CcCollective.parm_mean_pat_delay_s;
+
+            if (SecondsSincePat >= targetDelay)
             {
                 //send PAT
                 if (!await ProbeAsync("SYN-PAT").FastPath())
@@ -1964,8 +1969,6 @@ public class CcAdjunct : IoNeighbor<CcProtocMessage<chroniton, CcDiscoveryBatch>
 
             //_logger.Debug($"<\\- {nameof(CcAdjunctResponse)}: Received {response.Contacts.Count} potentials from {Description}");
 
-            Interlocked.Decrement(ref _scanCount);
-
             //PAT
             //LastPat = Environment.TickCount;
 
@@ -2004,6 +2007,7 @@ public class CcAdjunct : IoNeighbor<CcProtocMessage<chroniton, CcDiscoveryBatch>
                 Interlocked.Exchange(ref _scanAge, Environment.TickCount);
                 _logger.Debug(
                     $"-/h> {nameof(CcAdjunctResponse)}: {processed}/{response.Contacts.Count} adjuncts; {Description}");
+                Interlocked.Decrement(ref _scanCount);
             }
         }
         catch when (Zeroed())
@@ -3130,8 +3134,8 @@ public class CcAdjunct : IoNeighbor<CcProtocMessage<chroniton, CcDiscoveryBatch>
             {
                 var @this = (CcAdjunct)state;
                 await Task.Delay(@this.parm_web_settle_ms);
-                if (!((IoNanoprobe)state).Zeroed())
-                    await ((CcAdjunct)state).ScanAsync().FastPath();
+                if (!@this.Zeroed())
+                    await @this.ScanAsync().FastPath();
             }, this);
 
             return success = true;

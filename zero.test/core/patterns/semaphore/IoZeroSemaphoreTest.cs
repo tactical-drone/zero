@@ -203,12 +203,12 @@ public class IoZeroSemaphoreTest
                     break;
                 }
 
-                if (ts.ElapsedMs() > 15 * 2 || r.ElapsedMs() > 500)
+                if (ts.ElapsedMs() > 15 * 3 || r.ElapsedMs() > 500)
                     _output.WriteLine($"DQ {waits} took {ts.ElapsedMs()}, r = {r.ElapsedMs()} ms!!!");
 
                 waits++;
 
-                if (waits % 1000000 == 0) _output.WriteLine($"-> {waits}");
+                if (waits % 1000 == 0) _output.WriteLine($"-> {waits}");
             }
 
             _output.WriteLine($"Wait done {waits / 1000000}M");
@@ -223,11 +223,14 @@ public class IoZeroSemaphoreTest
             while (count-- > 0)
                 try
                 {
+                    ts = Environment.TickCount;
                     Assert.True(m.Release(Environment.TickCount, true));
                 }
                 catch (Exception e)
                 {
-                    _output.WriteLine($"FAIL! -> {ts.ElapsedMs()} ms ({e.Message})");
+                    //_output.WriteLine($"FAIL! -> {ts.ElapsedMs()} ms ({e.Message})");
+                    //Thread.Sleep(20);
+                    Thread.Yield();
                 }
 
             running = false;

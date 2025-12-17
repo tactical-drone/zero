@@ -45,7 +45,7 @@ public abstract class CcProtocMessage<TModel, TBatch> : IoMessage<CcProtocMessag
     /// </summary>
     [IoParameter]
     // ReSharper disable once InconsistentNaming
-    public int parm_datums_per_buffer = 4; // This must be at least 4
+    public int parm_datums_per_buffer = 8; // This must be at least 4
 
     /// <summary>
     ///     The time a consumer will wait for a source to release it before aborting in ms
@@ -306,7 +306,7 @@ public abstract class CcProtocMessage<TModel, TBatch> : IoMessage<CcProtocMessag
     {
         try
         {
-            if (CurrentBatch.Count == 0 || Zeroed())
+            if (CurrentBatch?.Count == 0 || Zeroed())
                 return;
 
             var sw = new SpinWait();

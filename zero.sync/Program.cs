@@ -439,7 +439,6 @@ internal class Program
 
                     try
                     {
-                        signal.RunContinuationsAsynchronouslyAlways = true;
                         var p = new PeriodicTimer(delta);
                         while (!token.IsCancellationRequested)
                             if (await p.WaitForNextTickAsync(token).FastPath())
@@ -447,18 +446,21 @@ internal class Program
                             else
                                 signal.SetException(new OperationCanceledException());
                     }
-                    catch (TaskCanceledException)
+                    catch (TaskCanceledException e)
                     {
+                        signal.SetException(e);
                     }
-                    catch (OperationCanceledException)
+                    catch (OperationCanceledException e)
                     {
+                        signal.SetException(e);
                     }
                     catch (Exception e)when (token.CanBeCanceled)
                     {
                         LogManager.GetCurrentClassLogger().Error(e, $"{nameof(IoTimer)}:");
+                        signal.SetException(e);
                     }
                 }, (delta, signal, token), CancellationToken.None, TaskCreationOptions.DenyChildAttach,
-                TaskScheduler.Default);
+                IoZeroScheduler.ZeroDefault);
 
 //                var t = new Thread(static async state =>
 //                {

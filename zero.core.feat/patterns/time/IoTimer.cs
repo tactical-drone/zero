@@ -19,16 +19,16 @@ public class IoTimer : IIoTimer
                     {
                         var (delta, signal, token) =
                             (ValueTuple<TimeSpan, IIoManualResetValueTaskSourceCore<int>, CancellationToken>)state;
-                        signal.RunContinuationsAsynchronouslyAlways = true;
+
                         while (!token.IsCancellationRequested)
                             try
                             {
                                 await Task.Delay((int)delta.TotalMilliseconds, token);
                                 signal.SetResult(Environment.TickCount);
                             }
-                            catch
+                            catch (Exception e)
                             {
-                                // ignored
+                                signal.SetException(e);
                             }
                     }
                     catch (Exception e)
@@ -87,11 +87,5 @@ public class IoTimer : IIoTimer
     public ValueTask<int> TickAsync()
     {
         return new ValueTask<int>(_signal, 0);
-    }
-
-
-    public void Reset()
-    {
-        _signal.Reset();
     }
 }

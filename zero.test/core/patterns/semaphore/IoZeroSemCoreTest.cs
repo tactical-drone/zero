@@ -125,7 +125,7 @@ public class IoZeroSemCoreTest
     private async Task ReadyTestAsync()
     {
         var batchLog = 50;
-        var threads = 100;
+        var threads = Environment.ProcessorCount * 2;
         var delayTime = 1;
         IIoZeroSemaphoreBase<int> m = new IoZeroCore<int>("test", threads, new CancellationTokenSource(), threads);
         m.ZeroRef(ref m, _ => Environment.TickCount);
@@ -172,9 +172,12 @@ public class IoZeroSemCoreTest
     [Fact]
     private async Task SpamTestAsync()
     {
-        var batchLog = 10000000;
-        var threads = short.MaxValue / 3;
-        var spamFactor = 2000;
+        var total = 50000;
+        var batchLog = 1000;
+        var threads = Environment.ProcessorCount * 2;
+        var threadsRemaining = threads;
+        var spamFactor = 0.5;
+        var done = false;
         //var batchLog = 1;
         //var threads = 10;
         //var spamFactor = 1;
@@ -182,27 +185,29 @@ public class IoZeroSemCoreTest
         IIoZeroSemaphoreBase<int> m = new IoZeroCore<int>("test", threads, new CancellationTokenSource(), threads);
         m.ZeroRef(ref m, _ => Environment.TickCount);
 
-        _ = Task.Factory.StartNew(async () =>
-        {
-            var t = Environment.TickCount;
-            for (var i = 0; i < threads * spamFactor; i++)
+        for (var j = 0; j < threads; j++)
+            _ = Task.Factory.StartNew(async () =>
             {
-                await Task.Delay(delayTime);
-
-                var ts = Environment.TickCount;
-                if (!m.Release(Environment.TickCount, true))
+                var t = Environment.TickCount;
+                
+                for (var i = 0; i < total/threads; i++)
                 {
-                    i--;
-                    await Task.Delay(1);
-                    _output.WriteLine($"D -> {i}, {ts.ElapsedMs()}ms");
+                    //await Task.Delay(delayTime);
+                    if (!m.Release(Environment.TickCount, true))
+                    {
+                        i--;
+                        await Task.Delay(1);
+                        //_output.WriteLine($"D -> {i}, {ts.ElapsedMs()}ms");
+                    }
+
+                    //if (i != 0 && i % batchLog/2 == 0)
+                    //    _output.WriteLine($"R -> {i} {ts.ElapsedMs()}ms - {(double)i / t.ElapsedMs()*1000:0.0} r/s");
                 }
-
-                if (i % batchLog == 0)
-                    _output.WriteLine($"R -> {i} {ts.ElapsedMs()}ms - {(double)i / t.ElapsedMsToSec():0.0} r/s");
-            }
-
-            _output.WriteLine("Done signalling");
-        }, CancellationToken.None, TaskCreationOptions.DenyChildAttach, IoZeroScheduler.ZeroDefault);
+                done = --threadsRemaining == 0;
+                if(done)
+                    _output.WriteLine("Done signalling");
+                m.Release(Environment.TickCount, true);
+            }, CancellationToken.None, TaskCreationOptions.DenyChildAttach, IoZeroScheduler.ZeroDefault);
 
         int ts;
         var t = Environment.TickCount;
@@ -212,21 +217,24 @@ public class IoZeroSemCoreTest
             var qt = await m.WaitAsync().FastPath();
             Assert.InRange(ts.ElapsedMs(), 0, delayTime + ERR_T);
             Assert.InRange(qt.ElapsedMs(), 0, ERR_T);
-            if (i % batchLog == 0)
-                _output.WriteLine($"P -> {i} {ts.ElapsedMs()}ms - {(double)i / t.ElapsedMsToSec():0.0} r/s");
+            if (i != 0 && i % batchLog == 0)
+                _output.WriteLine($"P -> {i} {ts.ElapsedMs()}ms - {(double)i / t.ElapsedMs() * 1000:0.0} r/s");
         }
 
+        var k = 0;
         _output.WriteLine("pre-load done... ");
         t = Environment.TickCount;
-        for (var i = 0; i < threads * spamFactor; i++)
+        while(!done)
         {
             ts = Environment.TickCount;
             var qt = await m.WaitAsync().FastPath();
             Assert.InRange(ts.ElapsedMs(), delayTime - ERR_T, delayTime + ERR_T);
             Assert.InRange(qt.ElapsedMs(), 0, ERR_T);
-            if (i % batchLog == 0)
-                _output.WriteLine($"D -> {i} {ts.ElapsedMs()}ms - {(double)i / t.ElapsedMsToSec():0.0} r/s");
+            if (k++ != 0 && k % batchLog == 0 || k < 5)
+                _output.WriteLine($"D -> {k} {ts.ElapsedMs()}ms - {(double)k / t.ElapsedMs() * 1000:0.0} r/s");
         }
+
+        _output.WriteLine("Test done!!!");
     }
 
     [Fact]

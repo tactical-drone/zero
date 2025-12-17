@@ -144,7 +144,6 @@ public class IoZeroQ<T> : IEnumerable<T>
     private int _pumpingConsumers;
     private int _primedForScale;
     private int _timeSinceLastScale = Environment.TickCount;
-    private int _count;
     private long _lastInsertIndex = -1;
 #if DEBUG
     private long _lastRemoveIndex = -1;
@@ -154,9 +153,9 @@ public class IoZeroQ<T> : IEnumerable<T>
     #endregion
 
     private const int _zero = 0;
-    private const int _one = 1;
+    private const int _dropped = 1;
     private const int _set = 2;
-    private const int _reset = 3;
+    private const int _locked = 3;
     private const int YieldRetryCount = 4;
 
     public long Tail => Interlocked.Read(ref _tail);
@@ -171,12 +170,12 @@ public class IoZeroQ<T> : IEnumerable<T>
     ///     Description
     /// </summary>
     public string Description =>
-        $"{nameof(IoZeroQ<T>)}: z = {_zeroed > 0}, {nameof(Count)} = {_count}/{Capacity}, s = {IsAutoScaling}({_timeSinceLastScale.ElapsedMs() / 1000} sec), h = {Head}/{Tail}({Head % Capacity}/{Tail % Capacity}) (max: {Capacity}) (d:{Tail - Head}), desc = {_description}";
+        $"{nameof(IoZeroQ<T>)}: z = {_zeroed > 0}, {nameof(Count)} = {Count}/{Capacity}, s = {IsAutoScaling}({_timeSinceLastScale.ElapsedMs() / 1000} sec), h = {Head}/{Tail}({Head % Capacity}/{Tail % Capacity}) (max: {Capacity}) (d:{Tail - Head}), desc = {_description}";
 
     /// <summary>
     ///     Current number of items in the bag
     /// </summary>
-    public int Count => _count;
+    public int Count => (int)(Tail - Head);
 
     /// <summary>
     ///     Capacity
@@ -194,9 +193,7 @@ public class IoZeroQ<T> : IEnumerable<T>
     /// <param name="idx">index</param>
     /// <returns>Object stored at index</returns>
 
-#if DEBUG
-    private const int _CASerror = 32;
-#endif
+
     public T this[long idx]
     {
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -238,27 +235,23 @@ public class IoZeroQ<T> : IEnumerable<T>
 
         lock (_syncRoot)
         {
-            var threshold = Capacity >> 1;
-
             //prime for a scale
-            if (_primedForScale == 0 && Count >= threshold)
+            if (_primedForScale == 0 && Count >= Capacity >> 1)
                 Interlocked.Exchange(ref _primedForScale, 1);
 
             //Only allow scaling to happen only when the Q dips under 50% capacity & some other factors, otherwise the indexes will corrupt.
-            if ((_primedForScale == 1 &&
-                 _storage[_virility][0] == null && _storage[_virility][^1] == null
+            if ((_primedForScale > 0 &&
+                 Tail % Capacity >= Head % Capacity
                  && Interlocked.CompareExchange(ref _primedForScale, 2, 1) == 1) || force)
             {
                 var hwm = 1 << (_virility + 1);
                 _storage[_virility + 1] = new T[hwm];
                 _bloom[_virility + 1] = new int[hwm];
-                _tail %= _capacity;
-                _head %= _capacity;
                 Interlocked.Add(ref _capacity, hwm);
                 Interlocked.Increment(ref _virility);
-                Interlocked.Exchange(ref _primedForScale, 0);
                 Interlocked.Exchange(ref _timeSinceLastScale, Environment.TickCount);
                 Interlocked.MemoryBarrierProcessWide();
+                Interlocked.Exchange(ref _primedForScale, 0);
                 return true;
             }
 
@@ -280,106 +273,96 @@ public class IoZeroQ<T> : IEnumerable<T>
         var ts = Environment.TickCount;
 #endif
         var state = -1;
-        long latch;
-        var modIdx = (latch = Tail) % Capacity;
+        long latchedIndex;
 
         SpinWait sw = new();
+        long idx;
         if (!IsAutoScaling)
         {
-            ref var fastBloomPtr = ref _fastBloom[modIdx];
             retry:
-            if (Tail != latch || (state = Interlocked.CompareExchange(ref fastBloomPtr, _reset, _zero)) != _zero)
+            //fail fast
+            if (Count == Capacity)
+                return -1;
+            idx = (latchedIndex = Tail) % Capacity;
+            ref var fastBloomPtr = ref _fastBloom[idx];
+            if (Tail != latchedIndex ||
+                (state = Interlocked.CompareExchange(ref fastBloomPtr, _locked, _zero)) != _zero)
             {
-                if (state == _one && Interlocked.CompareExchange(ref fastBloomPtr, _reset, _one) == _one)
+                //collision
+                if (Tail != latchedIndex)
                 {
-                    Interlocked.Decrement(ref _count);
+                    sw.SpinOnce();
+                    goto retry;
                 }
-                else
+
+                //dropped & race
+                if (state == _dropped && Interlocked.CompareExchange(ref fastBloomPtr, _locked, _dropped) != _dropped)
                 {
-                    if (Tail != latch || state != _reset || sw.Count > short.MaxValue)
+                    if (sw.Count > short.MaxValue)
                         return -1;
 
                     state = -1;
                     sw.SpinOnce();
                     goto retry;
                 }
+
+                if (state is _set or _locked)
+                {
+                    sw.SpinOnce();
+                    goto retry;
+                }
             }
-
-            if (Tail != latch)
-            {
-                Interlocked.MemoryBarrierProcessWide();
-                //TAIL is racing towards this _one... set it back to _zero and hope for the best. So far it checks out. 
-                if (Interlocked.CompareExchange(ref fastBloomPtr, _zero, _reset) != _reset)
-                    LogManager.GetCurrentClassLogger()
-                        .Fatal(
-                            $"add-f: Unable to restore lock at {latch}, diff = {Tail - latch}, bloom = {fastBloomPtr}, state = {state} - {Description}");
-
-                return -1;
-            }
-
-            Interlocked.Increment(ref _count);
-
-            _lastInsertIndex = Interlocked.Increment(ref _tail) - 1;
-            _fastStorage[modIdx] = value;
+            Interlocked.Increment(ref _tail);
+            _lastInsertIndex = latchedIndex;
+            _fastStorage[idx] = value;
 #if DEBUG
-            _fastStorageTime[modIdx] = Interlocked.Increment(ref _opCounter) - 1;
+            _fastStorageTime[idx] = Interlocked.Increment(ref _opCounter) - 1;
 #endif
             Interlocked.Exchange(ref fastBloomPtr, _set);
-
-#if SUPER_SYNC
-                    Interlocked.MemoryBarrierProcessWide();
-#elif SYNC
-                    Thread.MemoryBarrier();
-#endif
 
             return _lastInsertIndex;
         }
 
-        var i = Log2(modIdx + 1);
-        var i2 = modIdx - ((1 << i) - 1);
-        ref var bloomPtr = ref _bloom[i][i2];
-
         sw.Reset();
         retry2:
-        if (Tail != latch || (state = Interlocked.CompareExchange(ref bloomPtr, _reset, _zero)) != _zero)
+        //fail fast
+        if (Count == Capacity)
+            return -1;
+        idx = (latchedIndex = Tail) % Capacity;
+        var i = Log2(idx + 1);
+        var i2 = idx - ((1 << i) - 1);
+        ref var bloomPtr = ref _bloom[i][i2];
+        if (Tail != latchedIndex || (state = Interlocked.CompareExchange(ref bloomPtr, _locked, _zero)) != _zero)
         {
-            if (state == _one &&
-                Interlocked.CompareExchange(ref bloomPtr, _reset, _one) == _one)
+            //collision
+            if (Tail != latchedIndex)
             {
+                sw.SpinOnce();
+                goto retry2;
             }
-            else
+
+            //dropped & race
+            if (state == _dropped && Interlocked.CompareExchange(ref bloomPtr, _locked, _dropped) != _dropped)
             {
-                if (Tail != latch || state != _reset)
+                if (sw.Count > short.MaxValue)
                     return -1;
 
                 state = -1;
                 sw.SpinOnce();
                 goto retry2;
             }
+
+            if (state is _set or _locked)
+            {
+                sw.SpinOnce();
+                goto retry2;
+            }
         }
-
-        if (Tail != latch)
-        {
-            Interlocked.MemoryBarrierProcessWide();
-            if (Interlocked.CompareExchange(ref bloomPtr, _zero, _reset) != _reset)
-                LogManager.GetCurrentClassLogger()
-                    .Fatal($"add: Unable to restore lock at {latch}, bloom = {{fastBloomPtr}}  - {Description}");
-            return -1;
-        }
-
-        Interlocked.Increment(ref _count);
-
-        _lastInsertIndex = Interlocked.Increment(ref _tail) - 1;
-
+        Interlocked.Increment(ref _tail);
+        _lastInsertIndex = latchedIndex;
         _storage[i][i2] = value;
+
         Interlocked.Exchange(ref bloomPtr, _set);
-#if SUPER_SYNC
-                Interlocked.MemoryBarrierProcessWide();
-
-
-#elif SYNC
-                    Thread.MemoryBarrier();
-#endif
 
         return _lastInsertIndex;
     }
@@ -403,46 +386,53 @@ public class IoZeroQ<T> : IEnumerable<T>
 #endif
         var state = -1;
 
-        var latch = Head;
-        var modIdx = latch % Capacity;
-
+        long latch;
+        long idx;
         if (!IsAutoScaling)
         {
-            ref var fastBloomPtr = ref _fastBloom[modIdx];
-
             retry:
-            if (Head != latch || (state = Interlocked.CompareExchange(ref fastBloomPtr, _reset, _set)) != _set)
+            //fail fast
+            if (Count == 0)
             {
-                if (fastBloomPtr == _one && Interlocked.CompareExchange(ref fastBloomPtr, _zero, _one) == _one)
-                {
-#if !DEBUG
-                    Interlocked.Increment(ref _head);
-#else
-                    _lastRemoveIndex = Interlocked.Increment(ref _head) - 1;
-#endif
-                }
-                else
-                {
-                    if (Head != latch || state != _reset || sw.Count > short.MaxValue)
-                    {
-                        value = default;
-                        return false;
-                    }
-                }
-
-                sw.SpinOnce();
-                goto retry;
-            }
-
-            if (Head != latch)
-            {
-                Interlocked.MemoryBarrierProcessWide();
-                if (Interlocked.CompareExchange(ref fastBloomPtr, _set, _reset) != _reset)
-                    LogManager.GetCurrentClassLogger()
-                        .Fatal($"Rf> Unable to restore lock at {latch}, bloom = {fastBloomPtr}  - {Description}");
-
                 value = default;
                 return false;
+            }
+
+            idx = (latch = Head) % Capacity;
+            ref var fastBloomPtr = ref _fastBloom[idx];
+
+            if (Head != latch || (state = Interlocked.CompareExchange(ref fastBloomPtr, _locked, _set)) != _set)
+            {
+                //collision
+                if (Head != latch)
+                {
+                    sw.SpinOnce();
+                    goto retry;
+                }
+
+                if (fastBloomPtr == _dropped &&
+                    Interlocked.CompareExchange(ref fastBloomPtr, _locked, _dropped) != _dropped)
+                {
+                    sw.SpinOnce();
+                    state = -1;
+                    goto retry;
+                }
+
+                if (fastBloomPtr == _dropped)
+                {
+                    Interlocked.Increment(ref _head);
+                    _fastStorage[idx] = default;
+                    Interlocked.Exchange(ref fastBloomPtr, _zero);
+                    sw.SpinOnce();
+                    state = -1;
+                    goto retry;
+                }
+
+                if (state is _zero or _locked)
+                {
+                    sw.SpinOnce();
+                    goto retry;
+                }
             }
 
 #if !DEBUG
@@ -450,86 +440,78 @@ public class IoZeroQ<T> : IEnumerable<T>
 #else
             _lastRemoveIndex = Interlocked.Increment(ref _head) - 1;
 #endif
-            Interlocked.Decrement(ref _count);
 
-            value = _fastStorage[modIdx];
-            _fastStorage[modIdx] = default;
+            value = _fastStorage[idx];
+            _fastStorage[idx] = default;
 
 #if DEBUG
-            _fastStorageTime[modIdx] = -(Interlocked.Increment(ref _opCounter) - 1);
+            _fastStorageTime[idx] = -(Interlocked.Increment(ref _opCounter) - 1);
 
-            if (_fastStorageTime[modIdx] - latchOp > 3)
+            if (_fastStorageTime[idx] - latchOp > 3)
                 Console.WriteLine(
                     $"-------> & zero skew ({_opCounter - latchOp}/{Capacity}) == ({(_opCounter - latchOp) / (float)Capacity * 100:0.0}%)");
 #endif
             Interlocked.Exchange(ref fastBloomPtr, _zero);
 
-
-#if SUPER_SYNC
-                    Interlocked.MemoryBarrierProcessWide();
-
-
-#elif SYNC
-                    Thread.MemoryBarrier();
-#endif
-
-
             return true;
         }
 
-        var i = Log2(modIdx + 1);
-        var i2 = modIdx - ((1 << i) - 1);
-        ref var bloomPtr = ref _bloom[i][i2];
         sw.Reset();
-        retry2:
-        if (bloomPtr != _one &&
-            (Head != latch || (state = Interlocked.CompareExchange(ref bloomPtr, _reset, _set)) != _set))
+    retry2:
+        //fail fast
+        if (Count == 0)
         {
-            if (bloomPtr == _one && Interlocked.CompareExchange(ref bloomPtr, _zero, _one) == _one)
-            {
-#if !DEBUG
-                Interlocked.Increment(ref _head);
-#else
-                _lastRemoveIndex = Interlocked.Increment(ref _head) - 1;
-#endif
-            }
-            else
-            {
-                if (Head != latch || state != _reset)
-                {
-                    value = default;
-                    return false;
-                }
-            }
-
-            sw.SpinOnce();
-            goto retry2;
-        }
-
-        if (Head != latch)
-        {
-            Interlocked.MemoryBarrierProcessWide();
-            if (Interlocked.CompareExchange(ref bloomPtr, _set, _reset) != _reset)
-                LogManager.GetCurrentClassLogger()
-                    .Fatal($"R> Unable to restore lock at {latch}, bloom = {bloomPtr}  - {Description}");
-
             value = default;
             return false;
         }
 
-        Interlocked.Increment(ref _head);
-        Interlocked.Decrement(ref _count);
+        idx = (latch = Head) % Capacity;
+        var i = Log2(idx + 1);
+        var i2 = idx - ((1 << i) - 1);
+        ref var bloomPtr = ref _bloom[i][i2];
 
+        if (Head != latch || (state = Interlocked.CompareExchange(ref bloomPtr, _locked, _set)) != _set)
+        {
+            //collision
+            if (Head != latch)
+            {
+                sw.SpinOnce();
+                goto retry2;
+            }
+
+            if (bloomPtr == _dropped &&
+                Interlocked.CompareExchange(ref bloomPtr, _locked, _dropped) != _dropped)
+            {
+                sw.SpinOnce();
+                state = -1;
+                goto retry2;
+            }
+
+            if (bloomPtr == _dropped)
+            {
+                Interlocked.Increment(ref _head);
+                _storage[i][i2] = default;
+                Interlocked.Exchange(ref bloomPtr, _zero);
+                sw.SpinOnce();
+                state = -1;
+                goto retry2;
+            }
+
+            if (state is _zero or _locked)
+            {
+                sw.SpinOnce();
+                goto retry2;
+            }
+        }
+#if !DEBUG
+            Interlocked.Increment(ref _head);
+#else
+        _lastRemoveIndex = Interlocked.Increment(ref _head) - 1;
+#endif
         value = _storage[i][i2];
         _storage[i][i2] = default;
+
         Interlocked.Exchange(ref bloomPtr, _zero);
-#if SUPER_SYNC
-                Interlocked.MemoryBarrierProcessWide();
-
-
-#elif SYNC
-                    Thread.MemoryBarrier();
-#endif
 
         return true;
     }
@@ -545,20 +527,13 @@ public class IoZeroQ<T> : IEnumerable<T>
 #endif
 
         var modIdx = index % Capacity;
-        if (!IsAutoScaling)
-        {
-            if (Interlocked.CompareExchange(ref _fastBloom[modIdx], _one, _set) != _set) return false;
-            Interlocked.Decrement(ref _count);
-            return true;
-        }
+        if (!IsAutoScaling) return Interlocked.CompareExchange(ref _fastBloom[modIdx], _dropped, _set) == _set;
 
 
         var i = Log2(modIdx + 1);
         var i2 = modIdx - ((1 << i) - 1);
 
-        if (Interlocked.CompareExchange(ref _bloom[i][i2], _one, _set) != _set) return false;
-        Interlocked.Decrement(ref _count);
-        return true;
+        return Interlocked.CompareExchange(ref _bloom[i][i2], _dropped, _set) == _set;
     }
 
     /// <summary>
@@ -576,7 +551,7 @@ public class IoZeroQ<T> : IEnumerable<T>
     {
         Debug.Assert(Zeroed || item != null);
 
-        if (Zeroed || _clearing > 0 || (_count >= Capacity && !IsAutoScaling))
+        if (Zeroed || _clearing > 0 || (Count >= Capacity && !IsAutoScaling))
             return -1;
 
         //auto scale
@@ -587,7 +562,7 @@ public class IoZeroQ<T> : IEnumerable<T>
                 if (_blockingCollection && _sharingConsumers > 0)
                     try
                     {
-                        return _balanceSync.Release(Environment.TickCount) ? 1 : 0;
+                        return _balanceSync.Release(Environment.TickCount, true) ? 1 : 0;
                     }
                     catch
                     {
@@ -596,7 +571,7 @@ public class IoZeroQ<T> : IEnumerable<T>
                 else if (_blockingCollection && _blockingConsumers > 0)
                     try
                     {
-                        return _fanSync.Release(Environment.TickCount, _blockingConsumers);
+                        return _fanSync.Release(Environment.TickCount, _blockingConsumers, true);
                     }
                     catch
                     {
@@ -605,7 +580,7 @@ public class IoZeroQ<T> : IEnumerable<T>
                 else if (_blockingCollection && _pumpingConsumers > 0)
                     try
                     {
-                        return _zeroSync.Release(item) ? 1 : 0;
+                        return _zeroSync.Release(item,true) ? 1 : 0;
                     }
                     catch
                     {
@@ -628,7 +603,7 @@ public class IoZeroQ<T> : IEnumerable<T>
             if (_blockingCollection && _pumpingConsumers > 0)
                 try
                 {
-                    return _zeroSync.Release(item) ? 1 : 0;
+                    return _zeroSync.Release(item, true) ? 1 : 0;
                 }
                 catch
                 {
@@ -636,9 +611,9 @@ public class IoZeroQ<T> : IEnumerable<T>
                 }
 
             long cap, idx;
-            while (Tail >= Head + (cap = Capacity) || _count >= cap || (idx = AtomicAdd(item)) < 0)
+            while (Tail >= Head + (cap = Capacity) || (idx = AtomicAdd(item)) < 0)
             {
-                if (_count == cap)
+                if (Count == cap)
                 {
                     if (IsAutoScaling)
                         Scale();
@@ -657,7 +632,7 @@ public class IoZeroQ<T> : IEnumerable<T>
             if (_blockingCollection && _sharingConsumers > 0)
                 try
                 {
-                    _balanceSync.Release(Environment.TickCount);
+                    _balanceSync.Release(Environment.TickCount, true);
                 }
                 catch
                 {
@@ -667,7 +642,7 @@ public class IoZeroQ<T> : IEnumerable<T>
             if (_blockingCollection && _blockingConsumers > 0)
                 try
                 {
-                    _fanSync.Release(Environment.TickCount, _blockingConsumers);
+                    _fanSync.Release(Environment.TickCount, _blockingConsumers, true);
                 }
                 catch
                 {
@@ -827,7 +802,7 @@ public class IoZeroQ<T> : IEnumerable<T>
         }
         finally
         {
-            _count = (int)(_head = _tail = 0);
+            _head = _tail = 0;
 #if DEBUG
             if (IsAutoScaling)
                 for (var i = 0; i < _bloom.Length && _bloom[i] != null; i++)

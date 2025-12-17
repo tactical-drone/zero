@@ -243,12 +243,11 @@ public class CcCollective : IoNode<CcProtocMessage<CcWhisperMsg, CcGossipBatch>>
         while (!@this.Zeroed())
             try
             {
-                var ts = Environment.TickCount;
                 var delay = (@this.TotalConnections < @this.parm_max_outbound
-                    ? @this.parm_mean_pat_delay_s / 10
+                    ? @this.parm_mean_pat_delay_s >> 5
                     : @this.parm_mean_pat_delay_s) * 1000;
 
-                await Task.Delay(TimeSpan.FromMilliseconds(@this._random.Next(delay) + delay / 2),
+                await Task.Delay(TimeSpan.FromMilliseconds(@this._random.Next(delay) + delay / 2.0),
                     @this.AsyncTasks.Token);
 
                 if (@this.Zeroed())
@@ -287,7 +286,7 @@ public class CcCollective : IoNode<CcProtocMessage<CcWhisperMsg, CcGossipBatch>>
                     }
 
                 if (@this.TotalConnections < @this.parm_max_outbound)
-                    await @this.DeepScanAsync(@this.TotalConnections == 0).FastPath();
+                    await @this.DeepScanAsync(@this.TotalConnections < @this.parm_max_outbound).FastPath();
             }
             catch when (@this.Zeroed())
             {

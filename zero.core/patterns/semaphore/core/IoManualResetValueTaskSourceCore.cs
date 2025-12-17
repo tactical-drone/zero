@@ -312,7 +312,8 @@ public struct IoManualResetValueTaskSourceCore<TResult> : IIoManualResetValueTas
         switch (_capturedContext)
         {
             case null:
-                IoThreadPoolHooks<object>.UnsafeQueueUserWorkItem(continuation, state);
+                continuation(state);
+                //IoThreadPoolHooks<object>.UnsafeQueueUserWorkItem(continuation, state);
                 break;
 
             case ExecutionContext:
@@ -362,15 +363,7 @@ public struct IoManualResetValueTaskSourceCore<TResult> : IIoManualResetValueTas
                 break;
 
             case null:
-                try
-                {
-                    _continuation(_continuationState);
-                }
-                catch
-                {
-                    // ignored
-                }
-
+                _continuation(_continuationState);
                 break;
 
             case ExecutionContext or CapturedSchedulerAndExecutionContext:

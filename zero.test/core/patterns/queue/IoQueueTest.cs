@@ -314,7 +314,7 @@ public class IoQueueTest : IDisposable
                 }, (this, q, i, itemsPerThread, _output), CancellationToken.None, TaskCreationOptions.DenyChildAttach,
                 IoZeroScheduler.ZeroDefault).Unwrap());
 
-        await Task.WhenAll(insert).WaitAsync(TimeSpan.FromSeconds(60), CancellationToken.None);
+        await Task.WhenAll(insert).WaitAsync(TimeSpan.FromSeconds(10), CancellationToken.None);
 
         Assert.Equal(capacity, _inserted);
 

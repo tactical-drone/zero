@@ -588,25 +588,17 @@ public abstract class IoZero<TJob> : IoNanoprobe, IIoZero
                 {
                     try
                     {
-                        if (curJob !=
-                            null) //TODO: For some strange reason curJob comes out mull here and crashes the runtime.
-                        {
-                            if (curJob.State is IoJobMeta.JobState.Fragmented or IoJobMeta.JobState.BadData)
-                                await curJob.SetStateAsync(IoJobMeta.JobState.Recovering).FastPath();
-                            else
-                                //Consume success?
-                                await curJob.SetStateAsync(curJob.State is IoJobMeta.JobState.Consumed
-                                    ? IoJobMeta.JobState.Accept
-                                    : IoJobMeta.JobState.Reject).FastPath();
-
-                            //log stats to console
-                            if (curJob.Id % @this.parm_stats_mod_count == 0 && curJob.Id >= 9999)
-                                @this.DumpStats();
-                        }
+                        if (curJob.State is IoJobMeta.JobState.Fragmented or IoJobMeta.JobState.BadData)
+                            await curJob.SetStateAsync(IoJobMeta.JobState.Recovering).FastPath();
                         else
-                        {
-                            throw new InvalidOperationException();
-                        }
+                            //Consume success?
+                            await curJob.SetStateAsync(curJob.State is IoJobMeta.JobState.Consumed
+                                ? IoJobMeta.JobState.Accept
+                                : IoJobMeta.JobState.Reject).FastPath();
+
+                        //log stats to console
+                        if (curJob.Id % @this.parm_stats_mod_count == 0 && curJob.Id >= 9999)
+                            @this.DumpStats();
                     }
                     catch when (@this.Zeroed())
                     {
@@ -620,7 +612,7 @@ public abstract class IoZero<TJob> : IoNanoprobe, IIoZero
                         //cleanup
                         await @this.ZeroJobAsync(curJob, curJob?.FinalState is IoJobMeta.JobState.Reject).FastPath();
                         //back pressure
-                        @this.Source.BackPressure(zeroAsync: false);
+                        @this.Source.BackPressure(zeroAsync: true);//If the producer blocks on input we have lost a thread. So true here, we cant reuse.
                     }
                 }
                 //}, (this, curJob, consume, context));
