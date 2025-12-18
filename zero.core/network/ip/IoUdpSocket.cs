@@ -227,7 +227,7 @@ public sealed class IoUdpSocket : IoNetSocket
 
         return true;
     }
-    
+
     /// <inheritdoc />
     /// <summary>
     ///     Send UDP packet

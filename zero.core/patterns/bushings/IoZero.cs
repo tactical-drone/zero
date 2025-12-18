@@ -612,7 +612,10 @@ public abstract class IoZero<TJob> : IoNanoprobe, IIoZero
                         //cleanup
                         await @this.ZeroJobAsync(curJob, curJob?.FinalState is IoJobMeta.JobState.Reject).FastPath();
                         //back pressure
-                        @this.Source.BackPressure(zeroAsync: true);//If the producer blocks on input we have lost a thread. So true here, we cant reuse.
+                        @this.Source
+                            .BackPressure(
+                                zeroAsync:
+                                true); //If the producer blocks on input we have lost a thread. So true here, we cant reuse.
                     }
                 }
                 //}, (this, curJob, consume, context));

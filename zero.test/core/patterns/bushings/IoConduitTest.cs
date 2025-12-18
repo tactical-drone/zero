@@ -86,7 +86,7 @@ public class IoConduitTest
                 break;
             }
 
-        await z1.WaitAsync(TimeSpan.FromMilliseconds(targetTime * 5), CancellationToken.None);
+        await z1.WaitAsync(TimeSpan.FromMilliseconds(15), CancellationToken.None);
 
         _output.WriteLine($"{ts.ElapsedMs()}ms ~ {targetTime}");
         Assert.InRange(ts.ElapsedMs(), targetTime / 2, targetTime * 3);

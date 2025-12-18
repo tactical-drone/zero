@@ -52,10 +52,6 @@ public class IoZeroQ<T> : IEnumerable<T>
         IsAutoScaling = autoScale;
         _blockingCollection = asyncTasks != null;
 
-#if DEBUG
-        _fastStorageTime = new int[16384];
-#endif
-
         //if scaling is enabled
         if (autoScale)
         {
@@ -84,6 +80,11 @@ public class IoZeroQ<T> : IEnumerable<T>
             _bloom[0] = _fastBloom = new int[capacity];
         }
 
+#if DEBUG
+        _fastStorageTime = new int[Capacity];
+#endif
+
+
         if (_blockingCollection)
         {
             _fanSync = new IoZeroSemaphoreSlim(asyncTasks, $"fan {description}", concurrencyLevel,
@@ -111,7 +112,7 @@ public class IoZeroQ<T> : IEnumerable<T>
     private readonly T[][] _storage;
     private readonly T[] _fastStorage;
 #if DEBUG
-    private readonly int[] _fastStorageTime;
+    private int[] _fastStorageTime;
 #endif
     private readonly int[][] _bloom;
     private readonly int[] _fastBloom;
@@ -152,10 +153,14 @@ public class IoZeroQ<T> : IEnumerable<T>
 
     #endregion
 
-    private const int _zero = 0;
-    private const int _dropped = 1;
-    private const int _set = 2;
-    private const int _locked = 3;
+    private enum ZeroQState
+    {
+        Zero = 0,
+        Dropped = 1,
+        Set = 2,
+        Locked = 3
+    }
+
     private const int YieldRetryCount = 4;
 
     public long Tail => Interlocked.Read(ref _tail);
@@ -204,8 +209,8 @@ public class IoZeroQ<T> : IEnumerable<T>
 
             idx %= Capacity;
 
-            var i = Log2(idx + 1);
-            return _storage[i][idx - ((1 << i) - 1)];
+            var (i, i2) = GetIndex(idx);
+            return _storage[i][i2];
         }
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         protected set
@@ -219,8 +224,9 @@ public class IoZeroQ<T> : IEnumerable<T>
             }
 
             idx %= Capacity;
-            var i = Log2(idx + 1);
-            _storage[i][idx - ((1 << i) - 1)] = value;
+
+            var (i, i2) = GetIndex(idx);
+            _storage[i][i2] = value;
         }
     }
 
@@ -247,6 +253,7 @@ public class IoZeroQ<T> : IEnumerable<T>
                 var hwm = 1 << (_virility + 1);
                 _storage[_virility + 1] = new T[hwm];
                 _bloom[_virility + 1] = new int[hwm];
+                _fastStorageTime = new int[Capacity + hwm];
                 Interlocked.Add(ref _capacity, hwm);
                 Interlocked.Increment(ref _virility);
                 Interlocked.Exchange(ref _timeSinceLastScale, Environment.TickCount);
@@ -259,263 +266,200 @@ public class IoZeroQ<T> : IEnumerable<T>
         }
     }
 
-    /// <summary>
-    ///     Wraps Interlocked.CompareExchange that copes with horizontal scaling
-    /// </summary>
-    /// <param name="value">The new value</param>
-    /// <returns>False on race, true otherwise</returns>
-#if !DEBUG
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-#endif
-    private long AtomicAdd(T value)
+    private (long, long) GetIndex(long index)
     {
-#if DEBUG
-        var ts = Environment.TickCount;
-#endif
-        var state = -1;
-        long latchedIndex;
-
-        SpinWait sw = new();
-        long idx;
-        if (!IsAutoScaling)
-        {
-            retry:
-            //fail fast
-            if (Count == Capacity)
-                return -1;
-            idx = (latchedIndex = Tail) % Capacity;
-            ref var fastBloomPtr = ref _fastBloom[idx];
-            if (Tail != latchedIndex ||
-                (state = Interlocked.CompareExchange(ref fastBloomPtr, _locked, _zero)) != _zero)
-            {
-                //collision
-                if (Tail != latchedIndex)
-                {
-                    sw.SpinOnce();
-                    goto retry;
-                }
-
-                //dropped & race
-                if (state == _dropped && Interlocked.CompareExchange(ref fastBloomPtr, _locked, _dropped) != _dropped)
-                {
-                    if (sw.Count > short.MaxValue)
-                        return -1;
-
-                    state = -1;
-                    sw.SpinOnce();
-                    goto retry;
-                }
-
-                if (state is _set or _locked)
-                {
-                    sw.SpinOnce();
-                    goto retry;
-                }
-            }
-            Interlocked.Increment(ref _tail);
-            _lastInsertIndex = latchedIndex;
-            _fastStorage[idx] = value;
-#if DEBUG
-            _fastStorageTime[idx] = Interlocked.Increment(ref _opCounter) - 1;
-#endif
-            Interlocked.Exchange(ref fastBloomPtr, _set);
-
-            return _lastInsertIndex;
-        }
-
-        sw.Reset();
-        retry2:
-        //fail fast
-        if (Count == Capacity)
-            return -1;
-        idx = (latchedIndex = Tail) % Capacity;
-        var i = Log2(idx + 1);
-        var i2 = idx - ((1 << i) - 1);
-        ref var bloomPtr = ref _bloom[i][i2];
-        if (Tail != latchedIndex || (state = Interlocked.CompareExchange(ref bloomPtr, _locked, _zero)) != _zero)
-        {
-            //collision
-            if (Tail != latchedIndex)
-            {
-                sw.SpinOnce();
-                goto retry2;
-            }
-
-            //dropped & race
-            if (state == _dropped && Interlocked.CompareExchange(ref bloomPtr, _locked, _dropped) != _dropped)
-            {
-                if (sw.Count > short.MaxValue)
-                    return -1;
-
-                state = -1;
-                sw.SpinOnce();
-                goto retry2;
-            }
-
-            if (state is _set or _locked)
-            {
-                sw.SpinOnce();
-                goto retry2;
-            }
-        }
-        Interlocked.Increment(ref _tail);
-        _lastInsertIndex = latchedIndex;
-        _storage[i][i2] = value;
-
-        Interlocked.Exchange(ref bloomPtr, _set);
-
-        return _lastInsertIndex;
+        var i = Log2(index + 1);
+        var i2 = index - ((1 << i) - 1);
+        return (i, i2);
     }
 
     /// <summary>
-    ///     Wraps Interlocked.CompareExchange that copes with horizontal scaling
     /// </summary>
-    /// <param name="value">The new value</param>
-    /// <returns>False on race, true otherwise</returns>
+    /// <param name="index"></param>
+    /// <param name="latchedIndex"></param>
+    /// <param name="value"></param>
+    /// <param name="bloom"></param>
+    /// <param name="storage"></param>
+    /// <param name="spinWait"></param>
+    /// <returns></returns>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private long Queue(long index, long latchedIndex, T value, ref int bloom, ref T storage, ref SpinWait spinWait)
+    {
+        try
+        {
+            var state = ZeroQState.Zero;
+            if (Tail != latchedIndex ||
+                (state = (ZeroQState)Interlocked.CompareExchange(ref bloom, (int)ZeroQState.Locked,
+                    (int)ZeroQState.Zero)) != (int)ZeroQState.Zero)
+            {
+                //collision
+                if (Tail != latchedIndex)
+                    return -1;
+
+                //dropped & race
+                if (state == ZeroQState.Dropped &&
+                    Interlocked.CompareExchange(ref bloom, (int)ZeroQState.Locked, (int)ZeroQState.Dropped) !=
+                    (int)ZeroQState.Dropped)
+                    return -1;
+
+                if (state is ZeroQState.Set or ZeroQState.Locked)
+                {
+                    switch (state)
+                    {
+                        //TODO:hack
+                        case ZeroQState.Set when spinWait.Count > 10:
+                            Interlocked.Increment(ref _tail);
+                            break;
+                        //TODO:hack
+                        case ZeroQState.Locked when storage is null && spinWait.Count > 10:
+                            Interlocked.Exchange(ref bloom, (int)ZeroQState.Zero);
+                            break;
+                    }
+
+                    return -1;
+                }
+            }
+#if DEBUG
+            _fastStorageTime[index] = Interlocked.Increment(ref _opCounter) - 1;
+#endif
+            Interlocked.Increment(ref _tail);
+            _lastInsertIndex = latchedIndex;
+            storage = value;
+            Interlocked.MemoryBarrier();
+            Interlocked.Exchange(ref bloom, (int)ZeroQState.Set);
+
+            return _lastInsertIndex;
+        }
+        finally
+        {
+            spinWait.SpinOnce();
+        }
+    }
+
 #if !DEBUG
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
 #endif
-    private bool AtomicRemove(out T value)
+    private bool DeQueue(long index, long latch, out T item, ref int fastBloomPtr, ref T storage, ref SpinWait spinWait)
     {
-#if DEBUG
-        var ts = Environment.TickCount;
-#endif
-        SpinWait sw = new();
-#if DEBUG
-        var latchOp = _opCounter;
-#endif
-        var state = -1;
-
-        long latch;
-        long idx;
-        if (!IsAutoScaling)
+        try
         {
-            retry:
-            //fail fast
-            if (Count == 0)
-            {
-                value = default;
-                return false;
-            }
-
-            idx = (latch = Head) % Capacity;
-            ref var fastBloomPtr = ref _fastBloom[idx];
-
-            if (Head != latch || (state = Interlocked.CompareExchange(ref fastBloomPtr, _locked, _set)) != _set)
+            if (Head != latch ||
+                Interlocked.CompareExchange(ref fastBloomPtr, (int)ZeroQState.Locked, (int)ZeroQState.Set) !=
+                (int)ZeroQState.Set)
             {
                 //collision
                 if (Head != latch)
                 {
-                    sw.SpinOnce();
-                    goto retry;
+                    item = default;
+                    return false;
                 }
 
-                if (fastBloomPtr == _dropped &&
-                    Interlocked.CompareExchange(ref fastBloomPtr, _locked, _dropped) != _dropped)
+                if (fastBloomPtr == (int)ZeroQState.Dropped)
                 {
-                    sw.SpinOnce();
-                    state = -1;
-                    goto retry;
+                    if (Interlocked.CompareExchange(ref fastBloomPtr, (int)ZeroQState.Locked,
+                            (int)ZeroQState.Dropped) !=
+                        (int)ZeroQState.Dropped)
+                    {
+                        item = default;
+                        return false;
+                    }
+
+                    if (fastBloomPtr == (int)ZeroQState.Locked)
+                    {
+                        Interlocked.Increment(ref _head);
+                        _fastStorage[index] = default;
+                        Interlocked.MemoryBarrier();
+                        Interlocked.Exchange(ref fastBloomPtr, (int)ZeroQState.Zero);
+                        item = default;
+                        return false;
+                    }
                 }
 
-                if (fastBloomPtr == _dropped)
-                {
-                    Interlocked.Increment(ref _head);
-                    _fastStorage[idx] = default;
-                    Interlocked.Exchange(ref fastBloomPtr, _zero);
-                    sw.SpinOnce();
-                    state = -1;
-                    goto retry;
-                }
+                if (fastBloomPtr == (int)ZeroQState.Zero) //TODO:hack
+                    if (spinWait.Count > 10)
+                    {
+                        Interlocked.Increment(ref _head);
+                        storage = default;
+                        Interlocked.MemoryBarrier();
+                    }
 
-                if (state is _zero or _locked)
-                {
-                    sw.SpinOnce();
-                    goto retry;
-                }
+                item = default;
+                return false;
             }
 
-#if !DEBUG
-            Interlocked.Increment(ref _head);
-#else
-            _lastRemoveIndex = Interlocked.Increment(ref _head) - 1;
-#endif
-
-            value = _fastStorage[idx];
-            _fastStorage[idx] = default;
-
 #if DEBUG
-            _fastStorageTime[idx] = -(Interlocked.Increment(ref _opCounter) - 1);
+            var latchOp = _opCounter;
+            _fastStorageTime[index] = Interlocked.Increment(ref _opCounter) - 1;
 
-            if (_fastStorageTime[idx] - latchOp > 3)
+            if (_fastStorageTime[index] - latchOp > 3)
                 Console.WriteLine(
                     $"-------> & zero skew ({_opCounter - latchOp}/{Capacity}) == ({(_opCounter - latchOp) / (float)Capacity * 100:0.0}%)");
+            _lastRemoveIndex = latch;
 #endif
-            Interlocked.Exchange(ref fastBloomPtr, _zero);
+            Interlocked.Increment(ref _head);
+            item = storage;
+            storage = default;
+            Interlocked.MemoryBarrier();
+            Interlocked.Exchange(ref fastBloomPtr, (int)ZeroQState.Zero);
 
             return true;
         }
-
-        sw.Reset();
-    retry2:
-        //fail fast
-        if (Count == 0)
+        finally
         {
-            value = default;
-            return false;
+            spinWait.SpinOnce();
+        }
+    }
+
+    /// <summary>
+    ///     Wraps Interlocked.CompareExchange that copes with horizontal scaling
+    /// </summary>
+    /// <param name="value">The new value</param>
+    /// <param name="spinWait"></param>
+    /// <returns>False on race, true otherwise</returns>
+#if !DEBUG
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+#endif
+    private long AtomicAdd(T value, ref SpinWait spinWait)
+    {
+        long latchedIndex;
+        long idx;
+
+        if (!IsAutoScaling)
+        {
+            idx = (latchedIndex = Tail) % Capacity;
+            return Queue(idx, latchedIndex, value, ref _fastBloom[idx], ref _fastStorage[idx], ref spinWait);
+        }
+
+        idx = (latchedIndex = Tail) % Capacity;
+        var (i, i2) = GetIndex(idx);
+        return Queue(idx, latchedIndex, value, ref _bloom[i][i2], ref _storage[i][i2], ref spinWait);
+    }
+
+    /// <summary>
+    ///     Wraps Interlocked.CompareExchange that copes with horizontal scaling
+    /// </summary>
+    /// <param name="value">The new value</param>
+    /// <param name="spinWait"></param>
+    /// <returns>False on race, true otherwise</returns>
+#if !DEBUG
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+#endif
+    private bool AtomicRemove(out T value, ref SpinWait spinWait)
+    {
+        long latch;
+        long idx;
+
+        if (!IsAutoScaling)
+        {
+            idx = (latch = Head) % Capacity;
+            return DeQueue(idx, latch, out value, ref _fastBloom[idx], ref _fastStorage[idx], ref spinWait);
         }
 
         idx = (latch = Head) % Capacity;
-        var i = Log2(idx + 1);
-        var i2 = idx - ((1 << i) - 1);
-        ref var bloomPtr = ref _bloom[i][i2];
-
-        if (Head != latch || (state = Interlocked.CompareExchange(ref bloomPtr, _locked, _set)) != _set)
-        {
-            //collision
-            if (Head != latch)
-            {
-                sw.SpinOnce();
-                goto retry2;
-            }
-
-            if (bloomPtr == _dropped &&
-                Interlocked.CompareExchange(ref bloomPtr, _locked, _dropped) != _dropped)
-            {
-                sw.SpinOnce();
-                state = -1;
-                goto retry2;
-            }
-
-            if (bloomPtr == _dropped)
-            {
-                Interlocked.Increment(ref _head);
-                _storage[i][i2] = default;
-                Interlocked.Exchange(ref bloomPtr, _zero);
-                sw.SpinOnce();
-                state = -1;
-                goto retry2;
-            }
-
-            if (state is _zero or _locked)
-            {
-                sw.SpinOnce();
-                goto retry2;
-            }
-        }
-#if !DEBUG
-            Interlocked.Increment(ref _head);
-#else
-        _lastRemoveIndex = Interlocked.Increment(ref _head) - 1;
-#endif
-        value = _storage[i][i2];
-        _storage[i][i2] = default;
-
-        Interlocked.Exchange(ref bloomPtr, _zero);
-
-        return true;
+        var (i, i2) = GetIndex(idx);
+        return DeQueue(idx, latch, out value, ref _bloom[i][i2], ref _storage[i][i2], ref spinWait);
     }
-
 
 #if !DEBUG
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -526,14 +470,17 @@ public class IoZeroQ<T> : IEnumerable<T>
         var ts = Environment.TickCount;
 #endif
 
-        var modIdx = index % Capacity;
-        if (!IsAutoScaling) return Interlocked.CompareExchange(ref _fastBloom[modIdx], _dropped, _set) == _set;
+        var idx = index % Capacity;
+        if (!IsAutoScaling)
+            return Interlocked.CompareExchange(ref _fastBloom[idx], (int)ZeroQState.Dropped, (int)ZeroQState.Set) ==
+                   (int)ZeroQState.Set;
 
 
-        var i = Log2(modIdx + 1);
-        var i2 = modIdx - ((1 << i) - 1);
+        var i = Log2(idx + 1);
+        var i2 = idx - ((1 << i) - 1);
 
-        return Interlocked.CompareExchange(ref _bloom[i][i2], _dropped, _set) == _set;
+        return Interlocked.CompareExchange(ref _bloom[i][i2], (int)ZeroQState.Dropped, (int)ZeroQState.Set) ==
+               (int)ZeroQState.Set;
     }
 
     /// <summary>
@@ -580,7 +527,7 @@ public class IoZeroQ<T> : IEnumerable<T>
                 else if (_blockingCollection && _pumpingConsumers > 0)
                     try
                     {
-                        return _zeroSync.Release(item,true) ? 1 : 0;
+                        return _zeroSync.Release(item, true) ? 1 : 0;
                     }
                     catch
                     {
@@ -610,8 +557,9 @@ public class IoZeroQ<T> : IEnumerable<T>
                     // ignored
                 }
 
+            SpinWait retry = new();
             long cap, idx;
-            while (Tail >= Head + (cap = Capacity) || (idx = AtomicAdd(item)) < 0)
+            while (Tail >= Head + (cap = Capacity) || (idx = AtomicAdd(item, ref retry)) < 0)
             {
                 if (Count == cap)
                 {
@@ -687,7 +635,8 @@ public class IoZeroQ<T> : IEnumerable<T>
                 return false;
             }
 
-            while (Head >= Tail || !AtomicRemove(out slot))
+            SpinWait retry = new();
+            while (Head >= Tail || !AtomicRemove(out slot, ref retry))
                 if (Count == 0 || Zeroed)
                 {
                     slot = default;
@@ -785,13 +734,12 @@ public class IoZeroQ<T> : IEnumerable<T>
 
                     if (!IsAutoScaling)
                     {
-                        _fastBloom[i % _capacity] = 0;
+                        Interlocked.Exchange(ref _fastBloom[i % _capacity], (int)ZeroQState.Zero);
                     }
                     else
                     {
-                        var idx = i % Capacity;
-                        var i2 = Log2(idx + 1);
-                        Interlocked.Exchange(ref _bloom[i2][idx - ((1 << i2) - 1)], 0);
+                        var (i2, i3) = GetIndex(i % Capacity);
+                        Interlocked.Exchange(ref _bloom[i2][i3], (int)ZeroQState.Zero);
                     }
                 }
             }

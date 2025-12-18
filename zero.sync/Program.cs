@@ -140,21 +140,21 @@ internal class Program
                 //        //$"udp://127.0.0.1:{1237}"
                 //    }.ToList(), false));
 
-                StartCocoon(CoCoon(CcDesignation.Generate(true), $"tcp://192.168.88.253:{1234}",
-                    $"udp://192.168.88.253:{1234}", $"udp://192.168.88.253:{1234}",
+                StartCocoon(CoCoon(CcDesignation.Generate(true), $"tcp://127.0.0.1:{1234}",
+                    $"udp://127.0.0.1:{1234}", $"udp://127.0.0.1:{1234}",
                     new[]
                     {
-                        $"udp://192.168.88.253:{1235}"
+                        $"udp://127.0.0.1:{1235}"
                         //$"udp://127.0.0.1:{1236}",
                         //$"udp://127.0.0.1:{1237}"
                     }.ToList()));
 
-                StartCocoon(CoCoon(CcDesignation.Generate(), $"tcp://192.168.88.253:{1235}",
-                    $"udp://192.168.88.253:{1235}",
-                    $"udp:/192.168.88.253:{1235}",
+                StartCocoon(CoCoon(CcDesignation.Generate(), $"tcp://127.0.0.1:{1235}",
+                    $"udp://127.0.0.1:{1235}",
+                    $"udp:/127.0.0.1:{1235}",
                     new[]
                     {
-                        $"udp://192.168.88.253:{1234}"
+                        $"udp://127.0.0.1:{1234}"
                         //$"udp://127.0.0.1:{1236}",
                         //$"udp://127.0.0.1:{1237}"
                     }.ToList()));

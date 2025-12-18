@@ -189,9 +189,8 @@ public class IoZeroSemCoreTest
             _ = Task.Factory.StartNew(async () =>
             {
                 var t = Environment.TickCount;
-                
-                for (var i = 0; i < total/threads; i++)
-                {
+
+                for (var i = 0; i < total / threads; i++)
                     //await Task.Delay(delayTime);
                     if (!m.Release(Environment.TickCount, true))
                     {
@@ -200,11 +199,10 @@ public class IoZeroSemCoreTest
                         //_output.WriteLine($"D -> {i}, {ts.ElapsedMs()}ms");
                     }
 
-                    //if (i != 0 && i % batchLog/2 == 0)
-                    //    _output.WriteLine($"R -> {i} {ts.ElapsedMs()}ms - {(double)i / t.ElapsedMs()*1000:0.0} r/s");
-                }
+                //if (i != 0 && i % batchLog/2 == 0)
+                //    _output.WriteLine($"R -> {i} {ts.ElapsedMs()}ms - {(double)i / t.ElapsedMs()*1000:0.0} r/s");
                 done = --threadsRemaining == 0;
-                if(done)
+                if (done)
                     _output.WriteLine("Done signalling");
                 m.Release(Environment.TickCount, true);
             }, CancellationToken.None, TaskCreationOptions.DenyChildAttach, IoZeroScheduler.ZeroDefault);
@@ -224,13 +222,13 @@ public class IoZeroSemCoreTest
         var k = 0;
         _output.WriteLine("pre-load done... ");
         t = Environment.TickCount;
-        while(!done)
+        while (!done)
         {
             ts = Environment.TickCount;
             var qt = await m.WaitAsync().FastPath();
             Assert.InRange(ts.ElapsedMs(), delayTime - ERR_T, delayTime + ERR_T);
             Assert.InRange(qt.ElapsedMs(), 0, ERR_T);
-            if (k++ != 0 && k % batchLog == 0 || k < 5)
+            if ((k++ != 0 && k % batchLog == 0) || k < 5)
                 _output.WriteLine($"D -> {k} {ts.ElapsedMs()}ms - {(double)k / t.ElapsedMs() * 1000:0.0} r/s");
         }
 

@@ -309,7 +309,7 @@ public class IoHeap<TItem, TContext>
             if (!zero)
             {
                 PushAction?.Invoke(item);
-                if (_heap.TryEnqueue(item, deDup) < 0 && !Zeroed)
+                if (_heap.TryEnqueue(item, deDup) < 0 && !Zeroed && !_heap.Zeroed)
                 {
                     _logger.Warn($"{nameof(Return)}: Unable to return {item} to the heap, {Description}");
                     zero = true;

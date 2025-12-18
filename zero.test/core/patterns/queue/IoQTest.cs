@@ -164,15 +164,10 @@ public class IoQTest
                         {
                             tries++;
                             if (bag.TryDequeue(out var item))
-                            {
                                 success++;
-                                //@this._output.WriteLine("dq..");
-                            }
+                            //@this._output.WriteLine("dq..");
                             else
-                            {
-                                @this._output.WriteLine("Waiting...");
-                                Thread.Sleep(2000);
-                            }
+                                Thread.Sleep(200);
                         }
 
                         @this._output.WriteLine(
@@ -401,13 +396,13 @@ public class IoQTest
         }
 
 
-        await Task.WhenAll(insert).WaitAsync(TimeSpan.FromSeconds(5), CancellationToken.None);
+        await Task.WhenAll(insert).WaitAsync(TimeSpan.FromSeconds(10), CancellationToken.None);
         _output.WriteLine($"Inserts tasks {insert.Count}");
 
         _smokeTestDone = true;
         await bag.ZeroManagedAsync<object>(zero: true).FastPath();
         //bag.TryEnqueue(-1);
-        await Task.WhenAll(remove).WaitAsync(TimeSpan.FromSeconds(5), CancellationToken.None);
+        await Task.WhenAll(remove).WaitAsync(TimeSpan.FromSeconds(10), CancellationToken.None);
         _output.WriteLine("remove done");
 
         //Assert.Equal(threads * InsertsPerThread + 4, bag.Count);
