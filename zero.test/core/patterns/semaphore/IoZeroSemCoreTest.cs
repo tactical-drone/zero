@@ -176,7 +176,6 @@ public class IoZeroSemCoreTest
         var batchLog = 1000;
         var threads = Environment.ProcessorCount * 2;
         var threadsRemaining = threads;
-        var spamFactor = 0.5;
         var done = false;
         //var batchLog = 1;
         //var threads = 10;

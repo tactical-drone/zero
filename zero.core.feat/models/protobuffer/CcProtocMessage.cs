@@ -18,6 +18,8 @@ using zero.core.patterns.bushings.contracts;
 using zero.core.patterns.heap;
 using zero.core.patterns.misc;
 using Zero.Models.Protobuf;
+// ReSharper disable once RedundantUsingDirective
+using System.Runtime.CompilerServices;
 
 namespace zero.core.feat.models.protobuffer;
 

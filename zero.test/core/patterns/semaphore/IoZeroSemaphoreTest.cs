@@ -226,7 +226,7 @@ public class IoZeroSemaphoreTest
                     ts = Environment.TickCount;
                     Assert.True(m.Release(Environment.TickCount, true));
                 }
-                catch (Exception e)
+                catch //(Exception e)
                 {
                     //_output.WriteLine($"FAIL! -> {ts.ElapsedMs()} ms ({e.Message})");
                     //Thread.Sleep(20);
