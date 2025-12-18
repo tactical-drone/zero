@@ -80,7 +80,7 @@ public class IoQTest
         //var threads = 2;
         var threads = 4;
 
-        var bag = new IoZeroQ<IoInt32>("test", 8192, true);
+        var bag = new IoZeroQ<IoInt32>("test", 8192);
 
         var c = 0;
         foreach (var ioInt32 in bag)

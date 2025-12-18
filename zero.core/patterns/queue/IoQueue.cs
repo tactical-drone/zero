@@ -94,8 +94,8 @@ public class IoQueue<T> : IEnumerable<IoQueue<T>.IoZNode>
 
     public int Capacity => NodeHeap.Capacity;
     public int Count => _count;
-    public IoZNode Head => _head;
-    public IoZNode Tail => _tail;
+    public IoZNode Head => Volatile.Read(ref _head);
+    public IoZNode Tail => Volatile.Read(ref _tail);
 
     public IoHeap<IoZNode> NodeHeap { get; private set; }
 

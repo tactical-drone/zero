@@ -62,8 +62,8 @@ public class IoBag<T> : IEnumerable<T>
         }
     }
 
-    public long Tail => Interlocked.Read(ref _tail);
-    public long Head => Interlocked.Read(ref _head);
+    public long Tail => Interlocked.Read(ref _tail.Index);
+    public long Head => Interlocked.Read(ref _head.Index);
 
     /// <summary>
     ///     ZeroAsync status
@@ -79,7 +79,7 @@ public class IoBag<T> : IEnumerable<T>
     /// <summary>
     ///     Current number of items in the bag
     /// </summary>
-    public int Count => (int)(_tail - _head);
+    public int Count => (int)(Tail - Head);
 
     /// <summary>
     ///     Capacity
@@ -171,7 +171,7 @@ public class IoBag<T> : IEnumerable<T>
                 }
 
             var sw = new SpinWait();
-            var next = _tail.ZeroNext(Head + Capacity);
+            var next = _tail.Index.ZeroNext(Head + Capacity);
             if (next >= 0)
             {
                 ref var fastBloom = ref _bloom[next % Capacity];
@@ -268,7 +268,7 @@ public class IoBag<T> : IEnumerable<T>
                 return false;
             }
 
-            var next = _head.ZeroNext(Tail);
+            var next = _head.Index.ZeroNext(Tail);
             if (next >= 0)
             {
                 ref var fastBloom = ref _bloom[next % Capacity];
@@ -385,7 +385,7 @@ public class IoBag<T> : IEnumerable<T>
         }
         finally
         {
-            _head = _tail = 0;
+            _head.Index = _tail.Index = 0;
             Interlocked.Exchange(ref _clearing, 0);
         }
 
@@ -400,7 +400,7 @@ public class IoBag<T> : IEnumerable<T>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public bool Contains(T item)
     {
-        for (var i = _head; i < _tail; i++)
+        for (var i = _head.Index; i < _tail.Index; i++)
         {
             var index = i % Capacity;
             try
@@ -540,7 +540,8 @@ public class IoBag<T> : IEnumerable<T>
 
     #region packed
 
-    private long _head;
+    private IoPaddedLongCounter _head;
+    private IoPaddedLongCounter _tail;
     private readonly string _description;
 
     private readonly T[] _storage;
@@ -552,7 +553,6 @@ public class IoBag<T> : IEnumerable<T>
     private readonly AsyncDelegate[] _fanSyncs;
     private readonly AsyncDelegate[] _balanceSyncs;
     private readonly AsyncDelegate[] _zeroSyncs;
-    private long _tail;
 
     private delegate IAsyncEnumerable<T> AsyncDelegate();
 

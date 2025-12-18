@@ -63,6 +63,10 @@ public class IoZeroQ<T> : IEnumerable<T>
             _bloom = new int[32][];
             _bloom[0] = _fastBloom = new int[1];
 
+#if DEBUG
+            _fastStorageTime = new int[Capacity];
+#endif
+
             var v = Log2(capacity + 1);
             var scaled = false;
             for (var i = 0; i < v; i++) scaled = Scale(true);
@@ -78,12 +82,10 @@ public class IoZeroQ<T> : IEnumerable<T>
             _storage[0] = _fastStorage = new T[capacity];
             _bloom = new int[1][];
             _bloom[0] = _fastBloom = new int[capacity];
-        }
-
 #if DEBUG
-        _fastStorageTime = new int[Capacity];
+            _fastStorageTime = new int[Capacity];
 #endif
-
+        }
 
         if (_blockingCollection)
         {
@@ -104,7 +106,8 @@ public class IoZeroQ<T> : IEnumerable<T>
 
     #region packed
 
-    private long _head;
+    private IoPaddedLongCounter _head;
+    private IoPaddedLongCounter _tail;
     //private long _hwm;
 
     private readonly string _description;
@@ -130,7 +133,6 @@ public class IoZeroQ<T> : IEnumerable<T>
     private readonly AsyncDelegate[] _fanSyncs;
     private readonly AsyncDelegate[] _balanceSyncs;
     private readonly AsyncDelegate[] _zeroSyncs;
-    private long _tail;
 
     private delegate IAsyncEnumerable<T> AsyncDelegate();
 
@@ -164,8 +166,8 @@ public class IoZeroQ<T> : IEnumerable<T>
         Locked = 3
     }
 
-    public long Tail => Interlocked.Read(ref _tail);
-    public long Head => Interlocked.Read(ref _head);
+    public long Tail => Interlocked.Read(ref _tail.Index);
+    public long Head => Interlocked.Read(ref _head.Index);
 
     /// <summary>
     ///     ZeroAsync status
@@ -255,12 +257,14 @@ public class IoZeroQ<T> : IEnumerable<T>
                 _storage[_virility + 1] = new T[hwm];
                 _bloom[_virility + 1] = new int[hwm];
 #if DEBUG
-                _fastStorageTime = new int[Capacity + hwm];
+                var fastStorageTime = new int[Capacity + hwm];
+                Array.Copy(_fastStorageTime, fastStorageTime, _fastStorageTime.Length);
+                Interlocked.Exchange(ref _fastStorageTime, fastStorageTime);
 #endif
+                Interlocked.MemoryBarrier();
                 Interlocked.Add(ref _capacity, hwm);
                 Interlocked.Increment(ref _virility);
                 Interlocked.Exchange(ref _timeSinceLastScale, Environment.TickCount);
-                Interlocked.MemoryBarrierProcessWide();
                 Interlocked.Exchange(ref _primedForScale, 0);
                 return true;
             }
@@ -290,6 +294,7 @@ public class IoZeroQ<T> : IEnumerable<T>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private long Queue(long index, long latchedIndex, T value, ref int bloom, ref T qStorage, ref SpinWait spinWait)
     {
+        var retVal = -1L;
         try
         {
             var state = ZeroQState.Zero;
@@ -299,13 +304,13 @@ public class IoZeroQ<T> : IEnumerable<T>
             {
                 //collision
                 if (Tail != latchedIndex)
-                    return -1;
+                    return retVal;
 
                 //dropped & race
                 if (state == ZeroQState.Dropped &&
                     Interlocked.CompareExchange(ref bloom, (int)ZeroQState.Locked, (int)ZeroQState.Dropped) !=
                     (int)ZeroQState.Dropped)
-                    return -1;
+                    return retVal;
 
                 if (state is ZeroQState.Set or ZeroQState.Locked)
                 {
@@ -313,31 +318,34 @@ public class IoZeroQ<T> : IEnumerable<T>
                     {
                         //TODO:hack
                         case ZeroQState.Set when spinWait.Count > 10:
-                            Interlocked.Increment(ref _tail);
+                            Interlocked.Increment(ref _tail.Index);
+                            spinWait.Reset();
                             break;
                         //TODO:hack
                         case ZeroQState.Locked when qStorage is null && spinWait.Count > 10:
                             Interlocked.Exchange(ref bloom, (int)ZeroQState.Zero);
+                            spinWait.Reset();
                             break;
                     }
 
-                    return -1;
+                    return retVal;
                 }
             }
 #if DEBUG
             _fastStorageTime[index] = Interlocked.Increment(ref _opCounter) - 1;
 #endif
-            Interlocked.Increment(ref _tail);
+            Interlocked.Increment(ref _tail.Index);
             _lastInsertIndex = latchedIndex;
             qStorage = value;
             Interlocked.MemoryBarrier();
             Interlocked.Exchange(ref bloom, (int)ZeroQState.Set);
 
-            return _lastInsertIndex;
+            return retVal = _lastInsertIndex;
         }
         finally
         {
-            spinWait.SpinOnce();
+            if (retVal < 0)
+                spinWait.SpinOnce();
         }
     }
 
@@ -357,6 +365,7 @@ public class IoZeroQ<T> : IEnumerable<T>
     private bool DeQueue(long index, long latchedIndex, out T @return, ref int bloom, ref T qStorage,
         ref SpinWait spinWait)
     {
+        var success = false;
         try
         {
             if (Head != latchedIndex ||
@@ -382,7 +391,7 @@ public class IoZeroQ<T> : IEnumerable<T>
 
                     if (bloom == (int)ZeroQState.Locked)
                     {
-                        Interlocked.Increment(ref _head);
+                        Interlocked.Increment(ref _head.Index);
                         _fastStorage[index] = default;
                         Interlocked.MemoryBarrier();
                         Interlocked.Exchange(ref bloom, (int)ZeroQState.Zero);
@@ -394,8 +403,9 @@ public class IoZeroQ<T> : IEnumerable<T>
                 if (bloom == (int)ZeroQState.Zero) //TODO:hack
                     if (spinWait.Count > 10)
                     {
-                        Interlocked.Increment(ref _head);
+                        Interlocked.Increment(ref _head.Index);
                         qStorage = default;
+                        spinWait.Reset();
                         Interlocked.MemoryBarrier();
                     }
 
@@ -412,16 +422,17 @@ public class IoZeroQ<T> : IEnumerable<T>
                     $"-------> & zero skew ({_opCounter - latchOp}/{Capacity}) == ({(_opCounter - latchOp) / (float)Capacity * 100:0.0}%)");
             _lastRemoveIndex = latchedIndex;
 #endif
-            Interlocked.Increment(ref _head);
+            Interlocked.Increment(ref _head.Index);
             (@return, qStorage) = (qStorage, default);
             Interlocked.MemoryBarrier();
             Interlocked.Exchange(ref bloom, (int)ZeroQState.Zero);
 
-            return true;
+            return success = true;
         }
         finally
         {
-            spinWait.SpinOnce();
+            if (!success)
+                spinWait.SpinOnce();
         }
     }
 
@@ -442,10 +453,24 @@ public class IoZeroQ<T> : IEnumerable<T>
         if (!IsAutoScaling)
         {
             idx = (latchedIndex = Tail) % Capacity;
+
+            if (latchedIndex - Capacity >= Head)
+            {
+                spinWait.SpinOnce();
+                return -1;
+            }
+
             return Queue(idx, latchedIndex, value, ref _fastBloom[idx], ref _fastStorage[idx], ref spinWait);
         }
 
         idx = (latchedIndex = Tail) % Capacity;
+
+        if (latchedIndex - Capacity >= Head)
+        {
+            spinWait.SpinOnce();
+            return -1;
+        }
+
         var (i, i2) = GetIndex(idx);
         return Queue(idx, latchedIndex, value, ref _bloom[i][i2], ref _storage[i][i2], ref spinWait);
     }
@@ -461,18 +486,34 @@ public class IoZeroQ<T> : IEnumerable<T>
 #endif
     private bool AtomicRemove(out T value, ref SpinWait spinWait)
     {
-        long latch;
+        long latchedIndex;
         long idx;
 
         if (!IsAutoScaling)
         {
-            idx = (latch = Head) % Capacity;
-            return DeQueue(idx, latch, out value, ref _fastBloom[idx], ref _fastStorage[idx], ref spinWait);
+            idx = (latchedIndex = Head) % Capacity;
+
+            if (latchedIndex >= Tail)
+            {
+                spinWait.SpinOnce();
+                value = default;
+                return false;
+            }
+
+            return DeQueue(idx, latchedIndex, out value, ref _fastBloom[idx], ref _fastStorage[idx], ref spinWait);
         }
 
-        idx = (latch = Head) % Capacity;
+        idx = (latchedIndex = Head) % Capacity;
+
+        if (latchedIndex > Tail)
+        {
+            spinWait.SpinOnce();
+            value = default;
+            return false;
+        }
+
         var (i, i2) = GetIndex(idx);
-        return DeQueue(idx, latch, out value, ref _bloom[i][i2], ref _storage[i][i2], ref spinWait);
+        return DeQueue(idx, latchedIndex, out value, ref _bloom[i][i2], ref _storage[i][i2], ref spinWait);
     }
 
 #if !DEBUG
@@ -764,7 +805,7 @@ public class IoZeroQ<T> : IEnumerable<T>
         }
         finally
         {
-            _head = _tail = 0;
+            _head.Index = _tail.Index = 0;
 #if DEBUG
             if (IsAutoScaling)
                 for (var i = 0; i < _bloom.Length && _bloom[i] != null; i++)
