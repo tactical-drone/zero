@@ -238,7 +238,8 @@ public sealed class IoUdpSocket : IoNetSocket
     /// <param name="endPoint">A destination, used for UDP connections</param>
     /// <param name="timeout">Send timeout</param>
     /// <returns></returns>
-    public async ValueTask<int> SendAsync(ReadOnlyMemory<byte> buffer, int offset, int length, EndPoint endPoint,
+    public override async ValueTask<int> SendAsync(ReadOnlyMemory<byte> buffer, int offset, int length,
+        EndPoint endPoint,
         int timeout = 0)
     {
         try
@@ -298,19 +299,28 @@ public sealed class IoUdpSocket : IoNetSocket
         return 0;
     }
 
+    /// <summary>
+    /// 
+    /// </summary>
+    /// <param name="buffer"></param>
+    /// <param name="offset"></param>
+    /// <param name="length"></param>
+    /// <param name="endPoint"></param>
+    /// <param name="crc"></param>
+    /// <param name="timeout"></param>
+    /// <returns></returns>
+    //public override ValueTask<int> SendAsync(ReadOnlyMemory<byte> buffer, int offset, int length,
+    //    EndPoint endPoint,
+    //    long crc = 0,
+    //    int timeout = 0)
+    //{
+    //    if (crc == 0)
+    //        return SendAsync(buffer, offset, length, endPoint, timeout);
 
-    public override ValueTask<int> SendAsync(ReadOnlyMemory<byte> buffer, int offset, int length,
-        EndPoint endPoint,
-        long crc = 0,
-        int timeout = 0)
-    {
-        if (crc == 0)
-            return SendAsync(buffer, offset, length, endPoint, timeout);
-
-        return DupChecker.TryAdd(crc, Environment.TickCount)
-            ? SendAsync(buffer, offset, length, endPoint, timeout)
-            : new ValueTask<int>(-1);
-    }
+    //    return DupChecker.TryAdd(crc, Environment.TickCount) //TODO:wtf? hooked? 
+    //        ? SendAsync(buffer, offset, length, endPoint, timeout)
+    //        : new ValueTask<int>(-1);
+    //}
 
     /// <summary>
     ///     socket args heap

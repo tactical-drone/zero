@@ -51,6 +51,8 @@ public class CcDesignation
 
     private string _id;
 
+    private int _noHell;
+
     private byte[][] _primedSabot;
 
     private byte[] _secretKey;
@@ -261,6 +263,19 @@ public class CcDesignation
     {
         try
         {
+            if (aes < ZeroRound)
+            {
+                if (_noHell++ > 3)
+                {
+                    UnPrime();
+                    _noHell = 0;
+                }
+                else if (aes < ZeroRound - 1)
+                {
+                    UnPrime();
+                }
+            }
+
             var dhrNext = _dhrNext;
             //if primed do nothing
             if (aes != ZeroRound || msg == null || msg.Length == 0 || dhrNext >= CH53K ||
@@ -399,7 +414,7 @@ public class CcDesignation
         var prev = ZeroRound;
         if (_dhr.ZeroPrev(0) != -1)
             LogManager.GetCurrentClassLogger()
-                .Debug($"Hellman down from {prev} to {ZeroRound}; id = {IdString()}, h = {GetHashCode()}");
+                .Warn($"Hellman down from {prev} to {ZeroRound}; id = {IdString()}, h = {GetHashCode()}");
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]

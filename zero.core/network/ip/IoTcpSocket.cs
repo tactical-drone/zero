@@ -349,7 +349,8 @@ internal sealed class IoTcpSocket : IoNetSocket
     /// <param name="endPoint">not used</param>
     /// <param name="timeout"></param>
     /// <returns>The amount of bytes sent</returns>
-    public async ValueTask<int> SendAsync(ReadOnlyMemory<byte> buffer, int offset, int length, EndPoint endPoint = null,
+    public override async ValueTask<int> SendAsync(ReadOnlyMemory<byte> buffer, int offset, int length,
+        EndPoint endPoint = null,
         int timeout = 0)
     {
         try
@@ -384,16 +385,16 @@ internal sealed class IoTcpSocket : IoNetSocket
         finally
         {
             if (timeout > 0)
-                Interlocked.Exchange(ref _timedOp, timeout);
-            else if (_timedOp > 0)
-                Interlocked.Exchange(ref _timedOp, 0);
+                Interlocked.Exchange(ref TimedOp, timeout);
+            else if (TimedOp > 0)
+                Interlocked.Exchange(ref TimedOp, 0);
         }
 
         return 0;
     }
 
     /// <summary>
-    ///     Sends data over TCP async
+    ///     Sends data over TCP async 
     /// </summary>
     /// <param name="buffer">The buffer containing the data</param>
     /// <param name="offset">The offset into the buffer to start reading from</param>
@@ -402,17 +403,17 @@ internal sealed class IoTcpSocket : IoNetSocket
     /// <param name="crc">a crc</param>
     /// <param name="timeout"></param>
     /// <returns>The amount of bytes sent</returns>
-    public override ValueTask<int> SendAsync(ReadOnlyMemory<byte> buffer, int offset, int length,
-        EndPoint endPoint = null, long crc = 0,
-        int timeout = 0)
-    {
-        if (crc == 0)
-            return SendAsync(buffer, offset, length, endPoint, timeout);
+    //public override ValueTask<int> SendAsync(ReadOnlyMemory<byte> buffer, int offset, int length,
+    //    EndPoint endPoint = null, long crc = 0,
+    //    int timeout = 0)
+    //{
+    //    if (crc == 0)
+    //        return SendAsync(buffer, offset, length, endPoint, timeout);
 
-        return DupChecker.TryAdd(crc, Environment.TickCount)
-            ? SendAsync(buffer, offset, length, endPoint, timeout)
-            : new ValueTask<int>(length);
-    }
+    //    return DupChecker.TryAdd(crc, Environment.TickCount)//TODO:wtf? hooked?
+    //        ? SendAsync(buffer, offset, length, endPoint, timeout)
+    //        : new ValueTask<int>(length);
+    //}
 
     /// <inheritdoc />
     /// <summary>
@@ -456,9 +457,9 @@ internal sealed class IoTcpSocket : IoNetSocket
         finally
         {
             if (timeout > 0)
-                Interlocked.Exchange(ref _timedOp, timeout);
-            else if (_timedOp > 0)
-                Interlocked.Exchange(ref _timedOp, 0);
+                Interlocked.Exchange(ref TimedOp, timeout);
+            else if (TimedOp > 0)
+                Interlocked.Exchange(ref TimedOp, 0);
         }
 
         return 0;
@@ -475,7 +476,7 @@ internal sealed class IoTcpSocket : IoNetSocket
         {
             return Zeroed() ||
                    (NativeSocket.RemoteEndPoint != null && NativeSocket.IsBound && NativeSocket.Connected) ||
-                   _timedOp > 0;
+                   TimedOp > 0;
             //return !Zeroed() && NativeSocket is { IsBound: true, Connected: true };//&& (_expensiveCheck++ % 10000 == 0 && NativeSocket.Send(_sentinelBuf, SocketFlags.None) == 0  || true);
 
             //||

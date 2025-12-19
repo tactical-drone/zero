@@ -1,12 +1,8 @@
-﻿using System;
-using System.Collections.Concurrent;
+﻿using System.Collections.Concurrent;
 using System.Net;
 using System.Net.Sockets;
-using System.Threading.Tasks;
 using zero.core.conf;
-using zero.core.misc;
 using zero.core.patterns.bushings.contracts;
-using zero.core.patterns.misc;
 
 namespace zero.core.network.ip;
 
@@ -43,12 +39,7 @@ public abstract class IoNetSocket : IoSocket
     /// <summary>
     ///     Whether the last operation was a timed op.
     /// </summary>
-    protected int _timedOp;
-
-    /// <summary>
-    ///     DupChecker on send
-    /// </summary>
-    protected ConcurrentDictionary<long, long> DupChecker = new();
+    protected int TimedOp;
 
     /// <summary>
     ///     Enable TCP keep alive
@@ -133,25 +124,21 @@ public abstract class IoNetSocket : IoSocket
         //              $"  IsBound {socket.IsBound}");
     }
 
-    public override async ValueTask BlockOnListenAsync<T, TContext>(IoNodeAddress listeningAddress,
-        Func<IoSocket, T, ValueTask> acceptConnectionHandler, T context,
-        Func<TContext, ValueTask> bootFunc = null, TContext bootData = default)
-    {
-        await PruneDupCheckerAsync().FastPath();
-        await base.BlockOnListenAsync(listeningAddress, acceptConnectionHandler, context, bootFunc, bootData);
-    }
-
-    private async ValueTask PruneDupCheckerAsync()
-    {
-        await ZeroAsync(static async @this =>
-        {
-            while (!@this.Zeroed())
-            {
-                await Task.Delay(60000);
-                foreach (var entry in @this.DupChecker)
-                    if (entry.Value.ElapsedMs() > 120000)
-                        @this.DupChecker.TryRemove(entry.Key, out _);
-            }
-        }, this);
-    }
+    /// <summary>
+    /// Prune the dupchecker TODO://wtf?
+    /// </summary>
+    /// <returns>a task</returns>
+    //private async ValueTask PruneDupCheckerAsync()
+    //{
+    //    await ZeroAsync(static async @this =>
+    //    {
+    //        while (!@this.Zeroed())
+    //        {
+    //            await Task.Delay(60000);
+    //            foreach (var entry in @this.DupChecker)
+    //                if (entry.Value.ElapsedMs() > 120000)
+    //                    @this.DupChecker.TryRemove(entry.Key, out _);
+    //        }
+    //    }, this);
+    //}
 }

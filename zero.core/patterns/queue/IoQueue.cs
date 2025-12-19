@@ -172,7 +172,7 @@ public class IoQueue<T> : IEnumerable<IoQueue<T>.IoZNode>
         }
         finally
         {
-            _syncRoot.Release(Environment.TickCount);
+            _syncRoot.Release(Environment.TickCount, true);
             if (zero)
             {
                 await ClearAsync().FastPath(); //TODO perf: can these two steps be combined?
@@ -292,8 +292,8 @@ public class IoQueue<T> : IEnumerable<IoQueue<T>.IoZNode>
 #if DEBUG
                         Interlocked.Decrement(ref _insaneExclusive);
 #endif
-                        _syncRoot.Release(Environment.TickCount, _pressure?.WaitCount > 0);
-                        _pressure?.Release(Environment.TickCount, _syncRoot.WaitCount > 0);
+                        _syncRoot.Release(Environment.TickCount, true);
+                        _pressure?.Release(Environment.TickCount);//false because backpressure
                     }
             }
         }
@@ -360,8 +360,8 @@ public class IoQueue<T> : IEnumerable<IoQueue<T>.IoZNode>
 #if DEBUG
                     Interlocked.Decrement(ref _insaneExclusive);
 #endif
-                    _syncRoot.Release(Environment.TickCount, _pressure?.WaitCount > 0);
-                    _pressure?.Release(Environment.TickCount, _syncRoot.WaitCount > 0);
+                    _syncRoot.Release(Environment.TickCount, true);
+                    _pressure?.Release(Environment.TickCount);//false because backpressure
                 }
             }
         }
@@ -429,8 +429,8 @@ public class IoQueue<T> : IEnumerable<IoQueue<T>.IoZNode>
                             NodeHeap.Return(dq);
                         }
 
-                        _syncRoot.Release(Environment.TickCount, _backPressure?.WaitCount > 0);
-                        _backPressure?.Release(Environment.TickCount, _syncRoot.WaitCount > 0);
+                        _syncRoot.Release(Environment.TickCount, true);
+                        _backPressure?.Release(Environment.TickCount);//false because backpressure
                     }
                     catch when (_zeroed > 0)
                     {
@@ -540,9 +540,8 @@ public class IoQueue<T> : IEnumerable<IoQueue<T>.IoZNode>
 #endif
             NodeHeap.Return(node, deDup); //TODO, up one?
 
-
-            _syncRoot.Release(Environment.TickCount, _backPressure?.WaitCount > 0);
-            _backPressure?.Release(Environment.TickCount, _syncRoot.WaitCount > 0);
+            _syncRoot.Release(Environment.TickCount, true);
+            _backPressure?.Release(Environment.TickCount);//false because backpressure
         }
     }
 
@@ -570,7 +569,7 @@ public class IoQueue<T> : IEnumerable<IoQueue<T>.IoZNode>
         }
         finally
         {
-            _syncRoot.Release(Environment.TickCount);
+            _syncRoot.Release(Environment.TickCount, true);
         }
     }
 
@@ -599,7 +598,7 @@ public class IoQueue<T> : IEnumerable<IoQueue<T>.IoZNode>
         }
         finally
         {
-            _syncRoot.Release(Environment.TickCount);
+            _syncRoot.Release(Environment.TickCount, true);
         }
     }
 
@@ -630,7 +629,12 @@ public class IoQueue<T> : IEnumerable<IoQueue<T>.IoZNode>
 #endif
         public IoZNode Next;
         public IoZNode Prev;
+
+        /// <summary>
+        ///     lamport clock for reentrancy checks
+        /// </summary>
         public int Qid;
+
         public T Value;
     }
 

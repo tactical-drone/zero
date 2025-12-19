@@ -76,7 +76,6 @@ public abstract class IoSource<TJob> : IoNanoprobe, IIoSource where TJob : IIoJo
 
         try
         {
-            //_backPressure = new IoZeroSemaphoreSlim(AsyncTasks, $"{nameof(_backPressure)}: {description}", PrefetchSize, PrefetchSize);
             IIoZeroSemaphoreBase<int> c = new IoZeroCore<int>(description, PrefetchSize, AsyncTasks, PrefetchSize);
             _backPressure = c.ZeroRef(ref c, _ => Environment.TickCount);
         }

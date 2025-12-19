@@ -326,7 +326,7 @@ public abstract class IoSocket : IoNanoprobe
     /// <param name="timeout">Send timeout</param>
     /// <returns></returns>
     public abstract ValueTask<int> SendAsync(ReadOnlyMemory<byte> buffer, int offset, int length,
-        EndPoint endPoint = null, long crc = 0,
+        EndPoint endPoint = null,
         int timeout = 0);
 
     /// <summary>

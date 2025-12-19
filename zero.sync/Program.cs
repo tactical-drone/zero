@@ -440,6 +440,13 @@ internal class Program
                     try
                     {
                         var p = new PeriodicTimer(delta);
+
+                        while (signal.Burned)
+                        {
+                            Console.WriteLine("Burned...");
+                            await Task.Delay(1000, token);
+                        }
+
                         while (!token.IsCancellationRequested)
                             if (await p.WaitForNextTickAsync(token).FastPath())
                                 signal.SetResult(Environment.TickCount);

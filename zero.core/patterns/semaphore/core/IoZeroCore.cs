@@ -6,6 +6,7 @@ using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Threading.Tasks.Sources;
+using NLog;
 using zero.core.misc;
 using zero.core.patterns.queue;
 
@@ -42,7 +43,7 @@ public struct IoZeroCore<T> : IIoZeroSemaphoreBase<T>
         _blockingCores =
             new IoZeroQ<IIoManualResetValueTaskSourceCore<T>>(string.Empty, capacity, false, null, capacity);
         _results = new IoZeroQ<T>(string.Empty, capacity, false, null, capacity);
-        _heapCore = new IoBag<IIoManualResetValueTaskSourceCore<T>>(string.Empty, capacity, null, capacity);
+        _heapCore = new IoBag<IIoManualResetValueTaskSourceCore<T>>(string.Empty, capacity + 1, null, capacity);
 
         _primeReady = _ => default;
         _primeContext = null;
@@ -276,11 +277,10 @@ public struct IoZeroCore<T> : IIoZeroSemaphoreBase<T>
                     Interlocked.Increment(ref @this._curOps);
 
                     if (@this._heapCore.TryEnqueue(blockingCore) < 0)
-                    {
-                        Console.WriteLine($"Core Heap Overflow - {@this._heapCore.Description}");
-                        for (var i = 0; i < @this._heapCore.Count >> 1; i++)
-                            @this._heapCore.TryDequeue(out _);
-                    }
+                        if (@this._heapCore.Count >= @this._heapCore.Capacity)
+                            LogManager.GetCurrentClassLogger().Trace($"Core Heap Overflow - {@this._heapCore.Description}");
+                    for (var i = 0; i < @this._heapCore.Count >> 1; i++)
+                        @this._heapCore.TryDequeue(out _);
                 }, (this, blockingCore));
             }
 

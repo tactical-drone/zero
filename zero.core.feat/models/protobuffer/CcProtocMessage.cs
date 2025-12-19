@@ -42,16 +42,16 @@ public abstract class CcProtocMessage<TModel, TBatch> : IoMessage<CcProtocMessag
     protected static IoHeap<byte[]> SabotHeap;
 
     /// <summary>
-    ///     Batch of messages
-    /// </summary>
-    protected TBatch CurrentBatch;
-
-    /// <summary>
     ///     Maximum number of datums this buffer can hold
     /// </summary>
     [IoParameter]
     // ReSharper disable once InconsistentNaming
-    public int parm_datums_per_buffer = 8; // This must be at least 4
+    public static int parm_datums_per_buffer = 8; // This must be at least 4
+
+    /// <summary>
+    ///     Batch of messages
+    /// </summary>
+    protected TBatch CurrentBatch;
 
     /// <summary>
     ///     The time a consumer will wait for a source to release it before aborting in ms
@@ -291,7 +291,7 @@ public abstract class CcProtocMessage<TModel, TBatch> : IoMessage<CcProtocMessag
             var next = CurrentBatch.Feed();
             next.Zero = packet;
 
-            RemoteEndpoint.CopyTo(next.EndPoint, 0);
+            RemoteEndpoint.CopyTo(next.EndPoint);
             if (CurrentBatch.ReadyToFlush)
                 await ZeroBatchAsync().FastPath();
         }

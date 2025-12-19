@@ -308,6 +308,7 @@ public class CcAdjunct : IoNeighbor<CcProtocMessage<chroniton, CcDiscoveryBatch>
     private int _scanCount;
     public int ScanCount => Volatile.Read(ref _scanCount);
 
+
     /// <summary>
     ///     Gathers counter-intelligence at acceptable rates
     /// </summary>
@@ -423,7 +424,7 @@ public class CcAdjunct : IoNeighbor<CcProtocMessage<chroniton, CcDiscoveryBatch>
     /// <summary>
     ///     Seconds since valid
     /// </summary>
-    public long SecondsSincePat => LastPat.ElapsedMsToSec() - 1;
+    public long SecondsSincePat => LastPat.ElapsedMsToSec();
 
     /// <summary>
     ///     Used to Match requests
@@ -743,8 +744,9 @@ public class CcAdjunct : IoNeighbor<CcProtocMessage<chroniton, CcDiscoveryBatch>
         try
         {
             //TODO: tuning, helps cluster test bootups not stalling on popdog spam
-            var deltaTime = @this.CcCollective.parm_mean_pat_delay_s >> 4;
-            var ioTimer = new IoTimer(TimeSpan.FromSeconds(@this.CcCollective.parm_mean_pat_delay_s >> 4),
+            var deltaTime = (RandomNumberGenerator.GetInt32(@this.CcCollective.parm_mean_pat_delay_s >>
+                                                            2) + @this.CcCollective.parm_mean_pat_delay_s) >> 3;
+            var ioTimer = new IoTimer(TimeSpan.FromSeconds(deltaTime),
                 @this.AsyncTasks.Token);
 
             var ts = Environment.TickCount;
@@ -762,6 +764,7 @@ public class CcAdjunct : IoNeighbor<CcProtocMessage<chroniton, CcDiscoveryBatch>
                 if (ts.ElapsedMs() < targetDelay)
                     continue;
 
+                @this._logger.Trace($"Roboteching.... {(targetDelay - ts.ElapsedMs()) / 1000}s");
 #if TRACE
                 @this._logger.Trace($"Robo - {@this.Description}");
 #endif
@@ -814,7 +817,6 @@ public class CcAdjunct : IoNeighbor<CcProtocMessage<chroniton, CcDiscoveryBatch>
             var targetDelay = CcCollective.TotalConnections < CcCollective.parm_max_outbound
                 ? CcCollective.parm_mean_pat_delay_s >> 3
                 : CcCollective.parm_mean_pat_delay_s;
-
             if (SecondsSincePat >= targetDelay)
             {
                 //send PAT
@@ -1634,7 +1636,8 @@ public class CcAdjunct : IoNeighbor<CcProtocMessage<chroniton, CcDiscoveryBatch>
             };
 
             if ((sent = await Router
-                    .SendMessageAsync(reject.ToByteArray(), CcDiscoveries.MessageTypes.FuseResponse, src).FastPath()) >
+                    .SendMessageAsync(reject.ToByteArray(), CcDiscoveries.MessageTypes.FuseResponse, src, packet.Aes)
+                    .FastPath()) >
                 0)
                 _logger.Trace($"<\\- {nameof(CcFuseResponse)} ({sent}): Reply [REJECT] to {src} [OK], {src}, []");
             else
@@ -1947,8 +1950,8 @@ public class CcAdjunct : IoNeighbor<CcProtocMessage<chroniton, CcDiscoveryBatch>
                             return await MessageService.IoNetSocket.SendAsync(buf.Item2, 0, (int)length + sizeof(ulong), dest.IpEndPoint);
                         }
 #else
-                    return await MessageService.IoNetSocket.SendAsync(buf.Item2, 0, (int)length + sizeof(long), dest,
-                        MemoryMarshal.Read<long>(packet.Sabot.Span)).FastPath();
+                    return await MessageService.IoNetSocket.SendAsync(buf.Item2, 0, (int)length + sizeof(long), dest)
+                        .FastPath();
 #endif
                 }
                 finally
@@ -2276,7 +2279,8 @@ public class CcAdjunct : IoNeighbor<CcProtocMessage<chroniton, CcDiscoveryBatch>
 
         int sent;
         var dst = IsProxy ? Address.IpEndPoint : src;
-        if ((sent = await SendMessageAsync(sweptResponse.ToByteArray(), CcDiscoveries.MessageTypes.ScanResponse, dst)
+        if ((sent = await SendMessageAsync(sweptResponse.ToByteArray(), CcDiscoveries.MessageTypes.ScanResponse, dst,
+                    packet.Aes)
                 .FastPath()) > 0)
         {
             if (count > 0)
@@ -2787,7 +2791,18 @@ public class CcAdjunct : IoNeighbor<CcProtocMessage<chroniton, CcDiscoveryBatch>
                 var sent = await SendMessageAsync(probeMsgBuf, CcDiscoveries.MessageTypes.Probe).FastPath();
                 if (sent > 0)
                 {
-                    Interlocked.Increment(ref _zeroProbes);
+                    if (Interlocked.Increment(ref _zeroProbes) > parm_zombie_max_connection_attempts >> 1)
+                    {
+#if DEBUG
+                        _logger.Warn($"{nameof(ProbeAsync)}: ZeroProbes incremented to {_zeroProbes}");
+#endif
+                        if (Designation.ZeroRound > 0)
+                        {
+                            Designation.UnPrime();
+                            Interlocked.Exchange(ref _zeroProbes, 0);
+                            await ProbeAsync(desc, dest, id);
+                        }
+                    }
 #if DEBUG
                     try
                     {

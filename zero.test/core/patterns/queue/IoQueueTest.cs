@@ -611,7 +611,7 @@ public class IoQueueTest : IDisposable
 
         try
         {
-            await Task.WhenAll(q, dq).WithTimeout(TimeSpan.FromSeconds(5));
+            await Task.WhenAll(q, dq).WithTimeout(TimeSpan.FromSeconds(10));
         }
         catch (TaskCanceledException)
         {

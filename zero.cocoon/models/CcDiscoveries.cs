@@ -45,8 +45,9 @@ public class CcDiscoveries : CcProtocMessage<chroniton, CcDiscoveryBatch>
 
     static CcDiscoveries()
     {
-        BatchHeap = new IoHeap<CcDiscoveryBatch, chroniton>($"{nameof(BatchHeap)}:", 2048, static (_, _) =>
-            new CcDiscoveryBatch(4), true)
+        BatchHeap = new IoHeap<CcDiscoveryBatch, chroniton>($"{nameof(BatchHeap)}:", Environment.ProcessorCount * 10,
+            static (_, _) =>
+                new CcDiscoveryBatch(parm_datums_per_buffer))
         {
             PopAction = (batch, _) =>
             {
@@ -55,8 +56,8 @@ public class CcDiscoveries : CcProtocMessage<chroniton, CcDiscoveryBatch>
             }
         };
 
-        SabotHeap = new IoHeap<byte[]>($"{nameof(SabotHeap)}:", 2048,
-            static (_, _) => new byte[64 + Sabot.BlockLength]);
+        SabotHeap = new IoHeap<byte[]>($"{nameof(SabotHeap)}:", Environment.ProcessorCount * 10,
+            static (_, _) => new byte[CcDesignation.HELLM_MM + Sabot.BlockLength]);
     }
 
     public CcDiscoveries(CcAdjunct ioZero, string sinkDesc, bool groupByEp = false) : base(sinkDesc,
@@ -303,7 +304,7 @@ public class CcDiscoveries : CcProtocMessage<chroniton, CcDiscoveryBatch>
                 }
 
                 //discarding sabot
-                bool apds;
+                var apds = false;
 
                 if (Adjunct.Designation.Ssf != null)
                 {
@@ -333,23 +334,32 @@ public class CcDiscoveries : CcProtocMessage<chroniton, CcDiscoveryBatch>
                             apds = CcDesignation.VerifyHash(packet.Sabot.Memory.AsArray(),
                                 adjunct.Designation.Sabot(packet.Data.Memory.AsArray(), adjunct.Designation.ZeroRound),
                                 packet.Sabot.Length);
-#if DEBUG
                             if (!apds)
-                                _logger.Error(
-                                    $"aes <== {Enum.GetName(typeof(MessageTypes), packet.Type)}({packet.Data.Length}), {remote}, aes = {packet.Aes}, sabotLen = {packet.Sabot.Length}, Available = {adjunct.Designation.ZeroRound} :: {packet.Data.Memory.PayloadSig()} {packet.Sabot.Memory.PayloadSig()} ({sabot.PayloadSig()}) => {Convert.ToBase64String(packet.Data.Memory.AsArray())}");
-#endif
+                                _logger.Fatal(
+                                    $"apds <== {Enum.GetName(typeof(MessageTypes), packet.Type)}({packet.Data.Length}), {remote}, aes = {packet.Aes}, sabotLen = {packet.Sabot.Length}, Available = {adjunct.Designation.ZeroRound} :: {packet.Data.Memory.PayloadSig()} {packet.Sabot.Memory.PayloadSig()} ({sabot.PayloadSig()}) => {Convert.ToBase64String(packet.Data.Memory.AsArray())}");
                         }
                         else //no hellman
                         {
-                            apds = CcDesignation.VerifyHash(packet.Sabot.Memory.AsArray(),
-                                //Adjunct.Designation.Sabot(packet.Data.Memory.AsArray(), sabot), packet.Sabot.Length);
-                                CcDesignation.HashRe(packet.Data.Memory, 0, packet.Data.Length, sabot),
-                                CcDesignation.ZeroRoundSize);
+                            if (packet.Aes == 0)
+                            {
+                                apds = CcDesignation.VerifyHash(packet.Sabot.Memory.AsArray(),
+                                    //Adjunct.Designation.Sabot(packet.Data.Memory.AsArray(), sabot), packet.Sabot.Length);
+                                    CcDesignation.HashRe(packet.Data.Memory, 0, packet.Data.Length, sabot),
+                                    CcDesignation.ZeroRoundSize);
 #if DEBUG
-                            if (!apds)
-                                _logger.Error(
-                                    $"raw <== {Enum.GetName(typeof(MessageTypes), packet.Type)}({packet.Data.Length}) {CcDesignation.MakeKey(packet.PublicKey)}, aes = {packet.Aes}, Available = {Adjunct.Designation.ZeroRound} :: data = {packet.Data.Memory.PayloadSig()}, sabot = {packet.Sabot.Memory.PayloadSig()}, buffer = {sabot.PayloadSig()} => {Convert.ToBase64String(packet.Data.Memory.AsArray())}");
+                                if (!apds)
+                                    _logger.Error(
+                                        $"trap <== {Enum.GetName(typeof(MessageTypes), packet.Type)}({packet.Data.Length}) {CcDesignation.MakeKey(packet.PublicKey)}, aes = {packet.Aes}, Available = {Adjunct.Designation.ZeroRound} :: data = {packet.Data.Memory.PayloadSig()}, sabot = {packet.Sabot.Memory.PayloadSig()}, buffer = {sabot.PayloadSig()} => {Convert.ToBase64String(packet.Data.Memory.AsArray())}");
 #endif
+                            }
+#if DEBUG
+                            else
+                            {
+                                _logger.Warn(
+                                    $"deflect <== {Enum.GetName(typeof(MessageTypes), packet.Type)}({packet.Data.Length}) {CcDesignation.MakeKey(packet.PublicKey)}, aes = {packet.Aes}, Available = {Adjunct.Designation.ZeroRound} :: data = {packet.Data.Memory.PayloadSig()}, sabot = {packet.Sabot.Memory.PayloadSig()}, buffer = {sabot.PayloadSig()} => {Convert.ToBase64String(packet.Data.Memory.AsArray())}");
+                            }
+#endif
+                            //dropped
                         }
                     }
                     finally

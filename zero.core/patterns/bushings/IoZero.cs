@@ -10,6 +10,7 @@ using zero.core.patterns.heap;
 using zero.core.patterns.misc;
 using zero.core.patterns.queue;
 using zero.core.patterns.semaphore.core;
+using zero.core.runtime.scheduler;
 
 namespace zero.core.patterns.bushings;
 
@@ -150,13 +151,6 @@ public abstract class IoZero<TJob> : IoNanoprobe, IIoZero
     public long EventCount => Interlocked.Read(ref _eventCounter);
 
     /// <summary>
-    ///     Maximum amount of producers that can be buffered before we stop production of new jobs
-    /// </summary>
-    [IoParameter]
-    // ReSharper disable once InconsistentNaming
-    public int parm_max_q_size = 128; //TODO
-
-    /// <summary>
     ///     Minimum useful uptime in seconds
     /// </summary>
     [IoParameter]
@@ -175,64 +169,11 @@ public abstract class IoZero<TJob> : IoNanoprobe, IIoZero
 #endif
 
     /// <summary>
-    ///     Used to rate limit this queue, in ms. Set to -1 for max rate
-    /// </summary>
-    [IoParameter]
-    // ReSharper disable once InconsistentNaming
-    public int parm_min_frame_time = 10;
-
-    /// <summary>
-    ///     The amount of time to wait between retries when the source cannot allocate job management structures
-    /// </summary>
-    [IoParameter]
-    // ReSharper disable once InconsistentNaming
-    public int parm_error_popdog = 10000;
-
-    /// <summary>
-    ///     The amount of time to wait between retries when the source cannot allocate job management structures
-    /// </summary>
-    [IoParameter]
-    // ReSharper disable once InconsistentNaming
-    public int parm_conduit_spin_up_wait_time = 250;
-
-    [IoParameter]
-    // ReSharper disable once InconsistentNaming
-    public int parm_max_consumer_threads = 2;
-
-    /// <summary>
-    ///     The time that the source will delay waiting for the consumer to free up job buffer space
-    /// </summary>
-    [IoParameter]
-    // ReSharper disable once InconsistentNaming
-    public int parm_producer_consumer_throttle_delay = 1000;
-
-    /// <summary>
     ///     Minimum time a failed production should block
     /// </summary>
     [IoParameter]
     // ReSharper disable once InconsistentNaming
     public int parm_min_failed_production_time = 1000;
-
-    /// <summary>
-    ///     The time a source will wait for a consumer to release it before aborting in ms
-    /// </summary>
-    [IoParameter]
-    // ReSharper disable once InconsistentNaming
-    public int parm_consumer_wait_for_producer_timeout = 5000;
-
-    /// <summary>
-    ///     How long a source will sleep for when it is getting skipped productions
-    /// </summary>
-    [IoParameter]
-    // ReSharper disable once InconsistentNaming
-    public int parm_producer_start_retry_time = 1000;
-
-    /// <summary>
-    ///     How long a source will sleep for when it is getting skipped productions
-    /// </summary>
-    [IoParameter]
-    // ReSharper disable once InconsistentNaming
-    public int parm_io_batch_size = 4;
 
     /// <summary>
     ///     If we are zeroed or not
@@ -338,12 +279,19 @@ public abstract class IoZero<TJob> : IoNanoprobe, IIoZero
                         Interlocked.Exchange(ref nextJob.FragmentIdx,
                             await _previousJobFragment.EnqueueAsync(nextJob).FastPath());
 
-                        if (nextJob.FragmentIdx == null && _previousJobFragment.Count == _previousJobFragment.Capacity)
+                        if (_previousJobFragment.Count >= _previousJobFragment.Capacity * 7 / 8)
                         {
+                            purge:
                             var flushedJob = await _previousJobFragment.DequeueAsync().FastPath();
-                            await ZeroJobAsync(flushedJob, true);
-                            _logger.Fatal(
-                                $"{nameof(ProduceAsync)}: Flushing recovery tail index {flushedJob.Id}, {flushedJob.Description}");
+                            if (flushedJob != null && flushedJob.Id < nextJob.Id - 1)
+                            {
+                                await ZeroJobAsync(flushedJob);
+                                _logger.Trace(
+                                    $"{nameof(ProduceAsync)}: Flushing recovery tail index {flushedJob.Id}, {flushedJob.Description}");
+                                if (flushedJob.Id < nextJob.Id - 2)
+                                    goto purge;
+                            }
+
                             goto retry;
                         }
                     }
@@ -352,7 +300,7 @@ public abstract class IoZero<TJob> : IoNanoprobe, IIoZero
                     if (nextJob.State != IoJobMeta.JobState.ProdConnReset)
                         await nextJob.SetStateAsync(IoJobMeta.JobState.Queued).FastPath();
 
-                    if (!_queue.Release(nextJob, true))
+                    if (!_queue.Release(nextJob))//False because backpressure is applied
                     {
                         ts = ts.ElapsedMs();
 
@@ -547,12 +495,11 @@ public abstract class IoZero<TJob> : IoNanoprobe, IIoZero
             if (curJob.State != IoJobMeta.JobState.ProdConnReset)
                 await curJob.SetStateAsync(IoJobMeta.JobState.Consuming).FastPath();
 
-            //Consume the job
-            //IoZeroScheduler.Zero.QueueAsyncFunction(static async state =>
+            //Consume the job, but don't allow the consumer to stall us, so we fork... again!!!
+            IoZeroScheduler.Zero.QueueAsyncFunction(static async state =>
             {
-                var @this = this;
-                //var (@this, curJob, consume, context) =
-                //    (ValueTuple<IoZero<TJob>, IoSink<TJob>, Func<IoSink<TJob>, T, ValueTask>, T>)state;
+                var (@this, curJob, consume, context) =
+                    (ValueTuple<IoZero<TJob>, IoSink<TJob>, Func<IoSink<TJob>, T, ValueTask>, T>)state;
                 try
                 {
                     if (await curJob.ConsumeAsync().FastPath() == IoJobMeta.JobState.Consumed ||
@@ -612,14 +559,10 @@ public abstract class IoZero<TJob> : IoNanoprobe, IIoZero
                         //cleanup
                         await @this.ZeroJobAsync(curJob, curJob?.FinalState is IoJobMeta.JobState.Reject).FastPath();
                         //back pressure
-                        @this.Source
-                            .BackPressure(
-                                zeroAsync:
-                                true); //If the producer blocks on input we have lost a thread. So true here, we cant reuse.
+                        @this.Source.BackPressure();
                     }
                 }
-                //}, (this, curJob, consume, context));
-            }
+            }, (this, curJob, consume, context));
             return true;
         }
         catch (Exception) when (Zeroed())
@@ -660,7 +603,6 @@ public abstract class IoZero<TJob> : IoNanoprobe, IIoZero
                             return true;
                         }
 
-                        JobHeap.Destroy(cur.Value);
                         return false;
                     }
 

@@ -276,7 +276,7 @@ public class IoZeroMatcher : IoNanoprobe
 
                 cur = cur.Next;
             }
-            catch (Exception e)
+            catch (Exception e)when (!Zeroed())
             {
                 _logger.Trace(e, $"{nameof(ResponseAsync)}: {Description}");
                 if (sw.Count < byte.MaxValue && !Zeroed())

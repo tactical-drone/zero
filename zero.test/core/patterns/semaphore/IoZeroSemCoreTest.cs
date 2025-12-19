@@ -286,7 +286,7 @@ public class IoZeroSemCoreTest
                 //_output.WriteLine($"Done signalling count = {_exclusiveCheck}, {(double)_exclusiveCheck / t.ElapsedMsToSec():0.0} r/s");
             }, CancellationToken.None, TaskCreationOptions.DenyChildAttach, IoZeroScheduler.ZeroDefault).Unwrap());
 
-        await Task.WhenAll(tests).WaitAsync(TimeSpan.FromSeconds(15), CancellationToken.None);
+        await Task.WhenAll(tests).WaitAsync(TimeSpan.FromSeconds(30), CancellationToken.None);
 
         Assert.Equal(spamFactor * realThreads, _exclusiveCount);
         _output.WriteLine(

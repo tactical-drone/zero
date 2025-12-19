@@ -315,6 +315,10 @@ public class IoHeap<TItem, TContext>
                     zero = true;
                     goto retry;
                 }
+#if NO
+                if (Description.Contains("BatchHeap") && Count > Capacity >> 1 && !IsAutoScaling)
+                    _logger.Warn($"Heap running lean: {_heap.Description}");
+#endif
 
                 Interlocked.Decrement(ref _refCount);
             }
@@ -336,16 +340,20 @@ public class IoHeap<TItem, TContext>
     public void Destroy(TItem item)
     {
         Interlocked.Decrement(ref _refCount);
-        if (item is not IIoHeapItem)
+        switch (item)
         {
-            if (item is IDisposable disposable)
+            case IIoHeapItem:
+                return;
+            case IDisposable disposable:
                 disposable.Dispose();
-            if (item is IAsyncDisposable asyncDisposable)
+                break;
+            case IAsyncDisposable asyncDisposable:
                 IoZeroScheduler.Zero.QueueAsyncFunction(static async state =>
                 {
                     var item = (IAsyncDisposable)state;
                     await item.DisposeAsync().FastPath();
                 }, asyncDisposable);
+                break;
         }
     }
 

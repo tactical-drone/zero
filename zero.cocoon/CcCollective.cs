@@ -247,7 +247,7 @@ public class CcCollective : IoNode<CcProtocMessage<CcWhisperMsg, CcGossipBatch>>
                     ? @this.parm_mean_pat_delay_s >> 5
                     : @this.parm_mean_pat_delay_s) * 1000;
 
-                await Task.Delay(TimeSpan.FromMilliseconds(@this._random.Next(delay) + delay / 2.0),
+                await Task.Delay(TimeSpan.FromMilliseconds(@this._random.Next(delay) + delay / 3.0),
                     @this.AsyncTasks.Token);
 
                 if (@this.Zeroed())
@@ -561,7 +561,7 @@ public class CcCollective : IoNode<CcProtocMessage<CcWhisperMsg, CcGossipBatch>>
 #if DEBUG
     public int parm_mean_pat_delay_s = 60 * 5;
 #else
-    public int parm_mean_pat_delay_s = 60 * 9;
+    public int parm_mean_pat_delay_s = 60 * 15;
 #endif
 
     /// <summary>
@@ -760,7 +760,7 @@ public class CcCollective : IoNode<CcProtocMessage<CcWhisperMsg, CcGossipBatch>>
 
                 if (!ccDrone.Zeroed() &&
                     (sent = await ccDrone.MessageService.IoNetSocket
-                        .SendAsync(buffer, 0, buffer.Length, crc: hash, timeout: timeout).FastPath()) == buffer.Length)
+                        .SendAsync(buffer, 0, buffer.Length, timeout: timeout).FastPath()) == buffer.Length)
                 {
                     totalSent += sent;
 #if TRACE

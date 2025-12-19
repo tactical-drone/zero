@@ -4,6 +4,9 @@ using zero.core.patterns.misc;
 
 namespace zero.core.data.contracts;
 
+/// <summary>
+///     TODO: Where does this interface come from? Where is the implementation? I did not have time for this shit?
+/// </summary>
 public interface IIoDupChecker : IIoNanite
 {
     /// <summary>

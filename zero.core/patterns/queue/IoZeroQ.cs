@@ -337,7 +337,6 @@ public class IoZeroQ<T> : IEnumerable<T>
             Interlocked.Increment(ref _tail.Index);
             _lastInsertIndex = latchedIndex;
             qStorage = value;
-            Interlocked.MemoryBarrier();
             Interlocked.Exchange(ref bloom, (int)ZeroQState.Set);
 
             return retVal = _lastInsertIndex;
@@ -392,8 +391,7 @@ public class IoZeroQ<T> : IEnumerable<T>
                     if (bloom == (int)ZeroQState.Locked)
                     {
                         Interlocked.Increment(ref _head.Index);
-                        _fastStorage[index] = default;
-                        Interlocked.MemoryBarrier();
+                        qStorage = default;
                         Interlocked.Exchange(ref bloom, (int)ZeroQState.Zero);
                         @return = default;
                         return false;
@@ -424,7 +422,6 @@ public class IoZeroQ<T> : IEnumerable<T>
 #endif
             Interlocked.Increment(ref _head.Index);
             (@return, qStorage) = (qStorage, default);
-            Interlocked.MemoryBarrier();
             Interlocked.Exchange(ref bloom, (int)ZeroQState.Zero);
 
             return success = true;
