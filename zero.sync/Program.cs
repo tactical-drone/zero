@@ -206,7 +206,7 @@ internal class Program
         {
             Console.WriteLine($"Starting auto peering...  {bag.Count}");
             var c = 0;
-            var rateLimit = bag.Count * 20;
+            var rateLimit = bag.Count * 10;
             var injectionCount = Math.Max(1, bag.Count / 20);
             var rampDelay = 100;
             foreach (var cocoon in bag.OrderBy(e => e.Serial))

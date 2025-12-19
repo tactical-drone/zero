@@ -105,69 +105,9 @@ public static class ArrayExtensions
         return array.Length == cmp.Length && array.SequenceEqual(cmp);
     }
 
-
-    /// <summary>
-    ///     Create a hash from an array of bytes
-    /// </summary>
-    /// <param name="array"></param>
-    /// <returns>A weak hash</returns>
-    public static long ZeroHash(this byte[] array)
-    {
-        return ((ReadOnlySpan<byte>)array).ZeroHash();
-    }
-
-    /// <summary>
-    ///     Create a hash from an array of bytes
-    /// </summary>
-    /// <param name="array"></param>
-    /// <returns>A weak hash</returns>
-    public static long ZeroHash(this Span<byte> array)
-    {
-        return ((ReadOnlySpan<byte>)array).ZeroHash();
-    }
-
-    /// <summary>
-    ///     Create a hash from an array of bytes
-    /// </summary>
-    /// <param name="array"></param>
-    /// <returns>A weak hash</returns>
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static long ZeroHash(this ReadOnlySpan<byte> array)
-    {
-        var strides = array.Length / sizeof(long);
-        var remainder = array.Length % sizeof(long);
-        var hash = 0xaaaaaaaaaaaaaaa;
-
-        for (var i = 0; i < strides; i++)
-        {
-            var stride = MemoryMarshal.Read<long>(array[(i * sizeof(long))..]);
-            hash ^= stride ^ ((stride >> 31) | (stride << 32)) ^ i;
-        }
-
-        if (remainder >= sizeof(int))
-        {
-            var start = strides * 2;
-            strides = start + remainder / sizeof(int);
-            remainder = array.Length % sizeof(int);
-            for (var i = start; i < strides; i++)
-            {
-                var stride = MemoryMarshal.Read<int>(array[(i * sizeof(int))..]);
-                hash ^= stride ^ ((stride >> 15) | (stride << 16)) ^ i;
-            }
-        }
-
-        for (var i = 0; i < remainder; i++)
-        {
-            var stride = array[i];
-            hash ^= (stride << (sizeof(int) - ((i + 2) >> 1))) ^ ((stride >> 3) | (stride << 4));
-        }
-
-        return hash;
-    }
-
 #if DEBUG //|| RELEASE //TODO remove release
     [ThreadStatic] private static SHA256 _sha256;
-    public static SHA256 Sha256 => _sha256 ??= SHA256.Create();
+    private static SHA256 Sha256 => _sha256 ??= SHA256.Create();
 
     public static string PayloadSig(this byte[] payload, string T = "P")
     {

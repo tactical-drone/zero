@@ -5,6 +5,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Threading.Tasks.Sources;
 using K4os.Compression.LZ4;
+using sabot;
 using zero.cocoon.autopeer;
 using zero.cocoon.identity;
 using zero.cocoon.models.batches;
@@ -53,6 +54,9 @@ public class CcDiscoveries : CcProtocMessage<chroniton, CcDiscoveryBatch>
                 batch.GroupBy?.Clear();
             }
         };
+
+        SabotHeap = new IoHeap<byte[]>($"{nameof(SabotHeap)}:", 2048,
+            static (_, _) => new byte[64 + Sabot.BlockLength]);
     }
 
     public CcDiscoveries(CcAdjunct ioZero, string sinkDesc, bool groupByEp = false) : base(sinkDesc,
@@ -258,7 +262,7 @@ public class CcDiscoveries : CcProtocMessage<chroniton, CcDiscoveryBatch>
                             break;
                         }
 #if DEBUG
-                        catch (Exception e)
+                        catch (Exception e)when (!Zeroed())
                         {
                             await SetStateAsync(IoJobMeta.JobState.BadData).FastPath();
                             _logger.Trace(e,
@@ -291,21 +295,89 @@ public class CcDiscoveries : CcProtocMessage<chroniton, CcDiscoveryBatch>
                     break;
 
                 //Sanity check the data
-                if (packet == null || packet.Data.IsEmpty || packet.PublicKey.IsEmpty || packet.Signature.IsEmpty)
+                if (packet == null || packet.Size == 0 || packet.Type == 0 || packet.Sabot.IsEmpty ||
+                    packet.Signature.IsEmpty || packet.PublicKey.IsEmpty || packet.Data.IsEmpty)
                 {
                     await SetStateAsync(IoJobMeta.JobState.BadData).FastPath();
                     continue;
                 }
 
+                //discarding sabot
+                bool apds;
+
+                if (Adjunct.Designation.Ssf != null)
+                {
+                    apds = CcDesignation.VerifyHash(packet.Sabot.Memory.AsArray(),
+                        Adjunct.Designation.Sabot(packet.Data.Memory.AsArray()), packet.Sabot.Length);
+                }
+                else
+                {
+                    var sabot = SabotHeap.Take();
+                    if (sabot == null)
+                    {
+                        await SetStateAsync(IoJobMeta.JobState.Oom).FastPath();
+                        continue;
+                    }
+
+                    try
+                    {
+                        //TODO: optimize hellman lookup
+                        string remote;
+                        if (packet.Aes > 0 &&
+                            (remote = $"udp://{RemoteEndpoint.GetEndpoint()}`{CcDesignation.MakeKey(packet.PublicKey)}")
+                            .Length > 0 &&
+                            Adjunct.Hub.Neighbors.TryGetValue(remote, out var neighbor) &&
+                            neighbor is CcAdjunct adjunct &&
+                            adjunct.Designation.ZeroRound > 0)
+                        {
+                            apds = CcDesignation.VerifyHash(packet.Sabot.Memory.AsArray(),
+                                adjunct.Designation.Sabot(packet.Data.Memory.AsArray(), adjunct.Designation.ZeroRound),
+                                packet.Sabot.Length);
+#if DEBUG
+                            if (!apds)
+                                _logger.Error(
+                                    $"aes <== {Enum.GetName(typeof(MessageTypes), packet.Type)}({packet.Data.Length}), {remote}, aes = {packet.Aes}, sabotLen = {packet.Sabot.Length}, Available = {adjunct.Designation.ZeroRound} :: {packet.Data.Memory.PayloadSig()} {packet.Sabot.Memory.PayloadSig()} ({sabot.PayloadSig()}) => {Convert.ToBase64String(packet.Data.Memory.AsArray())}");
+#endif
+                        }
+                        else //no hellman
+                        {
+                            apds = CcDesignation.VerifyHash(packet.Sabot.Memory.AsArray(),
+                                //Adjunct.Designation.Sabot(packet.Data.Memory.AsArray(), sabot), packet.Sabot.Length);
+                                CcDesignation.HashRe(packet.Data.Memory, 0, packet.Data.Length, sabot),
+                                CcDesignation.ZeroRoundSize);
+#if DEBUG
+                            if (!apds)
+                                _logger.Error(
+                                    $"raw <== {Enum.GetName(typeof(MessageTypes), packet.Type)}({packet.Data.Length}) {CcDesignation.MakeKey(packet.PublicKey)}, aes = {packet.Aes}, Available = {Adjunct.Designation.ZeroRound} :: data = {packet.Data.Memory.PayloadSig()}, sabot = {packet.Sabot.Memory.PayloadSig()}, buffer = {sabot.PayloadSig()} => {Convert.ToBase64String(packet.Data.Memory.AsArray())}");
+#endif
+                        }
+                    }
+                    finally
+                    {
+                        SabotHeap.Return(sabot);
+                    }
+                }
+
+
+                if (!apds)
+                {
+                    await SetStateAsync(IoJobMeta.JobState.BadData).FastPath();
+                    continue;
+                }
+
+                //check signature
+                apds &= CcDesignation.Verify(packet.Data.Memory.ToArray(), 0, packet.Data.Length,
+                    packet.PublicKey.Memory.ToArray(), 0,
+                    packet.Signature.Memory.ToArray(), 0);
+
+                if (!apds)
+                {
+                    await SetStateAsync(IoJobMeta.JobState.BadData).FastPath();
+                    continue;
+                }
+
+                //signature
                 Signature = MemoryMarshal.Read<long>(packet.Sabot.Span);
-
-                var packetMsgRaw = packet.Data.Memory.AsArray();
-                var verified = CcDesignation.Verify(packetMsgRaw, 0, packetMsgRaw.Length,
-                    packet.PublicKey.Memory.AsArray(), 0, packet.Signature.Memory.AsArray(), 0);
-
-                if (Adjunct.Designation.Primed)
-                    verified &= CcDesignation.Signed(packet.Sabot.Memory.AsArray(),
-                        Adjunct.Designation.Sabot(packetMsgRaw), packet.Sabot.Length);
 
                 var messageType = Enum.GetName(typeof(MessageTypes), packet.Type);
 #if TRACE
@@ -313,7 +385,7 @@ public class CcDiscoveries : CcProtocMessage<chroniton, CcDiscoveryBatch>
 #endif
 
                 //Don't process unsigned or unknown messages
-                if (!verified || messageType == null)
+                if (!apds || messageType == null)
                 {
                     await SetStateAsync(IoJobMeta.JobState.BadData).FastPath();
                     continue;

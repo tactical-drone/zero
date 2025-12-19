@@ -49,29 +49,29 @@ public class CcArrayExtensionsTest
         ReadOnlySpan<byte> span5 = stackalloc byte[3] { 0, 1, 3 };
         ReadOnlySpan<byte> span6 = stackalloc byte[3] { 0, 2, 2 };
 
-        Assert.Equal(span1.ZeroHash(), span2.ZeroHash());
-        Assert.Equal(span1.ZeroHash(), span3.ZeroHash());
-        Assert.NotEqual(span1.ZeroHash(), span4.ZeroHash());
-        Assert.NotEqual(span1.ZeroHash(), span5.ZeroHash());
-        Assert.NotEqual(span1.ZeroHash(), span6.ZeroHash());
+        Assert.Equal(span1.PayloadSig(), span2.PayloadSig());
+        Assert.Equal(span1.PayloadSig(), span3.PayloadSig());
+        Assert.NotEqual(span1.PayloadSig(), span4.PayloadSig());
+        Assert.NotEqual(span1.PayloadSig(), span5.PayloadSig());
+        Assert.NotEqual(span1.PayloadSig(), span6.PayloadSig());
 
         span1 = stackalloc byte[3] { 0, 1, 2 };
         span4 = stackalloc byte[3] { 1, 1, 2 };
         span5 = stackalloc byte[3] { 0, 1, 3 };
         span6 = stackalloc byte[3] { 0, 2, 2 };
 
-        Assert.NotEqual(span1.ZeroHash(), span4.ZeroHash());
-        Assert.NotEqual(span1.ZeroHash(), span5.ZeroHash());
-        Assert.NotEqual(span1.ZeroHash(), span6.ZeroHash());
+        Assert.NotEqual(span1.PayloadSig(), span4.PayloadSig());
+        Assert.NotEqual(span1.PayloadSig(), span5.PayloadSig());
+        Assert.NotEqual(span1.PayloadSig(), span6.PayloadSig());
 
         span1 = stackalloc byte[3] { 200, 201, 202 };
         span4 = stackalloc byte[3] { 201, 201, 202 };
         span5 = stackalloc byte[3] { 200, 202, 202 };
         span6 = stackalloc byte[3] { 200, 201, 203 };
 
-        Assert.NotEqual(span1.ZeroHash(), span4.ZeroHash());
-        Assert.NotEqual(span1.ZeroHash(), span5.ZeroHash());
-        Assert.NotEqual(span1.ZeroHash(), span6.ZeroHash());
+        Assert.NotEqual(span1.PayloadSig(), span4.PayloadSig());
+        Assert.NotEqual(span1.PayloadSig(), span5.PayloadSig());
+        Assert.NotEqual(span1.PayloadSig(), span6.PayloadSig());
     }
 
     [Fact]
@@ -87,9 +87,9 @@ public class CcArrayExtensionsTest
 
         RandomNumberGenerator.Fill(span1);
         span1.CopyTo(span2);
-        Assert.Equal(span1.ZeroHash(), span2.ZeroHash());
+        Assert.Equal(span1.PayloadSig(), span2.PayloadSig());
 
-        var cmp = span1.ZeroHash();
+        var cmp = span1.PayloadSig();
         for (var i = 0; i < 1000000; i++)
         {
             RandomNumberGenerator.Fill(span1);
@@ -97,7 +97,7 @@ public class CcArrayExtensionsTest
             var idx = RandomNumberGenerator.GetInt32(0, span2.Length - 1);
             span2[idx] = (byte)(span2[idx] ^ 0x1);
 
-            Assert.NotEqual(span1.ZeroHash(), span2.ZeroHash());
+            Assert.NotEqual(span1.PayloadSig(), span2.PayloadSig());
         }
     }
 
@@ -109,9 +109,9 @@ public class CcArrayExtensionsTest
 
         RandomNumberGenerator.Fill(span1);
         span1.CopyTo(span2);
-        Assert.Equal(span1.ZeroHash(), span2.ZeroHash());
+        Assert.Equal(span1.PayloadSig(), span2.PayloadSig());
 
-        var cmp = span1.ZeroHash();
+        var cmp = span1.PayloadSig();
         for (var i = 0; i < 1000000; i++)
         {
             RandomNumberGenerator.Fill(span1);
@@ -119,7 +119,7 @@ public class CcArrayExtensionsTest
             var idx = RandomNumberGenerator.GetInt32(0, span2.Length - 1);
             span2[idx] = (byte)(span2[idx] ^ 0x1);
 
-            Assert.NotEqual(span1.ZeroHash(), span2.ZeroHash());
+            Assert.NotEqual(span1.PayloadSig(), span2.PayloadSig());
         }
     }
 }

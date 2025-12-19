@@ -1,4 +1,5 @@
 ﻿//#define LOSS
+//#define TRACE
 
 #if DEBUG
 using System.Text;
@@ -19,6 +20,7 @@ using Google.Protobuf;
 using K4os.Compression.LZ4;
 using MathNet.Numerics.Random;
 using NLog;
+using sabot;
 using zero.cocoon.events.services;
 using zero.cocoon.identity;
 using zero.cocoon.models;
@@ -741,18 +743,19 @@ public class CcAdjunct : IoNeighbor<CcProtocMessage<chroniton, CcDiscoveryBatch>
         try
         {
             //TODO: tuning, helps cluster test bootups not stalling on popdog spam
+            var deltaTime = @this.CcCollective.parm_mean_pat_delay_s >> 4;
             var ioTimer = new IoTimer(TimeSpan.FromSeconds(@this.CcCollective.parm_mean_pat_delay_s >> 4),
                 @this.AsyncTasks.Token);
 
+            var ts = Environment.TickCount;
             while (!@this.Zeroed())
             {
-                var ts = Environment.TickCount;
-
                 var targetDelay = (@this.CcCollective.TotalConnections < @this.CcCollective.parm_max_outbound
                     ? @this.CcCollective.parm_mean_pat_delay_s >> 3
                     : @this.CcCollective.parm_mean_pat_delay_s) * 1000;
 
                 _ = await ioTimer.TickAsync().FastPath();
+
                 if (@this.Zeroed())
                     break;
 
@@ -760,17 +763,17 @@ public class CcAdjunct : IoNeighbor<CcProtocMessage<chroniton, CcDiscoveryBatch>
                     continue;
 
 #if TRACE
-                    @this._logger.Trace($"Robo - {TimeSpan.FromMilliseconds(d)}, {@this.Description}");
+                @this._logger.Trace($"Robo - {@this.Description}");
 #endif
 
                 try
                 {
 #if DEBUG
-                    if (ts.ElapsedMs() > targetDelay + @this.parm_error_popdog && ts.ElapsedMs() > 0)
+                    if (ts.ElapsedMs() > targetDelay * 2 + deltaTime && ts.ElapsedMs() > 0)
                         @this._logger.Warn(
                             $"{@this.Description}: Popdog is slow!!!, {(ts.ElapsedMs() - targetDelay) / 1000.0:0.0}s");
 
-                    if (ts.ElapsedMs() < targetDelay - @this.parm_error_popdog && !@this.Zeroed())
+                    if (ts.ElapsedMs() < targetDelay - deltaTime && !@this.Zeroed())
                         @this._logger.Warn(
                             $"{@this.Description}: Popdog is FAST!!!, {ts.ElapsedMs() - targetDelay:0.0}ms / {targetDelay}");
 #endif
@@ -1067,6 +1070,11 @@ public class CcAdjunct : IoNeighbor<CcProtocMessage<chroniton, CcDiscoveryBatch>
                     var message = msgBatch.Messages[i];
 
                     Debug.Assert(message.Zero != null);
+                    Debug.Assert(message.Zero.Sabot != null);
+                    Debug.Assert(message.Zero.Data != null);
+                    Debug.Assert(message.Zero.Signature != null);
+                    Debug.Assert(message.Zero.PublicKey != null);
+
                     try
                     {
                         //TODO, is this caching a good idea? 
@@ -1097,12 +1105,10 @@ public class CcAdjunct : IoNeighbor<CcProtocMessage<chroniton, CcDiscoveryBatch>
                             //}
                         }
 
+                        //TODO:nsec
                         //if (Equals(message.Zero.Header.Ip.Dst.GetEndpoint(),
                         //        Router.MessageService.IoNetSocket.NativeSocket.LocalEndPoint))
                         {
-                            //IoZeroScheduler.Zero.QueueAsyncFunction(static async state =>
-                            //{
-                            // var (processCallback, message, nanite, proxy) = (ValueTuple<Func<CcBatchMessage, T, CcAdjunct, ValueTask>, CcBatchMessage, T, CcAdjunct>)state;
                             IoZeroScheduler.Zero.QueueAsyncFunction(static async state =>
                             {
                                 var (processCallback, message, nanite, proxy) =
@@ -1110,8 +1116,6 @@ public class CcAdjunct : IoNeighbor<CcProtocMessage<chroniton, CcDiscoveryBatch>
                                         CcAdjunct>)state;
                                 await processCallback(message, nanite, proxy).FastPath();
                             }, (processCallback, message, nanite, proxy));
-
-                            //}, (processCallback, message, nanite, proxy));
                         }
                     }
                     catch (Exception) when (Zeroed())
@@ -1175,6 +1179,7 @@ public class CcAdjunct : IoNeighbor<CcProtocMessage<chroniton, CcDiscoveryBatch>
                 }
                 catch
                 {
+                    // ignored
                 }
 
                 if (proxy != null && !proxy.Zeroed())
@@ -1224,7 +1229,6 @@ public class CcAdjunct : IoNeighbor<CcProtocMessage<chroniton, CcDiscoveryBatch>
             {
                 if (alternate != null)
                 {
-                    //var badProxy = proxy;
                     proxy = await RouteAsync(alternate, publicKey).FastPath();
                     if (proxy.IsProxy && proxy.Designation.IdString() != CcDesignation.MakeKey(publicKey))
                     {
@@ -1252,13 +1256,14 @@ public class CcAdjunct : IoNeighbor<CcProtocMessage<chroniton, CcDiscoveryBatch>
     private const PaddingMode PaddingMode = System.Security.Cryptography.PaddingMode.PKCS7;
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private static byte[] AesEncryptToBytes(ReadOnlySpan<byte> buffer, byte[] key, CcDesignation d)
+    private static byte[] AesEncryptToBytes(ReadOnlySpan<byte> buffer, ReadOnlyMemory<byte> key, byte[] iv)
     {
         using var aesAlg = Aes.Create();
-        aesAlg.Key = key;
-        aesAlg.IV = d.Iv;
+        //key[..aesAlg.Key.Length].CopyTo(aesAlg.Key);
+        aesAlg.Key = key[..CcDesignation.HELLM_MM].ToArray();
+        aesAlg.IV = iv;
         aesAlg.Padding = PaddingMode;
-
+        //Console.WriteLine($"E: -> {buffer.PayloadSig()} {key.PayloadSig()} {aesAlg.IV.PayloadSig()}");
         using (var msEncrypt = new MemoryStream())
         {
             using (var csEncrypt = new CryptoStream(msEncrypt, aesAlg.CreateEncryptor(aesAlg.Key, aesAlg.IV),
@@ -1274,14 +1279,24 @@ public class CcAdjunct : IoNeighbor<CcProtocMessage<chroniton, CcDiscoveryBatch>
         }
     }
 
+    /// <summary>
+    ///     Decrypt Aes
+    /// </summary>
+    /// <param name="cipherText">cipher text</param>
+    /// <param name="key">secret</param>
+    /// <param name="iv">entropy</param>
+    /// <returns></returns>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private static Memory<byte> AesDecryptFromBytes(ReadOnlyMemory<byte> cipherText, byte[] key, byte[] iv)
+    private static Memory<byte> AesDecryptFromBytes(ReadOnlyMemory<byte> cipherText, ReadOnlyMemory<byte> key,
+        byte[] iv)
     {
         using var aesAlg = Aes.Create();
         aesAlg.Padding = PaddingMode;
-        aesAlg.Key = key;
+        //key[..aesAlg.Key.Length].CopyTo(aesAlg.Key);
+        aesAlg.Key = key[..CcDesignation.HELLM_MM].ToArray();
         aesAlg.IV = iv;
 
+        //Console.WriteLine($"E: -> {cipherText.PayloadSig()} {key.PayloadSig()} {aesAlg.IV.PayloadSig()}");
         // Create the streams used for decryption.
         using (MemoryStream msDecrypt = new(cipherText.AsArray()))
         {
@@ -1296,13 +1311,16 @@ public class CcAdjunct : IoNeighbor<CcProtocMessage<chroniton, CcDiscoveryBatch>
         }
     }
 
+    /// <summary>
+    ///     Process message batches
+    /// </summary>
+    /// <param name="batchJob">The batch to process</param>
+    /// <param name="this">zero alloc stuff</param>
+    /// <returns></returns>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private async ValueTask ProcessMessagesAsync(IoSink<CcProtocBatchJob<chroniton, CcDiscoveryBatch>> batchJob,
         CcAdjunct @this)
     {
-        //IoZeroScheduler.Zero.QueueAsyncFunction(static async state =>
-        //{
-        //var (@this, batchJob) = (ValueTuple< CcAdjunct , IoSink <CcProtocBatchJob<chroniton, CcDiscoveryBatch>>>)state;
         try
         {
             await @this.ZeroUnBatchAsync(batchJob, static async (batchItem, @this, currentRoute) =>
@@ -1317,7 +1335,7 @@ public class CcAdjunct : IoNeighbor<CcProtocMessage<chroniton, CcDiscoveryBatch>
                     if (zero == null)
                         return;
 
-                    if (zero.Aes > currentRoute.Designation.Round)
+                    if (zero.Aes > currentRoute.Designation.ZeroRound)
                     {
                         if (!currentRoute.Zeroed())
                             await currentRoute.ProbeAsync("[SYN-SEC]", srcEndPoint, @this.Designation.IdString());
@@ -1336,40 +1354,50 @@ public class CcAdjunct : IoNeighbor<CcProtocMessage<chroniton, CcDiscoveryBatch>
                         {
                             if (zero.Aes > 0)
                             {
-                                if (!currentRoute.Designation.Primed)
-                                    return;
-
-                                if (currentRoute.Designation.Iv == null)
-                                    currentRoute.Designation.SetIv(currentRoute.Designation.PublicKey,
-                                        @this.Hub.Designation.PublicKey, zero.Aes);
-
-                                var r = currentRoute.Designation.Round;
-                                do
+                                try
                                 {
-                                    try
+                                    payload = UnsafeByteOperations.UnsafeWrap(
+                                        AesDecryptFromBytes(zero.Data.Memory,
+                                            currentRoute.Designation.GetRound(zero.Aes),
+                                            currentRoute.Designation.Iv[zero.Aes])[..zero.Size]);
+                                }
+                                catch (CryptographicException) when (!@this.Zeroed())
+                                {
+                                    if (!currentRoute.Designation.Primed ||
+                                        zero.Aes > currentRoute.Designation.ZeroRound)
                                     {
-                                        payload = UnsafeByteOperations.UnsafeWrap(
-                                            AesDecryptFromBytes(zero.Data.Memory,
-                                                currentRoute.Designation.GetRound(zero.Aes),
-                                                currentRoute.Designation.Iv)[..zero.Size]);
-                                    }
-                                    catch (Exception e) when (!@this.Zeroed())
-                                    {
-                                        if (@this.Designation.Round > 0)
-                                            @this._logger.Error(e, "Failed to decrypt aes message!");
+                                        @this._logger.Trace(
+                                            $"{nameof(ZeroUnBatchAsync)}: hellman not primed! requested: id = {currentRoute.Designation.IdString()}({currentRoute.Designation.GetHashCode()}), type = {(CcDiscoveries.MessageTypes)zero.Type}, primed = {currentRoute.Designation.Primed}, aes = {zero.Aes}, available = {currentRoute.Designation.ZeroRound}");
                                         return;
                                     }
-                                    catch when (@this.Zeroed())
-                                    {
-                                        return;
-                                    }
-                                } while (r != currentRoute.Designation.Round);
+
+                                    if (@this.Angels++ % @this.parm_max_network_latency_ms * 1000 == 0)
+                                        @this._logger.Warn(
+                                            $"{nameof(ZeroUnBatchAsync)}: aes message!, angels = {@this.Angels}!!!, id = {currentRoute.Designation.IdString()}({currentRoute.Designation.GetHashCode()}), type = {(CcDiscoveries.MessageTypes)zero.Type}, aes = {zero.Aes}, available = {currentRoute.Designation.ZeroRound}: {zero.Data.Memory.PayloadSig()}, k = {currentRoute.Designation.GetRound(zero.Aes).PayloadSig()}, Iv = {currentRoute.Designation.Iv[zero.Aes].PayloadSig()}, hashCode = {currentRoute.Designation.GetHashCode()}");
+#if TRACE
+                                    @this._logger.Fatal(e, $"{nameof(ZeroUnBatchAsync)}({zero.Data.Memory.Length}): aes failed [{currentRoute.Designation.IdString()}] type = {(CcDiscoveries.MessageTypes)zero.Type}, aes = {zero.Aes}, available = {currentRoute.Designation.ZeroRound}: {zero.Data.Memory.PayloadSig()}, k = {currentRoute.Designation.GetRound(zero.Aes).PayloadSig()}, Iv = {currentRoute.Designation.Iv[zero.Aes].PayloadSig()}, hashCode = {currentRoute.Designation.GetHashCode()}");
+#endif
+
+                                    return;
+                                }
+                                catch (Exception e) when (!@this.Zeroed())
+                                {
+                                    @this._logger.Error(e,
+                                        currentRoute.Designation.ZeroRound > 0
+                                            ? $"{nameof(ZeroUnBatchAsync)}: Failed to decrypt aes message!, bytes = {zero.Data.Memory.Length}, aes = {zero.Aes}, available = {currentRoute.Designation.ZeroRound}:\n"
+                                            : $"hellman is behind, {currentRoute.Designation.ZeroRound} < {zero.Aes}:\n");
+                                    return;
+                                }
+                                catch when (@this.Zeroed())
+                                {
+                                    return;
+                                }
 
                                 if (payload == null || payload.Length == 0)
                                 {
                                     if (!@this.Zeroed())
                                         @this._logger.Fatal(
-                                            $"Unable to decipher message with k = {currentRoute.Designation.GetRound(zero.Aes).HashSig()}[{zero.Aes}], iv = {currentRoute.Designation.Iv?.HashSig()}");
+                                            $"Unable to decipher message size = {zero.Data.Memory.Length}, aes = {zero.Aes}, available = {currentRoute.Designation.ZeroRound}, with k = {currentRoute.Designation.GetRound(zero.Aes).HashSig()}[{zero.Aes}], iv = {currentRoute.Designation.Iv[currentRoute.Designation.ZeroRound]?.HashSig()}");
                                     return;
                                 }
 
@@ -1501,8 +1529,9 @@ public class CcAdjunct : IoNeighbor<CcProtocMessage<chroniton, CcDiscoveryBatch>
             if (batchJob != null && batchJob.State != IoJobMeta.JobState.Consumed)
                 await batchJob.SetStateAsync(IoJobMeta.JobState.ConsumeErr).FastPath();
         }
-        //}, (@this, batchJob));
     }
+
+    public int Angels { get; set; }
 
     /// <summary>
     ///     Processes protocol messages
@@ -1761,9 +1790,10 @@ public class CcAdjunct : IoNeighbor<CcProtocMessage<chroniton, CcDiscoveryBatch>
     /// <param name="data">The message data</param>
     /// <param name="dest">The destination address</param>
     /// <param name="type">The message type</param>
+    /// <param name="aes">The desired encryption level</param>
     /// <returns></returns>
     private async ValueTask<int> SendMessageAsync(byte[] data,
-        CcDiscoveries.MessageTypes type = CcDiscoveries.MessageTypes.Undefined, IPEndPoint dest = null)
+        CcDiscoveries.MessageTypes type = CcDiscoveries.MessageTypes.Undefined, IPEndPoint dest = null, int aes = -1)
     {
         try
         {
@@ -1785,19 +1815,17 @@ public class CcAdjunct : IoNeighbor<CcProtocMessage<chroniton, CcDiscoveryBatch>
                     throw new OutOfMemoryException(
                         $"{nameof(_chronitonHeap)}: {_chronitonHeap.Description}, {Description}");
 
-                retry:
-                if (Probed && Designation.Primed && Designation.Round > 0)
+                var dh = Math.Min(Designation.ZeroRound, aes == -1 ? int.MaxValue : aes);
+
+                if (Designation.Primed && dh > 0)
                 {
-                    (packet.Aes, var key) = Designation.GetRound();
-                    if (key != null)
-                    {
-                        packet.Data = UnsafeByteOperations.UnsafeWrap(AesEncryptToBytes(data, key, Designation));
-                        packet.Size = data.Length;
-                    }
-                    else
-                    {
-                        goto retry;
-                    }
+                    (packet.Aes, var key) = (dh, Designation.GetRound(dh));
+
+                    packet.Data = UnsafeByteOperations.UnsafeWrap(AesEncryptToBytes(data, key, Designation.Iv[dh]));
+                    packet.Size = data.Length;
+#if TRACE
+                    _logger.Trace($"=/> hellman {type}({packet.Data.Length}) {packet.Data.Memory.PayloadSig()}<{packet.Sabot.Memory.PayloadSig()}>, aes = {dh} : actual({packet.Aes}), k = {key.PayloadSig()}, Iv = {Designation.Iv[dh].PayloadSig()}");
+#endif
                 }
                 else
                 {
@@ -1808,23 +1836,35 @@ public class CcAdjunct : IoNeighbor<CcProtocMessage<chroniton, CcDiscoveryBatch>
 
                 packet.Type = (int)type;
 
-
-                if (Designation.Primed)
+                if (Designation.Primed && dh > 0)
                 {
-                    if (packet.Sabot.Length == 0)
-                        packet.Sabot = UnsafeByteOperations.UnsafeWrap(Designation.Sabot(packet.Data.Span));
+                    if (packet.Sabot.Length is 0 or not CcDesignation.ZeroRoundSize)
+                    {
+                        packet.Sabot = UnsafeByteOperations.UnsafeWrap(Designation.Sabot(packet.Data.Span, dh));
+                    }
                     else
-                        Designation.Sabot(packet.Data.Span, packet.Sabot.Memory.AsArray());
+                    {
+                        Designation.GetRound(dh).CopyTo(packet.Sabot.Memory.AsArray());
+                        CcDesignation.Sabot(packet.Data.Span, packet.Sabot.Memory.AsArray());
+                    }
+
+#if TRACE
+                    _logger.Trace($"=/> aes {type}({packet.Data.Length}) {packet.Data.Memory.PayloadSig()}<{packet.Sabot.Memory.PayloadSig()}>, aes = {dh} : actual({packet.Aes}), Iv = {Designation.Iv[dh].PayloadSig()}");
+#endif
                 }
                 else
                 {
                     //sabot
-                    if (packet.Sabot == null || packet.Sabot.Length == 0)
+                    if (packet.Sabot.IsEmpty || packet.Sabot.Length != Sabot.MinLength)
                         packet.Sabot =
                             UnsafeByteOperations.UnsafeWrap(CcDesignation.HashRe(packet.Data.Memory, 0,
                                 packet.Data.Length));
                     else
                         CcDesignation.HashRe(packet.Data.Memory, 0, packet.Data.Length, packet.Sabot.Memory.AsArray());
+
+#if TRACE
+                    _logger.Trace($"=/> raw {type}({packet.Data.Length}) {packet.Data.Memory.PayloadSig()}<{packet.Sabot.Memory.PayloadSig()}>, aes = {dh} : actual({packet.Aes}),");
+#endif
                 }
 
                 //ed25519
@@ -1857,7 +1897,7 @@ public class CcAdjunct : IoNeighbor<CcProtocMessage<chroniton, CcDiscoveryBatch>
                         buf.Item2.Length - sizeof(ulong));
                     MemoryMarshal.Write(buf.Item2, ref length);
 #if TRACE
-                        _logger.Trace($"=//> {data.PayloadSig("M")} -> {buf.Item1[..(int)length].PayloadSig()} {type} -> {buf.Item2[..((int)length + sizeof(ulong))].PayloadSig("C")} {type} -> {dest.Url}");
+                        //_logger.Trace($"=//> {data.PayloadSig("M")} -> {buf.Item1[..(int)length].PayloadSig()} {type} -> {buf.Item2[..((int)length + sizeof(ulong))].PayloadSig("C")} {type} -> {dest.Address}");
                         //_logger.Trace($"==//> {buf.Item1[..(int)length].Print()}");
                         //_logger.Trace($"==//> {buf.Item2[sizeof(ulong)..(int)length].Print()}");
 #endif
@@ -2051,7 +2091,8 @@ public class CcAdjunct : IoNeighbor<CcProtocMessage<chroniton, CcDiscoveryBatch>
 
                     if (@this.Hub.ContainsId(newAdjunct.Designation.IdString()))
                     {
-                        await newAdjunct.NoRetry().DisposeAsync(@this, $"{nameof(CollectAsync)}: atomic duplicate")
+                        await newAdjunct.NoRetry().DisposeAsync(@this,
+                                $"{nameof(CollectAsync)}: atomic duplicate - {newAdjunct.Description}")
                             .FastPath();
                         return false;
                     }
@@ -2156,7 +2197,7 @@ public class CcAdjunct : IoNeighbor<CcProtocMessage<chroniton, CcDiscoveryBatch>
 
                 await newAdjunct.BlockOnReplicateAsync().FastPath();
 
-                return true;
+                return success = true;
             }
         }
         catch when (Zeroed())
@@ -2255,6 +2296,12 @@ public class CcAdjunct : IoNeighbor<CcProtocMessage<chroniton, CcDiscoveryBatch>
                         }
                     });
             }
+#if DEBUG
+            else
+            {
+                _logger.Trace($"<\\- Broadcast({sent}): {count} adjuncts; {(IsProxy ? Address.Key : src)}");
+            }
+#endif
         }
         else
         {
@@ -2270,9 +2317,6 @@ public class CcAdjunct : IoNeighbor<CcProtocMessage<chroniton, CcDiscoveryBatch>
     }
 
     private volatile bool _eventStreamAdded;
-    //private byte[] _iv;
-    //private static ICryptoTransform _encrypt;
-    //private static ICryptoTransform _decrypt;
 
     /// <summary>
     ///     Probe message
@@ -2316,9 +2360,9 @@ public class CcAdjunct : IoNeighbor<CcProtocMessage<chroniton, CcDiscoveryBatch>
 #endif
             };
         }
-        catch (Exception e)
+        catch (Exception e) when (!Zeroed())
         {
-            Console.WriteLine(e);
+            _logger.Error($"{nameof(CcProbeMessage)}: failed: ", e);
             throw;
         }
 
@@ -2438,20 +2482,22 @@ public class CcAdjunct : IoNeighbor<CcProtocMessage<chroniton, CcDiscoveryBatch>
                 Interlocked.Exchange(ref _openSlots, probeMessage.Slots);
 #endif
 
-        probeResponse.Nsec = UnsafeByteOperations.UnsafeWrap(Designation.PrimedSabot);
+        probeResponse.Nsec = UnsafeByteOperations.UnsafeWrap(Designation.Sabot(packet.Aes));
         probeResponse.Timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
 
-        while (packet.Aes < Designation.Round)
-            Designation.UnPrime();
+        //jit security
+        if (probeMessage.Nsec.Length > 0)
+            Designation.EnsureSabot(packet.Aes, Hub.Designation.PublicKey, probeMessage.Nsec.Memory.AsArray());
 
-        if ((sent = await SendMessageAsync(probeResponse.ToByteArray(), CcDiscoveries.MessageTypes.ProbeResponse)
+        if ((sent = await SendMessageAsync(probeResponse.ToByteArray(), CcDiscoveries.MessageTypes.ProbeResponse,
+                    aes: packet.Aes)
                 .FastPath()) > 0)
             try
             {
 #if DEBUG
                 var data = probeResponse.ToByteArray();
                 _logger.Trace(
-                    $"<\\- {nameof(CcProbeResponse)} ({sent}) [{data[..].PayloadSig()} ~ {probeResponse.ReqHash.Memory.HashSig()}]: [[SYN-ACK]], dest = {MessageService.IoNetSocket.RemoteNodeAddress}, [{Designation.IdString()}]");
+                    $"<\\- {nameof(CcProbeResponse)} ({sent}) [{data.PayloadSig()} ~ {probeResponse.ReqHash.Memory.HashSig()}]: [[SYN-ACK]], aes = {packet.Aes}, dest = {MessageService.IoNetSocket.RemoteNodeAddress}, [{Designation.IdString()}]");
 #endif
 
                 Interlocked.Increment(ref _probed);
@@ -2607,6 +2653,7 @@ public class CcAdjunct : IoNeighbor<CcProtocMessage<chroniton, CcDiscoveryBatch>
                     _logger.Warn($"Verified with queen `{remoteEp}'");
             }
 
+            //slow security
             if (response.Nsec.Length > 0)
                 Designation.EnsureSabot(packet.Aes, Hub.Designation.PublicKey, response.Nsec.Memory.AsArray());
 
@@ -2622,7 +2669,7 @@ public class CcAdjunct : IoNeighbor<CcProtocMessage<chroniton, CcDiscoveryBatch>
             Interlocked.Decrement(ref _zeroProbes);
 
 #if TRACE
-                _logger.Trace($"|\\- {nameof(CcProbeResponse)} [{response.ToByteArray().PayloadSig()} ~ {response.ReqHash.Memory.HashSig()}]: Processed <<ACK>>; stealth = ({_lastDeltaSent.ElapsedMs()}/{parm_max_network_latency_ms}) ms {Description}");
+                _logger.Trace($"|\\- {nameof(CcProbeResponse)} [{response.ToByteArray().PayloadSig()} ~ {response.ReqHash.Memory.HashSig()}]: Processed <<ACK>>; stealth = {_lastSeduced.ElapsedMsToSec()}s, {Description}");
 #endif
             if (!CcCollective.ZeroDrone)
                 await SeduceAsync("SYN-POK",
@@ -2712,7 +2759,8 @@ public class CcAdjunct : IoNeighbor<CcProtocMessage<chroniton, CcDiscoveryBatch>
                 Slots = CcCollective.MaxDrones - CcCollective.TotalConnections,
                 Lamport = CcCollective.MaxReq,
                 Src = CcCollective.PeerAddress.IpEndPoint.ToByteString(),
-                Dst = dest.ToByteString()
+                Dst = dest.ToByteString(),
+                Nsec = UnsafeByteOperations.UnsafeWrap(Designation.PrimedSabot)
             };
 
             var probeMsgBuf = probeMessage.ToByteArray();
@@ -2887,9 +2935,9 @@ public class CcAdjunct : IoNeighbor<CcProtocMessage<chroniton, CcDiscoveryBatch>
             if (sent > 0)
             {
                 Interlocked.Increment(ref _scanCount);
-
-#if TRACE
-                    _logger.Trace($"-/> {nameof(CcScanRequest)} ({sent}) {sweepMsgBuf.PayloadSig()}: {RemoteAddress}, [{Designation.IdString()}]");
+#if DEBUG
+                _logger.Trace(
+                    $"-/> {nameof(CcScanRequest)} ({sent}) {sweepMsgBuf.PayloadSig()}: aes = {Designation.ZeroRound}, {MessageService.IoNetSocket.RemoteAddress}, [{Designation.IdString()}]");
 #endif
 
                 //Emit message event
@@ -3125,18 +3173,27 @@ public class CcAdjunct : IoNeighbor<CcProtocMessage<chroniton, CcDiscoveryBatch>
 
             _logger.Trace($"{nameof(AttachDrone)}: [WON] {ccDrone?.Description}");
 
+            //bump nsec
+            IoZeroScheduler.Zero.QueueAsyncFunction(static async state =>
+            {
+                var @this = (CcAdjunct)state;
+                if (!@this.Zeroed())
+                    await @this.ProbeAsync("[SYN-SKN]").FastPath();
+            }, this);
+
             Interlocked.Exchange(ref _drone, ccDrone);
             Assimilated = true;
             AttachTimestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
 
             //Scan for more...
-            IoZeroScheduler.Zero.QueueAsyncFunction(static async state =>
-            {
-                var @this = (CcAdjunct)state;
-                await Task.Delay(@this.parm_web_settle_ms);
-                if (!@this.Zeroed())
-                    await @this.ScanAsync().FastPath();
-            }, this);
+            if (CcCollective.TotalConnections < CcCollective.parm_max_outbound)
+                IoZeroScheduler.Zero.QueueAsyncFunction(static async state =>
+                {
+                    var @this = (CcAdjunct)state;
+                    await Task.Delay(@this.parm_web_settle_ms);
+                    if (!@this.Zeroed())
+                        await @this.ScanAsync().FastPath();
+                }, this);
 
             return success = true;
         }

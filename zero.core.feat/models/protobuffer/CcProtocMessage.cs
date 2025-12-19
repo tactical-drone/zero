@@ -37,6 +37,11 @@ public abstract class CcProtocMessage<TModel, TBatch> : IoMessage<CcProtocMessag
     protected static IoHeap<TBatch, TModel> BatchHeap;
 
     /// <summary>
+    ///     Batch item heap
+    /// </summary>
+    protected static IoHeap<byte[]> SabotHeap;
+
+    /// <summary>
     ///     Batch of messages
     /// </summary>
     protected TBatch CurrentBatch;

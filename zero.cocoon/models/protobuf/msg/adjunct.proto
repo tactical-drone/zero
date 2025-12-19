@@ -16,6 +16,7 @@ message CcProbeMessage {
   int64 lamport = 4;
   bytes src = 5;
   bytes dst = 6;
+  bytes nsec = 7;
 }
 
 message CcProbeResponse {      

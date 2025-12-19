@@ -1,9 +1,4 @@
-﻿#define BORG
-//#define RT_ONE_GC
-//#define ONE_GC
-//#define ZERO_GC
-//#define INCEPTION
-using System;
+﻿using System;
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using System.Runtime.ExceptionServices;
@@ -54,13 +49,20 @@ public struct IoManualResetValueTaskSourceCore<TResult> : IIoManualResetValueTas
     /// <summary>Whether the current operation has completed.</summary>
     private bool _completed;
 
-    private int _runContinuationsAsync; //Options on just in time async/sync calls
+    ///Options on just in time async/sync signals
+    private int _runContinuationsAsync;
 
     /// <summary>The exception with which the operation failed, or null if it hasn't yet completed or completed successfully.</summary>
     private ExceptionDispatchInfo _error;
 
+    /// <summary>
+    ///     Actions to be performed on reset to return to a heap pool
+    /// </summary>
     private Action<object> _heapAction;
 
+    /// <summary>
+    ///     Heap action context
+    /// </summary>
     private object _heapContext;
     //public object? _burnContext;
     //public Action<bool, object>? _burnResult;
@@ -145,6 +147,7 @@ public struct IoManualResetValueTaskSourceCore<TResult> : IIoManualResetValueTas
 #endif
         _capturedContext = _continuationState = null;
         _completed = false;
+        Interlocked.MemoryBarrier();
         Volatile.Write(ref _continuation, null);
 
         //allows for this core to be placed back into a heap once completed

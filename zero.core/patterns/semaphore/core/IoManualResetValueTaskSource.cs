@@ -18,7 +18,7 @@ public class IoManualResetValueTaskSource<T> : IValueTaskSource<T>, IValueTaskSo
     {
         IIoManualResetValueTaskSourceCore<T> coreRef = new IoManualResetValueTaskSourceCore<T>
         {
-            RunContinuationsAsynchronously = runContinuationsAsynchronously,
+            RunContinuationsAsynchronouslyAlways = runContinuationsAsynchronously,
             RunContinuationsUnsafe = runContinuationsNatively
         };
         ZeroRef(ref coreRef);

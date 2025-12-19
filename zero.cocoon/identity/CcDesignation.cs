@@ -18,11 +18,27 @@ namespace zero.cocoon.identity;
 public class CcDesignation
 {
     public const int KeyLength = 64;
-    public const int IdLength = 10;
 
     private const string DevKey = "2BgzYHaa9YpTW6QCe7qWb2JxXg8xAeZq";
 
     private const int AesBlockSize = 16;
+
+    /// <summary>
+    ///     King stallion
+    /// </summary>
+    private const int CH53K = 2; //TODO: 2 should be overkill, more is paranoia
+
+    /// <summary>
+    ///     Sabot round size in millimeter
+    /// </summary>
+    public const int SABOT_MM = 64;
+
+    /// <summary>
+    ///     Hellman round size in millimeter
+    /// </summary>
+    public const int HELLM_MM = 32;
+
+    public const int ZeroRoundSize = HELLM_MM + sabot.Sabot.BlockLength;
 
     private static SecureRandom _secureRandom;
 
@@ -37,7 +53,6 @@ public class CcDesignation
 
     private byte[][] _primedSabot;
 
-    //private byte[] SecretKey { get; private set; }
     private byte[] _secretKey;
 
     private byte[][] _ssf;
@@ -49,7 +64,7 @@ public class CcDesignation
 
     public static SHA256 Sha256 => _sha256 ??= SHA256.Create();
     public byte[] PublicKey { get; private set; }
-    private ECDiffieHellman DiffieHellman => _dh[_dhr];
+    private ECDiffieHellman DiffieHellman => _dh[ZeroRound];
 
     public byte[] Ssf
     {
@@ -57,7 +72,7 @@ public class CcDesignation
         {
             try
             {
-                return _ssf[_dhr];
+                return _ssf[ZeroRound];
             }
             catch
             {
@@ -66,7 +81,7 @@ public class CcDesignation
         }
     }
 
-    public bool Primed => _dhr > 0;
+    public bool Primed => ZeroRound > 0;
 
     public byte[] PrimedSabot
     {
@@ -74,7 +89,7 @@ public class CcDesignation
         {
             try
             {
-                return _primedSabot[_dhr];
+                return _primedSabot[ZeroRound];
             }
             catch
             {
@@ -83,20 +98,32 @@ public class CcDesignation
         }
     }
 
-    public byte[] Iv { get; protected set; }
-    public int Round => _dhr;
+    public byte[][] Iv { get; private set; }
+
+    //public int ZeroRound => Volatile.Read(ref _dhr);
+    public int ZeroRound =>
+        //Console.WriteLine($"{IdString()}({GetHashCode()}) - {GetRound(_dhr).PayloadSig()}");
+        Volatile.Read(ref _dhr);
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public byte[] Sabot(int round)
+    {
+        return _primedSabot[round];
+    }
 
     public void Reset()
     {
         _dhr = _dhrNext = 0;
-        _ssf = new byte[3][];
+        _ssf = new byte[CH53K + 1][];
+
         var dmz = ECDiffieHellman.Create();
-        _dh = new[] { dmz, dmz, ECDiffieHellman.Create() };
-        _primedSabot = new[]
-        {
+        _dh = [dmz, dmz, ECDiffieHellman.Create()];
+        _primedSabot =
+        [
             _dh[0].ExportSubjectPublicKeyInfo(), _dh[1].ExportSubjectPublicKeyInfo(),
             _dh[2].ExportSubjectPublicKeyInfo()
-        };
+        ];
+        Iv = new byte[CH53K + 1][];
     }
 
 
@@ -191,10 +218,14 @@ public class CcDesignation
         return array[..keySize].ArrayEqual(dest);
     }
 
+    //Console.WriteLine($"VERIFY sabot_# = {hash[..keySize].PayloadSig()}, data_# = {payload[..keySize].Span.PayloadSig()}");
+    //Console.WriteLine($"VERIFY `{Convert.ToBase64String(hash[..keySize])}'");
+    //Console.WriteLine($"VERIFY `{Convert.ToBase64String(payload[..keySize].Span)}'");
+
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static bool Signed(byte[] array, ReadOnlyMemory<byte> dest, int keySize)
+    public static bool VerifyHash(byte[] hash, ReadOnlyMemory<byte> payload, int keySize)
     {
-        return array[..keySize].ArrayEqual(dest);
+        return hash[..keySize].ArrayEqual(payload[..keySize]);
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -202,7 +233,6 @@ public class CcDesignation
     {
         return array.ArrayEqual(dest);
     }
-
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public byte[] Sign(byte[] buffer, int offset, int len)
@@ -231,14 +261,17 @@ public class CcDesignation
     {
         try
         {
-            while (aes < Round - 1)
-                UnPrime();
-
             var dhrNext = _dhrNext;
             //if primed do nothing
-            if (aes != Round || msg == null || msg.Length == 0 || dhrNext >= 2 ||
+            if (aes != ZeroRound || msg == null || msg.Length == 0 || dhrNext >= CH53K ||
                 (dhrNext = Interlocked.CompareExchange(ref _dhrNext, dhrNext + 1, dhrNext)) != dhrNext)
+            {
+                if (aes != ZeroRound && ZeroRound < CH53K && aes != 0)
+                    LogManager.GetCurrentClassLogger()
+                        .Warn($"hellman not ready, aes = {aes}, ZeroRound = {ZeroRound}, max = {CH53K}");
                 return;
+            }
+
 
             len = len switch
             {
@@ -255,10 +288,15 @@ public class CcDesignation
             {
                 //var key = ECDiffieHellmanCngPublicKey.FromByteArray(msg[offset..len], CngKeyBlobFormat.EccPublicBlob);
                 var frequency = DiffieHellman.DeriveKeyFromHash(alice.PublicKey, HashAlgorithmName.SHA512);
-                Interlocked.Exchange(ref _ssf[dhrNext + 1], new byte[frequency.Length + sabot.Sabot.BlockLength]);
-                frequency.CopyTo(_ssf[dhrNext + 1]);
+                Debug.Assert(frequency.Length == SABOT_MM);
+                Interlocked.Exchange(ref _ssf[dhrNext + 1], new byte[ZeroRoundSize]);
+                frequency[..ZeroRoundSize].CopyTo(_ssf[dhrNext + 1]);
                 SetIv(PublicKey, pubKey, dhrNext + 1);
-                Interlocked.CompareExchange(ref _dhr, _dhr + 1, _dhr);
+                Interlocked.CompareExchange(ref _dhr, ZeroRound + 1, ZeroRound);
+                Interlocked.MemoryBarrierProcessWide();
+                LogManager.GetCurrentClassLogger()
+                    .Debug(
+                        $"hellman increased to {ZeroRound}, fire = {_ssf[dhrNext + 1].PayloadSig()} <-> {GetRound(dhrNext + 1).PayloadSig()} : {SABOT_MM * sizeof(int)} bit, id = {IdString()}, hash = {GetHashCode()}");
             }
             else
             {
@@ -271,23 +309,25 @@ public class CcDesignation
         }
     }
 
-
-    public ReadOnlyMemory<byte> Sabot(byte[] round)
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public ReadOnlyMemory<byte> Sabot(byte[] premiumAmmo)
     {
-        return sabot.Sabot.ComputeHash(round, output: (byte[])Ssf.Clone(),
+        return sabot.Sabot.ComputeHash(premiumAmmo, output: (byte[])Ssf.Clone(),
             hashLength: Ssf.Length - sabot.Sabot.BlockLength);
     }
 
-    public ReadOnlyMemory<byte> Sabot(ReadOnlySpan<byte> round)
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public ReadOnlyMemory<byte> Sabot(ReadOnlySpan<byte> premiumAmmo, int zeroRound)
     {
-        return sabot.Sabot.ComputeHash(round, output: (byte[])Ssf.Clone(),
-            hashLength: Ssf.Length - sabot.Sabot.BlockLength);
+        return sabot.Sabot.ComputeHash(premiumAmmo, output: GetRound(zeroRound).ToArray(), raw: true, sabot: true);
     }
 
-    public ReadOnlyMemory<byte> Sabot(ReadOnlySpan<byte> round, byte[] hash)
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static ReadOnlyMemory<byte> Sabot(ReadOnlySpan<byte> premiumAmmo, byte[] hash)
     {
-        return sabot.Sabot.ComputeHash(round, output: hash, raw: true);
+        return sabot.Sabot.ComputeHash(premiumAmmo, output: hash, raw: true, sabot: true);
     }
+
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public override bool Equals(object obj)
@@ -353,46 +393,42 @@ public class CcDesignation
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void UnPrime()
     {
-        if (_dhr == 0)
+        if (ZeroRound == 0)
             return;
 
-        var prev = _dhr;
+        var prev = ZeroRound;
         if (_dhr.ZeroPrev(0) != -1)
-            LogManager.GetCurrentClassLogger().Debug($"Hellman down from {prev} to {_dhr}; id = {IdString()}");
+            LogManager.GetCurrentClassLogger()
+                .Debug($"Hellman down from {prev} to {ZeroRound}; id = {IdString()}, h = {GetHashCode()}");
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public (int round, byte[] key) GetRound()
+    public ReadOnlyMemory<byte> GetRound(int round)
     {
-        try
-        {
-            return (_dhr, _ssf[_dhr][..16]);
-        }
-        catch
-        {
-            return _dhr != 0 ? GetRound() : (0, null);
-        }
+        return _ssf[round];
     }
 
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public byte[] GetRound(int round)
+    /// <summary>
+    ///     TODO: What is this?
+    /// </summary>
+    /// <param name="designationPublicKey"></param>
+    /// <param name="publicKey"></param>
+    /// <param name="round"></param>
+    /// <param name="force"></param>
+    public void SetIv(byte[] designationPublicKey, byte[] publicKey, int round, bool force = false)
     {
+        if (Iv[round] != null && !force) return;
+
+        Iv[round] = new byte[AesBlockSize];
         try
         {
-            return _ssf[round][..16];
+            for (var i = 0; i < AesBlockSize; i++)
+                Iv[round][i] = (byte)(designationPublicKey[i] ^ publicKey[i] ^ _primedSabot[round][i]);
         }
-        catch
+        catch (Exception e)
         {
-            return GetRound(round);
+            LogManager.GetCurrentClassLogger().Error(e, $"{nameof(SetIv)}: failed: ");
+            throw;
         }
-    }
-
-
-    public byte[] SetIv(byte[] designationPublicKey, byte[] publicKey, int round)
-    {
-        Iv = new byte[AesBlockSize];
-        for (var i = 0; i < 16; i++) Iv[i] = (byte)(designationPublicKey[i] ^ publicKey[i] ^ _primedSabot[round][i]);
-
-        return Iv;
     }
 }

@@ -18,7 +18,7 @@ public struct IoManualResetValueStructTaskSource<T> : IValueTaskSource<T>, IValu
     {
         IIoManualResetValueTaskSourceCore<T> coreRef = new IoManualResetValueTaskSourceCore<T>
         {
-            RunContinuationsAsynchronously = runContinuationsAsynchronously,
+            RunContinuationsAsynchronouslyAlways = runContinuationsAsynchronously,
             RunContinuationsUnsafe = runContinuationsNatively
         };
         _coreRef = null;
