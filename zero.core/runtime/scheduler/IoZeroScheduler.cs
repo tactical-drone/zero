@@ -155,7 +155,7 @@ public class IoZeroScheduler : TaskScheduler, IDisposable
         //_asyncCallbackWithContextCapacity = _asyncTaskCapacity = _asyncTaskWithContextCapacity = _taskQueueCapacity * 2;
         //_asyncFallbackCapacity = _forkCapacity = _asyncCallbackWithContextCapacity * 2;
 
-        _taskQueueCapacity = Environment.ProcessorCount << 4;
+        _taskQueueCapacity = Environment.ProcessorCount << 3;
         _asyncFallbackCapacity = _taskQueueCapacity >> 1;
 
         _asyncTaskWithContextCapacity = _taskQueueCapacity >> 1;
@@ -195,8 +195,8 @@ public class IoZeroScheduler : TaskScheduler, IDisposable
         //    }
         //};
 
-        _contextHeap = new IoHeap<ZeroValueContinuation>($"{nameof(_contextHeap)}", initialCap,
-            (_, _) => new ZeroValueContinuation(), true)
+        _contextHeap = new IoHeap<ZeroValueContinuation>($"{nameof(_contextHeap)}", initialCap<<1,
+            (_, _) => new ZeroValueContinuation(), false)
         {
             PopAction = (valueTask, _) => { valueTask.Timestamp = Environment.TickCount; }
         };
