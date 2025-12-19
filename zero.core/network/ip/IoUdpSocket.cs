@@ -5,6 +5,7 @@ using System.Net.Sockets;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Threading.Tasks;
+using System.Threading.Tasks.Sources;
 using NLog;
 using zero.core.conf;
 using zero.core.misc;
@@ -244,20 +245,24 @@ public sealed class IoUdpSocket : IoNetSocket
     {
         try
         {
-            var core = new IoManualResetValueStructTaskSource<int>(true);
-            var waitCore = new ValueTask<int>(core, 0);
+            IValueTaskSource<int> core = new IoManualResetValueStructTaskSource<int>(true);
 
             try
             {
-                NativeSocket.BeginSendTo(buffer.AsArray(), offset, length, SocketFlags.None, endPoint,
-                    static result =>
-                    {
-                        var (core, nativeSocket) =
-                            (ValueTuple<IoManualResetValueStructTaskSource<int>, Socket>)result.AsyncState;
-                        core.SetResult(nativeSocket.EndSendTo(result));
-                    },
-                    (core, NativeSocket));
-                return await waitCore.FastPath();
+                return await ZeroAtomicAsync(static async (_, state, _) =>
+                {
+                    state.Item1.NativeSocket.BeginSendTo(state.buffer.AsArray(), state.offset, state.length,
+                        SocketFlags.None, state.endPoint,
+                        static result =>
+                        {
+                            var (core, nativeSocket) =
+                                (ValueTuple<IValueTaskSource<int>, Socket>)result.AsyncState;
+                            ((IoManualResetValueStructTaskSource<int>)core).SetResult(nativeSocket.EndSendTo(result));
+                        }, (state.core, state.Item1.NativeSocket)
+                    );
+                    var waitCore = new ValueTask<int>(state.core, 0);
+                    return await waitCore.FastPath();
+                }, (this, core, buffer, length, offset, endPoint));
             }
             catch (SocketException e) when (!Zeroed() && e.SocketErrorCode == SocketError.OperationAborted)
             {
@@ -387,47 +392,51 @@ public sealed class IoUdpSocket : IoNetSocket
 
                     try
                     {
-                        NativeSocket.BeginReceiveFrom(buffer.AsArray(), offset, length,
-                            SocketFlags.None, ref _anyAddress,
-                            static result =>
-                            {
-                                var (core, @this, remoteEp) =
-                                    (ValueTuple<IoManualResetValueStructTaskSource<int>, IoUdpSocket, byte[]>)result
-                                        .AsyncState;
-                                EndPoint ep = null;
-                                try
+                        lock (NativeSocket)
+                        {
+                            NativeSocket.BeginReceiveFrom(buffer.AsArray(), offset, length,
+                                SocketFlags.None, ref _anyAddress,
+                                static result =>
                                 {
-                                    ep = @this._endPointHeap.Take();
-                                    if (ep == null)
+                                    var (core, @this, remoteEp) =
+                                        (ValueTuple<IoManualResetValueStructTaskSource<int>, IoUdpSocket, byte[]>)result
+                                            .AsyncState;
+                                    EndPoint ep = null;
+                                    try
                                     {
-                                        core.SetException(
-                                            new Exception($"Unable to dq endpoint! {@this._endPointHeap.Description}"));
-                                        return;
-                                    }
+                                        ep = @this._endPointHeap.Take();
+                                        if (ep == null)
+                                        {
+                                            core.SetException(
+                                                new Exception(
+                                                    $"Unable to dq endpoint! {@this._endPointHeap.Description}"));
+                                            return;
+                                        }
 
-                                    var read = @this.NativeSocket.EndReceiveFrom(result, ref ep);
-                                    ep.AsBytes(remoteEp);
-                                    core.SetResult(read);
-                                }
-                                catch when (@this.Zeroed())
-                                {
-                                    core.SetResult(0);
-                                }
-                                catch (SocketException e) when (!@this.Zeroed())
-                                {
-                                    @this.LastError = e.SocketErrorCode;
-                                    core.SetResult(0);
-                                }
-                                catch (Exception e) when (!@this.Zeroed())
-                                {
-                                    @this._logger.Error(e, $"{nameof(ReceiveAsync)}: Failed!; {@this.Description}");
-                                    core.SetException(e);
-                                }
-                                finally
-                                {
-                                    @this._endPointHeap?.Return((IPEndPoint)ep);
-                                }
-                            }, (core, this, remoteEp));
+                                        var read = @this.NativeSocket.EndReceiveFrom(result, ref ep);
+                                        ep.AsBytes(remoteEp);
+                                        core.SetResult(read);
+                                    }
+                                    catch when (@this.Zeroed())
+                                    {
+                                        core.SetResult(0);
+                                    }
+                                    catch (SocketException e) when (!@this.Zeroed())
+                                    {
+                                        @this.LastError = e.SocketErrorCode;
+                                        core.SetResult(0);
+                                    }
+                                    catch (Exception e) when (!@this.Zeroed())
+                                    {
+                                        @this._logger.Error(e, $"{nameof(ReceiveAsync)}: Failed!; {@this.Description}");
+                                        core.SetException(e);
+                                    }
+                                    finally
+                                    {
+                                        @this._endPointHeap?.Return((IPEndPoint)ep);
+                                    }
+                                }, (core, this, remoteEp));
+                        }
 
 
                         return await waitCore.FastPath();

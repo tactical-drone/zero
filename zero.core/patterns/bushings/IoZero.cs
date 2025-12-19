@@ -266,7 +266,7 @@ public abstract class IoZero<TJob> : IoNanoprobe, IIoZero
 #endif
 
                 var ts = Environment.TickCount;
-                //Produce job input
+                //Produce job input. High likelihood of blocked IO here
                 if ((!Zeroed() && await nextJob.ProduceAsync(this).FastPath() == IoJobMeta.JobState.Produced) ||
                     nextJob.State == IoJobMeta.JobState.ProdConnReset)
                 {
@@ -279,7 +279,8 @@ public abstract class IoZero<TJob> : IoNanoprobe, IIoZero
                         Interlocked.Exchange(ref nextJob.FragmentIdx,
                             await _previousJobFragment.EnqueueAsync(nextJob).FastPath());
 
-                        if (nextJob.FragmentIdx== null || _previousJobFragment.Count >= _previousJobFragment.Capacity * 7 / 8)
+                        if (nextJob.FragmentIdx == null ||
+                            _previousJobFragment.Count >= _previousJobFragment.Capacity * 7 / 8)
                         {
                             purge:
                             var flushedJob = await _previousJobFragment.DequeueAsync().FastPath();
@@ -300,7 +301,7 @@ public abstract class IoZero<TJob> : IoNanoprobe, IIoZero
                     if (nextJob.State != IoJobMeta.JobState.ProdConnReset)
                         await nextJob.SetStateAsync(IoJobMeta.JobState.Queued).FastPath();
 
-                    if (!_queue.Release(nextJob))//False because backpressure is applied
+                    if (!_queue.Release(nextJob, true)) //true or else we loose the thread
                     {
                         ts = ts.ElapsedMs();
 

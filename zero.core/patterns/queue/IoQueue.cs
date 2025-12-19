@@ -293,7 +293,7 @@ public class IoQueue<T> : IEnumerable<IoQueue<T>.IoZNode>
                         Interlocked.Decrement(ref _insaneExclusive);
 #endif
                         _syncRoot.Release(Environment.TickCount, true);
-                        _pressure?.Release(Environment.TickCount);//false because backpressure
+                        _pressure?.Release(Environment.TickCount, true); //false because backpressure
                     }
             }
         }
@@ -361,7 +361,7 @@ public class IoQueue<T> : IEnumerable<IoQueue<T>.IoZNode>
                     Interlocked.Decrement(ref _insaneExclusive);
 #endif
                     _syncRoot.Release(Environment.TickCount, true);
-                    _pressure?.Release(Environment.TickCount);//false because backpressure
+                    _pressure?.Release(Environment.TickCount, true);
                 }
             }
         }
@@ -430,7 +430,7 @@ public class IoQueue<T> : IEnumerable<IoQueue<T>.IoZNode>
                         }
 
                         _syncRoot.Release(Environment.TickCount, true);
-                        _backPressure?.Release(Environment.TickCount);//false because backpressure
+                        _backPressure?.Release(Environment.TickCount,true); 
                     }
                     catch when (_zeroed > 0)
                     {
@@ -541,7 +541,7 @@ public class IoQueue<T> : IEnumerable<IoQueue<T>.IoZNode>
             NodeHeap.Return(node, deDup); //TODO, up one?
 
             _syncRoot.Release(Environment.TickCount, true);
-            _backPressure?.Release(Environment.TickCount);//false because backpressure
+            _backPressure?.Release(Environment.TickCount, true); //false because backpressure
         }
     }
 

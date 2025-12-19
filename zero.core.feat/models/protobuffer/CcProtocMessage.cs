@@ -342,7 +342,7 @@ public abstract class CcProtocMessage<TModel, TBatch> : IoMessage<CcProtocMessag
 
                         var spinWait = new SpinWait();
                         retry:
-                        if (!chan.Release(nextBatch, true))
+                        if (!chan.Release(nextBatch)) //False because our consumers cannot go down rabbit holes
                         {
                             if (retried-- > 0 || chan.WaitCount > 0)
                             {

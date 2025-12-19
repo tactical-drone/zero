@@ -121,7 +121,7 @@ public class IoNanoprobe : IIoNanite, IAsyncDisposable, IDisposable
     /// </summary>
     static IoNanoprobe()
     {
-        Volatile.Write(ref ZeroRoot, ZeroSyncRoot(Environment.ProcessorCount >> 1, new CancellationTokenSource()));
+        Volatile.Write(ref ZeroRoot, ZeroSyncRoot(Environment.ProcessorCount >> 7, new CancellationTokenSource()));
         _logger = LogManager.GetCurrentClassLogger();
     }
 
@@ -460,7 +460,6 @@ public class IoNanoprobe : IIoNanite, IAsyncDisposable, IDisposable
         return false;
     }
 
-
     /// <summary>
     ///     Returns the hive mind subscriptions
     /// </summary>
@@ -493,6 +492,75 @@ public class IoNanoprobe : IIoNanite, IAsyncDisposable, IDisposable
             return false;
 
         return Serial == other.Serial;
+    }
+
+    /// <summary>
+    ///     Execute atomic actions with int return type
+    /// </summary>
+    /// <typeparam name="T">callback context</typeparam>
+    /// <param name="ownershipAction">The callback that returns an int</param>
+    /// <param name="userData">context</param>
+    /// <param name="disposing">if we are disposing</param>
+    /// <param name="force">Force execution even if zeroed</param>
+    /// <returns>Ownership action result, the int returned by the callback, or -1 on failure</returns>
+    public async ValueTask<int> ZeroAtomicAsync<T>(Func<IIoNanite, T, bool, ValueTask<int>> ownershipAction,
+        T userData = default, bool disposing = false, bool force = false)
+    {
+        //insane checks
+        if (_zeroed > 0 && !force)
+            return -1;
+
+        try
+        {
+            await ZeroRoot.WaitAsync().FastPath();
+
+            //insane checks
+            if (_zeroed > 0 && !force)
+                return -1;
+
+            try
+            {
+                if (!force)
+                {
+                    if (_zeroed == 0)
+                        return await ownershipAction(this, userData, disposing).FastPath();
+                    return -1;
+                }
+                else
+                {
+                    return await ownershipAction(this, userData, disposing).FastPath();
+                }
+            }
+            catch when (Zeroed())
+            {
+            }
+            catch (Exception e) when (!Zeroed())
+            {
+                _logger.Error(e,
+                    $"{Description}: Unable to ensure action {ownershipAction}, target = {ownershipAction.Target}");
+            }
+        }
+        catch (TaskCanceledException)
+        {
+        }
+        catch when (Zeroed())
+        {
+        }
+        catch (Exception e) when (!Zeroed())
+        {
+            _logger.Error(e, $"Unable to ensure ownership in {Description}");
+        }
+        finally
+        {
+#if DEBUG
+            //TODO: we moved it here, the one at the top works but needs Interlocked.MemoryBarrierProcessWide();
+            //Debug.Assert(Zeroed() || ZeroRoot.Zeroed() || ZeroRoot.ReadyCount == 0, $"{nameof(ZeroRoot)}: [FAILED], ReadyCount = {ZeroRoot.ReadyCount}, wait = {ZeroRoot.WaitCount}");
+            Debug.Assert(Zeroed() || ZeroRoot.Zeroed() || ZeroRoot.ReadyCount == 0);
+#endif
+            ZeroRoot.Release(Environment.TickCount, true);
+        }
+
+        return -1;
     }
 
     /// <summary>

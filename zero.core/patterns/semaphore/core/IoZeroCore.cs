@@ -278,7 +278,8 @@ public struct IoZeroCore<T> : IIoZeroSemaphoreBase<T>
 
                     if (@this._heapCore.TryEnqueue(blockingCore) < 0)
                         if (@this._heapCore.Count >= @this._heapCore.Capacity)
-                            LogManager.GetCurrentClassLogger().Trace($"Core Heap Overflow - {@this._heapCore.Description}");
+                            LogManager.GetCurrentClassLogger()
+                                .Trace($"Core Heap Overflow - {@this._heapCore.Description}");
                     for (var i = 0; i < @this._heapCore.Count >> 1; i++)
                         @this._heapCore.TryDequeue(out _);
                 }, (this, blockingCore));

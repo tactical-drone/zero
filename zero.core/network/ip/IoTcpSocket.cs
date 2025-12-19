@@ -355,11 +355,10 @@ internal sealed class IoTcpSocket : IoNetSocket
     {
         try
         {
-            //if (!NativeSocket.Poll(parm_socket_poll_wait_ms, SelectMode.SelectWrite))
-            //    return 0;
-
-            return await NativeSocket.SendAsync(buffer.Slice(offset, length), SocketFlags.None,
-                timeout > 0 ? new CancellationTokenSource(timeout).Token : AsyncTasks.Token).FastPath();
+            return await ZeroAtomicAsync(static async (_, state, _) => await state.Item1.NativeSocket.SendAsync(
+                    state.buffer.Slice(state.offset, state.length), SocketFlags.None,
+                    state.timeout > 0 ? new CancellationTokenSource(state.timeout).Token : state.Item1.AsyncTasks.Token)
+                .FastPath(), (this, buffer, length, offset, timeout));
         }
         catch (SocketException e)
         {
@@ -430,8 +429,10 @@ internal sealed class IoTcpSocket : IoNetSocket
     {
         try
         {
-            return await NativeSocket.ReceiveAsync(buffer.Slice(offset, length), SocketFlags.None,
-                timeout > 0 ? new CancellationTokenSource(timeout).Token : AsyncTasks.Token).FastPath();
+            return await ZeroAtomicAsync(static async (_, state, _) => await state.Item1.NativeSocket.ReceiveAsync(
+                    state.buffer.Slice(state.offset, state.length), SocketFlags.None,
+                    state.timeout > 0 ? new CancellationTokenSource(state.timeout).Token : state.Item1.AsyncTasks.Token)
+                .FastPath(), (this, buffer, length, offset, timeout));
         }
         catch (ObjectDisposedException)
         {
