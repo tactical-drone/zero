@@ -80,7 +80,7 @@ public class IoTimer : IIoTimer
 
     public IoTimer(TimeSpan timeout, CancellationToken token = default)
     {
-        _signal = new IoZeroResetValueTaskSource<int>(true);
+        _signal = new IoZeroResetValueTaskSource<int>(false);
         _make(timeout, _signal, token);
     }
 

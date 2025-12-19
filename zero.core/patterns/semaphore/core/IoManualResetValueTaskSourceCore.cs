@@ -147,7 +147,6 @@ public struct IoManualResetValueTaskSourceCore<TResult> : IIoManualResetValueTas
 #endif
         _capturedContext = _continuationState = null;
         _completed = false;
-        Interlocked.MemoryBarrier();
         Volatile.Write(ref _continuation, null);
 
         //allows for this core to be placed back into a heap once completed

@@ -404,7 +404,6 @@ public class IoZeroQ<T> : IEnumerable<T>
                         Interlocked.Increment(ref _head.Index);
                         qStorage = default;
                         spinWait.Reset();
-                        Interlocked.MemoryBarrier();
                     }
 
                 @return = default;
@@ -415,7 +414,7 @@ public class IoZeroQ<T> : IEnumerable<T>
             var latchOp = _opCounter;
             _fastStorageTime[index] = Interlocked.Increment(ref _opCounter) - 1;
 
-            if (_fastStorageTime[index] - latchOp > 3)
+            if (_fastStorageTime[index] - latchOp > 8)
                 Console.WriteLine(
                     $"-------> & zero skew ({_opCounter - latchOp}/{Capacity}) == ({(_opCounter - latchOp) / (float)Capacity * 100:0.0}%)");
             _lastRemoveIndex = latchedIndex;

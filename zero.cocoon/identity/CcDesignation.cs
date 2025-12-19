@@ -308,7 +308,6 @@ public class CcDesignation
                 frequency[..ZeroRoundSize].CopyTo(_ssf[dhrNext + 1]);
                 SetIv(PublicKey, pubKey, dhrNext + 1);
                 Interlocked.CompareExchange(ref _dhr, ZeroRound + 1, ZeroRound);
-                Interlocked.MemoryBarrierProcessWide();
                 LogManager.GetCurrentClassLogger()
                     .Debug(
                         $"hellman increased to {ZeroRound}, fire = {_ssf[dhrNext + 1].PayloadSig()} <-> {GetRound(dhrNext + 1).PayloadSig()} : {SABOT_MM * sizeof(int)} bit, id = {IdString()}, hash = {GetHashCode()}");

@@ -209,7 +209,6 @@ public class IoHeap<TItem, TContext>
             {
                 if (!IsAutoScaling)
                 {
-                    Interlocked.MemoryBarrierProcessWide();
                     if (Volatile.Read(ref _refCount) < Capacity)
                     {
                         sw.SpinOnce();
