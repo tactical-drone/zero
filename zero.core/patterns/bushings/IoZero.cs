@@ -279,7 +279,7 @@ public abstract class IoZero<TJob> : IoNanoprobe, IIoZero
                         Interlocked.Exchange(ref nextJob.FragmentIdx,
                             await _previousJobFragment.EnqueueAsync(nextJob).FastPath());
 
-                        if (_previousJobFragment.Count >= _previousJobFragment.Capacity * 7 / 8)
+                        if (nextJob.FragmentIdx== null || _previousJobFragment.Count >= _previousJobFragment.Capacity * 7 / 8)
                         {
                             purge:
                             var flushedJob = await _previousJobFragment.DequeueAsync().FastPath();
